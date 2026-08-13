@@ -55,7 +55,9 @@ func layout() -> void:
 		add_hot(Rect2(11.0, _y_cond - float(style.fs(12)) - 6.0, WIDTH - 22.0,
 			float(style.fs(12)) + 12.0), "Condition",
 			"Cold citizens fall sick, sick citizens stop working, and citizens who "
-			+ "stay sick in the cold die. The dead never come back.")
+			+ "stay sick in the cold die. The dead never come back. Average health "
+			+ "%s, average morale %s." % [LcnHudFormat.percent(probe.health01),
+				LcnHudFormat.percent(probe.morale01)])
 		_row(y, "body warmth", "Body warmth",
 			"How warm the average citizen actually is, not how warm the air is. "
 			+ "Below 40% they start falling ill; below 12% the cold begins taking "
@@ -75,7 +77,9 @@ func layout() -> void:
 		y += ROW
 		_row(y, "discontent", "Discontent",
 			"How angry they are with you. Harsh laws and hard shifts raise it. Let "
-			+ "it fill and the city stops doing what you tell it.")
+			+ "it fill and the city stops doing what you tell it. %s of the city is "
+			+ "already bitter enough to make trouble."
+			% LcnHudFormat.percent(probe.unrest01))
 		y += ROW
 	_height = y + 6.0
 	custom_minimum_size = Vector2(WIDTH, _height)

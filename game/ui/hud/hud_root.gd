@@ -414,7 +414,22 @@ func _footer_sig() -> String:
 		parts.append("%s%d" % [t.get("text", ""), int(t.get("count", 1))])
 	if _context != null:
 		parts.append(_context_line())
+	parts.append(_works_line())
 	return "|".join(parts)
+
+
+## What the city is quietly getting on with: sites under construction and the
+## research in progress. Bottom-right, small, and absent when there is neither —
+## this is background, not news.
+func _works_line() -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	if probe.sites_pending > 0:
+		parts.append("%d site%s building" % [probe.sites_pending,
+			"" if probe.sites_pending == 1 else "s"])
+	if probe.research_title != "":
+		parts.append("%s %s" % [probe.research_title,
+			LcnHudFormat.percent(probe.research_progress)])
+	return "  ·  ".join(parts)
 
 
 func _context_line() -> String:
@@ -445,6 +460,11 @@ func _draw_footer() -> void:
 		style.draw_plate(_footer, rect, 0.25, LcnHudStyle.Sev.CALM, 7717)
 		style.draw_text(_footer, Vector2(rect.position.x + 14.0, rect.position.y + 16.0),
 			line, size_px, style.ink_dim())
+
+	var works: String = _works_line()
+	if works != "":
+		style.draw_text_right(_footer, w - 18.0, h - 14.0, works, style.fs(11),
+			style.ink_faint())
 
 	var y: float = h - 52.0
 	var toast_list: Array[Dictionary] = alerts.toasts()

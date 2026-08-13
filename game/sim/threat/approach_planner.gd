@@ -27,7 +27,9 @@ extends RefCounted
 ## writes); rescoring is one pass over the building list, which is why it can
 ## run every few seconds during a night without showing up in the tick budget.
 
-const DEFENCE_REFRESH_TICKS: int = 100
+## Candidate indices past this do not fit in the corridor bitmask and are not
+## scored. No map generator produces anything close to thirty approach lanes.
+const MAX_MASKED_VECTORS: int = 30
 
 var _profile: ThreatProfile = null
 var _grid: SimSystem = null
@@ -45,8 +47,6 @@ var _candidates: Array[ThreatVector] = []
 ## between two roads genuinely defends both, and giving it to whichever lane was
 ## painted first would read a fortified side as an open one.
 var _zone: Dictionary[Vector2i, int] = {}
-## Candidates whose index fits in the mask. Anything past this is not scored.
-const MAX_MASKED_VECTORS: int = 30
 ## Cached per-kind classification, so rescoring never touches the Registry.
 var _kind_cache: Dictionary[StringName, Dictionary] = {}
 ## Offsets of a disc of radius `lane_corridor_radius`, precomputed once.

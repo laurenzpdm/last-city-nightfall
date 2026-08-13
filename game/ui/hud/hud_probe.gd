@@ -53,7 +53,6 @@ var storm_active: bool = false
 var storm_title: String = ""
 var seconds_to_storm: float = -1.0
 var era_title: String = ""
-var climate_severity: float = 0.0
 var heat_loss_multiplier: float = 1.0
 
 # --- heat --------------------------------------------------------------------
@@ -68,7 +67,6 @@ var heat_buffer_capacity: float = 0.0
 var heat_networks: int = 0
 var heat_frozen: int = 0
 var heat_brownouts: int = 0
-var heat_avg_warmth: float = 0.0
 ## Worst-first, at most MAX_SHORT_NETWORKS entries. Each is one whole
 ## `network_stats()` dictionary plus a `title` the player can read.
 var short_networks: Array[Dictionary] = []
@@ -120,7 +118,6 @@ var turret_uptime: float = 1.0
 
 # --- build / economy ---------------------------------------------------------
 var has_build: bool = false
-var buildings_total: int = 0
 var sites_pending: int = 0
 var stalled_machines: int = 0
 var stock: Dictionary[StringName, int] = {}
@@ -288,7 +285,6 @@ func _read_climate() -> void:
 	storm_title = _ask_str(_climate, [&"storm_title"], [], "")
 	seconds_to_storm = _ask(_climate, [&"seconds_until_storm"], [], -1.0)
 	era_title = _ask_str(_climate, [&"era_title"], [], "")
-	climate_severity = _ask(_climate, [&"severity"], [], 0.0)
 	heat_loss_multiplier = _ask(_climate, [&"heat_loss_multiplier"], ["heat_loss_mult"], 1.0)
 	var daylight: float = _ask(_climate, [&"daylight_seconds"], [], 0.0)
 	var whole_day: float = _ask(_climate, [&"day_length_seconds"], [], 0.0)
@@ -335,7 +331,6 @@ func _read_heat(tick: int) -> void:
 	heat_networks = int(t.get("networks", 0))
 	heat_frozen = int(t.get("frozen", 0))
 	heat_brownouts = int(t.get("brownouts", 0))
-	heat_avg_warmth = float(t.get("avg_warmth", 0.0))
 
 	if not _heat.has_method("network_stats"):
 		return
@@ -659,7 +654,6 @@ func _read_build() -> void:
 	has_build = _build != null
 	if not has_build:
 		return
-	buildings_total = int(_ask(_build, [&"building_count"], ["buildings"], 0.0))
 	sites_pending = int(_ask(_build, [], ["sites", "pending"], 0.0))
 	if _production != null:
 		stalled_machines = int(_ask(_production, [], ["stalled"], 0.0))

@@ -357,7 +357,16 @@ func _buildings() -> Array[BuildingDef]:
 	rec.heat_produced = 15.0
 	rec.fuel_items = [&"waste_heat"] as Array[StringName]
 	rec.fuel_burn_rate = 3.0
-	rec.heat_insulation = 0.5
+	# A recuperator that only ever gives has a cold-start problem: with no waste
+	# to burn it produces nothing, cools, and freezes solid before the first
+	# smelter beside it has finished a craft. So it also DRAWS a trickle. While
+	# it is producing it covers that itself; while it is starved it is not a live
+	# source, so the grid can reach it and keep it above freezing. The buffer is
+	# the flywheel between the two, and heavy insulation is what a stack of
+	# exchanger coil actually is.
+	rec.heat_consumed = 2.0
+	rec.heat_buffer = 90.0
+	rec.heat_insulation = 0.8
 	rec.hp = 420.0
 	rec.connects_as = [&"heat", &"power"] as Array[StringName]
 	rec.tint = Color(0.84, 0.58, 0.36)

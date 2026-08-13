@@ -73,7 +73,10 @@ func layout() -> void:
 	add_hot(Rect2(14.0, _y_sub - float(style.fs(13)) - 5.0, WIDTH - 28.0,
 		float(style.fs(13)) + 11.0), "Outside",
 		"Air temperature, and the weather driving it. Cold air raises what every "
-		+ "building has to draw from the grid just to keep itself warm.")
+		+ "building has to draw from the grid just to keep itself warm — right now "
+		+ "%.1f times what it would cost on a still, clear day.%s"
+		% [probe.heat_loss_multiplier,
+			"" if probe.wind < 0.15 else " The wind is stripping heat off anything outdoors."])
 
 
 func _draw() -> void:

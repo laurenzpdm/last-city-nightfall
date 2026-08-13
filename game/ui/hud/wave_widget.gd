@@ -75,7 +75,11 @@ func layout() -> void:
 	add_hot(Rect2(right, _y_force - float(style.fs(9)) - 8.0, WIDTH - right - 11.0,
 		float(style.fs(9)) + 14.0), "Strength",
 		"How hard this wave hits compared to the ones before it. It grows with the "
-		+ "night, with the era, and with how comfortable your city looks.")
+		+ "night, with the era, and with how comfortable your city looks."
+		+ ("" if probe.turrets_total <= 0 else
+			" You have %d turret%s, firing %s of the time — every shot is heat off "
+			% [probe.turrets_total, "" if probe.turrets_total == 1 else "s",
+				LcnHudFormat.percent(probe.turret_uptime)] + "the grid."))
 
 
 func _draw() -> void:
