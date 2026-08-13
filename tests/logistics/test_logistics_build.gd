@@ -232,6 +232,21 @@ func test_a_dragged_corner_actually_carries_items_round_it() -> void:
 		"coal put on the west end has to come out at the south end")
 
 
+func test_a_row_of_arms_all_face_the_way_the_player_was_holding_them() -> void:
+	var o: Vector2i = _area_of(Vector2i(6, 3))
+	if o == Vector2i.MAX:
+		skip("no clear ground on this seed")
+		return
+	# Dragged east, held facing south. A drag re-aims BELTS, because a belt is a
+	# path; it must not re-aim arms, because chaining them would point every arm
+	# at the next arm instead of into the machine the player is feeding.
+	_drag("inserter_mk1", o + Vector2i(0, 1), o + Vector2i(4, 1), 1)
+	world.run(80)
+	for i: int in 5:
+		assert_eq(_rot_at(o + Vector2i(i, 1)), 1,
+			"arm %d must still face south" % i)
+
+
 func test_a_single_click_keeps_the_rotation_the_player_chose() -> void:
 	var o: Vector2i = _run_of(4)
 	if o == Vector2i.MAX:

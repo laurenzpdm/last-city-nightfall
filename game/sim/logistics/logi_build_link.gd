@@ -49,12 +49,17 @@ var pieces_oriented: int = 0
 var corners_turned: int = 0
 
 
-## True when this building has never been seen before and was taken down.
-func note(id: int, kind: StringName, cell: Vector2i, rot: int, tick: int) -> bool:
+## Records a freshly placed piece. `transport` is true for belts and tunnels —
+## the only things a drag re-aims. A row of inserters laid with one drag all face
+## the way the player was holding R, exactly as they do in Factorio: chaining
+## them along the drag would point every arm at the next arm.
+func note(id: int, kind: StringName, cell: Vector2i, rot: int, tick: int,
+		transport: bool = true) -> bool:
 	if _noted.has(id):
 		return false
 	_noted[id] = true
-	_fresh.append({"id": id, "kind": kind, "cell": cell, "rot": rot, "tick": tick})
+	_fresh.append({"id": id, "kind": kind, "cell": cell, "rot": rot, "tick": tick,
+		"transport": transport})
 	return true
 
 
@@ -95,6 +100,8 @@ func resolve() -> Array[Dictionary]:
 
 ## True when `b` is the next tile of the same drag as `a`.
 func _continues(a: Dictionary, b: Dictionary) -> bool:
+	if not bool(a.get("transport", true)) or not bool(b.get("transport", true)):
+		return false
 	if int(a["tick"]) != int(b["tick"]) or StringName(a["kind"]) != StringName(b["kind"]):
 		return false
 	var step: Vector2i = (b["cell"] as Vector2i) - (a["cell"] as Vector2i)

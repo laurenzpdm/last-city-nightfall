@@ -593,7 +593,8 @@ func _sync_from_build() -> void:
 			# Recorded the moment the site exists, finished or not: the facing of
 			# a dragged run is decided by the run, and the run is only legible
 			# while all of it is still fresh.
-			link.note(id, mine.id, b.get("cell"), int(b.get("rot")), int(b.get("placed_tick")))
+			link.note(id, mine.id, b.get("cell"), int(b.get("rot")),
+				int(b.get("placed_tick")), mine.is_transport())
 		if not bool(b.call("is_complete")):
 			continue
 		seen[id] = true

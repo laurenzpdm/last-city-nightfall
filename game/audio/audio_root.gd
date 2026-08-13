@@ -36,6 +36,9 @@ const NODE_NAME: String = "LcnAudio"
 ## the oldest are the least interesting.
 const MAX_PENDING: int = 192
 
+## Seconds between the summary line written to the log.
+const SUMMARY_SECONDS: float = 20.0
+
 ## Seconds between repeats of a cue that fires on a per-entity signal. Without
 ## these a hundred citizens freezing on the same tick is a hundred bells.
 const THROTTLE: Dictionary[StringName, float] = {
@@ -70,6 +73,7 @@ var _bound: bool = false
 var _ready_logged: bool = false
 var _report_written: bool = false
 var _frames: int = 0
+var _since_summary: float = 0.0
 ## Peak microseconds per stage of the frame, so a slow frame can be attributed
 ## instead of argued about.
 var _stage_usec: Dictionary[StringName, int] = {&"bake": 0, &"probe": 0, &"layers": 0, &"voices": 0}
@@ -475,6 +479,8 @@ func report() -> Dictionary:
 
 ## One log line dense enough to diagnose the mix from a harness log.
 func summary() -> String:
+	if pool == null or music == null or chorus == null or probe == null:
+		return "audio not assembled"
 	var v: Dictionary = pool.report()
 	var m: Dictionary = music.report()
 	return ("buses=%d voices=%d/%d peak=%d played=%d coalesced=%d stolen=%d "

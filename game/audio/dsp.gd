@@ -138,14 +138,6 @@ static func normalize_to(buf: PackedFloat32Array, count: int, target: float) -> 
 	return g
 
 
-## Gentle saturation. Keeps transients inside the rails without the brittle
-## edge of a hard clip — the difference between "industrial" and "broken".
-static func soft_clip(x: float) -> float:
-	if x > 1.0 or x < -1.0:
-		return signf(x) * (2.0 - 1.0 / absf(x)) * 0.5 + signf(x) * 0.5
-	return x - (x * x * x) / 3.0 * 0.5
-
-
 ## Replaces any non-finite sample with silence and reports how many there were.
 ## Called once per built stream: a single NaN reaching AudioServer is audible as
 ## a click on every platform and reads as an engine fault on some.

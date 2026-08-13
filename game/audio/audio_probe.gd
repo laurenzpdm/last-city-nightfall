@@ -29,7 +29,6 @@ var has_heat: bool = false
 var hearth01: float = 1.0          ## how well the fire is doing, 0..1
 var hearth_pos: Vector2 = Vector2.ZERO
 var has_hearth_pos: bool = false
-var heat_deficit01: float = 0.0
 var frozen_buildings: int = 0
 
 # --- the factory -------------------------------------------------------------
@@ -162,9 +161,7 @@ func _read_heat() -> void:
 	var m: Dictionary = _metrics(_heat)
 	var supply: float = float(m.get("total_supply", 0.0))
 	var demand: float = float(m.get("total_demand", 0.0))
-	var deficit: float = float(m.get("deficit", 0.0))
 	frozen_buildings = int(m.get("frozen_buildings", 0))
-	heat_deficit01 = 0.0 if demand <= 0.01 else clampf(deficit / demand, 0.0, 1.0)
 	# The hearth's health is the served fraction of the grid it anchors, pulled
 	# down hard by anything frozen. It is deliberately the most sensitive reading
 	# in this file: the fire weakening is the thing the player must feel first.

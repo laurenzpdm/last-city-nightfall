@@ -49,6 +49,11 @@ func _ready() -> void:
 	# The whole view has to exist even without a display, or this suite could
 	# only ever run on a developer's desk. LcnLayers is the one switch for that.
 	LcnLayers.force_install = true
+	# The pointer sits at (0, 0) in a windowless run, which is an edge-scroll
+	# command as far as [P16] is concerned: over a hundred and fifty frames the
+	# camera walks off the city and every view-culled layer correctly draws
+	# nothing. Switch it off for the duration.
+	Settings.gameplay["edge_scroll"] = false
 	_run.call_deferred()
 
 
@@ -108,8 +113,7 @@ func _build_session() -> void:
 		# half of the frame and [P22]'s day-one chapter card — which opens on
 		# every real session and is centred — does not stand between the camera
 		# and the thing being photographed.
-		_camera.focus_on(Vector2(_core) * 32.0 + Vector2(0.0, -300.0), true)
-		_camera.set_zoom_level(1.15, false)
+		_recentre()
 	await _frames(3)
 	_check(_feel.is_inside_tree(), "the feel layer is in the scene tree")
 	_check(_feel.world.is_inside_tree(), "the world FX surface is in the tree")
@@ -266,6 +270,21 @@ func _beat_assault() -> void:
 ## the layer still has to be alive and drawing the informative parts.
 func _beat_reduce_motion() -> void:
 	var saved: bool = bool(Settings.accessibility.get("reduce_motion", false))
+	# By this point the world has run into a real night and most of the city has
+	# frozen, and a frozen structure legitimately stops breathing — so put one
+	# warm, working thing back on the map, or this beat would assert that nothing
+	# equals nothing.
+	Sim.submit_command({"system": &"build", "op": "place", "kind": "coal_generator",
+		# Above the core, because the camera is aimed above the city and a
+		# structure placed below it would sit outside the frame — which looks
+		# exactly like a layer that stopped working.
+		"cell": [_core.x - 8, _core.y - 7], "rot": 0, "free": true, "instant": true})
+	SimClock.advance(2)
+	# Counted BEFORE the toggle. By this point the world has run into a real
+	# night and part of the city has frozen, and a frozen structure legitimately
+	# stops breathing — so the honest assertion is that reduce motion changes
+	# nothing about WHAT is lit, only about whether it moves.
+	var anchors_before: int = int((_feel.stats()["idle"] as Dictionary)["anchors"])
 	Settings.accessibility["reduce_motion"] = true
 	_feel.world.pool.clear()
 	Bus.night_started.emit(2)
@@ -275,13 +294,30 @@ func _beat_reduce_motion() -> void:
 	_check(float((s["screen"] as Dictionary)["sweep"]) == 0.0,
 		"reduce motion: no screen sweep")
 	_check(not bool(s["hit_stop"]), "reduce motion: no hit-stop")
-	_check(int((s["idle"] as Dictionary)["anchors"]) > 0,
-		"reduce motion: the city still shows its warmth, it just stops moving")
+	# Re-frame first: 170 frames have passed since the last time anything aimed
+	# the camera, and this beat is about warmth, not about where the lens is.
+	_recentre()
+	await _frames(35)
+	var idle_before: Dictionary = _feel.stats()["idle"]
+	_check(anchors_before > 0,
+		"there is warmth on the map to preserve (%d anchors from %d seen, %d in view, zoom %.2f)" % [
+			anchors_before, int(idle_before["seen"]), int(idle_before["in_view"]),
+			float(idle_before["zoom"])])
+	_check(int((s["idle"] as Dictionary)["anchors"]) == anchors_before,
+		"reduce motion: the same %d anchors stay lit, they just stop moving" % anchors_before)
 	await _shoot("13_reduce_motion")
 	Settings.accessibility["reduce_motion"] = saved
 
 
 # ------------------------------------------------------------------ plumbing --
+
+## Puts the camera back where the gallery wants it, aimed above the settlement.
+func _recentre() -> void:
+	if _camera == null:
+		return
+	_camera.focus_on(Vector2(_core) * 32.0 + Vector2(0.0, -300.0), true)
+	_camera.set_zoom_level(1.15, false)
+
 
 func _first_building_id() -> int:
 	if _build == null:

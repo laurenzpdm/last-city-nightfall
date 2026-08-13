@@ -109,7 +109,11 @@ func update(delta: float, probe: LcnAudioProbe) -> void:
 	var busy: float = 0.0
 	if probe.has_production and probe.machines > 0:
 		busy = clampf(float(probe.machines_active) / float(probe.machines), 0.0, 1.0)
+		# Scaled by how much industry there IS, so the hum is a reward for having
+		# built a city rather than a constant that arrives with the first shed.
 		busy *= clampf(float(probe.machines) / 6.0, 0.15, 1.0)
+	if probe.has_society and probe.population > 0:
+		busy = maxf(busy, clampf(float(probe.population) / 60.0, 0.0, 0.45))
 	# A city asleep is a city that has stopped making its own noise.
 	var awake: float = 1.0 if not probe.is_night else 0.45
 	if probe.is_deep_night:
