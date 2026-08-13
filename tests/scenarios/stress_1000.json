@@ -1,6 +1,6 @@
 {
   "name": "stress_1000",
-  "description": "Over a thousand buildings and a thousand hostiles on one map. Not a balance run \u2014 a clock. tools/perf.sh reads wall_ms out of this and fails the build when ticks/second falls through the floor.",
+  "description": "The performance gate. Builds a real city of well over a thousand structures on one connected heat grid - trunks, spurs, radiators, housing, generators and a full perimeter wall - then runs it through nightfall. The wall is deliberately plain: most of a real city is buildings no system owns, and that is exactly the case that used to cost the whole tick budget.",
   "tags": [
     "perf",
     "gate"
@@ -8,73 +8,743 @@
   "seed": 4242,
   "ticks": 3000,
   "sample_every": 50,
+  "expects": {
+    "min_ticks_per_second": 100,
+    "target_ticks_per_second": 400,
+    "max_errors": 0,
+    "min_buildings": 1000
+  },
   "script": [
     {
-      "tick": 2,
+      "tick": 1,
       "cmd": {
         "system": "build",
         "op": "add_stock",
         "items": {
-          "scrap": 200000,
-          "stone": 200000,
-          "timber": 200000,
-          "coal": 200000,
-          "iron_plate": 100000,
-          "gear": 50000,
-          "copper_coil": 50000
+          "iron_plate": 60000,
+          "steel_plate": 60000,
+          "stone": 60000,
+          "timber": 60000,
+          "scrap": 60000,
+          "gear": 60000,
+          "copper_coil": 60000,
+          "coal": 60000
         }
       }
     },
     {
-      "tick": 4,
-      "cmd": {
-        "system": "grid",
-        "op": "reveal",
-        "from": [
-          0,
-          0
-        ],
-        "to": [
-          128,
-          128
-        ]
-      }
-    },
-    {
-      "tick": 8,
+      "tick": 3,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "hearth",
+        "kind": "the_hearth",
         "cell": [
-          64,
-          64
+          126,
+          126
         ],
-        "instant": true,
-        "free": true
+        "free": true,
+        "instant": true
       }
     },
     {
-      "tick": 20,
+      "tick": 10,
       "cmd": {
-        "system": "citizens",
-        "op": "add",
-        "count": 200
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          88,
+          98
+        ],
+        "to": [
+          168,
+          98
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 13,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          88,
+          104
+        ],
+        "to": [
+          168,
+          104
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 16,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          88,
+          110
+        ],
+        "to": [
+          168,
+          110
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 19,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          88,
+          116
+        ],
+        "to": [
+          168,
+          116
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 22,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          88,
+          122
+        ],
+        "to": [
+          168,
+          122
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 25,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          88,
+          128
+        ],
+        "to": [
+          168,
+          128
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 28,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          88,
+          134
+        ],
+        "to": [
+          168,
+          134
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 31,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          88,
+          140
+        ],
+        "to": [
+          168,
+          140
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 34,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          88,
+          146
+        ],
+        "to": [
+          168,
+          146
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 37,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          88,
+          152
+        ],
+        "to": [
+          168,
+          152
+        ],
+        "free": true,
+        "instant": true
       }
     },
     {
       "tick": 40,
       "cmd": {
         "system": "build",
-        "op": "place_area",
-        "kind": "floor",
+        "op": "place_line",
+        "kind": "heat_pipe",
         "from": [
-          40,
-          40
+          88,
+          158
         ],
         "to": [
-          69,
-          69
+          168,
+          158
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 43,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          88,
+          98
+        ],
+        "to": [
+          88,
+          158
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 46,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          96,
+          98
+        ],
+        "to": [
+          96,
+          158
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 49,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          104,
+          98
+        ],
+        "to": [
+          104,
+          158
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 52,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          112,
+          98
+        ],
+        "to": [
+          112,
+          158
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 55,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          120,
+          98
+        ],
+        "to": [
+          120,
+          158
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 58,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          128,
+          98
+        ],
+        "to": [
+          128,
+          158
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 61,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          136,
+          98
+        ],
+        "to": [
+          136,
+          158
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 64,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          144,
+          98
+        ],
+        "to": [
+          144,
+          158
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 67,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          152,
+          98
+        ],
+        "to": [
+          152,
+          158
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 70,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          160,
+          98
+        ],
+        "to": [
+          160,
+          158
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 73,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          168,
+          98
+        ],
+        "to": [
+          168,
+          158
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 76,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          91,
+          101
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 78,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          99,
+          101
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 80,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          107,
+          101
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 82,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          115,
+          101
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 84,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          123,
+          101
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 86,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          131,
+          101
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 88,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          139,
+          101
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 90,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          147,
+          101
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 92,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          155,
+          101
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 94,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          163,
+          101
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 96,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          91,
+          107
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 98,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          99,
+          107
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 100,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          107,
+          107
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 102,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          115,
+          107
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 104,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          123,
+          107
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 106,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          131,
+          107
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 108,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          139,
+          107
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 110,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          147,
+          107
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 112,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          155,
+          107
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 114,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          163,
+          107
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 116,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          91,
+          113
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 118,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          99,
+          113
         ],
         "free": true,
         "instant": true
@@ -84,15 +754,67 @@
       "tick": 120,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "wall",
-        "from": [
-          30,
-          34
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          107,
+          113
         ],
-        "to": [
-          89,
-          34
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 122,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          115,
+          113
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 124,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          123,
+          113
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 126,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          131,
+          113
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 128,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          139,
+          113
         ],
         "free": true,
         "instant": true
@@ -102,15 +824,67 @@
       "tick": 130,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "wall",
-        "from": [
-          30,
-          35
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          147,
+          113
         ],
-        "to": [
-          89,
-          35
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 132,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          155,
+          113
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 134,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          163,
+          113
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 136,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          91,
+          119
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 138,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          99,
+          119
         ],
         "free": true,
         "instant": true
@@ -120,15 +894,67 @@
       "tick": 140,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "wall",
-        "from": [
-          30,
-          36
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          107,
+          119
         ],
-        "to": [
-          89,
-          36
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 142,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          115,
+          119
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 144,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          123,
+          119
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 146,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          131,
+          119
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 148,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          139,
+          119
         ],
         "free": true,
         "instant": true
@@ -138,15 +964,67 @@
       "tick": 150,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "wall",
-        "from": [
-          30,
-          37
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          147,
+          119
         ],
-        "to": [
-          89,
-          37
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 152,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          155,
+          119
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 154,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          163,
+          119
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 156,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          91,
+          125
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 158,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          99,
+          125
         ],
         "free": true,
         "instant": true
@@ -156,15 +1034,67 @@
       "tick": 160,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "wall",
-        "from": [
-          30,
-          38
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          107,
+          125
         ],
-        "to": [
-          89,
-          38
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 162,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          115,
+          125
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 164,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          123,
+          125
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 166,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          139,
+          125
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 168,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          147,
+          125
         ],
         "free": true,
         "instant": true
@@ -174,15 +1104,207 @@
       "tick": 170,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "wall",
-        "from": [
-          30,
-          39
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          155,
+          125
         ],
-        "to": [
-          89,
-          39
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 172,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          163,
+          125
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 174,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          91,
+          131
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 176,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          99,
+          131
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 178,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          107,
+          131
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 180,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          115,
+          131
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 182,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          123,
+          131
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 184,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          139,
+          131
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 186,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          147,
+          131
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 188,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          155,
+          131
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 190,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          163,
+          131
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 192,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          91,
+          137
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 194,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          99,
+          137
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 196,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          107,
+          137
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 198,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          115,
+          137
         ],
         "free": true,
         "instant": true
@@ -192,17 +1314,68 @@
       "tick": 200,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "belt",
-        "from": [
-          30,
-          72
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          123,
+          137
         ],
-        "to": [
-          30,
-          100
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 202,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          131,
+          137
         ],
-        "rot": 1,
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 204,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          139,
+          137
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 206,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          147,
+          137
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 208,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          155,
+          137
+        ],
         "free": true,
         "instant": true
       }
@@ -211,17 +1384,68 @@
       "tick": 210,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "belt",
-        "from": [
-          31,
-          72
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          163,
+          137
         ],
-        "to": [
-          31,
-          100
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 212,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          91,
+          143
         ],
-        "rot": 1,
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 214,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          99,
+          143
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 216,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          107,
+          143
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 218,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          115,
+          143
+        ],
         "free": true,
         "instant": true
       }
@@ -230,17 +1454,68 @@
       "tick": 220,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "belt",
-        "from": [
-          32,
-          72
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          123,
+          143
         ],
-        "to": [
-          32,
-          100
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 222,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          131,
+          143
         ],
-        "rot": 1,
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 224,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          139,
+          143
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 226,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          147,
+          143
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 228,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          155,
+          143
+        ],
         "free": true,
         "instant": true
       }
@@ -249,17 +1524,68 @@
       "tick": 230,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "belt",
-        "from": [
-          33,
-          72
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          163,
+          143
         ],
-        "to": [
-          33,
-          100
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 232,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          91,
+          149
         ],
-        "rot": 1,
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 234,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          99,
+          149
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 236,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          107,
+          149
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 238,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          115,
+          149
+        ],
         "free": true,
         "instant": true
       }
@@ -268,17 +1594,68 @@
       "tick": 240,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "belt",
-        "from": [
-          34,
-          72
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          123,
+          149
         ],
-        "to": [
-          34,
-          100
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 242,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          131,
+          149
         ],
-        "rot": 1,
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 244,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          139,
+          149
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 246,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          147,
+          149
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 248,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          155,
+          149
+        ],
         "free": true,
         "instant": true
       }
@@ -287,878 +1664,251 @@
       "tick": 250,
       "cmd": {
         "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          163,
+          149
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 252,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          91,
+          155
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 254,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          99,
+          155
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 256,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          107,
+          155
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 258,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          115,
+          155
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 260,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          123,
+          155
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 262,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          131,
+          155
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 264,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          139,
+          155
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 266,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          147,
+          155
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 268,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          155,
+          155
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 270,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          163,
+          155
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 272,
+      "cmd": {
+        "system": "build",
         "op": "place_line",
-        "kind": "belt",
+        "kind": "wall",
         "from": [
-          35,
-          72
+          82,
+          92
         ],
         "to": [
-          35,
-          100
+          174,
+          92
         ],
-        "rot": 1,
         "free": true,
         "instant": true
       }
     },
     {
-      "tick": 320,
+      "tick": 276,
       "cmd": {
         "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          42,
-          74
+        "op": "place_line",
+        "kind": "wall",
+        "from": [
+          82,
+          164
+        ],
+        "to": [
+          174,
+          164
         ],
         "free": true,
         "instant": true
       }
     },
     {
-      "tick": 325,
+      "tick": 280,
       "cmd": {
         "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          45,
-          74
+        "op": "place_line",
+        "kind": "wall",
+        "from": [
+          82,
+          92
+        ],
+        "to": [
+          82,
+          164
         ],
         "free": true,
         "instant": true
       }
     },
     {
-      "tick": 330,
+      "tick": 284,
       "cmd": {
         "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          48,
-          74
+        "op": "place_line",
+        "kind": "wall",
+        "from": [
+          174,
+          92
+        ],
+        "to": [
+          174,
+          164
         ],
         "free": true,
         "instant": true
       }
     },
     {
-      "tick": 335,
+      "tick": 298,
       "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          51,
-          74
-        ],
-        "free": true,
-        "instant": true
+        "system": "grid",
+        "op": "snowfall",
+        "rate": 0.6
       }
     },
     {
-      "tick": 340,
+      "tick": 328,
       "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          54,
-          74
-        ],
-        "free": true,
-        "instant": true
+        "system": "climate",
+        "op": "skip_to_phase",
+        "phase": "night"
       }
     },
     {
-      "tick": 345,
+      "tick": 368,
       "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          57,
-          74
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 350,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          60,
-          74
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 355,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          63,
-          74
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 360,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          42,
-          77
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 365,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          45,
-          77
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 370,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          48,
-          77
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 375,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          51,
-          77
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 380,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          54,
-          77
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 385,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          57,
-          77
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 390,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          60,
-          77
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 395,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          63,
-          77
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 400,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          42,
-          80
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 405,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          45,
-          80
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 410,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          48,
-          80
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 415,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          51,
-          80
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 420,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          54,
-          80
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 425,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          57,
-          80
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 430,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          60,
-          80
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 435,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          63,
-          80
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 460,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          32,
-          26
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 464,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          36,
-          26
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 468,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          40,
-          26
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 472,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          44,
-          26
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 476,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          48,
-          26
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 480,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          52,
-          26
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 484,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          56,
-          26
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 488,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          60,
-          26
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 492,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          64,
-          26
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 496,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          68,
-          26
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 500,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          72,
-          26
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 504,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          76,
-          26
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 508,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          80,
-          26
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 512,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          84,
-          26
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 516,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          88,
-          26
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 520,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          92,
-          26
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 524,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          32,
-          29
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 528,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          36,
-          29
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 532,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          40,
-          29
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 536,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          44,
-          29
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 540,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          48,
-          29
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 544,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          52,
-          29
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 548,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          56,
-          29
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 552,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          60,
-          29
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 556,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          64,
-          29
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 560,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          68,
-          29
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 564,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          72,
-          29
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 568,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          76,
-          29
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 572,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          80,
-          29
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 576,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          84,
-          29
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 580,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          88,
-          29
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 584,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          92,
-          29
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 800,
-      "cmd": {
-        "system": "threat",
-        "op": "spawn",
-        "kind": "crawler",
-        "count": 250,
-        "at": [
-          16,
-          16
-        ]
-      }
-    },
-    {
-      "tick": 900,
-      "cmd": {
-        "system": "threat",
-        "op": "spawn",
-        "kind": "crawler",
-        "count": 250,
-        "at": [
-          112,
-          16
-        ]
-      }
-    },
-    {
-      "tick": 1000,
-      "cmd": {
-        "system": "threat",
-        "op": "spawn",
-        "kind": "crawler",
-        "count": 250,
-        "at": [
-          16,
-          112
-        ]
-      }
-    },
-    {
-      "tick": 1100,
-      "cmd": {
-        "system": "threat",
-        "op": "spawn",
-        "kind": "crawler",
-        "count": 250,
-        "at": [
-          112,
-          112
-        ]
-      }
-    },
-    {
-      "tick": 1400,
-      "cmd": {
-        "system": "threat",
-        "op": "set_pressure",
-        "value": 1.0
-      }
-    },
-    {
-      "tick": 2000,
-      "cmd": {
-        "system": "threat",
-        "op": "force_wave",
-        "strength": 3.0
+        "system": "heat",
+        "op": "dump"
       }
     }
   ],
-  "shots": [],
-  "expects": {
-    "max_errors": 0,
-    "min_ticks_per_second": 100,
-    "target_ticks_per_second": 400
-  }
+  "shots": []
 }

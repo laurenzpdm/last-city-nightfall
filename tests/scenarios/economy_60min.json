@@ -18,71 +18,16 @@
       "cmd": {
         "system": "build",
         "op": "add_stock",
-        "item": "iron_plate",
-        "amount": 30000
-      }
-    },
-    {
-      "tick": 1,
-      "cmd": {
-        "system": "build",
-        "op": "add_stock",
-        "item": "steel_plate",
-        "amount": 20000
-      }
-    },
-    {
-      "tick": 1,
-      "cmd": {
-        "system": "build",
-        "op": "add_stock",
-        "item": "stone",
-        "amount": 30000
-      }
-    },
-    {
-      "tick": 1,
-      "cmd": {
-        "system": "build",
-        "op": "add_stock",
-        "item": "timber",
-        "amount": 20000
-      }
-    },
-    {
-      "tick": 1,
-      "cmd": {
-        "system": "build",
-        "op": "add_stock",
-        "item": "scrap",
-        "amount": 20000
-      }
-    },
-    {
-      "tick": 1,
-      "cmd": {
-        "system": "build",
-        "op": "add_stock",
-        "item": "gear",
-        "amount": 8000
-      }
-    },
-    {
-      "tick": 1,
-      "cmd": {
-        "system": "build",
-        "op": "add_stock",
-        "item": "copper_coil",
-        "amount": 8000
-      }
-    },
-    {
-      "tick": 1,
-      "cmd": {
-        "system": "build",
-        "op": "add_stock",
-        "item": "coal",
-        "amount": 30000
+        "items": {
+          "iron_plate": 30000,
+          "steel_plate": 20000,
+          "stone": 30000,
+          "timber": 20000,
+          "scrap": 20000,
+          "gear": 8000,
+          "copper_coil": 8000,
+          "coal": 30000
+        }
       }
     },
     {

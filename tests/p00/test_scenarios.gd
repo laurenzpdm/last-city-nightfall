@@ -175,7 +175,9 @@ func test_shots_are_inside_the_run_and_uniquely_named() -> void:
 			var shot_name: String = String(shot.get("name", ""))
 			assert_not_empty(shot_name, "%s: a shot needs a name; it becomes a PNG filename" % key)
 			assert_has_not(seen, shot_name, "%s: two shots called '%s' would overwrite each other" % [key, shot_name])
-			assert_eq(shot_name, shot_name.to_snake_case().to_lower(),
+			# Not to_snake_case(): Godot 4 inserts an underscore before a digit
+			# run, so it rejects the perfectly legal "p13_dawn_wide".
+			assert_true(RegEx.create_from_string("^[a-z][a-z0-9_]*$").search(shot_name) != null,
 				"%s: shot name '%s' must be lower_snake_case" % [key, shot_name])
 			seen.append(shot_name)
 
@@ -222,10 +224,11 @@ func test_perf_expectations_are_declared_for_gated_scenarios() -> void:
 		assert_has(expects, "max_errors", "%s: declare how many run errors are tolerable" % key)
 
 
-func test_scenarios_reference_buildings_that_exist_once_content_lands() -> void:
-	# Deliberately not per-id: [P11] owns the ids and may rename one. What must
-	# never happen is the scenario library drifting into fiction — if buildings
-	# exist and not a single referenced kind resolves, these runs build nothing.
+func test_every_building_a_scenario_places_actually_exists() -> void:
+	# THE test that keeps the library honest. A scenario naming a building that
+	# is not in the registry does not fail — the harness refuses the command,
+	# logs it and runs on — so a "reference run" can be three-quarters no-op and
+	# still exit 0. That happened. It must not be able to happen again.
 	var available: Array[StringName] = Registry.ids("buildings")
 	if available.is_empty():
 		skip("game/content/buildings/ is empty — [P11] has not shipped content yet")
@@ -238,12 +241,44 @@ func test_scenarios_reference_buildings_that_exist_once_content_lands() -> void:
 			if kind != "" and not referenced.has(kind):
 				referenced.append(kind)
 	assert_not_empty(referenced, "the library places buildings")
-	var resolved: int = 0
 	for kind: String in referenced:
-		if Registry.has("buildings", StringName(kind)):
-			resolved += 1
-	assert_gt(float(resolved), 0.0,
-		"none of the %d building kinds the scenarios place exist in the registry" % referenced.size())
+		assert_true(Registry.has("buildings", StringName(kind)),
+			"a scenario places '%s', which is not in game/content/buildings/" % kind)
+
+
+func test_every_command_targets_a_system_this_build_actually_has() -> void:
+	# The companion rule. Sim logs an ERROR and drops a command addressed to an
+	# absent system, so this is also what keeps expects.max_errors reachable.
+	var live: PackedStringArray = TestEnv.built_systems
+	assert_not_empty(live, "the test environment created a world to probe")
+	for key: String in _names():
+		for raw: Variant in (scenarios[key] as Dictionary).get("script", []):
+			var entry: Dictionary = raw
+			var c: Dictionary = entry.get("cmd", {})
+			var system: String = String(c.get("system", ""))
+			assert_has(live, system,
+				"%s @%d: system '%s' is not built yet — this command would be dropped" % [
+					key, int(entry.get("tick", 0)), system])
+
+
+func test_grid_commands_use_ops_the_grid_system_actually_has() -> void:
+	if not need_system(&"grid"):
+		return
+	var vocabulary: Dictionary = (schema.get("command_vocabulary", {}) as Dictionary).get("grid", {})
+	var known: PackedStringArray = PackedStringArray()
+	for k: Variant in vocabulary.keys():
+		if not String(k).begins_with("$"):
+			known.append(String(k))
+	assert_not_empty(known, "the schema documents the grid vocabulary")
+	for key: String in _names():
+		for raw: Variant in (scenarios[key] as Dictionary).get("script", []):
+			var entry: Dictionary = raw
+			var c: Dictionary = entry.get("cmd", {})
+			if String(c.get("system", "")) != "grid":
+				continue
+			assert_has(known, String(c.get("op", "")),
+				"%s @%d: grid op '%s' is not in the documented vocabulary" % [
+					key, int(entry.get("tick", 0)), String(c.get("op", ""))])
 
 
 func test_a_scenario_script_replays_identically() -> void:
