@@ -16,13 +16,15 @@ extends Resource
 ##   margin        = heat supply / heat demand, averaged over the dark phases
 ##   trough        = the single lowest margin sample of the night
 ##   frozen        = frozen buildings / buildings on the heat grid, at its worst
-##   buffer_floor  = lowest stored heat as a fraction of grid buffer capacity
+##   buffer_floor  = lowest stored heat during the dark phases, as a fraction of
+##                   the most the grid had ever banked up to the end of that day
+##                   — "how much of your savings did the night take"
 ##
 ## Bands are inclusive. A run inside every band on a day is that day working as
 ## designed. `EconomyDefs.verdict_for` grades how far outside a miss is, so a
 ## 2% overshoot reads differently from a 200% one.
 
-@export var id: StringName = &"default"
+@export var id: StringName = &"first_week"
 @export var display_name: String = "The First Week"
 @export var priority: int = 0
 
@@ -77,9 +79,9 @@ extends Resource
 	0.04, 0.07, 0.16, 0.14, 0.13, 0.16, 0.26,
 ])
 
-## Lowest stored heat as a fraction of buffer capacity. Reaching 0 means the
-## storage did its job and then ran out, which is the designed shape of a storm
-## night and a failure on a quiet one.
+## Lowest stored heat during the dark phases, as a fraction of the most the grid
+## had ever banked. Reaching 0 means the storage did its job and then ran out,
+## which is the designed shape of a storm night and a failure on a quiet one.
 @export var buffer_floor_min: PackedFloat32Array = PackedFloat32Array([
 	0.05, 0.02, 0.0, 0.0, 0.0, 0.0, 0.0,
 ])

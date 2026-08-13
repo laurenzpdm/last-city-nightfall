@@ -35,7 +35,7 @@ extends Resource
 ## labour currency defined by `material_value` below.
 
 ## Id used by Registry. Must be unique across game/content/economy/.
-@export var id: StringName = &"default"
+@export var id: StringName = &"long_winter"
 @export var display_name: String = "The Long Winter"
 ## Highest priority table in the registry wins.
 @export var priority: int = 0
@@ -273,7 +273,7 @@ func validate() -> bool:
 	var ok: bool = true
 
 	if String(id) == "":
-		id = &"default"
+		id = &"long_winter"
 		ok = false
 
 	unknown_material_value = maxf(0.0, unknown_material_value)

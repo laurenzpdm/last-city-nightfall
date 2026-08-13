@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="DifficultyCurve" format=3]
+
+; [P12] Economy & Balance — the intended experience of the first week.
+;
+; Read this next to res://game/content/economy/BALANCE.md, which explains why
+; each band is where it is and shows the measured run that put it there.
+;
+; The bands below are the ones tools/analyze_balance.py grades a run against and
+; tests/economy/ asserts on. Everything not stated here uses the script default
+; in res://game/sim/economy/difficulty_curve.gd.
+
+[ext_resource type="Script" path="res://game/sim/economy/difficulty_curve.gd" id="1_curve"]
+
+[resource]
+resource_name = "The First Week"
+script = ExtResource("1_curve")
+id = &"first_week"
+display_name = "The First Week"
+priority = 0
+day_ticks = 9600

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="BalanceTable" format=3]
+
+; [P12] Economy & Balance — the shipped campaign numbers.
+;
+; This file is the balance table. Every field it does not state falls back to
+; the documented default in res://game/sim/economy/balance_table.gd, so what you
+; read here is what has actually been TUNED away from the default. Drop another
+; .tres beside this one with a higher `priority` to ship a different difficulty
+; without touching a line of code.
+;
+; The design behind these numbers, with measured runs, is in
+; res://game/content/economy/BALANCE.md.
+
+[ext_resource type="Script" path="res://game/sim/economy/balance_table.gd" id="1_balance"]
+
+[resource]
+resource_name = "The Long Winter"
+script = ExtResource("1_balance")
+id = &"long_winter"
+display_name = "The Long Winter"
+priority = 0
