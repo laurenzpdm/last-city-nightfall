@@ -262,6 +262,18 @@
       }
     },
     {
+      "tick": 1300,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "survey_hall",
+        "cell": [
+          123,
+          137
+        ]
+      }
+    },
+    {
       "tick": 1500,
       "cmd": {
         "system": "build",

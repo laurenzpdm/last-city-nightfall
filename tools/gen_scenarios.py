@@ -55,6 +55,7 @@ DEFS = {
     "scrap_collector": (2, 2, False, False, True),
     "smelter": (3, 3, False, False, True),
     "storage_yard": (3, 3, False, False, False),
+    "survey_hall": (3, 3, False, False, True),
     "the_hearth": (5, 5, False, False, True),
     "turret_mount": (2, 2, False, False, True),
     "wall": (1, 1, False, False, False),
@@ -390,6 +391,10 @@ def first_night():
     L.place(5600, "turret_mount", -9, -32)
     L.place(5800, "turret_mount", 8, -32)
     # Night: the grid is under load and the player reacts to it.
+    # Research is 1.5 base + 0.7 per running workshop until something tagged
+    # &"research" stands up; the survey hall is what makes the tech tree a thing
+    # you INVEST in rather than a clock that runs on its own.
+    L.place(1300, "survey_hall", -5, 9)
     L.place(6600, "heat_booster_pump", 1, 12)
     L.cmd(7000, {"system": "build", "op": "set_enabled", "cell": [CORE[0] + 1, CORE[1] + 14], "on": False})
     L.cmd(7400, {"system": "heat", "op": "dump"})
