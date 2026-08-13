@@ -59,6 +59,9 @@ func system_name() -> StringName:
 	return NAME
 
 
+## Above this the flow-field repair is worth a line in the log.
+const SLOW_REPAIR_US: int = 4000
+
 # ---------------------------------------------------------------- lifecycle
 
 func setup() -> void:
@@ -444,8 +447,10 @@ func _flush_cost_changes() -> void:
 	if grid == null or grid.dirty_count() == 0 or _field_order.is_empty():
 		return
 	var dirty: PackedInt32Array = grid.take_dirty(COST_BUDGET)
-	# Wall-clock is read here and NOWHERE else: it feeds metrics.csv only and is
-	# never allowed back into simulation state, so replays stay byte-identical.
+	# Wall-clock is read here and NOWHERE else. It is a LOG line only: it must
+	# never reach metrics(), because tools/determinism.sh diffs metrics.csv and a
+	# wall-clock column in a diffed artifact is a tripwire waiting for the first
+	# scenario with pathfinding churn on a sampled tick.
 	var t0: int = Time.get_ticks_usec()
 	for n: StringName in _field_order:
 		var f: FlowField = _fields[n]
@@ -453,6 +458,9 @@ func _flush_cost_changes() -> void:
 		_flow_cells += f.last_visited
 	_flush_us = Time.get_ticks_usec() - t0
 	_flush_cells = dirty.size()
+	if _flush_us > SLOW_REPAIR_US:
+		Log.debug("grid", "flow repair: %d cells over %d field(s) in %.2f ms" % [
+			_flush_cells, _field_order.size(), float(_flush_us) / 1000.0])
 
 
 # ---------------------------------------------------------------- commands
@@ -553,10 +561,10 @@ func deserialize(data: Dictionary) -> void:
 
 func metrics() -> Dictionary:
 	if grid == null:
-		return {"tiles_dirty": 0, "path_rebuild_ms": 0.0, "chunks": 0}
+		return {"tiles_dirty": 0, "chunks": 0}
+	# No wall-clock column here on purpose — see _flush_cost_changes.
 	return {
 		"tiles_dirty": grid.dirty_count(),
-		"path_rebuild_ms": float(_flush_us) / 1000.0,
 		"chunks": grid.chunk_count(),
 		"cells_repaired": _flush_cells,
 		"flow_cells": _flow_cells,
