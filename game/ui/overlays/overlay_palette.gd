@@ -100,7 +100,7 @@ const RAMP_NORMAL: Array = [
 	[0.0, Color(0.639, 0.847, 0.925)],
 	[8.0, Color(0.949, 0.902, 0.780)],
 	[16.0, Color(0.988, 0.702, 0.322)],
-	[26.0, Color(0.984, 0.427, 0.153)],
+	[26.0, Color(0.996, 0.427, 0.153)],
 	[40.0, Color(1.000, 0.878, 0.639)],
 ]
 
@@ -116,15 +116,18 @@ const RAMP_TRITAN: Array = [
 	[40.0, Color(1.000, 0.741, 0.741)],
 ]
 
+## Evenly stepped on purpose: with no hue at all, luminance carries the entire
+## scale, so the steps have to stay far enough apart that six degrees is still a
+## visible difference at the hot end as well as the cold one.
 const RAMP_MONO: Array = [
-	[-45.0, Color(0.055, 0.059, 0.067)],
-	[-30.0, Color(0.145, 0.153, 0.165)],
-	[-18.0, Color(0.271, 0.282, 0.302)],
-	[-8.0, Color(0.412, 0.427, 0.451)],
-	[0.0, Color(0.549, 0.565, 0.588)],
-	[8.0, Color(0.706, 0.722, 0.745)],
-	[16.0, Color(0.839, 0.851, 0.871)],
-	[26.0, Color(0.949, 0.957, 0.969)],
+	[-45.0, Color(0.040, 0.044, 0.052)],
+	[-30.0, Color(0.130, 0.138, 0.150)],
+	[-18.0, Color(0.250, 0.261, 0.281)],
+	[-8.0, Color(0.380, 0.395, 0.419)],
+	[0.0, Color(0.500, 0.516, 0.539)],
+	[8.0, Color(0.630, 0.646, 0.669)],
+	[16.0, Color(0.750, 0.766, 0.789)],
+	[26.0, Color(0.880, 0.892, 0.910)],
 	[40.0, Color(1.000, 1.000, 1.000)],
 ]
 

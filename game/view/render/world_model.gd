@@ -78,6 +78,7 @@ var _cached_buildings: Array[Dictionary] = []
 var _agents: Dictionary[int, Dictionary] = {}
 
 var _terrain_cache: Dictionary[int, PackedByteArray] = {}
+var _snow_pattern: Dictionary[int, PackedByteArray] = {}
 var _sprites: LcnSpriteFactory = null
 
 ## View-side accumulation clock, only used when nothing in the sim owns snow.
@@ -96,6 +97,7 @@ func attach() -> void:
 	_heat = Sim.get_system(&"heat")
 	_build = Sim.get_system(&"build")
 	_terrain_cache.clear()
+	_snow_pattern.clear()
 	_terrain_remap.clear()
 	_agent_providers.clear()
 	_world_grid = null
@@ -272,22 +274,36 @@ func snow_chunk(origin: Vector2i) -> PackedByteArray:
 
 ## View-side snow for one chunk, used when nothing in the sim owns accumulation.
 ## Deliberately the same shape as the grid's: 0..255 against snow_cap.
+##
+## The drift PATTERN is static, so it is baked once per chunk and only the
+## season's depth scales it. Recomputing 1024 fbm samples per chunk on every
+## refresh cost 10 ms a frame on a 500x500 world with no grid — measured by
+## tests/render/render_perf.tscn, which is why that suite exists.
 func _synth_snow_chunk(origin: Vector2i) -> PackedByteArray:
+	var key: int = origin.x * 100003 + origin.y
+	var pattern: PackedByteArray = _snow_pattern.get(key, PackedByteArray())
+	var terrain: PackedByteArray = terrain_chunk(origin)
+	if pattern.is_empty():
+		pattern = PackedByteArray()
+		pattern.resize(CHUNK * CHUNK)
+		for y: int in CHUNK:
+			for x: int in CHUNK:
+				var i: int = y * CHUNK + x
+				if not LcnPalette.terrain_takes_snow(int(terrain[i])):
+					pattern[i] = 0
+					continue
+				var cell := Vector2i(origin.x + x, origin.y + y)
+				var nz: float = LcnNoise.fbm(float(cell.x) * 0.055, float(cell.y) * 0.055, 4242, 3)
+				var amount: float = 0.45 + nz * 1.1
+				if int(terrain[i]) == LcnPalette.Terrain.PAVED:
+					amount *= 0.55
+				pattern[i] = clampi(int(clampf(amount, 0.0, 2.0) * 127.0), 0, 255)
+		_snow_pattern[key] = pattern
 	var out := PackedByteArray()
 	out.resize(CHUNK * CHUNK)
-	var terrain: PackedByteArray = terrain_chunk(origin)
-	for y: int in CHUNK:
-		for x: int in CHUNK:
-			var i: int = y * CHUNK + x
-			var cell := Vector2i(origin.x + x, origin.y + y)
-			if not LcnPalette.terrain_takes_snow(int(terrain[i])):
-				out[i] = 0
-				continue
-			var base: float = _snow_phase
-			if int(terrain[i]) == LcnPalette.Terrain.PAVED:
-				base *= 0.55
-			var nz: float = LcnNoise.fbm(float(cell.x) * 0.055, float(cell.y) * 0.055, 4242, 3)
-			out[i] = clampi(int(clampf(base * (0.45 + nz * 1.1), 0.0, 1.0) * 255.0), 0, 255)
+	var scale: int = int(clampf(_snow_phase, 0.0, 1.0) * 255.0)
+	for i2: int in CHUNK * CHUNK:
+		out[i2] = mini(255, int(pattern[i2]) * scale / 127 / 2)
 	return out
 
 

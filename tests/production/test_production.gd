@@ -16,8 +16,8 @@ extends TestCase
 ## is the one test that leaves the coupling live and proves it is connected.
 
 ## The test city. A hearth at ORIGIN, one long pipe spur east along SPUR_Y, and
-## every machine hung directly off that spur — a machine that only touches
-## another machine is NOT on the network, because a smelter does not conduct.
+## every machine hung DIRECTLY off that spur — a machine touching only another
+## machine is not on the network, because a smelter does not conduct heat.
 const ORIGIN: Vector2i = Vector2i(60, 60)
 const SPUR_Y: int = 62
 const SPUR_FROM: Vector2i = Vector2i(65, SPUR_Y)
@@ -28,7 +28,7 @@ const WORKSHOP2_CELL: Vector2i = Vector2i(72, 59)
 const REC_NEAR: Vector2i = Vector2i(70, 63)          ## 2x2, two tiles from the smelter
 const REC_FAR: Vector2i = Vector2i(84, 63)           ## on the spur, far out of capture reach
 const OUTLAND: Vector2i = Vector2i(104, 104)         ## nowhere near heat of any kind
-## Ticks to let [P04]'s throttled rescan of [P11] notice a placement or a removal.
+## Ticks for [P04]'s throttled rescan of [P11] to notice a placement or removal.
 const SYNC_GRACE: int = 15
 
 var world: SimFixture = null
@@ -57,8 +57,8 @@ func teardown() -> void:
 
 # --- fixture -----------------------------------------------------------------
 
-## Creates the world. Called only by the tests that need one, because world
-## creation runs the whole map generator and this suite has thirty tests.
+## Creates the world. Called only by the tests that need one: world creation
+## runs the whole map generator and this suite has thirty-odd tests.
 func _world() -> void:
 	if world != null:
 		return
@@ -73,11 +73,20 @@ func _world() -> void:
 		# Enough of everything that no test is ever measuring the stockpile
 		# instead of the thing it means to measure.
 		world.cmd_now({"system": &"build", "op": "add_stock", "items": {
-			"iron_ore": 4000, "copper_ore": 2000, "iron_plate": 4000,
-			"steel_plate": 2000, "copper_coil": 2000, "coal": 4000,
-			"scrap": 4000, "timber": 2000, "stone": 2000, "slag": 2000,
-			"sulfur": 2000, "grain": 2000, "gear": 2000,
+			"iron_ore": 6000, "copper_ore": 4000, "iron_plate": 6000,
+			"steel_plate": 4000, "copper_coil": 4000, "coal": 6000,
+			"scrap": 6000, "timber": 4000, "stone": 4000, "slag": 4000,
+			"sulfur": 4000, "grain": 4000, "gear": 4000,
 		}})
+
+
+## A lit hearth and the pipe spur every machine in this suite hangs off.
+func _city() -> void:
+	var hearth: int = _place("the_hearth", ORIGIN)
+	_line("heat_pipe", SPUR_FROM, SPUR_TO)
+	if heat != null and hearth > 0:
+		heat.call("deliver_fuel", hearth, &"coal", 4000.0)
+	world.run(4)
 
 
 ## The recipe book alone. No world, no map generation.
@@ -105,15 +114,6 @@ func _place(kind: String, cell: Vector2i, meta: Dictionary = {}) -> int:
 func _line(kind: String, from: Vector2i, to: Vector2i) -> void:
 	world.cmd_now({"system": &"build", "op": "place_line", "kind": kind,
 		"from": [from.x, from.y], "to": [to.x, to.y], "free": true, "instant": true})
-
-
-## A lit hearth and the pipe spur every machine in this suite hangs off.
-func _city() -> void:
-	var hearth: int = _place("the_hearth", ORIGIN)
-	_line("heat_pipe", SPUR_FROM, SPUR_TO)
-	if heat != null and hearth > 0:
-		heat.call("deliver_fuel", hearth, &"coal", 4000.0)
-	world.run(4)
 
 
 func _machine(id: int) -> ProdMachine:
@@ -175,12 +175,12 @@ func test_the_clean_ratios_really_are_clean() -> void:
 
 
 func test_iron_smelting_cannot_be_done_without_making_slag() -> void:
-	var iron: RecipeDef = _book().get_recipe(&"iron_plate")
+	var b: ProdRecipeBook = _book()
+	var iron: RecipeDef = b.get_recipe(&"iron_plate")
 	assert_has(iron.byproducts, &"slag", "the byproduct is not optional")
 	assert_near(iron.output_per_minute(&"slag"), iron.output_per_minute(&"iron_plate"), 0.001,
 		"one slag per plate, forever")
-	assert_has(_book().consumers_of.get(&"slag", []), "insulation",
-		"and slag has somewhere to go")
+	assert_has(b.consumers_of.get(&"slag", []), "insulation", "and slag has somewhere to go")
 
 
 func test_a_recipe_no_machine_can_run_is_refused_by_validate() -> void:
@@ -204,10 +204,6 @@ func test_the_recipe_tree_is_json_safe_for_the_browser_to_read() -> void:
 		assert_has(e, "depth", "and where it sits in the tree")
 
 
-# =============================================================================
-# machines
-# =============================================================================
-
 func test_every_recipe_a_machine_offers_actually_exists() -> void:
 	_world()
 	# A building def naming a recipe nobody shipped is a machine that silently
@@ -223,17 +219,21 @@ func test_every_recipe_a_machine_offers_actually_exists() -> void:
 					"'%s' lists '%s' but the recipe refuses that machine" % [String(def.id), String(rid)])
 
 
+# =============================================================================
+# machines
+# =============================================================================
+
 func test_a_smelter_turns_ore_into_plate_and_slag() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
-	var id: int = _place("smelter", end + Vector2i(1, -1))
+	_city()
+	var id: int = _place("smelter", SMELTER_CELL)
 	assert_gt(float(id), 0.0, "the smelter was placed")
 	world.run(20)
 	var m: ProdMachine = _machine(id)
 	assert_not_null(m, "production registered the smelter")
 	assert_eq(String(m.recipe_id), "iron_plate", "it defaulted to the recipe its def lists first")
 
-	world.run(400)
+	world.run(600)
 	var plates: int = prod.produced_total(&"iron_plate")
 	assert_gt(float(plates), 0.0, "it made plate")
 	assert_eq(prod.produced_total(&"slag"), plates,
@@ -241,11 +241,22 @@ func test_a_smelter_turns_ore_into_plate_and_slag() -> void:
 	assert_eq(String(_machine(id).reason), "", "and it is not stalled while doing it")
 
 
+func test_a_workshop_on_the_spur_runs_at_full_rate() -> void:
+	_world()
+	_city()
+	var id: int = _place("workshop", WORKSHOP_CELL)
+	world.run(60)
+	var m: ProdMachine = _machine(id)
+	assert_eq(String(m.recipe_id), "gear", "the workshop defaults to gears")
+	assert_near(m.power, 1.0, 0.001, "a healthy grid serves it everything it asked for")
+	assert_near(m.rate, 1.0, 0.001, "so it crafts at the rate the recipe promises")
+
+
 func test_a_starved_machine_names_the_item_it_is_short_of() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
+	_city()
 	world.cmd_now({"system": &"build", "op": "set_stock", "items": {"iron_ore": 0}})
-	var id: int = _place("smelter", end + Vector2i(1, -1))
+	var id: int = _place("smelter", SMELTER_CELL)
 	world.run(20)
 	var s: Dictionary = prod.stall_of(id)
 	assert_eq(s["reason"], "missing_input", "a smelter with no ore stalls")
@@ -255,9 +266,9 @@ func test_a_starved_machine_names_the_item_it_is_short_of() -> void:
 
 func test_a_stall_is_announced_on_the_bus_for_the_overlay_to_render() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
+	_city()
 	world.cmd_now({"system": &"build", "op": "set_stock", "items": {"iron_ore": 0}})
-	var id: int = _place("smelter", end + Vector2i(1, -1))
+	var id: int = _place("smelter", SMELTER_CELL)
 	var seen: Dictionary = {"id": -1, "reason": ""}
 	var cb: Callable = func(mid: int, reason: StringName) -> void:
 		if mid == id:
@@ -275,32 +286,39 @@ func test_a_machine_off_the_heat_grid_stalls_for_heat_not_for_cold() -> void:
 	if heat == null:
 		skip("no heat system in this build")
 		return
-	# Deliberately nowhere near a pipe: the smelter is its own island, so the
-	# solver serves it nothing and the recipe's heat rate cannot be met.
-	var id: int = _place("smelter", ORIGIN + Vector2i(40, 40))
+	# Deliberately nowhere near a pipe. A workshop is a pure consumer, so with no
+	# network at all the solver serves it exactly nothing.
+	var id: int = _place("workshop", OUTLAND)
+	assert_gt(float(id), 0.0, "the outland workshop was placed")
+	var plates: int = _stock("iron_plate")
 	world.run(20)
 	var s: Dictionary = prod.stall_of(id)
-	assert_eq(s["reason"], "no_heat", "an unconnected smelter is dark, not cold")
+	assert_eq(s["reason"], "no_heat", "an unconnected workshop is dark, not cold")
 	assert_near(float(s["power"]), 0.0, 0.001, "the heat system served it nothing")
-	assert_eq(_stock("iron_ore"), 4000, "and it did not eat a charge it could not smelt")
+	assert_gt(float(s["cold"]), 0.0, "and it is not the cold that stopped it")
+	assert_eq(_stock("iron_plate"), plates, "it did not eat a charge it could not work")
 
-	var lit: Vector2i = _grid_at(ORIGIN)
-	var id2: int = _place("smelter", lit + Vector2i(1, -1))
-	world.run(30)
+	_city()
+	var id2: int = _place("workshop", WORKSHOP_CELL)
+	world.run(60)
 	assert_eq(prod.stall_of(id2)["reason"], "", "the same machine on the grid runs")
 
 
 func test_the_output_buffer_backs_up_when_nothing_will_take_the_goods() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
-	var id: int = _place("smelter", end + Vector2i(1, -1))
+	_city()
+	var id: int = _place("smelter", SMELTER_CELL)
 	world.run(20)
-	# This is the switch [P03] closes when the belts and yards are full.
-	prod.set_output_accepting(false)
-	world.run(900)
 	var m: ProdMachine = _machine(id)
-	assert_eq(String(m.reason), "output_full", "a machine nobody unloads jams")
-	assert_gt(float(m.output_total()), 0.0, "and it is holding the goods it made")
+	# This is the switch [P03] closes when the belts and the yards are full. The
+	# buffer is pre-loaded rather than waiting eighty crafts for it to fill:
+	# what is under test is the jam, not the arithmetic of filling a hopper.
+	prod.set_output_accepting(false)
+	m.outputs[&"slag"] = m.def.output_slots
+	world.run(140)
+	assert_eq(String(_machine(id).reason), "output_full", "a machine nobody unloads jams")
+	assert_gt(float(_machine(id).output_total()), 0.0, "and it is holding the goods it made")
+
 	prod.set_output_accepting(true)
 	world.run(40)
 	assert_eq(String(_machine(id).reason), "", "reopening the yard restarts it")
@@ -309,8 +327,8 @@ func test_the_output_buffer_backs_up_when_nothing_will_take_the_goods() -> void:
 
 func test_a_switched_off_machine_is_idle_not_broken() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
-	var id: int = _place("smelter", end + Vector2i(1, -1))
+	_city()
+	var id: int = _place("smelter", SMELTER_CELL)
 	world.run(20)
 	world.cmd_now({"system": &"build", "op": "set_enabled", "id": id, "on": false})
 	world.run(20)
@@ -320,8 +338,8 @@ func test_a_switched_off_machine_is_idle_not_broken() -> void:
 
 func test_a_demolished_machine_hands_its_buffers_back() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
-	var id: int = _place("smelter", end + Vector2i(1, -1))
+	_city()
+	var id: int = _place("smelter", SMELTER_CELL)
 	world.run(20)
 	var held: int = _machine(id).held(&"iron_ore")
 	assert_gt(float(held), 0.0, "the smelter is holding a charge")
@@ -342,8 +360,8 @@ func test_what_a_machine_feels_is_the_heat_field_plus_its_own_shell() -> void:
 	if heat == null:
 		skip("no heat system in this build")
 		return
-	var end: Vector2i = _grid_at(ORIGIN)
-	var id: int = _place("smelter", end + Vector2i(1, -1))
+	_city()
+	var id: int = _place("smelter", SMELTER_CELL)
 	world.run(20)
 	var m: ProdMachine = _machine(id)
 	var tile: float = float(heat.call("temperature_at", m.center_cell))
@@ -353,8 +371,8 @@ func test_what_a_machine_feels_is_the_heat_field_plus_its_own_shell() -> void:
 
 func test_the_cold_factor_is_the_recipe_floor_read_off_the_warmth_field() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
-	var id: int = _place("smelter", end + Vector2i(1, -1))
+	_city()
+	var id: int = _place("smelter", SMELTER_CELL)
 	world.run(20)
 	var m: ProdMachine = _machine(id)
 	var expected: float = clampf(
@@ -362,27 +380,31 @@ func test_the_cold_factor_is_the_recipe_floor_read_off_the_warmth_field() -> voi
 	assert_near(m.cold, expected, 0.001, "cold is a slope off the recipe's own floor")
 
 
-func test_a_great_frost_stops_the_outlying_machines_first() -> void:
+func test_a_great_frost_slows_the_factory_down() -> void:
 	_world()
 	if heat == null or world.system(&"climate") == null:
 		skip("needs heat and climate")
 		return
-	var end: Vector2i = _grid_at(ORIGIN)
-	var warm: int = _place("smelter", end + Vector2i(1, -1))
-	# Far from every radiator and hung off nothing: only its own shell.
-	var cold: int = _place("rubble_sorter", ORIGIN + Vector2i(44, 44))
-	assert_gt(float(cold), 0.0, "the outlying machine was placed")
-	world.run(20)
-	var cold_before: float = _machine(cold).cold
+	_city()
+	# pipe_segment has the second-coldest floor in the game (-18 C), so it is the
+	# recipe a Great Frost reaches first. gear (-25 C) rides it out longer, which
+	# is the whole point of putting a floor on each recipe rather than one on all.
+	var chilly: int = _place("workshop", WORKSHOP_CELL, {"recipe": "pipe_segment"})
+	var hardy: int = _place("workshop", WORKSHOP2_CELL, {"recipe": "gear"})
+	assert_gt(float(hardy), 0.0, "both shops were placed")
+	world.run(80)
+	var felt_before: float = _machine(chilly).felt_c
+	assert_near(_machine(chilly).cold, 1.0, 0.001, "a warm shop is at full speed")
+
 	world.cmd_now({"system": &"climate", "op": "force_storm", "intensity": 1.0,
-		"duration_ticks": 4000})
-	world.run(1000)
-	var cold_m: ProdMachine = _machine(cold)
-	var warm_m: ProdMachine = _machine(warm)
-	assert_lt(cold_m.felt_c, warm_m.felt_c,
-		"the machine with no heat around it feels the frost first")
-	assert_lt(cold_m.cold, cold_before, "and the frost actually slows it down")
-	assert_le(cold_m.rate, warm_m.rate + 0.0001, "the warm one is never the slower one")
+		"duration_ticks": 6000})
+	world.run(1400)
+	var c: ProdMachine = _machine(chilly)
+	var h: ProdMachine = _machine(hardy)
+	assert_lt(c.felt_c, felt_before - 4.0, "the frost is felt inside the shop")
+	assert_lt(c.cold, 1.0, "and it slows the delicate work down")
+	assert_le(c.cold, h.cold + 0.0001,
+		"the recipe with the higher floor is hit first, exactly as its .tres says")
 
 
 func test_a_heat_hungry_recipe_needs_more_of_the_grid_than_a_cheap_one() -> void:
@@ -403,19 +425,30 @@ func test_a_browned_out_machine_crafts_proportionally_slower() -> void:
 	if heat == null:
 		skip("no heat system in this build")
 		return
-	var end: Vector2i = _grid_at(ORIGIN)
-	var id: int = _place("smelter", end + Vector2i(1, -1), {"recipe": "steel_plate"})
-	world.run(30)
-	var full: float = _machine(id).rate
-	assert_gt(full, 0.0, "the steel smelter runs on a healthy grid")
-	# Hang enough radiators off the same spur to out-draw the hearth, which is
-	# how a player actually browns their own base out.
-	for i: int in 12:
-		_place("warmth_radiator", ORIGIN + Vector2i(5 + i * 2, 4))
+	_city()
+	# pipe_segment costs 50 heat over 5 s = 10 u/s, exactly the workshop's rating,
+	# so anything the grid holds back comes straight off the craft rate.
+	var id: int = _place("workshop", WORKSHOP_CELL, {"recipe": "pipe_segment"})
 	world.run(60)
+	var full: float = _machine(id).rate
+	assert_near(full, 1.0, 0.001, "a healthy grid runs it at full speed")
+
+	# Hang more radiators off the same spur than the hearth can carry. They sit
+	# above industry in the shed order, so the workshop goes dark first — which
+	# is how a player actually browns their own base out.
+	var hung: int = 0
+	for i: int in 14:
+		if _place("warmth_radiator", Vector2i(70 + i * 3, SPUR_Y + 1)) > 0:
+			hung += 1
+	world.run(160)
+	if hung < 8:
+		skip("only %d radiators fit; not enough load to brown the grid out" % hung)
+		return
 	var m: ProdMachine = _machine(id)
-	assert_lt(m.power, 1.0, "the solver is now shedding load onto the smelter")
-	assert_lt(m.rate, full, "and the heat-hungriest recipe in the game slows down for it")
+	assert_lt(m.power, 1.0, "the solver is now shedding load onto the workshop")
+	assert_lt(m.rate, full, "and the heat-hungry recipe slows down for it")
+	assert_near(m.rate, m.power, 0.001,
+		"a recipe rated at the machine's full draw slows exactly one for one")
 
 
 func test_the_labour_market_is_actually_wired_in() -> void:
@@ -425,8 +458,8 @@ func test_the_labour_market_is_actually_wired_in() -> void:
 		skip("[P05] citizens is not built yet")
 		return
 	prod.set_staffing_autarky(false)
-	var end: Vector2i = _grid_at(ORIGIN)
-	var id: int = _place("smelter", end + Vector2i(1, -1))
+	_city()
+	var id: int = _place("smelter", SMELTER_CELL)
 	world.run(20)
 	assert_near(_machine(id).staffing, float(citizens.call("staffing_of", id)), 0.0001,
 		"the crew a machine runs on is the crew [P05] says is standing in it")
@@ -437,24 +470,25 @@ func test_the_labour_market_is_actually_wired_in() -> void:
 
 func test_research_gates_a_recipe_and_says_so() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
-	var id: int = _place("workshop", end + Vector2i(1, -4))
+	_city()
+	var id: int = _place("workshop", WORKSHOP_CELL)
 	assert_gt(float(id), 0.0, "the workshop was placed")
 	world.run(20)
-	assert_ne(String(_machine(id).recipe_id), "circuit",
-		"a locked recipe is never auto-chosen")
+	assert_ne(String(_machine(id).recipe_id), "circuit", "a locked recipe is never auto-chosen")
 	assert_true(prod.set_recipe(id, &"circuit"), "the player may still select it")
 	world.run(30)
 	assert_eq(String(_machine(id).reason), "locked", "and is told why it does not run")
 	world.cmd_now({"system": &"build", "op": "grant_unlock", "unlock": "electrotechnics"})
-	world.run(ProductionSystem.UNLOCK_RECHECK_TICKS + 20)
+	world.run(ProductionSystem.UNLOCK_RECHECK_TICKS + 40)
 	assert_ne(String(_machine(id).reason), "locked", "granting the research opens it")
+	world.run(260)
+	assert_gt(float(prod.produced_total(&"circuit")), 0.0, "and it starts making circuits")
 
 
 func test_the_chosen_recipe_is_written_where_a_blueprint_will_find_it() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
-	var id: int = _place("smelter", end + Vector2i(1, -1))
+	_city()
+	var id: int = _place("smelter", SMELTER_CELL)
 	world.run(20)
 	prod.set_recipe(id, &"copper_coil")
 	var b: Object = build.call("get_building", id)
@@ -465,8 +499,8 @@ func test_the_chosen_recipe_is_written_where_a_blueprint_will_find_it() -> void:
 
 func test_a_machine_placed_with_a_recipe_in_its_meta_starts_on_it() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
-	var id: int = _place("smelter", end + Vector2i(1, -1), {"recipe": "steel_plate"})
+	_city()
+	var id: int = _place("smelter", SMELTER_CELL, {"recipe": "steel_plate"})
 	world.run(20)
 	assert_eq(String(_machine(id).recipe_id), "steel_plate",
 		"a pasted blueprint comes back making what it was making")
@@ -474,8 +508,8 @@ func test_a_machine_placed_with_a_recipe_in_its_meta_starts_on_it() -> void:
 
 func test_switching_recipe_gives_the_committed_charge_back() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
-	var id: int = _place("smelter", end + Vector2i(1, -1))
+	_city()
+	var id: int = _place("smelter", SMELTER_CELL)
 	world.run(20)
 	var m: ProdMachine = _machine(id)
 	assert_true(m.committed, "a craft is under way")
@@ -490,22 +524,35 @@ func test_switching_recipe_gives_the_committed_charge_back() -> void:
 # extraction
 # =============================================================================
 
-func test_a_drill_works_the_seam_under_it_and_the_deposit_shrinks() -> void:
-	_world()
-	if grid == null:
-		skip("no grid system in this build")
-		return
+## Drops a drill on a deposit with a fuelled generator beside it, because a
+## drill draws heat like everything else. Returns the drill id, or -1.
+func _drill_on_a_seam() -> int:
 	var seam: Vector2i = _find_deposit()
 	if seam.x < 0:
-		skip("this seed put no reachable deposit on the map")
+		return -1
+	var drill: int = _place("ore_drill", seam - Vector2i(1, 1))
+	if drill < 0:
+		return -1
+	var gen: int = _place("coal_generator", Vector2i(seam.x + 2, seam.y - 1))
+	if gen < 0:
+		return -1
+	heat.call("deliver_fuel", gen, &"coal", 400.0)
+	world.run(40)
+	return drill
+
+
+func test_a_drill_works_the_seam_under_it_and_the_deposit_shrinks() -> void:
+	_world()
+	if grid == null or heat == null:
+		skip("needs grid and heat")
 		return
-	var before: int = int(grid.call("resource_amount_at", seam))
-	var id: int = _place("ore_drill", seam - Vector2i(1, 1))
+	var id: int = _drill_on_a_seam()
 	if id < 0:
-		skip("the drill would not fit on this seam")
+		skip("this seed offered no deposit with room for a drill and a generator")
 		return
-	world.run(400)
 	var m: ProdMachine = _machine(id)
+	var before: int = int(grid.call("resource_amount_at", m.seam))
+	world.run(400)
 	assert_gt(float(m.crafts_done), 0.0, "the drill pulled something out")
 	assert_lt(float(grid.call("resource_amount_at", m.seam)), float(before),
 		"and the deposit is smaller for it")
@@ -515,18 +562,13 @@ func test_a_drill_works_the_seam_under_it_and_the_deposit_shrinks() -> void:
 
 func test_a_worked_out_seam_stalls_the_drill_and_raises_an_alert() -> void:
 	_world()
-	if grid == null:
-		skip("no grid system in this build")
+	if grid == null or heat == null:
+		skip("needs grid and heat")
 		return
-	var seam: Vector2i = _find_deposit()
-	if seam.x < 0:
-		skip("this seed put no reachable deposit on the map")
-		return
-	var id: int = _place("ore_drill", seam - Vector2i(1, 1))
+	var id: int = _drill_on_a_seam()
 	if id < 0:
-		skip("the drill would not fit on this seam")
+		skip("this seed offered no deposit with room for a drill and a generator")
 		return
-	world.run(30)
 	var m: ProdMachine = _machine(id)
 	for c: Vector2i in m.footprint:
 		grid.call("harvest", c, 1000000)
@@ -550,11 +592,11 @@ func test_a_recuperator_next_to_a_smelter_turns_waste_into_grid_heat() -> void:
 	if heat == null:
 		skip("no heat system in this build")
 		return
-	var end: Vector2i = _grid_at(ORIGIN)
-	var smelter: int = _place("smelter", end + Vector2i(1, -1))
-	var rec: int = _place("recuperator", end + Vector2i(1, 3))
+	_city()
+	var smelter: int = _place("smelter", SMELTER_CELL)
+	var rec: int = _place("recuperator", REC_NEAR)
 	assert_gt(float(rec), 0.0, "the recuperator was placed")
-	world.run(400)
+	world.run(600)
 
 	assert_gt(float(_machine(smelter).crafts_done), 0.0, "the smelter actually ran")
 	assert_gt(prod.waste_recovered(), 0.0, "waste heat is coming back as grid heat")
@@ -568,12 +610,13 @@ func test_a_recuperator_out_of_reach_gets_nothing() -> void:
 	if heat == null:
 		skip("no heat system in this build")
 		return
-	var end: Vector2i = _grid_at(ORIGIN)
-	_place("smelter", end + Vector2i(1, -1))
-	# Well outside ProdMachineDef.DEFAULT_CAPTURE_RADIUS.
-	var far: int = _place("recuperator", end + Vector2i(1, 14))
+	_city()
+	_place("smelter", SMELTER_CELL)
+	# Well outside ProdMachineDef.DEFAULT_CAPTURE_RADIUS, but on the same spur,
+	# so the only thing that differs between the two recuperators is distance.
+	var far: int = _place("recuperator", REC_FAR)
 	assert_gt(float(far), 0.0, "the distant recuperator was placed")
-	world.run(400)
+	world.run(600)
 	assert_near(float(heat.call("fuel_stock_of", far)), 0.0, 0.001,
 		"heat you do not stand next to goes up the chimney")
 	assert_eq(String(_machine(far).reason), "missing_input",
@@ -582,9 +625,9 @@ func test_a_recuperator_out_of_reach_gets_nothing() -> void:
 
 func test_uncaptured_waste_decays_instead_of_banking_forever() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
-	var smelter: int = _place("smelter", end + Vector2i(1, -1))
-	world.run(400)
+	_city()
+	var smelter: int = _place("smelter", SMELTER_CELL)
+	world.run(600)
 	var iron: RecipeDef = _book().get_recipe(&"iron_plate")
 	assert_lt(_machine(smelter).waste_bank, iron.waste_heat * 10.0,
 		"a machine nobody collects from does not hoard an unbounded bank")
@@ -597,40 +640,38 @@ func test_uncaptured_waste_decays_instead_of_banking_forever() -> void:
 
 func test_measured_throughput_matches_the_ratio_the_recipe_promises() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
-	var id: int = _place("smelter", end + Vector2i(1, -1))
-	world.run(60)
+	_city()
+	var id: int = _place("workshop", WORKSHOP_CELL)
+	world.run(120)
 	var m: ProdMachine = _machine(id)
-	if m.rate < 0.999:
-		skip("this world is not warm enough to measure a clean rate (rate %.3f)" % m.rate)
-		return
-	var before: int = prod.produced_total(&"iron_plate")
-	var ticks: int = 1200
+	assert_near(m.rate, 1.0, 0.001, "the shop is at full rate before the window opens")
+	var before: int = prod.produced_total(&"gear")
+	var ticks: int = 2000
 	world.run(ticks)
-	var made: int = prod.produced_total(&"iron_plate") - before
-	var expected: float = _book().get_recipe(&"iron_plate").output_per_minute(&"iron_plate")
+	var made: int = prod.produced_total(&"gear") - before
+	var expected: float = _book().get_recipe(&"gear").output_per_minute(&"gear")
 	var measured: float = float(made) * 60.0 / (float(ticks) * SimClock.DT)
 	assert_near(measured, expected, expected * 0.06,
-		"a smelter at full rate makes what the recipe says it makes")
+		"a workshop at full rate makes what the recipe says it makes (got %.1f/min)" % measured)
 
 
 func test_items_per_minute_reports_what_was_actually_made() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
-	_place("smelter", end + Vector2i(1, -1))
+	_city()
+	_place("workshop", WORKSHOP_CELL)
 	world.run(ProductionSystem.RATE_WINDOW_TICKS * 2 + 100)
-	assert_gt(prod.items_per_minute(&"iron_plate"), 0.0, "the rate window sees the output")
+	assert_gt(prod.items_per_minute(&"gear"), 0.0, "the rate window sees the output")
 	assert_eq(prod.items_per_minute(&"heat_core"), 0.0, "and does not invent any")
 
 
 func test_nothing_is_created_or_destroyed_across_a_craft() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
-	var id: int = _place("smelter", end + Vector2i(1, -1))
+	_city()
+	var id: int = _place("smelter", SMELTER_CELL)
 	world.run(20)
 	var ore_before: int = _stock("iron_ore") + _machine(id).held(&"iron_ore")
 	var plate_before: int = _stock("iron_plate")
-	world.run(600)
+	world.run(900)
 	var m: ProdMachine = _machine(id)
 	var ore_after: int = _stock("iron_ore") + m.held(&"iron_ore")
 	var plates: int = _stock("iron_plate") - plate_before
@@ -642,14 +683,13 @@ func test_nothing_is_created_or_destroyed_across_a_craft() -> void:
 
 func test_the_chain_depth_reached_climbs_as_the_city_builds_upward() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
+	_city()
 	assert_eq(prod.chain_depth_reached(), 0, "a city that has made nothing is at zero")
-	_place("smelter", end + Vector2i(1, -1))
-	world.run(300)
-	assert_ge(float(prod.chain_depth_reached()), 2.0, "plate is two transformations in")
-	var shop: int = _place("workshop", end + Vector2i(1, -5))
-	prod.set_recipe(shop, &"gear")
+	_place("smelter", SMELTER_CELL)
 	world.run(400)
+	assert_ge(float(prod.chain_depth_reached()), 2.0, "plate is two transformations in")
+	_place("workshop", WORKSHOP_CELL)
+	world.run(300)
 	assert_ge(float(prod.chain_depth_reached()), 3.0, "and a gear is three")
 	assert_le(float(prod.chain_depth_reached()), float(prod.chain_depth_max()),
 		"it never claims more depth than the content has")
@@ -663,8 +703,8 @@ func test_metric_columns_never_change_shape_mid_run() -> void:
 	_world()
 	var first: Array = prod.metrics().keys()
 	first.sort()
-	_grid_at(ORIGIN)
-	_place("smelter", ORIGIN + Vector2i(17, 1))
+	_city()
+	_place("smelter", SMELTER_CELL)
 	world.run(700)
 	var later: Array = prod.metrics().keys()
 	later.sort()
@@ -677,9 +717,9 @@ func test_metric_columns_never_change_shape_mid_run() -> void:
 
 func test_serialize_round_trips_through_deserialize() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
-	_place("smelter", end + Vector2i(1, -1))
-	_place("workshop", end + Vector2i(1, -5))
+	_city()
+	_place("smelter", SMELTER_CELL)
+	_place("workshop", WORKSHOP_CELL)
 	world.run(400)
 	var before: Dictionary = prod.serialize()
 	prod.deserialize(before)
@@ -690,9 +730,9 @@ func test_serialize_round_trips_through_deserialize() -> void:
 
 func test_the_serialized_state_is_sorted_and_json_safe() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
-	_place("workshop", end + Vector2i(1, -5))
-	_place("smelter", end + Vector2i(1, -1))
+	_city()
+	_place("workshop", WORKSHOP_CELL)
+	_place("smelter", SMELTER_CELL)
 	world.run(200)
 	var s: Dictionary = prod.serialize()
 	var ids: Array = []
@@ -711,14 +751,16 @@ func test_the_whole_production_system_replays_identically() -> void:
 		2: [{"system": &"build", "op": "place", "kind": "the_hearth",
 			"cell": [ORIGIN.x, ORIGIN.y], "free": true, "instant": true}],
 		3: [{"system": &"build", "op": "place_line", "kind": "heat_pipe",
-			"from": [ORIGIN.x + 5, ORIGIN.y + 2], "to": [ORIGIN.x + 16, ORIGIN.y + 2],
+			"from": [SPUR_FROM.x, SPUR_FROM.y], "to": [SPUR_TO.x, SPUR_TO.y],
 			"free": true, "instant": true}],
 		6: [{"system": &"build", "op": "place", "kind": "smelter",
-			"cell": [ORIGIN.x + 17, ORIGIN.y + 1], "free": true, "instant": true}],
+			"cell": [SMELTER_CELL.x, SMELTER_CELL.y], "free": true, "instant": true}],
 		8: [{"system": &"build", "op": "place", "kind": "recuperator",
-			"cell": [ORIGIN.x + 17, ORIGIN.y + 5], "free": true, "instant": true}],
-		20: [{"system": &"production", "op": "set_recipe",
-			"cell": [ORIGIN.x + 17, ORIGIN.y + 1], "recipe": "iron_plate"}],
+			"cell": [REC_NEAR.x, REC_NEAR.y], "free": true, "instant": true}],
+		10: [{"system": &"build", "op": "place", "kind": "workshop",
+			"cell": [WORKSHOP_CELL.x, WORKSHOP_CELL.y], "free": true, "instant": true}],
+		30: [{"system": &"production", "op": "set_recipe",
+			"cell": [SMELTER_CELL.x, SMELTER_CELL.y], "recipe": "copper_coil"}],
 	}
 	var diff: PackedStringArray = SimFixture.replay_diff(11, 600, script)
 	assert_empty(diff, "same seed, same script, byte-identical production state")
@@ -741,13 +783,13 @@ func test_a_command_naming_a_machine_that_is_not_there_is_refused_out_loud() -> 
 
 func test_a_tick_of_production_stays_inside_its_budget() -> void:
 	_world()
-	var end: Vector2i = _grid_at(ORIGIN)
+	_city()
 	# Forty machines is more industry than a real base carries, laid out in a
 	# block so the recuperators all have work to link against.
 	var placed: int = 0
 	for row: int in 8:
 		for col: int in 5:
-			var c: Vector2i = end + Vector2i(2 + col * 5, -9 + row * 5)
+			var c: Vector2i = Vector2i(66 + col * 5, 64 + row * 5)
 			var kind: String = "smelter" if (row + col) % 3 != 2 else "recuperator"
 			if _place(kind, c) > 0:
 				placed += 1

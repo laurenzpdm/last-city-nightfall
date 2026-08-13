@@ -116,8 +116,10 @@ func _draw_row(e: Dictionary, rect: Rect2, expanded: bool) -> void:
 	var count: int = int(e.get("count", 1))
 	x += style.draw_text(self, Vector2(x, baseline), head, style.fs(13),
 		style.ink() if sev >= S.Sev.WARN else style.ink_dim())
-	if count > 1:
-		style.draw_text_right(self, rect.position.x + rect.size.x - 8.0, baseline,
+	# The badge only earns its place when the headline does not already say the
+	# number: "7 buildings have frozen solid ×7" is noise.
+	if count > 1 and not head.contains(str(count)):
+		style.draw_text_right(self, rect.position.x + rect.size.x - 9.0, baseline,
 			"×%d" % count, style.fs(11), style.ink_faint())
 
 	if not expanded:

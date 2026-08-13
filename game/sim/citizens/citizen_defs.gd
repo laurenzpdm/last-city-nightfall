@@ -234,7 +234,7 @@ const CHILD_SICK_FACTOR: float = 1.30
 
 ## Morale drifts toward a target computed from everything else, this fast.
 const MORALE_DRIFT_PER_SEC: float = 0.11
-const MORALE_BASE: float = 20.0
+const MORALE_BASE: float = 12.0
 const MORALE_FROM_WARMTH: float = 26.0
 const MORALE_FROM_FOOD: float = 22.0
 const MORALE_FROM_REST: float = 11.0

@@ -149,8 +149,14 @@ func test_brackets_shrink_on_a_tiny_rect() -> void:
 	var r := Rect2(0.0, 0.0, 8.0, 8.0)
 	var out := PackedVector2Array()
 	LcnOverlayGeometry.brackets(r, 40.0, out)
+	var corners: Array[Vector2] = [Vector2(0.0, 0.0), Vector2(8.0, 0.0),
+		Vector2(8.0, 8.0), Vector2(0.0, 8.0)]
 	for p: Vector2 in out:
-		assert_le(p.x, 4.0 + 0.001, "arms stay under half the width")
+		var nearest: float = 1.0e9
+		for c: Vector2 in corners:
+			nearest = minf(nearest, p.distance_to(c))
+		assert_le(nearest, 8.0 * 0.45 + 0.001,
+			"an arm never reaches past 45% of the shorter side, so the brackets never close into a box")
 
 
 func test_hatch_fills_a_rect_without_leaving_it() -> void:

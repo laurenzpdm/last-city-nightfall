@@ -401,11 +401,17 @@ func _sample_threat() -> void:
 			if bool(row[3]):
 				swarm += w
 		if total > 0.0001:
-			var a: float = clampf(armoured / total * 2.0, 0.0, 1.0)
-			_put(ResearchDefs.SIG_ARMOURED, a,
+			# What the roster CAN send only matters once something has actually
+			# come. Before the first wave the composition of the dark is a fact
+			# about the world, not a problem the player is feeling — and without
+			# this the defence branch outbids the cold on day one.
+			var engagement: float = clampf(float(wave_no) / 3.0, 0.15, 1.0)
+			_put(ResearchDefs.SIG_ARMOURED,
+				clampf(armoured / total * 2.0, 0.0, 1.0) * engagement,
 				"%d%% of what the plain can send is armoured" % int(armoured / total * 100.0),
 				&"measured")
-			_put(ResearchDefs.SIG_SWARM, clampf(swarm / total * 1.5, 0.0, 1.0),
+			_put(ResearchDefs.SIG_SWARM,
+				clampf(swarm / total * 1.5, 0.0, 1.0) * engagement,
 				"%d%% of it arrives in packs" % int(swarm / total * 100.0), &"measured")
 
 	var lost: float = _last_night_losses(t)

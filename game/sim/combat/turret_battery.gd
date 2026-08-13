@@ -251,7 +251,8 @@ func step(tick: int, sys: Object, swarm: EnemySwarm, shells: ProjectilePool,
 		# --- supply ------------------------------------------------------
 		var status: Dictionary = sys.call("turret_supply", id)
 		if not bool(status.get("running", false)):
-			t.idle = CombatTypes.Idle.OFFLINE
+			t.idle = CombatTypes.Idle.NO_HEAT if bool(status.get("cold", false)) \
+				else CombatTypes.Idle.OFFLINE
 			t.target_slot = -1
 			t.target_id = -1
 			t.chill = 0.0

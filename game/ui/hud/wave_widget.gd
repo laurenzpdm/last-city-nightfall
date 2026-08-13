@@ -124,7 +124,12 @@ func _where_line() -> String:
 	if not probe.wave_known:
 		return "wave %d · no word yet" % maxi(1, probe.wave_number)
 	if probe.wave_phrase != "":
-		return "wave %d %s" % [maxi(1, probe.wave_number), probe.wave_phrase]
+		# [P08] hands out the bare places ("the north and the east"); the
+		# preposition is the HUD's job.
+		var phrase: String = probe.wave_phrase
+		if not phrase.begins_with("from"):
+			phrase = "from " + phrase
+		return "wave %d %s" % [maxi(1, probe.wave_number), phrase]
 	return "wave %d from the %s" % [maxi(1, probe.wave_number),
 		LcnHudFormat.compass(probe.wave_direction)]
 

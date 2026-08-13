@@ -299,8 +299,8 @@ func _society_morale() -> float:
 		return 0.0
 	var f: float = float(v)
 	if _m_hope == "hope":
-		return clampf((f - 50.0) * 0.4, -20.0, 20.0)
-	return clampf(f, -20.0, 20.0)
+		return clampf((f - 50.0) * 0.4, -15.0, 15.0)
+	return clampf(f, -15.0, 15.0)
 
 
 # =========================================================================

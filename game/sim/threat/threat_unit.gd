@@ -112,15 +112,37 @@ static func from_resource(res: Resource, profile: ThreatProfile) -> ThreatUnit:
 	return u
 
 
-## What the player is told there were several of.
+## What the player is told there were several of. Content may state a plural;
+## otherwise it is derived, because a warning that says "9 cinder leechs" reads
+## like a spreadsheet and a warning is meant to read like a person.
 func plural() -> String:
 	if plural_name != "":
 		return plural_name
 	if display_name == "":
 		return String(id)
-	if display_name.begins_with("The ") or display_name.ends_with("s"):
+	if is_proper():
 		return display_name
-	return display_name.to_lower() + "s"
+	var lower: String = display_name.to_lower()
+	if lower.ends_with("s") or lower.ends_with("x") or lower.ends_with("z") \
+			or lower.ends_with("ch") or lower.ends_with("sh"):
+		return lower + "es"
+	if lower.length() > 1 and lower.ends_with("y") and not "aeiou".contains(lower.substr(lower.length() - 2, 1)):
+		return lower.substr(0, lower.length() - 1) + "ies"
+	return lower + "s"
+
+
+## A name rather than a species: "The Long Cold" is not "a long cold".
+func is_proper() -> bool:
+	return display_name.begins_with("The ") or tags.has(&"boss")
+
+
+## How a warning names `count` of these.
+func phrase(count: int) -> String:
+	if count == 1:
+		if is_proper():
+			return display_name
+		return "1 " + display_name.to_lower()
+	return "%d %s" % [count, plural()]
 
 
 ## Damage per second against structures, at full strength.

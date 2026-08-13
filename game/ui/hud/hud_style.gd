@@ -367,15 +367,19 @@ func draw_segments(ci: CanvasItem, rect: Rect2, fill01: float, segments: int,
 	var gap: float = 2.0
 	var w: float = (rect.size.x - gap * float(n - 1)) / float(n)
 	var lit_count: float = clampf(fill01, 0.0, 1.0) * float(n)
+	# One continuous groove behind the whole run, then only the lit segments on
+	# top: ten separate dark rectangles read as static at small sizes.
+	var groove: Color = P.COLD_ABYSS
+	ci.draw_rect(rect.grow(1.0), Color(groove.r, groove.g, groove.b, 0.55), true)
 	for i: int in n:
-		var r := Rect2(rect.position + Vector2(float(i) * (w + gap), 0.0), Vector2(w, rect.size.y))
 		var on: float = clampf(lit_count - float(i), 0.0, 1.0)
-		var dark: Color = P.COLD_ABYSS
-		ci.draw_rect(r, Color(dark.r, dark.g, dark.b, 0.8), true)
-		if on > 0.0:
-			var c: Color = colour
-			ci.draw_rect(Rect2(r.position, Vector2(r.size.x * on, r.size.y)),
-				Color(c.r, c.g, c.b, 0.35 + 0.65 * on), true)
+		if on <= 0.01:
+			continue
+		var r := Rect2(rect.position + Vector2(float(i) * (w + gap), 0.0),
+			Vector2(w * on, rect.size.y))
+		ci.draw_rect(r, Color(colour.r, colour.g, colour.b, 0.55 + 0.45 * on), true)
+	var edge: Color = P.COLD_RIM
+	ci.draw_rect(rect.grow(1.0), Color(edge.r, edge.g, edge.b, 0.45), false, 1.0)
 
 
 ## Up / down / flat arrow. A stock falling is the information, so the arrow is

@@ -70,22 +70,34 @@ func test_dash_patterns_are_distinct_within_a_wheel() -> void:
 		used[d] = i
 
 
-## The ramp must never fold back on itself: colder has to look colder all the way
-## down, or a contour reads as a ring instead of a boundary.
-func test_thermal_ramp_is_monotonic_in_luminance_direction() -> void:
-	for mode: String in ["off", "tritanopia", "monochrome"]:
+## The ramp must never fold back on itself. Luminance alone cannot carry that
+## (orange is darker than pale blue and still reads as hotter), so the real rule
+## is the one asserted here: NO TWO TEMPERATURES SIX DEGREES APART LOOK ALIKE,
+## anywhere on the scale, in any vision mode. A ramp that folds would make a
+## warm district and a freezing one the same colour.
+func test_thermal_ramp_never_folds_back() -> void:
+	for mode: String in ["off", "protanopia", "deuteranopia", "tritanopia", "monochrome"]:
 		var p: LcnOverlayPalette = _pal(mode)
-		var prev: Color = p.thermal_color(-60.0)
-		var rising: int = 0
-		var samples: int = 0
-		for step: int in 20:
-			var t: float = -60.0 + float(step) * 5.0
-			var c: Color = p.thermal_color(t)
-			samples += 1
-			if LcnOverlayPalette.luma(c) >= LcnOverlayPalette.luma(prev) - 0.02:
-				rising += 1
-			prev = c
-		assert_gt(float(rising) / float(samples), 0.85, "%s ramp mostly brightens with heat" % mode)
+		var temps: Array[float] = []
+		for step: int in 15:
+			temps.append(-45.0 + float(step) * 6.0)
+		var worst: float = 999.0
+		for a: int in temps.size():
+			for b: int in range(a + 1, temps.size()):
+				worst = minf(worst, LcnOverlayPalette.separation(
+					p.thermal_color(temps[a]), p.thermal_color(temps[b])))
+		assert_gt(worst, 0.06, "%s: closest pair of distinct temperatures" % mode)
+
+
+## In monochrome there is nothing but luminance, so there the ramp really does
+## have to climb all the way.
+func test_monochrome_ramp_climbs_monotonically() -> void:
+	var p: LcnOverlayPalette = _pal("monochrome")
+	var prev: float = -1.0
+	for step: int in 26:
+		var l: float = LcnOverlayPalette.luma(p.thermal_color(-45.0 + float(step) * 3.5))
+		assert_ge(l, prev - 0.0001, "greyscale ramp never gets darker as it warms")
+		prev = l
 
 
 func test_thermal_ramp_clamps_at_both_ends() -> void:
@@ -141,4 +153,4 @@ func test_reduce_motion_is_carried_through() -> void:
 		LcnOverlayGeometry.pulse(9.37, 1.0, true), 0.0001,
 		"a reduced-motion pulse is constant over time")
 	assert_ne(LcnOverlayGeometry.pulse(0.0, 1.0, false),
-		LcnOverlayGeometry.pulse(0.5, 1.0, false), "and animates otherwise")
+		LcnOverlayGeometry.pulse(0.25, 1.0, false), "and animates otherwise")

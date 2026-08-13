@@ -411,7 +411,11 @@ func network_title(nid: int) -> String:
 	var title: String = "grid %d" % nid
 	if best_id >= 0 and best_out > 0.0:
 		var node2: Object = nodes.get(best_id)
-		title = "the %s grid" % LcnHudFormat.building_title(StringName(String(node2.get("kind"))))
+		var name: String = LcnHudFormat.building_title(StringName(String(node2.get("kind"))))
+		# "The Hearth" already carries its article; "the The Hearth grid" does not
+		# read like something a person would say.
+		title = "%s grid" % name if name.to_lower().begins_with("the ") \
+			else "the %s grid" % name
 	_net_titles[nid] = title
 	return title
 

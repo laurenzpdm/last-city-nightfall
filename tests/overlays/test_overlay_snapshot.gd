@@ -48,13 +48,25 @@ func _core() -> Vector2i:
 	return Vector2i(128, 128)
 
 
-## A hearth, a pipe run east, a radiator at the end. One connected grid.
+## Fills every bunker. Once [P03] and [P04] exist, heat is metered rather than
+## autarkic, so an unfuelled hearth has no output, the router finds no live
+## source and the whole grid reads as unreachable. A test that forgot this would
+## pass vacuously on an empty network.
+func _fuel() -> void:
+	for item: String in ["coal", "timber"]:
+		world.cmd({"system": &"heat", "op": "fuel_all", "item": item, "amount": 9000.0})
+	world.run(1)
+
+
+## A hearth, a pipe run east, a housing block at the end. One connected grid.
 func _one_grid(at: Vector2i) -> void:
 	world.cmd({"system": &"heat", "op": "place", "kind": "the_hearth", "cell": [at.x, at.y]})
 	world.cmd({"system": &"heat", "op": "line", "kind": "heat_pipe",
 		"from": [at.x + 3, at.y + 1], "to": [at.x + 12, at.y + 1]})
 	world.cmd({"system": &"heat", "op": "place", "kind": "housing_block",
 		"cell": [at.x + 13, at.y]})
+	world.run(20)
+	_fuel()
 	world.run(20)
 
 
@@ -124,6 +136,8 @@ func test_two_disconnected_runs_get_two_slots() -> void:
 	world.cmd({"system": &"heat", "op": "line", "kind": "heat_pipe",
 		"from": [at.x + 43, at.y + 41], "to": [at.x + 50, at.y + 41]})
 	world.run(20)
+	_fuel()
+	world.run(20)
 	_sample()
 	assert_ge(float(snap.nets.size()), 2.0, "the sim really did make two networks")
 	var slots: Dictionary[int, bool] = {}
@@ -185,6 +199,8 @@ func test_bottlenecks_are_carried_and_tagged() -> void:
 	for k: int in 6:
 		world.cmd({"system": &"heat", "op": "place", "kind": "housing_block",
 			"cell": [at.x + 4 + k * 3, at.y + 1]})
+	world.run(20)
+	_fuel()
 	world.run(200)
 	_sample()
 	var heat: HeatSystem = _heat()
@@ -207,6 +223,8 @@ func test_starved_consumers_are_flagged_and_counted() -> void:
 	for k: int in 8:
 		world.cmd({"system": &"heat", "op": "place", "kind": "housing_block",
 			"cell": [at.x + 3 + k * 3, at.y + 1]})
+	world.run(20)
+	_fuel()
 	world.run(300)
 	_sample()
 	var heat: HeatSystem = _heat()
@@ -287,6 +305,8 @@ func test_sampling_a_real_base_is_cheap() -> void:
 	for row: int in 10:
 		world.cmd({"system": &"heat", "op": "line", "kind": "heat_pipe",
 			"from": [at.x + 3, at.y + row * 2], "to": [at.x + 34, at.y + row * 2]})
+	world.run(20)
+	_fuel()
 	world.run(60)
 	_sample()
 	assert_gt(float(snap.node_count), 200.0, "a base worth measuring")

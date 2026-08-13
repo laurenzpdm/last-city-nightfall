@@ -456,9 +456,7 @@ func radical_count() -> int:
 ## Applied when a law comes into force: approval swings, grievances relieved and
 ## grievances provoked all land at once.
 func apply_law(law: LawDef, tick: int) -> void:
-	var keys: Array = law.approval.keys()
-	keys.sort()
-	for f: StringName in keys:
+	for f: StringName in SocietyDefs.sorted_keys(law.approval):
 		adjust_approval(f, float(law.approval[f]))
 	for g: StringName in law.relieves:
 		var gr: SocietyGrievance = grievances.get(g)

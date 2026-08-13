@@ -48,6 +48,8 @@ const SEEK_RING_MAX: int = 24
 const WEAK_AT: float = CombatTypes.BREACH_HEALTH
 ## Seconds between repeated alerts of the same kind.
 const ALERT_EVERY_TICKS: int = 100
+## Ticks between checks of whether the wall is actually armed.
+const DEFENCE_CHECK_TICKS: int = 200
 ## Tags always indexed, plus whatever the loaded roster actually asks for — see
 ## _indexed_tags. An unlisted preference would otherwise be a silent no-op.
 const INDEXED_TAGS: Array[StringName] = [
@@ -225,6 +227,8 @@ func step(tick: int) -> void:
 	if shells.count > 0:
 		battery.damage_dealt += shells.step(tick, swarm)
 
+	if tick % DEFENCE_CHECK_TICKS == 0:
+		_report_defence()
 	_drain_spawn_requests(tick)
 	_publish_deaths()
 	if swarm.count > 0:
@@ -364,6 +368,43 @@ func turret_readout() -> Array[Dictionary]:
 	return battery.readout()
 
 
+## One-line state of the whole perimeter: how many guns exist, how many can
+## actually put a round out this second, and what is stopping the rest. [P17] and
+## [P19] can render this directly; the alert below is the same data, shouted.
+func defence_report() -> Dictionary:
+	var armed: int = 0
+	var cold: int = 0
+	var dry: int = 0
+	var idle_gun: int = 0
+	var off: int = 0
+	var first_cold: Vector2 = Vector2.ZERO
+	for id: int in battery.sorted_ids():
+		var t: TurretBattery.Turret = battery.turrets[id]
+		match t.idle:
+			CombatTypes.Idle.NO_HEAT:
+				cold += 1
+				if first_cold == Vector2.ZERO:
+					first_cold = t.centre
+			CombatTypes.Idle.NO_AMMO:
+				dry += 1
+			CombatTypes.Idle.OFFLINE, CombatTypes.Idle.NO_WEAPON:
+				off += 1
+			CombatTypes.Idle.NO_TARGET:
+				idle_gun += 1
+			_:
+				armed += 1
+	return {
+		"turrets": battery.count(),
+		"armed": armed + idle_gun,
+		"cold": cold,
+		"dry": dry,
+		"offline": off,
+		"uptime": snappedf(battery.uptime(), 0.001),
+		"heat_spent": snappedf(battery.heat_spent, 0.1),
+		"first_cold": [first_cold.x, first_cold.y],
+	}
+
+
 ## Which kinds are on the map right now, by id.
 func threat_census() -> Dictionary:
 	return swarm.census()
@@ -483,18 +524,25 @@ func describe_enemy(enemy_id: int) -> Dictionary:
 ## Is this mount able to shoot, and how well is the grid feeding it?
 func turret_supply(building_id: int) -> Dictionary:
 	if _build == null:
-		return {"running": true, "served": 1.0}
+		return {"running": true, "served": 1.0, "cold": false}
 	var b: Object = _build.call("get_building", building_id)
-	if b == null or not bool(b.call("is_running")):
-		return {"running": false, "served": 0.0}
+	if b == null:
+		return {"running": false, "served": 0.0, "cold": false}
+	var frozen: bool = _has_heat and bool(_heat.call("is_frozen", building_id))
+	if not bool(b.call("is_running")):
+		# A gun the heat network let freeze is COLD, not "switched off". The
+		# distinction is the whole point of the readout: one is the player's
+		# choice, the other is the bill for a heating plan that did not reach here.
+		return {"running": false, "served": 0.0, "cold": frozen}
 	if not _has_heat:
-		return {"running": true, "served": 1.0}
+		return {"running": true, "served": 1.0, "cold": false}
 	if not bool(_heat.call("has_building", building_id)):
 		# A mount [P02] does not know about draws nothing, so it is never starved.
-		return {"running": true, "served": 1.0}
-	if bool(_heat.call("is_frozen", building_id)):
-		return {"running": false, "served": 0.0}
-	return {"running": true, "served": float(_heat.call("served_of", building_id))}
+		return {"running": true, "served": 1.0, "cold": false}
+	if frozen:
+		return {"running": false, "served": 0.0, "cold": true}
+	return {"running": true, "served": float(_heat.call("served_of", building_id)),
+		"cold": false}
 
 
 ## Rounds handed to a mount.
@@ -941,6 +989,27 @@ func _indexed_tags() -> Array[StringName]:
 		if pref != CombatTypes.PREF_ANY and not _tags_cache.has(pref):
 			_tags_cache.append(pref)
 	return _tags_cache
+
+
+## Says out loud when the wall cannot shoot. A silent turret is the single most
+## expensive thing a player can fail to notice, and the sim already knows exactly
+## why each one is silent — none of that is worth anything until it leaves the
+## simulation.
+func _report_defence() -> void:
+	if battery.count() == 0:
+		return
+	var r: Dictionary = defence_report()
+	var cold: int = int(r["cold"])
+	var off: int = int(r["offline"])
+	var dry: int = int(r["dry"])
+	if cold + off > 0:
+		var pos: Array = r["first_cold"]
+		_alert(&"turrets_cold", 1, "%d of %d turret(s) have no heat and cannot fire."
+			% [cold + off, int(r["turrets"])],
+			Vector2(float(pos[0]), float(pos[1])))
+	elif dry > 0:
+		_alert(&"turrets_dry", 1, "%d of %d turret(s) are out of ammunition."
+			% [dry, int(r["turrets"])], Vector2.ZERO)
 
 
 func _flush_discontent() -> void:

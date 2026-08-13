@@ -41,11 +41,23 @@ const ROLES: Array[StringName] = [
 const ROLE_PLURAL: Array[String] = [
 	"light bodies", "walkers", "armour", "runners", "siege engines",
 ]
+const ROLE_SINGULAR: Array[String] = [
+	"light body", "walker", "armoured thing", "runner", "siege engine",
+]
 
 
 static func role_plural(r: StringName) -> String:
 	var i: int = ROLES.find(r)
 	return ROLE_PLURAL[i] if i >= 0 else "bodies"
+
+
+## The right word for a count. "1 siege engines" is how a warning stops sounding
+## like a person wrote it.
+static func role_label(r: StringName, count: int) -> String:
+	var i: int = ROLES.find(r)
+	if i < 0:
+		return "body" if count == 1 else "bodies"
+	return ROLE_SINGULAR[i] if count == 1 else ROLE_PLURAL[i]
 
 
 static func role_index(r: StringName) -> int:

@@ -306,9 +306,7 @@ func _stress(celsius: float, floor_c: float) -> float:
 
 func serialize() -> Dictionary:
 	var causes: Dictionary = {}
-	var keys: Array = deaths_by_cause.keys()
-	keys.sort()
-	for k: StringName in keys:
+	for k: StringName in SocietyDefs.sorted_keys(deaths_by_cause):
 		causes[String(k)] = snappedf(float(deaths_by_cause[k]), 0.01)
 	return {
 		"authoritative": authoritative,
@@ -350,7 +348,7 @@ func deserialize(data: Dictionary) -> void:
 	arrivals_total = float(data.get("arrivals_total", 0.0))
 	_famine_hours = float(data.get("famine_hours", 0.0))
 	var causes: Dictionary = data.get("deaths_by_cause", {})
-	var keys: Array = causes.keys()
-	keys.sort()
-	for k: Variant in keys:
+	var names: Array = causes.keys()
+	names.sort_custom(func(a: Variant, b: Variant) -> bool: return String(a) < String(b))
+	for k: Variant in names:
 		deaths_by_cause[StringName(String(k))] = float(causes[k])

@@ -109,9 +109,9 @@ func units_per_vector() -> PackedInt32Array:
 ## composition has been split it falls back to the shares, so a preview taken
 ## between planning and distribution still names the right roads.
 func direction_labels() -> PackedStringArray:
-	var units: PackedInt32Array = units_per_vector()
+	var per_vector: PackedInt32Array = units_per_vector()
 	var any: bool = false
-	for n: int in units:
+	for n: int in per_vector:
 		if n > 0:
 			any = true
 			break
@@ -120,10 +120,12 @@ func direction_labels() -> PackedStringArray:
 		if absf(a.share - b.share) > 0.0001:
 			return a.share > b.share
 		return a.index < b.index)
+	# Deduplicated: two lanes can come out of the same quarter of the map, and
+	# "the south-east, the south-west and the south-east" is not a sentence.
 	var out: PackedStringArray = PackedStringArray()
 	for v: ThreatVector in order:
-		var carries: bool = (units[v.index] > 0) if any else (v.share > 0.0001)
-		if carries:
+		var carries: bool = (per_vector[v.index] > 0) if any else (v.share > 0.0001)
+		if carries and not out.has(v.label()):
 			out.append(v.label())
 	return out
 
@@ -159,7 +161,8 @@ func role_phrase() -> String:
 	keys.sort()
 	var parts: PackedStringArray = PackedStringArray()
 	for k: String in keys:
-		parts.append("%d %s" % [int(by_role[k]), ThreatDefs.role_plural(StringName(k))])
+		var n: int = int(by_role[k])
+		parts.append("%d %s" % [n, ThreatDefs.role_label(StringName(k), n)])
 	return ", ".join(parts)
 
 
@@ -172,10 +175,7 @@ func detail_phrase() -> String:
 	for k: String in keys:
 		var def: ThreatUnit = unit_of(StringName(k))
 		var n: int = int(counts[k])
-		var name: String = k
-		if def != null:
-			name = def.plural() if n != 1 else def.display_name
-		parts.append("%d %s" % [n, name])
+		parts.append(def.phrase(n) if def != null else "%d %s" % [n, k])
 	if parts.is_empty():
 		return "nothing that stayed to be counted"
 	return ", ".join(parts)

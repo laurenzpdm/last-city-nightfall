@@ -269,9 +269,7 @@ static func _probe(sys: SimSystem, names: Array[StringName], fallback: float) ->
 
 func serialize() -> Dictionary:
 	var src: Array = []
-	var keys: Array = sources.keys()
-	keys.sort()
-	for k: StringName in keys:
+	for k: StringName in SocietyDefs.sorted_keys(sources):
 		src.append(String(k))
 	return {
 		"day": day,

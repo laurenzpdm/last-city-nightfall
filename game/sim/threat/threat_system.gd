@@ -112,9 +112,18 @@ var _lost_at_dusk: int = 0
 var _breaches_at_dusk: int = 0
 
 # --- profiling. Never reaches serialize() or metrics(); see step(). ----------
+## Total wall time inside step(), and the part of it spent inside OTHER parts'
+## code that this system called synchronously — handing a group to [P07] runs
+## [P07]'s spawn, and on first contact that includes a one-off 80 ms flood of
+## its siege surface. Both numbers are logged, because charging another part's
+## one-time build to this system's per-tick budget would be a lie in either
+## direction.
 var _perf_us: int = 0
 var _perf_max_us: int = 0
+var _perf_own_max_us: int = 0
+var _perf_extern_us: int = 0
 var _perf_steps: int = 0
+var _extern_us: int = 0
 
 
 func _init() -> void:
@@ -175,6 +184,7 @@ func post_setup() -> void:
 
 func step(tick: int) -> void:
 	var t0: int = Time.get_ticks_usec()  # lint:allow profiling only; never serialized
+	_extern_us = 0
 	_tick = tick
 
 	var day: int = _read_day()
@@ -197,13 +207,19 @@ func step(tick: int) -> void:
 
 	var us: int = Time.get_ticks_usec() - t0  # lint:allow profiling only
 	_perf_us += us
+	_perf_extern_us += _extern_us
 	_perf_max_us = maxi(_perf_max_us, us)
+	_perf_own_max_us = maxi(_perf_own_max_us, us - _extern_us)
 	_perf_steps += 1
 	if _perf_steps >= LOG_PERF_EVERY:
-		Log.debug(TAG, "step avg %.1f us, max %d us over %d ticks" % [
-			float(_perf_us) / float(_perf_steps), _perf_max_us, _perf_steps])
+		Log.debug(TAG, "step avg %.1f us (own %.1f), max %d us (own %d) over %d ticks" % [
+			float(_perf_us) / float(_perf_steps),
+			float(_perf_us - _perf_extern_us) / float(_perf_steps),
+			_perf_max_us, _perf_own_max_us, _perf_steps])
 		_perf_us = 0
+		_perf_extern_us = 0
 		_perf_max_us = 0
+		_perf_own_max_us = 0
 		_perf_steps = 0
 
 
@@ -664,6 +680,13 @@ func _dispatch_due(tick: int) -> void:
 
 
 func _spawn_through_combat(g: WaveGroup, v: ThreatVector) -> int:
+	var t0: int = Time.get_ticks_usec()  # lint:allow profiling only; never serialized
+	var out: int = _spawn_through_combat_inner(g, v)
+	_extern_us += Time.get_ticks_usec() - t0  # lint:allow profiling only
+	return out
+
+
+func _spawn_through_combat_inner(g: WaveGroup, v: ThreatVector) -> int:
 	if _combat.has_method("spawn_group"):
 		var res: Variant = _combat.call("spawn_group", {
 			"wave": _plan.wave,

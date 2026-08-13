@@ -244,7 +244,7 @@ func draw_frame(title: String, sev: int = S.Sev.CALM, lit: float = 0.35) -> floa
 	if title == "":
 		return content_top()
 	var y: float = title_baseline()
-	style.draw_caps(self, Vector2(15.0, y), title, style.fs(10), style.ink_faint(), 2.2)
+	style.draw_caps(self, Vector2(15.0, y), title, style.fs(10), style.ink_dim(), 2.2)
 	var line_y: float = y + 7.0
 	var edge: Color = LcnHudStyle.P.COLD_RIM
 	draw_line(Vector2(15.0, line_y), Vector2(size.x - 15.0, line_y),

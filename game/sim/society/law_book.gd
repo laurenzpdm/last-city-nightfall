@@ -83,10 +83,8 @@ func load_from_registry() -> PackedStringArray:
 
 
 func _sorted_defs() -> Array[LawDef]:
-	var ids: Array = _defs.keys()
-	ids.sort()
 	var out: Array[LawDef] = []
-	for id: StringName in ids:
+	for id: StringName in SocietyDefs.sorted_keys(_defs):
 		out.append(_defs[id])
 	out.sort_custom(func(a: LawDef, b: LawDef) -> bool:
 		if a.branch != b.branch:
@@ -141,8 +139,7 @@ func _link_exclusion(a: StringName, b: StringName) -> void:
 	var arr: Array = _excludes.get(a, [])
 	if not arr.has(b):
 		arr.append(b)
-		arr.sort()
-		_excludes[a] = arr
+		_excludes[a] = SocietyDefs.sorted_names(arr)
 
 
 func _blocks(a: StringName, b: StringName) -> bool:
@@ -178,8 +175,7 @@ func _visit(id: StringName, state: Dictionary[StringName, int],
 		var deps: Array[StringName] = []
 		deps.append_array(law.requires)
 		deps.append_array(law.requires_any)
-		deps.sort()
-		for d: StringName in deps:
+		for d: StringName in SocietyDefs.sorted_names(deps):
 			if _defs.has(d):
 				out.append_array(_visit(d, state, next))
 	state[id] = 2
@@ -474,10 +470,8 @@ func policy_snapshot() -> Dictionary:
 	var out: Dictionary = {}
 	for key: StringName in SocietyDefs.POLICY_KEYS:
 		out[String(key)] = snappedf(policy_value(key), 0.001)
-	var flags: Array = _flags.keys()
-	flags.sort()
 	var on: Array = []
-	for f: StringName in flags:
+	for f: StringName in SocietyDefs.sorted_keys(_flags):
 		if bool(_flags[f]):
 			on.append(String(f))
 	out["flags"] = on
@@ -495,9 +489,9 @@ func _resolve() -> void:
 		var law: LawDef = _defs.get(id)
 		if law == null:
 			continue
-		var keys: Array = law.policy.keys()
-		keys.sort()
-		for key: StringName in keys:
+		# Float addition is not associative, so even a pure sum needs a stable
+		# iteration order to be byte reproducible.
+		for key: StringName in SocietyDefs.sorted_keys(law.policy):
 			_policy[key] = float(_policy.get(key, SocietyDefs.policy_default(key))) \
 				+ float(law.policy[key])
 		for f: StringName in law.flags:
@@ -593,15 +587,8 @@ func deserialize(data: Dictionary) -> void:
 # --- small helpers -----------------------------------------------------------
 
 func _sorted(arr: Array[StringName]) -> Array[StringName]:
-	var copy: Array[StringName] = arr.duplicate()
-	copy.sort()
-	return copy
+	return SocietyDefs.sorted_names(arr)
 
 
 func _sorted_keys(d: Dictionary[StringName, bool]) -> Array[StringName]:
-	var raw: Array = d.keys()
-	raw.sort()
-	var out: Array[StringName] = []
-	for k: StringName in raw:
-		out.append(k)
-	return out
+	return SocietyDefs.sorted_keys(d)

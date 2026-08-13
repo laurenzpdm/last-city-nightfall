@@ -28,7 +28,12 @@ extends CanvasLayer
 
 const DESIGN_MARGIN: float = 16.0
 const GAP: float = 10.0
-const LAYER: int = 10
+## Above [P13]'s post-process (layer 60). Film grain and a chromatic split are
+## right for a frozen city and wrong for a column of numbers: under them a
+## segment meter reads as static and small type grows colour fringes. The world
+## keeps the treatment, the interface stays crisp. Still below [P19]'s overlay
+## legends (70/72), which are meant to sit on top of everything.
+const LAYER: int = 65
 
 var style: LcnHudStyle = null
 var probe: LcnHudProbe = null

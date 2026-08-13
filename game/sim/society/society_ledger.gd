@@ -254,10 +254,9 @@ func _rank(a: Dictionary, b: Dictionary) -> bool:
 
 func _sorted_keys() -> Array[StringName]:
 	if _keys_dirty or _keys.size() != _entries.size():
-		_keys.clear()
-		var raw: Array = _entries.keys()
-		raw.sort()
-		for k: StringName in raw:
-			_keys.append(k)
+		# SocietyDefs.sorted_keys, never Array.sort(): see the note there. These
+		# slots are interned at runtime, so pointer order is exactly the case
+		# that breaks.
+		_keys = SocietyDefs.sorted_keys(_entries)
 		_keys_dirty = false
 	return _keys

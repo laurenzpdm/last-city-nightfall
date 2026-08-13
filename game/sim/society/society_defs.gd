@@ -408,3 +408,30 @@ static func sentence(s: String) -> String:
 	if s.is_empty():
 		return s
 	return s.substr(0, 1).to_upper() + s.substr(1)
+
+
+## Lexicographic sort of StringNames. USE THIS, NEVER Array.sort().
+##
+## `Array[StringName].sort()` does NOT sort alphabetically. StringName's
+## comparison operator compares the interned pointer, so the result is
+## allocation order: [&"zebra", &"alpha", &"middle"].sort() returns
+## [&"zebra", &"middle", &"alpha"]. It looks sorted at a glance and it is stable
+## within one process, which is exactly why it survives a determinism check that
+## compares two fresh processes and then diverges the moment the same process
+## builds the same set twice in a different order.
+##
+## Found the hard way: two identical seeded society runs in one process produced
+## different serialize() output, because a ledger key interned during the first
+## run changed the pointer order of the second.
+static func sorted_names(names: Array) -> Array[StringName]:
+	var copy: Array = names.duplicate()
+	copy.sort_custom(func(a: Variant, b: Variant) -> bool: return String(a) < String(b))
+	var out: Array[StringName] = []
+	for n: Variant in copy:
+		out.append(StringName(String(n)))
+	return out
+
+
+## The same, for the keys of any Dictionary keyed by StringName.
+static func sorted_keys(d: Dictionary) -> Array[StringName]:
+	return sorted_names(d.keys())

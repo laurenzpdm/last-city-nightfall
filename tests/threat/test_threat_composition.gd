@@ -159,16 +159,39 @@ func _role_mix(groups: Array[Dictionary]) -> Dictionary:
 
 
 func test_composition_is_deterministic() -> void:
+	# Reseeded from scratch each run, exactly the way a replay does it: the
+	# composer must be a pure function of (profile, night, budget, shape,
+	# roster, stream position) and of nothing else.
 	var produce: Callable = func() -> Array:
+		Rng.reset(4242)
 		var out: Array = []
 		for night: int in range(1, 16):
+			var shape: StringName = WaveComposer.roll_shape(_profile(), night, false,
+				Rng.stream("threat"))
 			var groups: Array[Dictionary] = WaveComposer.compose(_profile(), night,
-				_profile().base_budget(night), ThreatDefs.SHAPE_COLUMN, _units(),
-				Rng.stream("test_determinism_%d" % night))
+				_profile().base_budget(night), shape, _units(), Rng.stream("threat"))
+			out.append(String(shape))
 			for g: Dictionary in groups:
 				out.append([String(g["enemy"]), int(g["count"])])
 		return out
 	assert_deterministic(produce, "the same seed must compose the same campaign")
+
+
+func test_a_different_seed_composes_a_different_campaign() -> void:
+	if _units().size() < 3:
+		skip("need a few kinds before a seed can express anything")
+		return
+	var run: Callable = func(s: int) -> Array:
+		Rng.reset(s)
+		var out: Array = []
+		for night: int in range(1, 16):
+			var shape: StringName = WaveComposer.roll_shape(_profile(), night, false,
+				Rng.stream("threat"))
+			for g: Dictionary in WaveComposer.compose(_profile(), night,
+					_profile().base_budget(night), shape, _units(), Rng.stream("threat")):
+				out.append([String(g["enemy"]), int(g["count"])])
+		return out
+	assert_ne(run.call(1), run.call(2), "two seeds must not produce the same campaign")
 
 
 # --- the roster adapter ---------------------------------------------------------
@@ -253,15 +276,40 @@ func test_the_probe_finds_the_weak_side() -> void:
 	if cands.size() < 2:
 		skip("this map has only one approach, so there is no weak side to find")
 		return
-	# Force a lopsided reading: one lane heavily defended, the rest bare.
-	planner.rescore()
-	cands[0].defence = 0.95
 	var vs: Array[ThreatVector] = planner.select(20, false, Rng.stream("test_probe"))
 	var probe: ThreatVector = null
+	var main: ThreatVector = null
 	for v: ThreatVector in vs:
 		if v.role == ThreatVector.ROLE_PROBE:
 			probe = v
+		elif v.role == ThreatVector.ROLE_MAIN:
+			main = v
 	if probe == null:
 		skip("no probe vector was opened on this map")
 		return
-	assert_lt(probe.defence, 0.95, "the probe must not be aimed at the strongest side")
+	# The probe is defined as the least-defended approach that is not the main
+	# road. Anything else would make the "turtling one side is punished" promise
+	# a slogan rather than a rule.
+	var weakest: float = 2.0
+	for c: ThreatVector in cands:
+		if main != null and c.lane == main.lane:
+			continue
+		weakest = minf(weakest, c.defence)
+	assert_near(probe.defence, weakest, 0.0001,
+		"the probe must be aimed at the weakest side that is not the main road")
+
+
+func test_the_main_road_is_the_fastest_road() -> void:
+	var planner := ApproachPlanner.new()
+	planner.bind(_profile(), world.system(&"grid"), world.system(&"build"), world.system(&"heat"))
+	planner.build_vectors()
+	var cands: Array[ThreatVector] = planner.candidates()
+	if cands.size() < 2:
+		skip("this map has only one approach")
+		return
+	var vs: Array[ThreatVector] = planner.select(1, false, Rng.stream("test_main"))
+	assert_size(vs, 1, "night 1 opens exactly one front")
+	var fastest: int = 1 << 30
+	for c: ThreatVector in cands:
+		fastest = mini(fastest, c.travel)
+	assert_eq(vs[0].travel, fastest, "the obvious attack comes down the fastest road")
