@@ -48,11 +48,14 @@ func _ready() -> void:
 		return
 	var packed: PackedScene = load(BOOT_SCENE) as PackedScene
 	_boot = packed.instantiate()
-	# Boot IS the main scene in a real launch, and parts legitimately reach for
-	# `tree.current_scene` when they need a host that is guaranteed unlocked.
-	# Claiming the name before the add keeps this probe honest about which node
-	# a self-installer will pick.
-	get_tree().current_scene = _boot
+	# Boot hangs one level below the root here, where a real launch has it AS the
+	# root's scene. That is the single fidelity gap and it is the strict
+	# direction: `tree.current_scene` is this probe rather than Boot, so an
+	# installer that reaches for the current scene lands beside Boot instead of
+	# under it — still in the tree, still reachable, which is the only question
+	# this probe answers. (Assigning `current_scene` to close the gap is not an
+	# option: the engine refuses a current_scene whose parent is not the root,
+	# and a probe that prints its own engine error has no business grading one.)
 	# Deliberately NOT call_deferred: the whole point is to run Boot's _ready
 	# inside the root's ready propagation, which is the condition under test.
 	add_child(_boot)
@@ -136,10 +139,14 @@ func _held_by(owner_node: Node) -> Array[Dictionary]:
 			continue
 		var name: String = String(prop.get("name", ""))
 		var value: Variant = owner_node.get(name)
-		if value == null:
-			out.append({"field": name, "state": "null", "class": "", "path": ""})
+		# `value as Node` on an int is a hard SCRIPT ERROR in 4.7, not a null, so
+		# the type is checked first. A probe that raises the class of error it
+		# reports on is worthless.
+		if typeof(value) != TYPE_OBJECT:
+			if value == null:
+				out.append({"field": name, "state": "null", "class": "", "path": ""})
 			continue
-		var as_node := value as Node
+		var as_node: Node = value as Node
 		if as_node == null:
 			continue
 		out.append({

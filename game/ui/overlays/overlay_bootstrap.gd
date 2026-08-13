@@ -43,14 +43,19 @@ static func install() -> LcnOverlayRoot:
 		return existing as LcnOverlayRoot
 	if _installed:
 		return null
-	if DisplayServer.get_name() == "headless":
+	if not LcnLayers.view_wanted():
 		return null
-	var args: PackedStringArray = OS.get_cmdline_user_args()
-	if args.has("--no-view") or args.has("--no-overlays"):
+	if OS.get_cmdline_user_args().has("--no-overlays"):
 		Log.info("overlay", "disabled by command line")
 		_installed = true
 		return null
 	var root := LcnOverlayRoot.new()
+	# Reached only from a deferred call, where the root is not mid-propagation.
+	# Verified anyway: an install that returns a node it never parented is how
+	# the build menu spent a phase as an orphan while boot announced success.
 	tree.root.add_child(root)
 	_installed = true
+	if not root.is_inside_tree():
+		Log.error("overlay", "the lens root could not be parented — F1..F6 do nothing")
+		return null
 	return root

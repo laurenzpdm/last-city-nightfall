@@ -96,6 +96,13 @@ var discontent: float = 0.0
 ## What is moving the meters, strongest first: {key, label, text, rate, today}.
 ## [P06] writes the sentences; the HUD only has to show them.
 var hope_reasons: Array[Dictionary] = []
+## Open council demands, soonest deadline first. [P06] issues these with a clock
+## on them and the ONLY way to answer one is the Book of Laws, so the HUD has to
+## say so — a city being given an ultimatum it cannot see is the single loudest
+## complaint a critic made about this build.
+var demands: Array[Dictionary] = []
+var ultimatum_active: bool = false
+var ultimatum_hours: float = -1.0
 
 # --- threat / combat ---------------------------------------------------------
 var has_threat: bool = false
@@ -119,6 +126,8 @@ var turret_uptime: float = 1.0
 # --- build / economy ---------------------------------------------------------
 var has_build: bool = false
 var sites_pending: int = 0
+var buildings_total: int = 0
+var buildings_frozen: int = 0
 var stalled_machines: int = 0
 var stock: Dictionary[StringName, int] = {}
 var stock_order: Array[StringName] = []
@@ -210,6 +219,8 @@ func bind() -> void:
 	_buffer_version = -1
 	_items_scanned = false
 	_shortfalls.clear()
+	_focus_cache.clear()
+	_focus_at.clear()
 	# Only a different world invalidates the trends. Re-binding inside the same
 	# world (a system arriving late) must not erase a minute of history.
 	var rng: Node = _autoload(&"Rng")
@@ -244,7 +255,13 @@ func _forget() -> void:
 	short_networks.clear()
 	stock.clear()
 	stock_order.clear()
+	demands.clear()
+	ultimatum_active = false
+	sites_pending = 0
+	research_title = ""
 	_shortfalls.clear()
+	_focus_cache.clear()
+	_focus_at.clear()
 	_bound_tick = 0
 
 
@@ -537,6 +554,9 @@ func city_is_freezing() -> bool:
 
 func _read_society() -> void:
 	has_society = _society != null
+	demands.clear()
+	ultimatum_active = false
+	ultimatum_hours = -1.0
 	if not has_society:
 		return
 	hope = _normal01(_ask(_society, [&"hope"], ["hope"], 0.5))
@@ -546,6 +566,21 @@ func _read_society() -> void:
 		var raw: Array = _society.call("reasons", 3)
 		for r: Dictionary in raw:
 			hope_reasons.append(r)
+	if _society.has_method("demands"):
+		for d: Dictionary in _society.call("demands") as Array:
+			if String(d.get("state", "open")) != "open":
+				continue
+			demands.append(d)
+		demands.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			var ha: float = float(a.get("hours_left", 999.0))
+			var hb: float = float(b.get("hours_left", 999.0))
+			if not is_equal_approx(ha, hb):
+				return ha < hb
+			return String(a.get("id", "")) < String(b.get("id", "")))
+	if _society.has_method("warning_state"):
+		var w: Dictionary = _society.call("warning_state")
+		ultimatum_active = bool(w.get("ultimatum", false))
+		ultimatum_hours = float(w.get("hours_left", -1.0))
 
 
 ## Society may express hope as 0..1 or as 0..100. Both are common; guess once,
@@ -737,8 +772,15 @@ func _read_research() -> void:
 	has_research = _research != null
 	if not has_research:
 		return
-	research_title = LcnHudFormat.titleize(_ask_str(_research,
-		[&"current_title", &"current_research"], ["current", "research"], ""))
+	# `active()` is the name [P10] actually shipped, and its metrics key is
+	# "active" too. Asking only for current_title/current_research/current/research
+	# meant this string was empty in every run ever taken, so the footer never
+	# showed what the city was researching while the progress number underneath it
+	# was correct. Both spellings stay listed for a part that renames it later.
+	var raw: String = _ask_str(_research,
+		[&"active", &"current_title", &"current_research"],
+		["active", "current", "research"], "")
+	research_title = LcnHudFormat.titleize(raw) if raw != "" else ""
 	research_progress = clampf(_ask(_research, [&"research_progress", &"progress"],
 		["progress"], 0.0), 0.0, 1.0)
 
@@ -959,6 +1001,120 @@ func citizen_at_cell(cell: Vector2i) -> int:
 	if _citizens != null and _citizens.has_method("citizen_at_cell"):
 		return int(_citizens.call("citizen_at_cell", cell))
 	return -1
+
+
+# ======================================================================  focus =
+#
+# "Every alert is clickable and puts the camera on the actual problem" is only
+# true if the alert can NAME a tile. A city-wide average cannot, so each of these
+# resolves the most specific real place the simulation can point at, and the
+# alert layer degrades the sentence — no "(click to look at it)" — when none is
+# found rather than sending the camera to the origin.
+#
+# All of them are recomputed at most once every FOCUS_CACHE_SECONDS and only
+# while the matching alert actually exists, so a healthy city never pays for them.
+
+const FOCUS_CACHE_SECONDS: float = 2.0
+
+var _focus_cache: Dictionary[StringName, Vector2] = {}
+var _focus_at: Dictionary[StringName, float] = {}
+
+
+func _cached_focus(key: StringName, resolver: Callable) -> Vector2:
+	var now: float = _seconds()
+	var at: float = _focus_at.get(key, -1000.0)
+	if now >= at and now - at < FOCUS_CACHE_SECONDS:
+		return _focus_cache.get(key, Vector2.ZERO)
+	var v: Vector2 = resolver.call()
+	_focus_cache[key] = v
+	_focus_at[key] = now
+	return v
+
+
+## The hearth. The one tile that is always the city, used as the last resort for
+## a reading that is genuinely city-wide.
+func core_focus() -> Vector2:
+	return _cached_focus(&"core", func() -> Vector2: return _core_world())
+
+
+## A building that has actually frozen, lowest id first so the same click lands
+## on the same place twice.
+func frozen_focus() -> Vector2:
+	return _cached_focus(&"frozen", _resolve_frozen)
+
+
+func _resolve_frozen() -> Vector2:
+	if _heat == null:
+		return Vector2.ZERO
+	var nodes: Dictionary = _heat.get("nodes")
+	if nodes == null:
+		return Vector2.ZERO
+	var ids: Array = nodes.keys()
+	ids.sort()
+	for id: int in ids:
+		var node: Object = nodes[id]
+		if node != null and int(node.get("state")) == 3:
+			return node.get("world_pos")
+	return Vector2.ZERO
+
+
+## The machine [P04] is complaining about. Its own list, first entry, resolved to
+## a tile through [P11].
+func stalled_focus() -> Vector2:
+	return _cached_focus(&"stalled", _resolve_stalled)
+
+
+func _resolve_stalled() -> Vector2:
+	if _production == null or not _production.has_method("stalled_machines"):
+		return Vector2.ZERO
+	var rows: Array = _production.call("stalled_machines")
+	if rows.is_empty():
+		return Vector2.ZERO
+	var best_id: int = -1
+	for raw: Variant in rows:
+		var row: Dictionary = raw
+		var id: int = int(row.get("id", row.get("building", -1)))
+		if id >= 0 and (best_id < 0 or id < best_id):
+			best_id = id
+	return _building_world(best_id)
+
+
+## The coldest place people actually live. For "the city is freezing" this is the
+## honest answer to "where do I look?" — an average has no tile, but the worst
+## house that produced it does.
+func coldest_home_focus() -> Vector2:
+	return _cached_focus(&"cold_home", _resolve_coldest_home)
+
+
+func _resolve_coldest_home() -> Vector2:
+	if _build == null or not _build.has_method("all_buildings"):
+		return Vector2.ZERO
+	var worst: Object = null
+	var worst_t: float = 1e9
+	for raw: Variant in _build.call("all_buildings"):
+		var b: Object = raw
+		var def: Object = b.get("def")
+		if def == null or int(def.get("residents")) <= 0:
+			continue
+		var id: int = int(b.get("id"))
+		var t: float = 100.0
+		if _heat != null and bool(_heat.call("has_building", id)):
+			t = float(_heat.call("temperature_of", id))
+		if t < worst_t:
+			worst_t = t
+			worst = b
+	if worst == null:
+		return Vector2.ZERO
+	return worst.call("world_center")
+
+
+func _building_world(id: int) -> Vector2:
+	if _build == null or id < 0:
+		return Vector2.ZERO
+	var b: Object = _build.call("get_building", id)
+	if b == null:
+		return Vector2.ZERO
+	return b.call("world_center")
 
 
 # =====================================================================  stress =

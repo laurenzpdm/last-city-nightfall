@@ -28,13 +28,29 @@ const TOAST_TTL_SECONDS: float = 5.0
 const MAX_TOASTS: int = 3
 const DEATH_WINDOW_SECONDS: float = 90.0
 
+## A stock warning must survive this long, continuously, before it is shown. It
+## exists because a warning that appears and vanishes inside one breath is
+## indistinguishable from a bug, and because it is the second half of the defence
+## against predicting from a purchase (LcnHudTrend has the first half).
+const STOCK_CONFIRM_SECONDS: float = 10.0
+## Under this the stock alert has left the realm of "worth knowing".
+const STOCK_HORIZON_SECONDS: float = 180.0
+## More than this many stocks in trouble and they become one grouped line. Five
+## separate "X runs out in Y" rows is the whole ATTENTION panel and it buries the
+## wave countdown underneath them.
+const STOCK_GROUP_FROM: int = 2
+
 ## Lower sorts first inside the same severity. Heat before hunger before chatter,
 ## because on this map heat is what actually kills.
 const FAMILY_RANK: Dictionary = {
 	"game_over": 0, "heat_capacity": 1, "heat_supply": 2, "frozen": 3,
 	"freezing": 4, "wave": 5, "dying": 6, "sick": 7, "storm": 8,
-	"unrest": 9, "stock": 10, "stalled": 11, "build": 12, "other": 20,
+	"council": 9, "unrest": 10, "stock": 11, "stalled": 12, "build": 13,
+	"other": 20,
 }
+## At most this many lines from one family, so no single kind of problem can own
+## the panel. The overflow is still counted in "and N more".
+const MAX_PER_FAMILY: int = 2
 
 var entries: Array[Dictionary] = []
 
@@ -43,6 +59,10 @@ var _toasts: Array[Dictionary] = []
 var _deaths: Array[float] = []
 var _stall_keys: Dictionary[int, float] = {}
 var _now: float = 0.0
+## item -> the in-world second its drain was first seen. Cleared the moment the
+## drain stops, which is what makes the confirmation window a window and not a
+## delay that only ever runs once.
+var _stock_since: Dictionary[StringName, float] = {}
 
 
 ## Signal -> handler, in one place so `dispose()` cannot drift from `_init`.
@@ -91,10 +111,30 @@ func refresh(probe: LcnHudProbe, now: float) -> void:
 	_derive_climate(probe, out)
 	_derive_supplies(probe, out)
 	_derive_build(probe, out)
+	_derive_council(probe, out)
 	_carry_bus(out)
 	out.sort_custom(_rank)
-	entries = out
+	entries = _cap_families(out)
 	_expire_toasts()
+
+
+## No family may own the panel. Two heat grids short is news; six is one story
+## told six times, and the six push the wave countdown off the bottom.
+func _cap_families(rows: Array[Dictionary]) -> Array[Dictionary]:
+	var seen: Dictionary[String, int] = {}
+	var kept: Array[Dictionary] = []
+	var dropped: Array[Dictionary] = []
+	for e: Dictionary in rows:
+		var fam: String = String(e.get("family", "other"))
+		var n: int = int(seen.get(fam, 0))
+		seen[fam] = n + 1
+		if n < MAX_PER_FAMILY:
+			kept.append(e)
+		else:
+			dropped.append(e)
+	# The overflow still exists — it goes to the bottom so "and N more" counts it.
+	kept.append_array(dropped)
+	return kept
 
 
 func clear() -> void:
@@ -103,6 +143,7 @@ func clear() -> void:
 	_toasts.clear()
 	_deaths.clear()
 	_stall_keys.clear()
+	_stock_since.clear()
 
 
 func top(n: int = MAX_VISIBLE) -> Array[Dictionary]:
@@ -148,7 +189,7 @@ func _derive_heat(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 		if starved >= 3 or deficit > maxf(4.0, float(stats.get("demand", 1.0)) * 0.35):
 			sev = S.Sev.DANGER
 		var head: String = "%s is %s heat short" % [
-			_capitalise(title), LcnHudFormat.rate(deficit)]
+			_capitalise(title), LcnHudFormat.amount(deficit)]
 		if deficit < 0.5:
 			head = "%s is browning out" % _capitalise(title)
 		var fix: String = "Add generation, or switch off what you can live without."
@@ -171,12 +212,20 @@ func _derive_heat(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 			"A frozen building does nothing at all until it thaws, and a frozen "
 				+ "generator takes its whole grid down with it.",
 			"Get heat back to them, then wait for them to thaw.",
-			Vector2.ZERO, probe.heat_frozen))
+			probe.frozen_focus(), probe.heat_frozen))
 
 
 func _derive_people(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 	if not probe.has_population:
 		return
+	# One place to send the camera for anything that is an average over people:
+	# the coldest house they actually sleep in. An average has no tile; the worst
+	# building that produced it does, and that is where the fix goes.
+	var home: Vector2 = Vector2.ZERO
+	if probe.freezing > 0 or probe.city_is_cold() or probe.sick > 0 or probe.hungry > 0:
+		home = probe.coldest_home_focus()
+	if home == Vector2.ZERO:
+		home = probe.core_focus()
 	if probe.freezing > 0:
 		out.append(_entry(&"freezing", "freezing",
 			S.Sev.CRITICAL if probe.freezing > probe.population / 4 else S.Sev.DANGER,
@@ -185,7 +234,7 @@ func _derive_people(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 			"They are standing in air cold enough to hurt them. Cold people fall "
 				+ "sick, and sick people die.",
 			"Get a radiator to where they live, or move them onto the grid.",
-			Vector2.ZERO, probe.freezing))
+			home, probe.freezing))
 	elif probe.city_is_freezing():
 		out.append(_entry(&"freezing", "freezing", S.Sev.CRITICAL,
 			"The city is freezing",
@@ -193,7 +242,7 @@ func _derive_people(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 				% LcnHudFormat.percent(probe.warmth01)
 				+ "starts taking their health, and then it takes them.",
 			"Heat where they live and where they walk, now.",
-			Vector2.ZERO, 1))
+			home, 1))
 	elif probe.city_is_cold():
 		out.append(_entry(&"cold", "freezing", S.Sev.DANGER,
 			"The city is running cold",
@@ -201,36 +250,36 @@ func _derive_people(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 				% LcnHudFormat.percent(probe.warmth01)
 				+ "an ill citizen who stays cold does not get better.",
 			"More radiators, or shorter walks between warm buildings.",
-			Vector2.ZERO, 1))
+			home, 1))
 	if probe.food_days >= 0.0 and probe.food_days < 2.0 and probe.population > 0:
 		out.append(_entry(&"food", "sick",
 			S.Sev.CRITICAL if probe.food_days < 0.5 else S.Sev.DANGER,
-			"Food runs out in %.1f days" % probe.food_days if probe.food_days >= 0.05
-				else "There is no food left",
+			("Food runs out in %s" % _days_words(probe.food_days))
+				if probe.food_days >= 0.05 else "There is no food left",
 			"At this population and this ration, the kitchens have %s of meals left."
 				% ("nothing" if probe.food_days < 0.05
-					else "%.1f days" % probe.food_days),
+					else _days_words(probe.food_days)),
 			"Raise the harvest, cut the ration, or fewer mouths by morning.",
-			Vector2.ZERO, 1))
+			home, 1))
 	if probe.sick > 0:
 		out.append(_entry(&"sick", "sick", S.Sev.WARN,
 			"%d sick" % probe.sick,
 			"Illness spreads in the cold and takes people out of the workforce.",
 			"Warmth and food. A sick citizen who stays cold does not recover.",
-			Vector2.ZERO, probe.sick))
+			home, probe.sick))
 	if probe.hungry > 0:
 		out.append(_entry(&"hungry", "sick", S.Sev.WARN,
 			"%d going hungry" % probe.hungry,
 			"They are not being fed.",
 			"Raise food production or shorten the haul to the kitchens.",
-			Vector2.ZERO, probe.hungry))
+			home, probe.hungry))
 	var recent: int = _recent_deaths()
 	if recent > 0:
 		out.append(_entry(&"dying", "dying", S.Sev.CRITICAL,
 			"%d died recently" % recent,
 			"People are dying in your city right now.",
 			"Whatever is at the top of this list is what is killing them.",
-			Vector2.ZERO, recent))
+			home, recent))
 	if probe.has_society:
 		if probe.hope < 0.25:
 			out.append(_entry(&"hope", "unrest",
@@ -239,7 +288,7 @@ func _derive_people(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 				"At %s, people stop believing the city will last the winter."
 					% LcnHudFormat.percent(probe.hope),
 				"Keep them warm, keep them fed, and finish something visible.",
-				Vector2.ZERO, 1))
+				probe.core_focus(), 1))
 		if probe.discontent > 0.6:
 			out.append(_entry(&"discontent", "unrest",
 				S.Sev.DANGER if probe.discontent > 0.8 else S.Sev.WARN,
@@ -247,7 +296,22 @@ func _derive_people(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 				"At %s the city starts to argue with you."
 					% LcnHudFormat.percent(probe.discontent),
 				"Ease off the harshest laws, or give them a reason to hold on.",
-				Vector2.ZERO, 1))
+				probe.core_focus(), 1))
+
+
+## "half a day", "1.5 days", "3 days" — never "2.0 days", never "0.0 days".
+static func _days_words(days: float) -> String:
+	if days < 0.05:
+		return "nothing"
+	if days < 0.75:
+		return "half a day"
+	if days < 10.0:
+		var rounded: float = snappedf(days, 0.5)
+		if is_equal_approx(rounded, roundf(rounded)):
+			var whole: int = int(roundf(rounded))
+			return "%d day%s" % [whole, "" if whole == 1 else "s"]
+		return "%.1f days" % rounded
+	return "%d days" % int(roundf(days))
 
 
 func _derive_threat(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
@@ -288,24 +352,75 @@ func _derive_climate(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 			Vector2.ZERO, 1))
 
 
+## The one that was lying. It printed "Timber runs out in 20 seconds" from a
+## slope fitted through a single purchase, in red, four times over, while the
+## checkpoints showed timber flat at 495 for the next three minutes.
+##
+## Three things changed. The rate now comes from `sustained_per_minute()`, which
+## refuses to exist unless the fall is repeated rather than stepped (see
+## LcnHudTrend). The warning then has to HOLD for STOCK_CONFIRM_SECONDS before it
+## is allowed on screen. And more than one of them collapses into a single line,
+## because four stock rows are how a wave countdown gets pushed off the panel.
 func _derive_supplies(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 	if not probe.has_build:
 		return
+	var live: Array[Dictionary] = []
 	for id: StringName in probe.stock_order:
 		var amount: int = probe.stock.get(id, 0)
 		if amount <= 0:
+			_stock_since.erase(id)
 			continue
 		var seconds: float = probe.trend.seconds_to_zero(id)
-		if seconds < 0.0 or seconds > 180.0:
+		if seconds < 0.0 or seconds > STOCK_HORIZON_SECONDS:
+			_stock_since.erase(id)
 			continue
-		out.append(_entry(StringName("stock_%s" % id), "stock",
-			S.Sev.DANGER if seconds < 60.0 else S.Sev.WARN,
-			"%s runs out %s" % [LcnHudFormat.item_title(id),
-				LcnHudFormat.in_words(seconds)],
-			"%s left, falling by %s a minute." % [LcnHudFormat.stock(amount),
-				LcnHudFormat.rate(absf(probe.trend.per_minute(id)))],
+		var since: float = float(_stock_since.get(id, _now))
+		if since > _now:            # the world restarted under us
+			since = _now
+		_stock_since[id] = since
+		if _now - since < STOCK_CONFIRM_SECONDS:
+			continue
+		live.append({
+			"id": id, "amount": amount, "seconds": seconds,
+			"rate": absf(probe.trend.sustained_per_minute(id)),
+		})
+	if live.is_empty():
+		return
+	live.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if not is_equal_approx(float(a["seconds"]), float(b["seconds"])):
+			return float(a["seconds"]) < float(b["seconds"])
+		return String(a["id"]) < String(b["id"]))
+
+	if live.size() >= STOCK_GROUP_FROM:
+		var names: PackedStringArray = PackedStringArray()
+		for row: Dictionary in live:
+			names.append(LcnHudFormat.item_title(row["id"] as StringName).to_lower())
+		var first: Dictionary = live[0]
+		out.append(_entry(&"stock_group", "stock",
+			S.Sev.DANGER if float(first["seconds"]) < 60.0 else S.Sev.WARN,
+			"%s are running out" % _capitalise(LcnHudFormat.list_words(names)),
+			"%s goes first — %s left, and it has been falling by %s a minute for "
+				% [LcnHudFormat.item_title(first["id"] as StringName),
+					LcnHudFormat.stock(int(first["amount"])),
+					LcnHudFormat.amount(float(first["rate"]))]
+				+ "the last %s." % LcnHudFormat.clock(
+					probe.trend.span_seconds(first["id"] as StringName)),
 			"Mine more, make more, or stop spending it.",
-			Vector2.ZERO, 1))
+			probe.core_focus(), live.size()))
+		return
+
+	var only: Dictionary = live[0]
+	var id0: StringName = only["id"]
+	out.append(_entry(StringName("stock_%s" % id0), "stock",
+		S.Sev.DANGER if float(only["seconds"]) < 60.0 else S.Sev.WARN,
+		"%s runs out %s" % [LcnHudFormat.item_title(id0),
+			LcnHudFormat.in_words(float(only["seconds"]))],
+		"%s left, and it has been falling by %s a minute for the last %s." % [
+			LcnHudFormat.stock(int(only["amount"])),
+			LcnHudFormat.amount(float(only["rate"])),
+			LcnHudFormat.clock(probe.trend.span_seconds(id0))],
+		"Mine more, make more, or stop spending it.",
+		probe.core_focus(), 1))
 
 
 ## [P04] may report its own stall count; the Bus signal covers the case where it
@@ -318,7 +433,55 @@ func _derive_build(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 		"%d machine%s stalled" % [stalled, "" if stalled == 1 else "s"],
 		"They have nothing to work with, or nowhere to put what they make.",
 		"Follow the belt: it is empty at one end and full at the other.",
-		Vector2.ZERO, stalled))
+		probe.stalled_focus(), stalled))
+
+
+## [P06] issues ultimatums with a deadline on them, and the ONLY answer to one is
+## a signature in the Book of Laws. Before this the city was being given terms it
+## had no way to see and no way to accept, which is the difference between a hard
+## game and a broken one. The fix line names the key that opens the book.
+func _derive_council(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
+	if not probe.has_society or probe.demands.is_empty():
+		return
+	for d: Dictionary in probe.demands:
+		var hours: float = float(d.get("hours_left", -1.0))
+		var faction: String = String(d.get("faction_name", "The council"))
+		var terms: String = String(d.get("terms", ""))
+		var speech: String = String(d.get("speech", ""))
+		var laws: Array = d.get("laws", [])
+		var sev: int = S.Sev.WARN
+		if hours >= 0.0 and hours < 6.0:
+			sev = S.Sev.DANGER
+		if hours >= 0.0 and hours < 2.0:
+			sev = S.Sev.CRITICAL
+		var head: String = "%s is demanding something" % faction
+		if hours >= 0.0:
+			head = "%s wants an answer within %s" % [faction, _hours_words(hours)]
+		var body: String = speech if speech != "" else terms
+		if body == "" :
+			body = "They have put terms to you and started a clock on them."
+		var fix: String = "Open the Book of Laws with L."
+		if not laws.is_empty():
+			fix = "Open the Book of Laws with L and sign %s." % LcnHudFormat.list_words(
+				_law_names(laws))
+		out.append(_entry(StringName("demand_%s" % String(d.get("id", "x"))), "council",
+			sev, head, body, fix, probe.core_focus(), 1))
+
+
+static func _law_names(laws: Array) -> PackedStringArray:
+	var out := PackedStringArray()
+	for l: Variant in laws:
+		out.append(LcnHudFormat.titleize(String(l)))
+	return out
+
+
+## Council deadlines arrive in in-world HOURS, which is not a unit the rest of
+## the HUD speaks. Round to something a person would say out loud.
+static func _hours_words(hours: float) -> String:
+	if hours < 1.0:
+		return "the hour"
+	var h: int = int(roundf(hours))
+	return "%d hour%s" % [h, "" if h == 1 else "s"]
 
 
 # ================================================================  bus intake =

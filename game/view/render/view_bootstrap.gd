@@ -47,11 +47,7 @@ static func install() -> WorldRenderer:
 		return existing as WorldRenderer
 	if _installed:
 		return null
-	if DisplayServer.get_name() == "headless":
-		return null
-	if OS.get_cmdline_user_args().has("--no-view"):
-		Log.info("render", "--no-view: world renderer not installed")
-		_installed = true
+	if not LcnLayers.view_wanted():
 		return null
 	if not ResourceLoader.exists(SCENE):
 		Log.error("render", "world_renderer.tscn missing at %s" % SCENE)
@@ -60,4 +56,7 @@ static func install() -> WorldRenderer:
 	var node: Node = packed.instantiate()
 	tree.root.add_child(node)
 	_installed = true
+	if not node.is_inside_tree():
+		Log.error("render", "the world renderer could not be parented — nothing is visible")
+		return null
 	return node as WorldRenderer

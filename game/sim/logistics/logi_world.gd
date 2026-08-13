@@ -210,6 +210,26 @@ func unregister_burner(owner: int) -> void:
 			fuel_cells.erase(c)
 
 
+## Burners that have an arm swinging into them, id -> true.
+##
+## This is the one question that decides whether a generator is on a supply
+## chain or on a hand-cart, and the answer has to come from the world rather
+## than from a flag somebody set: an arm the player rotated away, switched off
+## or demolished stops feeding it in exactly the same tick the player expects.
+func line_fed_burners() -> Dictionary[int, bool]:
+	var out: Dictionary[int, bool] = {}
+	if fuel_cells.is_empty():
+		return out
+	for id: int in inserter_ids:
+		var arm: LogiInserter = entities.get(id)
+		if arm == null or not arm.enabled:
+			continue
+		var owner: int = int(fuel_cells.get(arm.target_cell(), -1))
+		if owner >= 0:
+			out[owner] = true
+	return out
+
+
 func burner_ids() -> Array[int]:
 	var keys: Array = fuel_item_of.keys()
 	keys.sort()

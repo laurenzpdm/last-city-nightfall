@@ -249,6 +249,7 @@ func step(tick: int) -> void:
 	if tick % DEFENCE_CHECK_TICKS == 0:
 		_report_defence()
 	_drain_spawn_requests(tick)
+	_publish_watchdog()
 	_publish_deaths()
 	if swarm.count > 0:
 		swarm.compact()
@@ -326,13 +327,42 @@ func spawn_on_lane(kind: StringName, lane_seed: int, count: int = 1) -> int:
 	return _spawn_slot(slot, _lane_point(lane_seed), count, SimClock.tick)
 
 
+## Bodies still in the fight. A retreating body is on the map and still
+## shootable, but it is nobody's problem any more — counting it here is what let
+## a single leftover keep every later night from ever ending.
 func enemies_alive() -> int:
-	return swarm.count
+	return swarm.fighting_count()
 
 
 ## Alias [P08] duck-types for.
 func live_enemy_count() -> int:
+	return swarm.fighting_count()
+
+
+## Everything on the map, fighting or leaving. The view draws this many.
+func bodies_on_map() -> int:
 	return swarm.count
+
+
+## Orders the field to break off and walk back out into the dark. This is what
+## dawn does. `wave_number` < 0 means everything, which is the right answer at
+## dawn: last night's leftovers are exactly the thing that must not survive into
+## tomorrow. Returns how many turned around.
+func withdraw_wave(wave_number: int = -1) -> int:
+	var tick: int = SimClock.tick
+	var n: int = 0
+	if wave_number < 0:
+		n = swarm.withdraw_all(tick)
+	else:
+		var record: Dictionary = _waves.get(wave_number, {})
+		var lo: int = int(record.get("first_id", 0))
+		var hi: int = int(record.get("last_id", _next_id))
+		for i: int in range(swarm.count):
+			if swarm.e_id[i] >= lo and swarm.e_id[i] < hi and swarm.retreat(i, tick, &"dawn"):
+				n += 1
+	if n > 0:
+		Log.info(TAG, "dawn: %d body/bodies broke off and are walking back out" % n)
+	return n
 
 
 ## How one wave is going: how many were put on the field, how many are still on
@@ -341,18 +371,26 @@ func live_enemy_count() -> int:
 func wave_status(wave_number: int) -> Dictionary:
 	var record: Dictionary = _waves.get(wave_number, {})
 	if record.is_empty():
-		return {"wave": wave_number, "spawned": 0, "live": 0, "killed": 0, "groups": []}
+		return {"wave": wave_number, "spawned": 0, "live": 0, "killed": 0,
+			"leaving": 0, "groups": []}
 	var live: int = 0
+	var leaving: int = 0
 	var lowest: int = int(record.get("first_id", 0))
+	var highest: int = int(record.get("last_id", _next_id))
 	for i: int in range(swarm.count):
-		if swarm.e_id[i] >= lowest and swarm.e_id[i] < int(record.get("last_id", _next_id)):
+		if swarm.e_id[i] < lowest or swarm.e_id[i] >= highest:
+			continue
+		if swarm.e_state[i] == CombatTypes.EnemyState.RETREATING:
+			leaving += 1
+		else:
 			live += 1
 	var spawned: int = int(record.get("spawned", 0))
 	return {
 		"wave": wave_number,
 		"spawned": spawned,
 		"live": live,
-		"killed": maxi(0, spawned - live),
+		"leaving": leaving,
+		"killed": maxi(0, spawned - live - leaving),
 		"groups": record.get("groups", []),
 	}
 
@@ -961,6 +999,38 @@ func _drain_spawn_requests(tick: int) -> void:
 		_spawn_slot(int(r["def"]), r["pos"], int(r["count"]), tick)
 
 
+## Ticks between the aggregated watchdog line once the first few have been said
+## individually. A stall is a bug in the making; a thousand identical log lines
+## is a bug nobody reads.
+const WATCHDOG_LOUD: int = 6
+
+
+## Says what the swarm's watchdog found. The first few are named individually
+## with everything needed to reproduce them — id, kind, tile, age — because the
+## whole point of this machinery is that a stalled body can never again be
+## invisible. After that it is counted and reported on a timer.
+func _publish_watchdog() -> void:
+	var reports: Array[Dictionary] = swarm.take_reports()
+	if reports.is_empty():
+		return
+	for r: Dictionary in reports:
+		_watchdog_seen += 1
+		var reason: String = String(r.get("reason", "stall"))
+		if _watchdog_seen <= WATCHDOG_LOUD:
+			var cell: Array = r.get("cell", [0, 0])
+			Log.warn(TAG, "watchdog: %s #%d (%s) at %d,%d made no progress for %d tick(s) — %s" % [
+				reason, int(r.get("id", 0)), String(r.get("kind", "?")),
+				int(cell[0]), int(cell[1]), int(r.get("age", 0)),
+				"pulled off its target (strike %d)" % int(r.get("strike", 0))
+					if reason == "stall" else "sent back out into the dark"])
+		elif _watchdog_seen == WATCHDOG_LOUD + 1:
+			Log.warn(TAG, "watchdog: further stalls are counted, not narrated "
+				+ "(combat.stalls in metrics.csv)")
+	_alert(&"combat_stall", 1,
+		"Something out there is not moving and not dying. %d so far tonight." % _watchdog_seen,
+		Vector2.ZERO)
+
+
 func _publish_deaths() -> void:
 	var deaths: PackedInt32Array = swarm.take_deaths()
 	var i: int = 0
@@ -1125,10 +1195,17 @@ func _rebuild_target_index() -> void:
 		var def: Object = b.get("def")
 		if def == null:
 			continue
+		# The def's tag list is read ONCE per building and searched locally.
+		# Asking `def.has_tag(t)` per tag is seven cross-object calls per
+		# building, which at stress scale is twelve thousand reflection calls
+		# for an answer that fits in one property read.
+		var own: Array = def.get("tags")
+		if own.is_empty():
+			continue
 		var c: Vector2 = Vector2.ZERO
 		var have_centre: bool = false
 		for tag2: StringName in tags:
-			if not bool(def.call("has_tag", tag2)):
+			if not own.has(tag2):
 				continue
 			if not have_centre:
 				c = b.call("world_center")

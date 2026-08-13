@@ -68,12 +68,21 @@ const BEHAVIOUR_NAMES: Array[StringName] = [
 	&"siege", &"suicide", &"support", &"boss",
 ]
 
-## Runtime state of one enemy slot.
+## Runtime state of one enemy slot. Index order is serialized — append, never
+## reorder.
 enum EnemyState {
 	WALKING,    ## following the field
 	ATTACKING,  ## stopped, chewing on a structure
 	SPENT,      ## dead, waiting for the end-of-tick compaction
+	RETREATING, ## broken off: walking back out of the map, will not fight again
 }
+const ENEMY_STATE_NAMES: Array[StringName] = [
+	&"walking", &"attacking", &"spent", &"retreating",
+]
+
+
+static func enemy_state_name(i: int) -> StringName:
+	return ENEMY_STATE_NAMES[i] if i >= 0 and i < ENEMY_STATE_NAMES.size() else &"?"
 
 ## What an enemy walks past and what it walks up to.
 const PREF_ANY: StringName = &"any"

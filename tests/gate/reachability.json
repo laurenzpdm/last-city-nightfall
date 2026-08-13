@@ -1,0 +1,119 @@
+{
+  "$about": [
+    "WHAT MUST BE IN THE SCENE TREE AFTER BOOT, AND WHAT MAY NOT CLAIM TO BE.",
+    "",
+    "The build menu was never in the scene tree. The palette, the tech tree, the",
+    "Book of Laws, the recipe browser and the blueprint library therefore did not",
+    "exist in the running game, the society system issued ultimatums demanding a",
+    "law the player had no UI to sign, and 768 tests, a determinism replay and a",
+    "perf gate all reported green — because every one of them tests the",
+    "simulation, and none of them ever asked whether a human can reach it.",
+    "",
+    "tools/reachability_probe.gd boots the real game and writes down what is",
+    "actually there. tools/check_reachability.py grades that dump against this",
+    "file. Three independent teeth, so missing one seam does not hide the others:",
+    "",
+    "  required[]      a subsystem that must be found, by script path or group.",
+    "  claim_keywords  ANY log line that says something installed must be able to",
+    "                  point at the node. This is the general form of the bug:",
+    "                  the log said 'view installed: ... build menu ...' while the",
+    "                  menu sat on an orphan CanvasLayer.",
+    "  held            any Node the Boot node still holds that never entered the",
+    "                  tree is an orphan by definition, whatever the list above",
+    "                  happens to name. This one needs no contract to be updated",
+    "                  when a new subsystem lands.",
+    "",
+    "layer_order is the answer to 'what covers what' from ARCHITECTURE.md §3,",
+    "expressed as an ordering rather than as five magic numbers so that renumbering",
+    "the stack cannot silently invert it. A world badge painted across the clock",
+    "panel is this assertion failing."
+  ],
+
+  "expect_systems": [
+    "build", "citizens", "climate", "combat", "grid", "heat",
+    "logistics", "production", "research", "society", "threat"
+  ],
+  "$expect_systems_why": "game/core/sim.gd skips a system script that fails to load and only writes a DEBUG line about it, so a build can come up with three systems in it and look calm. These eleven are the parts ARCHITECTURE.md §1 names; a missing one is a script that does not compile.",
+
+  "orphan_nodes_max": 0,
+  "$orphan_why": "Performance.OBJECT_ORPHAN_NODE_COUNT is the engine's own count of nodes that exist and are in no tree. A steady-state boot has none; any number above zero is something that was built and then dropped.",
+
+  "required": [
+    {
+      "id": "renderer",
+      "script": "res://game/view/render/world_renderer.gd",
+      "owner": "[P13]",
+      "min_descendants": 3,
+      "why": "Nothing is visible without it, and boot's own error path admits as much."
+    },
+    {
+      "id": "camera",
+      "script": "res://game/view/camera/game_camera.gd",
+      "owner": "[P16]",
+      "why": "Without a camera in the tree the player is looking at a fixed patch of snow."
+    },
+    {
+      "id": "play_shell",
+      "script": "res://game/play/play_controller.gd",
+      "owner": "integrator",
+      "why": "The ghost, placement validation and the drag-to-line commit. This is the only path from a mouse to a building."
+    },
+    {
+      "id": "hud",
+      "script": "res://game/ui/hud/hud_root.gd",
+      "owner": "[P17]",
+      "min_descendants": 6,
+      "why": "Clock, heat, vitals, stocks and alerts. A HUD with no children is a panel that failed to build itself."
+    },
+    {
+      "id": "build_menu",
+      "script": "res://game/ui/build_menu/build_menu_root.gd",
+      "owner": "[P18]",
+      "min_descendants": 5,
+      "why": "THE finding. Palette, recipes, tech, blueprints and laws all hang off this node; when it is not in the tree there is no command path from a human into the logistics, research or law systems at all."
+    },
+    {
+      "id": "overlays",
+      "script": "res://game/ui/overlays/overlay_root.gd",
+      "owner": "[P19]",
+      "min_descendants": 2,
+      "why": "The readability lenses are the automation-legibility layer; unreachable, the automation pillar cannot be read even where it works."
+    }
+  ],
+
+  "layer_order": {
+    "ids": ["renderer_post", "overlay_world", "hud", "overlay_ui", "build_menu"],
+    "why": "ARCHITECTURE.md §3: the world treatment sits under the interface, a diagnosis beats a decoration, and an open panel is never stabbed through by a world badge. Ordering, not exact numbers, so renumbering cannot invert the stack quietly.",
+    "resolve": {
+      "renderer_post": {"script": "res://game/view/render/post_process.gd"},
+      "overlay_world": {"name": "OverlayWorld"},
+      "hud": {"script": "res://game/ui/hud/hud_root.gd"},
+      "overlay_ui": {"name": "OverlayUi"},
+      "build_menu": {"script": "res://game/ui/build_menu/build_menu_root.gd"}
+    }
+  },
+
+  "claim_keywords": {
+    "$why": "A log line that announces an install is a claim, and a claim the tree cannot back is exactly the failure mode this part exists to catch. Keywords are matched against any log line containing install/ready/attached/enabled.",
+    "build menu": "build_menu",
+    "build_menu": "build_menu",
+    "palette": "build_menu",
+    "hud": "hud",
+    "renderer": "renderer",
+    "camera": "camera",
+    "play shell": "play_shell",
+    "overlay": "overlays",
+    "lenses": "overlays"
+  },
+
+  "forbid_log": [
+    {
+      "match": "(?i)declined to install",
+      "why": "boot warns and carries on when a subsystem declines. Carrying on is how a build ships with the menu missing."
+    },
+    {
+      "match": "(?i)failed to install",
+      "why": "Same class: a warning nobody reads is not a gate."
+    }
+  ]
+}

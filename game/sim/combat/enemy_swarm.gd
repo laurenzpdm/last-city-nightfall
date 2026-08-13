@@ -38,6 +38,38 @@ const PROBE_PX: float = 20.0
 ## carries half a tile of slack for the tile itself.
 const REACH_SLACK: float = 16.0
 
+# ------------------------------------------------------------- the watchdog --
+# A keener born on tick 17036 was still standing on tick 24000 at full health,
+# parked exactly at its eight-tile reach from a storage yard nobody had a gun
+# near, taking the city apart at four damage a second, for ever. It outlived its
+# own night, it kept `live` above zero so no later night could ever end by
+# "nothing is alive", and nothing anywhere logged a word about it.
+#
+# Three teeth, in order of how gentle they are:
+#   1. PROGRESS. An enemy that has not got closer to the hearth than it has ever
+#      been, and has not destroyed anything, for STALL_TICKS, has its target
+#      dropped and is made to look again. Chewing a wall for forty-five seconds
+#      is normal; chewing it for forty-five seconds WITHOUT the wall dying and
+#      without gaining a metre is not.
+#   2. PATIENCE. Three of those in a row and it breaks off and leaves.
+#   3. LIFETIME. Whatever it is doing, nothing lives past MAX_LIFE_TICKS.
+# Every one of them writes a line. A stall is now loud, bounded and countable —
+# see [member stalls] and [member withdrawn].
+
+## Ticks of no progress before a body is told to find something else.
+const STALL_TICKS: int = 900
+## Stalls in a row before it gives up and walks back out into the dark.
+const MAX_STALLS: int = 3
+## Nothing on this map lives longer than this, whatever it is doing. Six minutes
+## of world time, against a night of under three.
+const MAX_LIFE_TICKS: int = 7200
+## Getting this much closer to the core (in px) counts as making progress.
+const PROGRESS_PX: float = 24.0
+## How long a body that has broken off keeps walking before it is simply gone.
+const RETREAT_TICKS: int = 400
+## ...and how much faster it walks while it does. They do not leave slowly.
+const RETREAT_SPEED: float = 1.5
+
 # ---------------------------------------------------------------- def table --
 
 var def_count: int = 0
@@ -109,6 +141,13 @@ var e_born: PackedInt32Array = PackedInt32Array()
 ## depth moves slowly, and asking [WorldGrid] once per enemy per tick is five
 ## hundred cross-object calls to answer a question that changed by nothing.
 var e_ground: PackedFloat32Array = PackedFloat32Array()
+## Watchdog: tick of the last real progress, closest-ever squared distance to the
+## core, and how many times this body has already been prodded.
+var e_prog: PackedInt32Array = PackedInt32Array()
+var e_best: PackedFloat32Array = PackedFloat32Array()
+var e_stalls: PackedByteArray = PackedByteArray()
+## Tick at which a retreating body is off the map whether it got there or not.
+var e_leave: PackedInt32Array = PackedInt32Array()
 
 # ---------------------------------------------------------------- buckets ----
 
@@ -122,8 +161,17 @@ var _bucket_fill: PackedInt32Array = PackedInt32Array()
 
 var kills: int = 0
 var leaked: int = 0            ## reached the core and stopped being ours to shoot
+## Broke off and left the map. NOT a kill: the player did not earn these.
+var withdrawn: int = 0
+## Times the watchdog had to prod a body that was getting nowhere.
+var stalls: int = 0
+## ...and how many of those it eventually had to remove.
+var stalls_resolved: int = 0
 ## Flat (id, x, y) triples for everything that died this tick.
 var deaths: PackedInt32Array = PackedInt32Array()
+## What the watchdog wants said out loud, drained by [CombatSystem] once a tick
+## so the swarm itself never touches the log or the bus.
+var reports: Array[Dictionary] = []
 var damage_dealt: float = 0.0  ## to the player's structures, after their armour
 var discontent_raised: float = 0.0
 var heat_siphoned: float = 0.0
@@ -131,6 +179,7 @@ var heat_siphoned: float = 0.0
 var _map_w: int = 0
 var _map_h: int = 0
 var _core_px: Vector2 = Vector2.ZERO
+var _leave_px: float = 4096.0
 var _spawn_queue: Array[Dictionary] = []
 
 
@@ -221,6 +270,9 @@ func bind_world(map_w: int, map_h: int, core_cell: Vector2i) -> void:
 	_map_w = map_w
 	_map_h = map_h
 	_core_px = Vector2(float(core_cell.x) * TILE + HALF_TILE, float(core_cell.y) * TILE + HALF_TILE)
+	# Far enough out that a body which reaches it is off any part of the map the
+	# player is looking at, close enough that leaving does not take a whole night.
+	_leave_px = float(maxi(map_w, map_h)) * TILE * 0.55
 	bw = maxi(1, (map_w + BUCKET_TILES - 1) / BUCKET_TILES)
 	bh = maxi(1, (map_h + BUCKET_TILES - 1) / BUCKET_TILES)
 	_bucket_start = PackedInt32Array()
@@ -261,6 +313,10 @@ func spawn(slot_def: int, pos: Vector2, new_id: int, tick: int) -> int:
 	e_hidden[i] = 1 if d_surface[slot_def] >= 0.0 else 0
 	e_born[i] = tick
 	e_ground[i] = 1.0
+	e_prog[i] = tick
+	e_best[i] = to_core.x * to_core.x + to_core.y * to_core.y
+	e_stalls[i] = 0
+	e_leave[i] = 0
 	return i
 
 
@@ -492,6 +548,25 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 			if e_hp[i] <= 0.0:
 				_kill(i, tick)
 				continue
+		# --- leaving ------------------------------------------------------
+		# A body that has broken off is out of the fight but still on the map,
+		# still shootable, and visibly walking away. That is the whole point:
+		# a night ENDS on screen instead of quietly leaving something behind.
+		if e_state[i] == CombatTypes.EnemyState.RETREATING:
+			var ox: float = px - cx
+			var oy: float = py - cy
+			var od: float = sqrt(ox * ox + oy * oy)
+			if tick >= e_leave[i] or od > _leave_px:
+				_depart(i)
+				continue
+			if od > 0.001:
+				e_hx[i] = ox / od
+				e_hy[i] = oy / od
+			var rs: float = d_speed[d] * RETREAT_SPEED * e_ground[i] * dt
+			e_x[i] = px + e_hx[i] * rs
+			e_y[i] = py + e_hy[i] * rs
+			continue
+
 		var cell_x: int = clampi(int(px / TILE), 0, w - 1)
 		var cell_y: int = clampi(int(py / TILE), 0, h - 1)
 		var idx: int = cell_y * w + cell_x
@@ -506,6 +581,22 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 		# --- the think tick: everything that costs a cross-object call ----
 		var behav: int = d_behaviour[d]
 		if (i + tick) % THINK_PERIOD == think_gate:
+			# The watchdog runs first, so a body it prods gets to act this tick
+			# rather than standing still for another half-second.
+			var wx: float = px - cx
+			var wy: float = py - cy
+			var wd2: float = wx * wx + wy * wy
+			if wd2 < e_best[i] - PROGRESS_PX * PROGRESS_PX:
+				e_best[i] = wd2
+				e_prog[i] = tick
+				e_stalls[i] = 0
+			elif tick - e_prog[i] >= STALL_TICKS:
+				_stalled(i, tick, wd2)
+				if e_state[i] == CombatTypes.EnemyState.RETREATING:
+					continue
+			if tick - e_born[i] > MAX_LIFE_TICKS:
+				_expire(i, tick)
+				continue
 			if snow != null and d_ghost[d] == 0:
 				e_ground[i] = float(snow.call("speed_scale", Vector2i(cell_x, cell_y)))
 			if d_regen[d] > 0.0 and e_hp[i] < d_health[d]:
@@ -638,7 +729,13 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 					var landed: float = float(sys.call("enemy_attack", i, e_target[i],
 						Vector2(e_tx[i], e_ty[i])))
 					if landed < 0.0:
+						# Whatever it was chewing is gone. That is progress even
+						# though the body has not moved a pixel, and the watchdog
+						# has to be told or it would eventually pull a working
+						# breaker off a wall it is halfway through.
 						e_target[i] = -1
+						e_prog[i] = tick
+						e_stalls[i] = 0
 						e_state[i] = CombatTypes.EnemyState.WALKING
 					else:
 						damage_dealt += landed
@@ -666,7 +763,9 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 ## spent next tick, which keeps the effect order independent of slot order.
 func apply_auras(sys: Object) -> void:
 	for i: int in range(count):
-		if e_state[i] == CombatTypes.EnemyState.SPENT:
+		# A thing that is running does not rally anybody and does not chill a gun.
+		if e_state[i] == CombatTypes.EnemyState.SPENT \
+				or e_state[i] == CombatTypes.EnemyState.RETREATING:
 			continue
 		var d: int = e_def[i]
 		var kind: int = d_aura[d]
@@ -693,7 +792,8 @@ func apply_auras(sys: Object) -> void:
 func apply_pressure(sys: Object) -> void:
 	var dt: float = SimClock.DT
 	for i: int in range(count):
-		if e_state[i] == CombatTypes.EnemyState.SPENT:
+		if e_state[i] == CombatTypes.EnemyState.SPENT \
+				or e_state[i] == CombatTypes.EnemyState.RETREATING:
 			continue
 		var d: int = e_def[i]
 		if d_discontent[d] > 0.0:
@@ -702,6 +802,110 @@ func apply_pressure(sys: Object) -> void:
 			var taken: float = float(sys.call("siphon_turrets",
 				Vector2(e_x[i], e_y[i]), maxf(d_aura_r[d], 128.0), d_siphon[d] * dt))
 			heat_siphoned += taken
+
+
+# =========================================================================
+# the watchdog
+# =========================================================================
+
+## Orders one body to break off. Returns false when it was already leaving or
+## already dead. A retreating body keeps its hit points and stays shootable —
+## the player is allowed to take it in the back on its way out.
+func retreat(slot: int, tick: int, reason: StringName) -> bool:
+	if slot < 0 or slot >= count:
+		return false
+	if e_state[slot] == CombatTypes.EnemyState.SPENT \
+			or e_state[slot] == CombatTypes.EnemyState.RETREATING:
+		return false
+	e_state[slot] = CombatTypes.EnemyState.RETREATING
+	e_target[slot] = -1
+	e_cool[slot] = 0.0
+	e_leave[slot] = tick + RETREAT_TICKS
+	var to_out: Vector2 = Vector2(e_x[slot], e_y[slot]) - _core_px
+	var l: float = to_out.length()
+	if l > 0.001:
+		e_hx[slot] = to_out.x / l
+		e_hy[slot] = to_out.y / l
+	if reason != &"dawn":
+		reports.append({"reason": String(reason), "id": e_id[slot],
+			"kind": String(d_id[e_def[slot]]),
+			"cell": [int(e_x[slot] / TILE), int(e_y[slot] / TILE)],
+			"age": tick - e_born[slot], "hp": snappedf(e_hp[slot], 0.1)})
+	return true
+
+
+## Orders everything still fighting to break off. `only_born_before` limits it to
+## bodies that were already on the map at that tick, which is how a dawn
+## withdrawal never sends home something that walked in a second ago.
+func withdraw_all(tick: int, reason: StringName = &"dawn") -> int:
+	var n: int = 0
+	for i: int in range(count):
+		if retreat(i, tick, reason):
+			n += 1
+	return n
+
+
+## Bodies that are still part of the fight: not dead, not walking away. This is
+## the number a wave director must poll, because a retreating body is no longer
+## anybody's problem and a night that waited for it would never end.
+func fighting_count() -> int:
+	var n: int = 0
+	for i: int in range(count):
+		var s: int = e_state[i]
+		if s != CombatTypes.EnemyState.SPENT and s != CombatTypes.EnemyState.RETREATING:
+			n += 1
+	return n
+
+
+func retreating_count() -> int:
+	var n: int = 0
+	for i: int in range(count):
+		if e_state[i] == CombatTypes.EnemyState.RETREATING:
+			n += 1
+	return n
+
+
+## Drains what the watchdog wants said. [CombatSystem] owns the log and the bus.
+func take_reports() -> Array[Dictionary]:
+	if reports.is_empty():
+		return []
+	var out: Array[Dictionary] = reports
+	reports = []
+	return out
+
+
+## No ground gained and nothing destroyed for STALL_TICKS. Prod it: drop the
+## target so it looks for another way in. Three of these and it goes home.
+func _stalled(slot: int, tick: int, d2: float) -> void:
+	stalls += 1
+	e_prog[slot] = tick
+	e_best[slot] = minf(e_best[slot], d2)
+	e_stalls[slot] += 1
+	if e_stalls[slot] >= MAX_STALLS:
+		stalls_resolved += 1
+		retreat(slot, tick, &"stalled")
+		return
+	reports.append({"reason": "stall", "id": e_id[slot],
+		"kind": String(d_id[e_def[slot]]),
+		"cell": [int(e_x[slot] / TILE), int(e_y[slot] / TILE)],
+		"age": tick - e_born[slot], "strike": e_stalls[slot],
+		"target": e_target[slot]})
+	e_target[slot] = -1
+	e_state[slot] = CombatTypes.EnemyState.WALKING
+
+
+## Older than any night. Whatever it is doing, it is not this campaign's problem.
+func _expire(slot: int, tick: int) -> void:
+	stalls_resolved += 1
+	retreat(slot, tick, &"expired")
+
+
+## A retreating body reaching the dark. Not a kill, and never counted as one.
+func _depart(slot: int) -> void:
+	if e_state[slot] == CombatTypes.EnemyState.SPENT:
+		return
+	e_state[slot] = CombatTypes.EnemyState.SPENT
+	withdrawn += 1
 
 
 ## Removes the dead. Swap-remove from the back, which keeps the array dense and
@@ -756,6 +960,8 @@ func velocity_at(slot: int) -> Vector2:
 		return Vector2.ZERO
 	var d: int = e_def[slot]
 	var s: float = d_speed[d] * (1.0 + e_rally[slot])
+	if e_state[slot] == CombatTypes.EnemyState.RETREATING:
+		s = d_speed[d] * RETREAT_SPEED
 	return Vector2(e_hx[slot] * s, e_hy[slot] * s)
 
 
@@ -800,6 +1006,9 @@ func serialize() -> Array:
 			"gate": snappedf(e_gate[i], 0.01),
 			"hidden": e_hidden[i],
 			"born": e_born[i],
+			"prog": e_prog[i],
+			"stalls": e_stalls[i],
+			"leave": e_leave[i],
 		})
 	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["id"]) < int(b["id"]))
 	return out
@@ -828,6 +1037,9 @@ func deserialize(rows: Array, tick: int) -> void:
 		e_burn_t[i] = float(r.get("burn_t", 0.0))
 		e_gate[i] = float(r.get("gate", -1.0))
 		e_hidden[i] = int(r.get("hidden", 0))
+		e_prog[i] = int(r.get("prog", int(r.get("born", tick))))
+		e_stalls[i] = int(r.get("stalls", 0))
+		e_leave[i] = int(r.get("leave", 0))
 
 
 # =========================================================================
@@ -863,6 +1075,10 @@ func _copy_slot(from: int, to: int) -> void:
 	e_hidden[to] = e_hidden[from]
 	e_born[to] = e_born[from]
 	e_ground[to] = e_ground[from]
+	e_prog[to] = e_prog[from]
+	e_best[to] = e_best[from]
+	e_stalls[to] = e_stalls[from]
+	e_leave[to] = e_leave[from]
 
 
 func _grow(need: int) -> void:
@@ -890,6 +1106,10 @@ func _grow(need: int) -> void:
 	e_hidden.resize(cap)
 	e_born.resize(cap)
 	e_ground.resize(cap)
+	e_prog.resize(cap)
+	e_best.resize(cap)
+	e_stalls.resize(cap)
+	e_leave.resize(cap)
 
 
 func _reset_defs(n: int) -> void:

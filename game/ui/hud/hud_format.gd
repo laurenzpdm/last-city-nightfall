@@ -49,6 +49,37 @@ static func rate(value: float) -> String:
 	return "%.1f" % v
 
 
+## A quantity inside a SENTENCE, where "0" is a lie whenever the value is not
+## actually zero. `rate()` floors anything under 0.05 to "0", which is right on a
+## chip and wrong in prose: "the north grid is short 0 heat/s" is the exact line
+## a critic quoted back at this build. Below one unit this says so in words.
+static func amount(value: float) -> String:
+	var v: float = absf(value)
+	if v == 0.0:
+		return "0"
+	if v < 1.0:
+		return "under 1"
+	if v >= 1000.0:
+		return "%.1fk" % (v / 1000.0)
+	if v >= 10.0:
+		return "%d" % int(roundf(v))
+	return "%.1f" % v
+
+
+## "timber", "timber and stone", "timber, stone and coal". Oxford-free, because
+## the HUD writes the way a person speaks.
+static func list_words(words: PackedStringArray) -> String:
+	var n: int = words.size()
+	if n == 0:
+		return ""
+	if n == 1:
+		return words[0]
+	if n == 2:
+		return "%s and %s" % [words[0], words[1]]
+	var head: PackedStringArray = words.slice(0, n - 1)
+	return "%s and %s" % [", ".join(head), words[n - 1]]
+
+
 ## Signed rate, for deltas: "+12", "-3.4", "0".
 static func signed_rate(value: float) -> String:
 	if absf(value) < 0.05:

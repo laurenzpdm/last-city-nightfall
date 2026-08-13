@@ -56,8 +56,20 @@ func create_world(world_seed: int) -> void:
 		if not ResourceLoader.exists(path):
 			Log.debug("sim", "system not present yet: %s" % path)
 			continue
-		var scr: Script = load(path)
-		var s: SimSystem = scr.new()
+		# A script that does not COMPILE loads as null, and `null.new()` used to
+		# abort create_world half way through the list: the engine printed one
+		# error nothing was counting, `alive` never became true, and the game
+		# came up with a renderer, a HUD and no world at all — looking for all
+		# the world like a rendering bug. Name the pillar that is missing and
+		# keep building the rest, so the run says what is wrong on line one.
+		var scr: Script = load(path) as Script
+		if scr == null:
+			Log.error("sim", "%s failed to compile — that whole pillar is ABSENT from this world" % path)
+			continue
+		var s: SimSystem = scr.new() as SimSystem
+		if s == null:
+			Log.error("sim", "%s did not produce a SimSystem — pillar ABSENT from this world" % path)
+			continue
 		systems.append(s)
 		by_name[s.system_name()] = s
 

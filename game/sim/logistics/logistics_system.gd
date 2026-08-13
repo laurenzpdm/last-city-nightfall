@@ -253,6 +253,7 @@ func step(tick: int) -> void:
 	haul.begin_tick(tick, _crew())
 	_sync_from_build()
 	world.step(tick)
+	_items_moved_total += world.items_moved
 	# Fuel every tick, stock requests every half second: a burner running dry is
 	# the difference between a lit city and a dead one, and the loop is a handful
 	# of early-outs when every bunker is full.
@@ -307,7 +308,9 @@ func _crew() -> int:
 func _serve_fuel() -> void:
 	if _heat == null:
 		return
+	_refresh_line_fed()
 	var short: int = 0
+	var dry_lines: int = 0
 	var missing: StringName = &""
 	var unmetered: bool = not _has_any_source()
 	for id: int in _burners():
@@ -318,6 +321,19 @@ func _serve_fuel() -> void:
 			continue
 		var stock: float = float(_heat.call("fuel_stock_of", id))
 		var reserve: float = _fuel_reserve(id)
+		if _line_fed.has(id):
+			# THE INTERLOCK. You built the line; the line feeds it. Porters do
+			# not quietly cover for a belt that has been cut, or the automation
+			# half of this game would be decoration — a burner that a hand-cart
+			# always reaches can never brown out because of a factory mistake.
+			if stock < MIN_FUEL_RESERVE:
+				dry_lines += 1
+				short += 1
+				missing = fuel
+				_note_dry_line(id)
+			else:
+				_line_fed_logged.erase(id)
+			continue
 		if stock >= reserve:
 			continue
 		var want: int = int(ceilf(reserve - stock))
@@ -340,13 +356,40 @@ func _serve_fuel() -> void:
 			short += 1
 			missing = fuel
 	_fuel_short = short
+	_line_dry = dry_lines
 	if short > 0 and _tick - _last_alert_tick >= ALERT_EVERY:
 		_last_alert_tick = _tick
-		Bus.alert_raised.emit(1, &"fuel_short",
-			"%d burner%s running dry — the city is out of %s" % [
-				short, "" if short == 1 else "s", String(missing).replace("_", " ")],
-			Vector2.ZERO)
-		Log.info("logistics", "%d burners short of %s" % [short, String(missing)])
+		var what: String = String(missing).replace("_", " ")
+		if dry_lines >= short:
+			Bus.alert_raised.emit(1, &"line_dry",
+				"%d burner%s starving on an empty line — nothing is arriving on the belt" % [
+					dry_lines, "" if dry_lines == 1 else "s"], Vector2.ZERO)
+			Log.info("logistics", "%d line-fed burners dry — the belt into them is empty" % dry_lines)
+		else:
+			Bus.alert_raised.emit(1, &"fuel_short",
+				"%d burner%s running dry — the city is out of %s" % [
+					short, "" if short == 1 else "s", what], Vector2.ZERO)
+			Log.info("logistics", "%d burners short of %s (%d of them on a dead line)" % [
+				short, String(missing), dry_lines])
+
+
+## Which burners have an arm loading them, refreshed on a slow timer. Walks the
+## arms, not the city, so it stays a rounding error even in a big factory.
+func _refresh_line_fed() -> void:
+	if _tick - _line_fed_tick < LINE_FED_EVERY:
+		return
+	_line_fed_tick = _tick
+	_line_fed = world.line_fed_burners()
+
+
+## Says it once per burner, at INFO, the first time its line goes dry. A player
+## reading log.txt has to be able to tell "the city has no coal" apart from
+## "the coal exists and your belt does not reach it".
+func _note_dry_line(id: int) -> void:
+	if _line_fed_logged.has(id):
+		return
+	_line_fed_logged[id] = true
+	Log.info("logistics", "burner #%d is fed by an arm and its line has run dry — porters stand down" % id)
 
 
 ## Every burner in the world that wants fuel, ascending.
@@ -517,7 +560,10 @@ func _sync_from_build() -> void:
 		return
 	var list: Array = raw
 	var seen: Dictionary[int, bool] = {}
-	var pending: Array[Object] = []
+	# Only what actually needs work is carried out of the walk. A city with
+	# fourteen hundred finished buildings must not allocate a fourteen-hundred
+	# element array to notice that one crate finished.
+	var fresh: Array[Object] = []
 	for entry: Variant in list:
 		var b: Object = entry
 		if b == null or not b.has_method("is_complete"):
@@ -526,7 +572,7 @@ func _sync_from_build() -> void:
 		var mine: LogiDef = _defs.get(StringName(String(b.get("kind"))))
 		if mine != null:
 			# Recorded the moment the site exists, finished or not: the facing of
-			# a dragged run is decided by the run, and the run is only visible
+			# a dragged run is decided by the run, and the run is only legible
 			# while all of it is still fresh.
 			link.note(id, mine.id, b.get("cell"), int(b.get("rot")), int(b.get("placed_tick")))
 		if not bool(b.call("is_complete")):
@@ -538,16 +584,14 @@ func _sync_from_build() -> void:
 		if _not_ours.has(id):
 			continue
 		if _adopted.has(id):
-			pending.append(b)
-			continue
-		pending.append(b)
-	_apply_run_facings()
-	for b2: Object in pending:
-		var id2: int = int(b2.get("id"))
-		if _adopted.has(id2):
-			_resync_entity(b2, id2)
+			_resync_entity(b, id)
 		else:
-			_adopt(b2, id2)
+			fresh.append(b)
+	# Facings first: a belt that finished this sweep has to know which way the
+	# drag was going before it becomes a transport line.
+	_apply_run_facings()
+	for b2: Object in fresh:
+		_adopt(b2, int(b2.get("id")))
 	var known: Array = _adopted.keys()
 	known.sort()
 	for id3: int in known:
@@ -616,6 +660,15 @@ func _clear_ground_for(b: Object) -> void:
 
 func _adopt(b: Object, id: int) -> void:
 	var kind: StringName = StringName(String(b.get("kind")))
+	# A piece that is a LogiDef AND a BuildingDef is one thing placed by [P11]
+	# and driven by us. That is the whole point of the two-file handshake.
+	var transport: LogiDef = _defs.get(kind)
+	if transport != null:
+		if _adopt_transport(b, id, transport):
+			_adopted[id] = true
+			return
+		_not_ours[id] = true
+		return
 	var traits: Dictionary = _traits_of(kind)
 	var storage: int = int(traits.get("storage", 0))
 	var fuel: StringName = traits.get("fuel", &"")
@@ -641,8 +694,97 @@ func _adopt(b: Object, id: int) -> void:
 		String(kind), id, storage, String(fuel)])
 
 
+## Gives a [P11]-placed belt, tunnel, splitter, arm or chest its transport
+## behaviour. The building keeps its id, so removing it, rotating it, switching
+## it off or blueprinting it all reach the same object from both sides.
+func _adopt_transport(b: Object, id: int, def: LogiDef) -> bool:
+	if world.entities.has(id):
+		return true
+	var cells: Array[Vector2i] = _cells_of(b)
+	if cells.is_empty():
+		return false
+	var rot: int = link.facing_of(id, int(b.get("rot"))) if def.is_rotatable() else 0
+	var e: LogiEntity = _make_entity(def)
+	e.id = id
+	e.kind = def.id
+	e.def = def
+	e.rot = posmod(rot, 4)
+	e.cell = _entity_origin(def, cells, e.rot, b.get("cell"))
+	e.cells = cells
+	e.from_build = true
+	e.enabled = bool(b.get("enabled"))
+	e.placed_tick = int(b.get("placed_tick"))
+	if def.role_id() == LogiTypes.Role.CHEST:
+		e.store = LogiStore.new(id, def.capacity, def.filter)
+		e.store.requesting = def.requests
+	world.add_entity(e)
+	_placed_total += 1
+	_adopted_transport.append(id)
+	Log.debug("logistics", "adopted %s #%d at %s facing %d (placed by build)" % [
+		String(def.id), id, str(e.cell), e.rot])
+	return true
+
+
+## [P11] anchors a footprint at its minimum corner. A splitter is anchored at
+## its left half, which for two of the four rotations is the other cell.
+func _entity_origin(def: LogiDef, cells: Array[Vector2i], rot: int, fallback: Variant) -> Vector2i:
+	if def.role_id() == LogiTypes.Role.SPLITTER:
+		return LogiBuildLink.splitter_origin(cells, rot)
+	if typeof(fallback) == TYPE_VECTOR2I:
+		return fallback
+	return cells[0]
+
+
+func _cells_of(b: Object) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	var raw: Variant = b.get("cells")
+	if typeof(raw) == TYPE_ARRAY:
+		for c: Variant in raw:
+			if typeof(c) == TYPE_VECTOR2I:
+				out.append(c)
+	if out.is_empty():
+		var single: Variant = b.get("cell")
+		if typeof(single) == TYPE_VECTOR2I:
+			out.append(single)
+	return out
+
+
+## Keeps an adopted piece pointing where [P11] says it points. This is what
+## makes R work on a belt that is already down: build rotates the instance, we
+## notice, and the transport line is rebuilt around the new facing.
+func _resync_entity(b: Object, id: int) -> void:
+	var e: LogiEntity = world.entities.get(id)
+	if e == null or e.def == null:
+		return
+	var on: bool = bool(b.get("enabled"))
+	if e.enabled != on:
+		e.enabled = on
+	if not e.def.is_rotatable():
+		return
+	var rot: int = posmod(int(b.get("rot")), 4)
+	if rot == e.rot:
+		return
+	var cells: Array[Vector2i] = _cells_of(b)
+	if cells.is_empty():
+		return
+	link.set_facing(id, rot)
+	world.remove_entity(id)
+	e.rot = rot
+	e.cell = _entity_origin(e.def, cells, rot, b.get("cell"))
+	e.cells = cells
+	e.pair_id = -1
+	e.is_entrance = true
+	e.seg_id = -1
+	world.add_entity(e)
+
+
 func _release(id: int) -> void:
 	_reserve_cache.erase(id)
+	if world.entities.has(id):
+		world.remove_entity(id)
+		_removed_total += 1
+		_adopted_transport.erase(id)
+	link.forget(id)
 	world.unregister_store(id)
 	world.unregister_burner(id)
 	haul.forget(id)
@@ -726,6 +868,10 @@ func request_fuel(building_id: int, item: StringName, amount: float) -> float:
 	if not _has_any_source():
 		_bootstrap_note()
 		return float(want)
+	# [P02] pulls on its own schedule as well as being pushed by _serve_fuel.
+	# The interlock has to hold on both doors or a cut belt is still covered.
+	if _line_fed.has(building_id):
+		return 0.0
 	_ensure_adopted(building_id)
 	var cell: Vector2i = world.store_origin.get(building_id, _cell_of(building_id))
 	var got: int = haul.serve(world, _stock(), building_id, cell, item, want)
@@ -875,6 +1021,12 @@ func totals() -> Dictionary:
 		"hauled": haul.hauled_total,
 		"fuel_by_porter": haul.fuel_total,
 		"fuel_by_machine": int(world.delivered_as_fuel),
+		"items_moved_total": _items_moved_total,
+		"placed_by_player": _adopted_transport.size(),
+		"line_fed_burners": _line_fed.size(),
+		"lines_dry": _line_dry,
+		"runs_dragged": link.runs_resolved,
+		"corners_turned": link.corners_turned,
 	}
 
 
@@ -1307,10 +1459,14 @@ func metrics() -> Dictionary:
 		"stores": world.stores.size(),
 		"idle_arms": world.idle_arms(),
 		"items_moved": world.items_moved,
+		"items_moved_total": _items_moved_total,
 		"hauled_total": haul.hauled_total,
 		"fuel_by_porter": haul.fuel_total,
 		"fuel_by_machine": int(world.delivered_as_fuel),
 		"burners_short": _fuel_short,
+		"lines_dry": _line_dry,
+		"line_fed_burners": _line_fed.size(),
+		"placed_by_player": _adopted_transport.size(),
 		"porters": haul.porters,
 		"spilled": world.spilled,
 	}
