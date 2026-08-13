@@ -46,6 +46,9 @@ const GATE_OPEN_COST: int = 10
 ## the field within half a second; a wall COMBAT takes down is in it immediately,
 ## through note_cells.
 const SCAN_SLICE: int = 8192
+## Cells repaired into the flow field per tick. Bounds the worst case when a
+## whole district is placed or flattened on one tick.
+const MAX_REPAIR_CELLS: int = 256
 
 var ready: bool = false
 var field: FlowField = null
@@ -279,14 +282,27 @@ func _apply(idx: int, grid_cost: int) -> void:
 	_pending.append(idx)
 
 
+## Repairs the field for the cells that changed, in bounded batches.
+##
+## A flood is proportional to the SHADOW of the change, not to the number of
+## cells handed in, so a mass placement — a hundred metres of wall going up in
+## one tick — can cost tens of milliseconds if it is repaired in one go. Capping
+## the batch spreads that over a few ticks the way [P01] caps its own cost flush;
+## the cells still waiting are already stale, so nothing is lost by making them
+## wait one tick longer.
 func _flush() -> void:
 	if _pending.is_empty():
 		return
-	field.update(cost, _pending)
+	var batch: PackedInt32Array = _pending
+	if _pending.size() > MAX_REPAIR_CELLS:
+		batch = _pending.slice(0, MAX_REPAIR_CELLS)
+		_pending = _pending.slice(MAX_REPAIR_CELLS)
+	else:
+		_pending = PackedInt32Array()
+	field.update(cost, batch)
 	repairs += 1
-	cells_repaired += _pending.size()
+	cells_repaired += batch.size()
 	last_visited = field.last_visited
-	_pending = PackedInt32Array()
 
 
 ## Every cell a player structure sits on stops counting as terrain. Runs once,

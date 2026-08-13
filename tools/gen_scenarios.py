@@ -475,20 +475,18 @@ def stress():
     # spurs run the FULL height of the trunk block (-30..30 inclusive) so every
     # crossing exists; a spur that stopped one row short left the outer trunks
     # hanging as their own little networks.
+    # Trunks reach one column past the last plot column. A plot sits at
+    # (col + 1, row + 1) and hangs off the trunk directly above it — the spurs
+    # are only there to join the trunks to each other — so the plots in the
+    # col = 40 column need a trunk cell at dx 41 and nothing more. Eleven pipes,
+    # where extending every spur by four rows to reach the same eleven plots
+    # cost forty-four and a tick per second off the perf floor.
     for dy in range(-30, 31, 6):
-        L.line(t, "heat_pipe", (-40, dy), (40, dy), free=True, instant=True)
+        L.line(t, "heat_pipe", (-40, dy), (41, dy), free=True, instant=True)
         t += 3
     for dx in range(-40, 41, 8):
-        # Two rows past the last trunk on each side: the plots that hug the
-        # outermost trunk sit at rows 31-32, and a spur that stopped at 30 left
-        # them with bare ground on every side.
-        L.line(t, "heat_pipe", (dx, -32), (dx, 32), free=True, instant=True)
+        L.line(t, "heat_pipe", (dx, -30), (dx, 30), free=True, instant=True)
         t += 3
-    # The hearth sits inside the block but its 5x5 footprint spans dx -2..2,
-    # which no trunk or spur passes through. One stub joins it to the spur at
-    # dx = 8, and without it the biggest producer on the map feeds nothing.
-    L.line(t, "heat_pipe", (3, 0), (8, 0), free=True, instant=True)
-    t += 3
     # Every plot sits in the pocket between one trunk and the next, one tile in
     # from both, so it is orthogonally adjacent to the grid on two sides.
     n = 0

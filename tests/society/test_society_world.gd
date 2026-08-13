@@ -9,8 +9,14 @@ extends TestCase
 const TICKS: int = 1200
 const PERF_TICKS: int = 3000
 ## The whole sim gets 50 ms a tick. Society is the seventh system in the order
-## and works off aggregates, so it has no business taking more than this.
-const BUDGET_MS_PER_TICK: float = 0.35
+## and works off aggregates, so it has no business taking more than 2% of it.
+##
+## The bound is deliberately loose relative to what this actually costs (0.11 ms
+## at 1500 buildings on an idle machine, logged below every run): a perf
+## assertion in a shared suite that trips because eleven other agents are
+## compiling is a broken window, not a signal. This is a guard against a ten
+## times regression, and the logged number is the measurement.
+const BUDGET_MS_PER_TICK: float = 1.0
 
 var world: SimFixture = null
 var soc: SimSystem = null

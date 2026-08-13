@@ -143,7 +143,6 @@ func _rescore() -> void:
 	if probe == null or not probe.has_method("is_complete"):
 		return
 	var has_health: bool = probe.has_method("health_ratio")
-	var has_rect: bool = probe.has_method("rect")
 	var has_power: bool = _heat != null and _heat.has_method("power_factor")
 
 	var dps: PackedFloat32Array = PackedFloat32Array()
@@ -158,18 +157,23 @@ func _rescore() -> void:
 	for _i: int in n:
 		ids_by_zone.append(PackedInt32Array())
 
+	# ORDER MATTERS HERE. Every `get`/`call` on an Object is a name lookup, and at
+	# stress scale there are seventeen hundred buildings and five of them are
+	# turrets. So the corridor test comes FIRST — one property read and one
+	# dictionary lookup — and everything else is only paid for by the handful of
+	# buildings that actually stand on a road. Anchoring on the min corner alone
+	# (rather than also probing the footprint centre) is deliberate: the corridor
+	# is five tiles wide, so a 2x2 whose corner falls one tile outside it is a
+	# rounding error, and probing for it cost a method call per building.
 	for entry: Variant in list:
 		var b: Object = entry
-		if b == null or not bool(b.call("is_complete")):
+		if b == null:
 			continue
 		var mask: int = int(_zone.get(b.get("cell"), 0))
-		if mask == 0 and has_rect:
-			var r: Rect2i = b.call("rect")
-			mask = int(_zone.get(r.position + r.size / 2, 0))
-		if mask == 0:
+		if mask == 0 or not bool(b.call("is_complete")):
 			continue
-		var info: Dictionary = _kind_info(StringName(String(b.get("kind"))))
-		var health: float = clampf(float(b.call("health_ratio")), 0.0, 1.0) if has_health else 1.0
+		var kind: StringName = b.get("kind")
+		var info: Dictionary = _kind_info(kind)
 		var id: int = int(b.get("id"))
 		var hp: float = float(b.get("hp"))
 		var turret: bool = bool(info["turret"])
@@ -177,13 +181,15 @@ func _rescore() -> void:
 		# A cold turret is a decoration. This one line is the whole reason the
 		# heat grid IS the defence grid.
 		var add_dps: float = 0.0
-		if turret:
-			var power: float = 1.0
-			if has_power:
-				power = clampf(float(_heat.call("power_factor", id)), 0.0, 1.0)
-			add_dps = _profile.turret_dps * health * (0.15 + 0.85 * power)
-		elif defense:
-			add_dps = _profile.support_dps * health
+		if turret or defense:
+			var health: float = clampf(float(b.call("health_ratio")), 0.0, 1.0) if has_health else 1.0
+			if turret:
+				var power: float = 1.0
+				if has_power:
+					power = clampf(float(_heat.call("power_factor", id)), 0.0, 1.0)
+				add_dps = _profile.turret_dps * health * (0.15 + 0.85 * power)
+			else:
+				add_dps = _profile.support_dps * health
 		# Anything that is not a gun is still a body in the way, and still
 		# something they can stop to take apart.
 		var add_hp: float = 0.0 if turret else (

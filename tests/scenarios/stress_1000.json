@@ -59,7 +59,7 @@
           98
         ],
         "to": [
-          168,
+          169,
           98
         ],
         "free": true,
@@ -77,7 +77,7 @@
           104
         ],
         "to": [
-          168,
+          169,
           104
         ],
         "free": true,
@@ -95,7 +95,7 @@
           110
         ],
         "to": [
-          168,
+          169,
           110
         ],
         "free": true,
@@ -113,7 +113,7 @@
           116
         ],
         "to": [
-          168,
+          169,
           116
         ],
         "free": true,
@@ -131,7 +131,7 @@
           122
         ],
         "to": [
-          168,
+          169,
           122
         ],
         "free": true,
@@ -149,7 +149,7 @@
           128
         ],
         "to": [
-          168,
+          169,
           128
         ],
         "free": true,
@@ -167,7 +167,7 @@
           134
         ],
         "to": [
-          168,
+          169,
           134
         ],
         "free": true,
@@ -185,7 +185,7 @@
           140
         ],
         "to": [
-          168,
+          169,
           140
         ],
         "free": true,
@@ -203,7 +203,7 @@
           146
         ],
         "to": [
-          168,
+          169,
           146
         ],
         "free": true,
@@ -221,7 +221,7 @@
           152
         ],
         "to": [
-          168,
+          169,
           152
         ],
         "free": true,
@@ -239,7 +239,7 @@
           158
         ],
         "to": [
-          168,
+          169,
           158
         ],
         "free": true,
@@ -254,11 +254,11 @@
         "kind": "heat_pipe",
         "from": [
           88,
-          96
+          98
         ],
         "to": [
           88,
-          160
+          158
         ],
         "free": true,
         "instant": true
@@ -272,11 +272,11 @@
         "kind": "heat_pipe",
         "from": [
           96,
-          96
+          98
         ],
         "to": [
           96,
-          160
+          158
         ],
         "free": true,
         "instant": true
@@ -290,11 +290,11 @@
         "kind": "heat_pipe",
         "from": [
           104,
-          96
+          98
         ],
         "to": [
           104,
-          160
+          158
         ],
         "free": true,
         "instant": true
@@ -308,11 +308,11 @@
         "kind": "heat_pipe",
         "from": [
           112,
-          96
+          98
         ],
         "to": [
           112,
-          160
+          158
         ],
         "free": true,
         "instant": true
@@ -326,11 +326,11 @@
         "kind": "heat_pipe",
         "from": [
           120,
-          96
+          98
         ],
         "to": [
           120,
-          160
+          158
         ],
         "free": true,
         "instant": true
@@ -344,11 +344,11 @@
         "kind": "heat_pipe",
         "from": [
           128,
-          96
+          98
         ],
         "to": [
           128,
-          160
+          158
         ],
         "free": true,
         "instant": true
@@ -362,11 +362,11 @@
         "kind": "heat_pipe",
         "from": [
           136,
-          96
+          98
         ],
         "to": [
           136,
-          160
+          158
         ],
         "free": true,
         "instant": true
@@ -380,11 +380,11 @@
         "kind": "heat_pipe",
         "from": [
           144,
-          96
+          98
         ],
         "to": [
           144,
-          160
+          158
         ],
         "free": true,
         "instant": true
@@ -398,11 +398,11 @@
         "kind": "heat_pipe",
         "from": [
           152,
-          96
+          98
         ],
         "to": [
           152,
-          160
+          158
         ],
         "free": true,
         "instant": true
@@ -416,11 +416,11 @@
         "kind": "heat_pipe",
         "from": [
           160,
-          96
+          98
         ],
         "to": [
           160,
-          160
+          158
         ],
         "free": true,
         "instant": true
@@ -434,11 +434,11 @@
         "kind": "heat_pipe",
         "from": [
           168,
-          96
+          98
         ],
         "to": [
           168,
-          160
+          158
         ],
         "free": true,
         "instant": true
@@ -448,24 +448,6 @@
       "tick": 76,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          131,
-          128
-        ],
-        "to": [
-          136,
-          128
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 79,
-      "cmd": {
-        "system": "build",
         "op": "place",
         "kind": "warmth_radiator",
         "cell": [
@@ -477,7 +459,7 @@
       }
     },
     {
-      "tick": 81,
+      "tick": 78,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -491,7 +473,7 @@
       }
     },
     {
-      "tick": 83,
+      "tick": 80,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -505,7 +487,7 @@
       }
     },
     {
-      "tick": 85,
+      "tick": 82,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -519,7 +501,7 @@
       }
     },
     {
-      "tick": 87,
+      "tick": 84,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -533,7 +515,7 @@
       }
     },
     {
-      "tick": 89,
+      "tick": 86,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -547,7 +529,7 @@
       }
     },
     {
-      "tick": 91,
+      "tick": 88,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -561,7 +543,7 @@
       }
     },
     {
-      "tick": 93,
+      "tick": 90,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -575,7 +557,7 @@
       }
     },
     {
-      "tick": 95,
+      "tick": 92,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -589,7 +571,7 @@
       }
     },
     {
-      "tick": 97,
+      "tick": 94,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -603,7 +585,7 @@
       }
     },
     {
-      "tick": 99,
+      "tick": 96,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -617,7 +599,7 @@
       }
     },
     {
-      "tick": 101,
+      "tick": 98,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -631,7 +613,7 @@
       }
     },
     {
-      "tick": 103,
+      "tick": 100,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -645,7 +627,7 @@
       }
     },
     {
-      "tick": 105,
+      "tick": 102,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -659,7 +641,7 @@
       }
     },
     {
-      "tick": 107,
+      "tick": 104,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -673,7 +655,7 @@
       }
     },
     {
-      "tick": 109,
+      "tick": 106,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -687,7 +669,7 @@
       }
     },
     {
-      "tick": 111,
+      "tick": 108,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -701,7 +683,7 @@
       }
     },
     {
-      "tick": 113,
+      "tick": 110,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -715,7 +697,7 @@
       }
     },
     {
-      "tick": 115,
+      "tick": 112,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -729,7 +711,7 @@
       }
     },
     {
-      "tick": 117,
+      "tick": 114,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -743,7 +725,7 @@
       }
     },
     {
-      "tick": 119,
+      "tick": 116,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -757,7 +739,7 @@
       }
     },
     {
-      "tick": 121,
+      "tick": 118,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -771,7 +753,7 @@
       }
     },
     {
-      "tick": 123,
+      "tick": 120,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -785,7 +767,7 @@
       }
     },
     {
-      "tick": 125,
+      "tick": 122,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -799,7 +781,7 @@
       }
     },
     {
-      "tick": 127,
+      "tick": 124,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -813,7 +795,7 @@
       }
     },
     {
-      "tick": 129,
+      "tick": 126,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -827,7 +809,7 @@
       }
     },
     {
-      "tick": 131,
+      "tick": 128,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -841,7 +823,7 @@
       }
     },
     {
-      "tick": 133,
+      "tick": 130,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -855,7 +837,7 @@
       }
     },
     {
-      "tick": 135,
+      "tick": 132,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -869,7 +851,7 @@
       }
     },
     {
-      "tick": 137,
+      "tick": 134,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -883,7 +865,7 @@
       }
     },
     {
-      "tick": 139,
+      "tick": 136,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -897,7 +879,7 @@
       }
     },
     {
-      "tick": 141,
+      "tick": 138,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -911,7 +893,7 @@
       }
     },
     {
-      "tick": 143,
+      "tick": 140,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -925,7 +907,7 @@
       }
     },
     {
-      "tick": 145,
+      "tick": 142,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -939,7 +921,7 @@
       }
     },
     {
-      "tick": 147,
+      "tick": 144,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -953,7 +935,7 @@
       }
     },
     {
-      "tick": 149,
+      "tick": 146,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -967,7 +949,7 @@
       }
     },
     {
-      "tick": 151,
+      "tick": 148,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -981,7 +963,7 @@
       }
     },
     {
-      "tick": 153,
+      "tick": 150,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -995,7 +977,7 @@
       }
     },
     {
-      "tick": 155,
+      "tick": 152,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1009,7 +991,7 @@
       }
     },
     {
-      "tick": 157,
+      "tick": 154,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1023,7 +1005,7 @@
       }
     },
     {
-      "tick": 159,
+      "tick": 156,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1037,7 +1019,7 @@
       }
     },
     {
-      "tick": 161,
+      "tick": 158,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1051,7 +1033,7 @@
       }
     },
     {
-      "tick": 163,
+      "tick": 160,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1065,7 +1047,7 @@
       }
     },
     {
-      "tick": 165,
+      "tick": 162,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1079,7 +1061,7 @@
       }
     },
     {
-      "tick": 167,
+      "tick": 164,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1093,7 +1075,7 @@
       }
     },
     {
-      "tick": 169,
+      "tick": 166,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1107,7 +1089,7 @@
       }
     },
     {
-      "tick": 171,
+      "tick": 168,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1121,7 +1103,7 @@
       }
     },
     {
-      "tick": 173,
+      "tick": 170,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1135,7 +1117,7 @@
       }
     },
     {
-      "tick": 175,
+      "tick": 172,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1149,7 +1131,7 @@
       }
     },
     {
-      "tick": 177,
+      "tick": 174,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1163,7 +1145,7 @@
       }
     },
     {
-      "tick": 179,
+      "tick": 176,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1177,7 +1159,7 @@
       }
     },
     {
-      "tick": 181,
+      "tick": 178,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1191,7 +1173,7 @@
       }
     },
     {
-      "tick": 183,
+      "tick": 180,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1205,7 +1187,7 @@
       }
     },
     {
-      "tick": 185,
+      "tick": 182,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1219,7 +1201,7 @@
       }
     },
     {
-      "tick": 187,
+      "tick": 184,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1233,7 +1215,7 @@
       }
     },
     {
-      "tick": 189,
+      "tick": 186,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1247,7 +1229,7 @@
       }
     },
     {
-      "tick": 191,
+      "tick": 188,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1261,7 +1243,7 @@
       }
     },
     {
-      "tick": 193,
+      "tick": 190,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1275,7 +1257,7 @@
       }
     },
     {
-      "tick": 195,
+      "tick": 192,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1289,7 +1271,7 @@
       }
     },
     {
-      "tick": 197,
+      "tick": 194,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1303,7 +1285,7 @@
       }
     },
     {
-      "tick": 199,
+      "tick": 196,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1317,7 +1299,7 @@
       }
     },
     {
-      "tick": 201,
+      "tick": 198,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1331,7 +1313,7 @@
       }
     },
     {
-      "tick": 203,
+      "tick": 200,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1345,7 +1327,7 @@
       }
     },
     {
-      "tick": 205,
+      "tick": 202,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1359,7 +1341,7 @@
       }
     },
     {
-      "tick": 207,
+      "tick": 204,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1373,7 +1355,7 @@
       }
     },
     {
-      "tick": 209,
+      "tick": 206,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1387,7 +1369,7 @@
       }
     },
     {
-      "tick": 211,
+      "tick": 208,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1401,7 +1383,7 @@
       }
     },
     {
-      "tick": 213,
+      "tick": 210,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1415,7 +1397,7 @@
       }
     },
     {
-      "tick": 215,
+      "tick": 212,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1429,7 +1411,7 @@
       }
     },
     {
-      "tick": 217,
+      "tick": 214,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1443,7 +1425,7 @@
       }
     },
     {
-      "tick": 219,
+      "tick": 216,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1457,7 +1439,7 @@
       }
     },
     {
-      "tick": 221,
+      "tick": 218,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1471,7 +1453,7 @@
       }
     },
     {
-      "tick": 223,
+      "tick": 220,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1485,7 +1467,7 @@
       }
     },
     {
-      "tick": 225,
+      "tick": 222,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1499,7 +1481,7 @@
       }
     },
     {
-      "tick": 227,
+      "tick": 224,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1513,7 +1495,7 @@
       }
     },
     {
-      "tick": 229,
+      "tick": 226,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1527,7 +1509,7 @@
       }
     },
     {
-      "tick": 231,
+      "tick": 228,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1541,7 +1523,7 @@
       }
     },
     {
-      "tick": 233,
+      "tick": 230,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1555,7 +1537,7 @@
       }
     },
     {
-      "tick": 235,
+      "tick": 232,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1569,7 +1551,7 @@
       }
     },
     {
-      "tick": 237,
+      "tick": 234,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1583,7 +1565,7 @@
       }
     },
     {
-      "tick": 239,
+      "tick": 236,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1597,7 +1579,7 @@
       }
     },
     {
-      "tick": 241,
+      "tick": 238,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1611,7 +1593,7 @@
       }
     },
     {
-      "tick": 243,
+      "tick": 240,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1625,7 +1607,7 @@
       }
     },
     {
-      "tick": 245,
+      "tick": 242,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1639,7 +1621,7 @@
       }
     },
     {
-      "tick": 247,
+      "tick": 244,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1653,7 +1635,7 @@
       }
     },
     {
-      "tick": 249,
+      "tick": 246,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1667,7 +1649,7 @@
       }
     },
     {
-      "tick": 251,
+      "tick": 248,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1681,7 +1663,7 @@
       }
     },
     {
-      "tick": 253,
+      "tick": 250,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1695,7 +1677,7 @@
       }
     },
     {
-      "tick": 255,
+      "tick": 252,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1709,7 +1691,7 @@
       }
     },
     {
-      "tick": 257,
+      "tick": 254,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1723,7 +1705,7 @@
       }
     },
     {
-      "tick": 259,
+      "tick": 256,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1737,7 +1719,7 @@
       }
     },
     {
-      "tick": 261,
+      "tick": 258,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1751,7 +1733,7 @@
       }
     },
     {
-      "tick": 263,
+      "tick": 260,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1765,7 +1747,7 @@
       }
     },
     {
-      "tick": 265,
+      "tick": 262,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1779,7 +1761,7 @@
       }
     },
     {
-      "tick": 267,
+      "tick": 264,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1793,7 +1775,7 @@
       }
     },
     {
-      "tick": 269,
+      "tick": 266,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1807,7 +1789,7 @@
       }
     },
     {
-      "tick": 271,
+      "tick": 268,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1821,7 +1803,7 @@
       }
     },
     {
-      "tick": 273,
+      "tick": 270,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1835,7 +1817,7 @@
       }
     },
     {
-      "tick": 275,
+      "tick": 272,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1849,7 +1831,7 @@
       }
     },
     {
-      "tick": 277,
+      "tick": 274,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1863,7 +1845,7 @@
       }
     },
     {
-      "tick": 279,
+      "tick": 276,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1877,7 +1859,7 @@
       }
     },
     {
-      "tick": 281,
+      "tick": 278,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1891,7 +1873,7 @@
       }
     },
     {
-      "tick": 283,
+      "tick": 280,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1905,7 +1887,7 @@
       }
     },
     {
-      "tick": 285,
+      "tick": 282,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1919,7 +1901,7 @@
       }
     },
     {
-      "tick": 287,
+      "tick": 284,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1933,7 +1915,7 @@
       }
     },
     {
-      "tick": 289,
+      "tick": 286,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1947,7 +1929,7 @@
       }
     },
     {
-      "tick": 291,
+      "tick": 288,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1961,7 +1943,7 @@
       }
     },
     {
-      "tick": 293,
+      "tick": 290,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1975,7 +1957,7 @@
       }
     },
     {
-      "tick": 295,
+      "tick": 292,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1989,7 +1971,7 @@
       }
     },
     {
-      "tick": 297,
+      "tick": 294,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -2003,7 +1985,7 @@
       }
     },
     {
-      "tick": 299,
+      "tick": 296,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -2017,7 +1999,7 @@
       }
     },
     {
-      "tick": 301,
+      "tick": 298,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -2031,7 +2013,7 @@
       }
     },
     {
-      "tick": 303,
+      "tick": 300,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -2045,7 +2027,7 @@
       }
     },
     {
-      "tick": 305,
+      "tick": 302,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -2059,7 +2041,7 @@
       }
     },
     {
-      "tick": 307,
+      "tick": 304,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -2073,7 +2055,7 @@
       }
     },
     {
-      "tick": 309,
+      "tick": 306,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -2087,7 +2069,7 @@
       }
     },
     {
-      "tick": 311,
+      "tick": 308,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -2101,7 +2083,7 @@
       }
     },
     {
-      "tick": 313,
+      "tick": 310,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -2115,7 +2097,7 @@
       }
     },
     {
-      "tick": 315,
+      "tick": 312,
       "cmd": {
         "system": "build",
         "op": "place_line",
@@ -2133,7 +2115,7 @@
       }
     },
     {
-      "tick": 319,
+      "tick": 316,
       "cmd": {
         "system": "build",
         "op": "place_line",
@@ -2151,7 +2133,7 @@
       }
     },
     {
-      "tick": 323,
+      "tick": 320,
       "cmd": {
         "system": "build",
         "op": "place_line",
@@ -2169,7 +2151,7 @@
       }
     },
     {
-      "tick": 327,
+      "tick": 324,
       "cmd": {
         "system": "build",
         "op": "place_line",
@@ -2187,7 +2169,7 @@
       }
     },
     {
-      "tick": 341,
+      "tick": 338,
       "cmd": {
         "system": "grid",
         "op": "snowfall",
@@ -2195,7 +2177,7 @@
       }
     },
     {
-      "tick": 371,
+      "tick": 368,
       "cmd": {
         "system": "climate",
         "op": "skip_to_phase",
@@ -2203,7 +2185,7 @@
       }
     },
     {
-      "tick": 411,
+      "tick": 408,
       "cmd": {
         "system": "heat",
         "op": "dump"
