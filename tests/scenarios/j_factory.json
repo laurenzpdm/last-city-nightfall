@@ -1,0 +1,2577 @@
+{
+ "name": "j_factory",
+ "description": "judge: does a real belt factory read",
+ "seed": 7,
+ "ticks": 8200,
+ "sample_every": 20,
+ "expects": {
+  "max_errors": 99
+ },
+ "script": [
+  {
+   "tick": 1,
+   "cmd": {
+    "system": "build",
+    "op": "add_stock",
+    "items": {
+     "iron_plate": 4000,
+     "steel_plate": 2000,
+     "stone": 4000,
+     "timber": 2000,
+     "scrap": 4000,
+     "gear": 2000,
+     "copper_coil": 2000,
+     "coal": 4000
+    }
+   }
+  },
+  {
+   "tick": 2,
+   "cmd": {
+    "system": "build",
+    "op": "grant_unlock",
+    "unlock": "thermal_storage"
+   }
+  },
+  {
+   "tick": 2,
+   "cmd": {
+    "system": "build",
+    "op": "grant_unlock",
+    "unlock": "pressurised_mains"
+   }
+  },
+  {
+   "tick": 2,
+   "cmd": {
+    "system": "build",
+    "op": "grant_unlock",
+    "unlock": "belt"
+   }
+  },
+  {
+   "tick": 2,
+   "cmd": {
+    "system": "build",
+    "op": "grant_unlock",
+    "unlock": "recipe_belt"
+   }
+  },
+  {
+   "tick": 2,
+   "cmd": {
+    "system": "build",
+    "op": "grant_unlock",
+    "unlock": "belt_underground"
+   }
+  },
+  {
+   "tick": 2,
+   "cmd": {
+    "system": "build",
+    "op": "grant_unlock",
+    "unlock": "recipe_belt_underground"
+   }
+  },
+  {
+   "tick": 2,
+   "cmd": {
+    "system": "build",
+    "op": "grant_unlock",
+    "unlock": "splitter"
+   }
+  },
+  {
+   "tick": 2,
+   "cmd": {
+    "system": "build",
+    "op": "grant_unlock",
+    "unlock": "recipe_splitter"
+   }
+  },
+  {
+   "tick": 2,
+   "cmd": {
+    "system": "build",
+    "op": "grant_unlock",
+    "unlock": "belt_gearing"
+   }
+  },
+  {
+   "tick": 2,
+   "cmd": {
+    "system": "build",
+    "op": "grant_unlock",
+    "unlock": "inserter"
+   }
+  },
+  {
+   "tick": 2,
+   "cmd": {
+    "system": "build",
+    "op": "grant_unlock",
+    "unlock": "recipe_inserter"
+   }
+  },
+  {
+   "tick": 2,
+   "cmd": {
+    "system": "build",
+    "op": "grant_unlock",
+    "unlock": "inserter_arms"
+   }
+  },
+  {
+   "tick": 2,
+   "cmd": {
+    "system": "build",
+    "op": "grant_unlock",
+    "unlock": "long_arm"
+   }
+  },
+  {
+   "tick": 3,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "the_hearth",
+    "cell": [
+     126,
+     126
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 4,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     128,
+     131
+    ],
+    "to": [
+     128,
+     133
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 5,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     128,
+     133
+    ],
+    "to": [
+     142,
+     133
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 6,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "coal_generator",
+    "cell": [
+     124,
+     133
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 7,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "coal_generator",
+    "cell": [
+     120,
+     133
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 8,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "housing_block",
+    "cell": [
+     133,
+     124
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 9,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "housing_block",
+    "cell": [
+     119,
+     124
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 20,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "smelter",
+    "cell": [
+     132,
+     136
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 21,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "smelter",
+    "cell": [
+     136,
+     136
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 22,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "workshop",
+    "cell": [
+     132,
+     143
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 23,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "storage_yard",
+    "cell": [
+     124,
+     144
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 40,
+   "cmd": {
+    "system": "logistics",
+    "op": "place_line",
+    "kind": "belt_mk1",
+    "from": [
+     126,
+     140
+    ],
+    "to": [
+     142,
+     140
+    ],
+    "free": true
+   }
+  },
+  {
+   "tick": 41,
+   "cmd": {
+    "system": "logistics",
+    "op": "place_line",
+    "kind": "belt_mk1",
+    "from": [
+     142,
+     141
+    ],
+    "to": [
+     142,
+     146
+    ],
+    "free": true
+   }
+  },
+  {
+   "tick": 42,
+   "cmd": {
+    "system": "logistics",
+    "op": "place_line",
+    "kind": "belt_mk1",
+    "from": [
+     141,
+     146
+    ],
+    "to": [
+     128,
+     146
+    ],
+    "free": true
+   }
+  },
+  {
+   "tick": 45,
+   "cmd": {
+    "system": "logistics",
+    "op": "place",
+    "kind": "inserter_mk1",
+    "cell": [
+     132,
+     139
+    ],
+    "rot": 3,
+    "free": true
+   }
+  },
+  {
+   "tick": 45,
+   "cmd": {
+    "system": "logistics",
+    "op": "place",
+    "kind": "inserter_mk1",
+    "cell": [
+     133,
+     139
+    ],
+    "rot": 3,
+    "free": true
+   }
+  },
+  {
+   "tick": 45,
+   "cmd": {
+    "system": "logistics",
+    "op": "place",
+    "kind": "inserter_mk1",
+    "cell": [
+     136,
+     139
+    ],
+    "rot": 3,
+    "free": true
+   }
+  },
+  {
+   "tick": 45,
+   "cmd": {
+    "system": "logistics",
+    "op": "place",
+    "kind": "inserter_mk1",
+    "cell": [
+     137,
+     139
+    ],
+    "rot": 3,
+    "free": true
+   }
+  },
+  {
+   "tick": 46,
+   "cmd": {
+    "system": "logistics",
+    "op": "place",
+    "kind": "inserter_mk1",
+    "cell": [
+     134,
+     139
+    ],
+    "rot": 1,
+    "free": true
+   }
+  },
+  {
+   "tick": 47,
+   "cmd": {
+    "system": "logistics",
+    "op": "place",
+    "kind": "splitter_mk1",
+    "cell": [
+     130,
+     140
+    ],
+    "rot": 1,
+    "free": true
+   }
+  },
+  {
+   "tick": 48,
+   "cmd": {
+    "system": "logistics",
+    "op": "place",
+    "kind": "bunker_chest",
+    "cell": [
+     128,
+     147
+    ],
+    "free": true
+   }
+  },
+  {
+   "tick": 50,
+   "cmd": {
+    "system": "production",
+    "op": "set_recipe",
+    "cell": [
+     132,
+     136
+    ],
+    "recipe": "iron_plate"
+   }
+  },
+  {
+   "tick": 51,
+   "cmd": {
+    "system": "production",
+    "op": "set_recipe",
+    "cell": [
+     136,
+     136
+    ],
+    "recipe": "iron_plate"
+   }
+  },
+  {
+   "tick": 52,
+   "cmd": {
+    "system": "production",
+    "op": "set_recipe",
+    "cell": [
+     132,
+     143
+    ],
+    "recipe": "gear"
+   }
+  },
+  {
+   "tick": 60,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 80,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 160,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 180,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 260,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 280,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 360,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 380,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 460,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 480,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 560,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 580,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 660,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 680,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 760,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 780,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 860,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 880,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 960,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 980,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 1060,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 1080,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 1160,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 1180,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 1260,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 1280,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 1360,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 1380,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 1460,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 1480,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 1560,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 1580,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 1660,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 1680,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 1760,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 1780,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 1860,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 1880,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 1960,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 1980,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 2060,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 2080,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 2160,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 2180,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 2260,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 2280,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 2360,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 2380,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 2460,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 2480,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 2560,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 2580,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 2660,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 2680,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 2760,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 2780,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 2860,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 2880,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 2960,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 2980,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 3060,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 3080,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 3160,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 3180,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 3260,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 3280,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 3360,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 3380,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 3460,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 3480,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 3560,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 3580,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 3660,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 3680,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 3760,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 3780,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 3860,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 3880,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 3960,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 3980,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 4060,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 4080,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 4160,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 4180,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 4260,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 4280,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 4360,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 4380,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 4460,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 4480,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 4560,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 4580,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 4660,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 4680,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 4760,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 4780,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 4860,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 4880,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 4960,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 4980,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 5060,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 5080,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 5160,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 5180,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 5260,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 5280,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 5360,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 5380,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 5460,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 5480,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 5560,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 5580,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 5660,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 5680,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 5760,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 5780,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 5860,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 5880,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 5960,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 5980,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 6060,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 6080,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 6160,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 6180,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 6260,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 6280,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 6360,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 6380,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 6460,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 6480,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 6560,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 6580,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 6660,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 6680,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 6760,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 6780,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 6860,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 6880,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 6960,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 6980,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 7060,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 7080,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 7160,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 7180,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 7260,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 7280,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 7360,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 7380,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 7460,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 7480,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 7560,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 7580,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 7660,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 7680,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 7760,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 7780,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 7860,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 7880,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  },
+  {
+   "tick": 7960,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     126,
+     140
+    ],
+    "item": "iron_ore",
+    "count": 4
+   }
+  },
+  {
+   "tick": 7980,
+   "cmd": {
+    "system": "logistics",
+    "op": "insert",
+    "cell": [
+     127,
+     140
+    ],
+    "item": "coal",
+    "count": 2
+   }
+  }
+ ],
+ "shots": [
+  {
+   "tick": 2000,
+   "name": "f_early"
+  },
+  {
+   "tick": 5000,
+   "name": "f_mid"
+  },
+  {
+   "tick": 7900,
+   "name": "f_logistics"
+  },
+  {
+   "tick": 8100,
+   "name": "f_late"
+  }
+ ]
+}
