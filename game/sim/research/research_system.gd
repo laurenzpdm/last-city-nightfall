@@ -1013,15 +1013,52 @@ func _has_affordable_alternative() -> bool:
 #  INSIGHT RATE
 # ==========================================================================
 
+## ONE pass over the city, five answers. Both this system and the pacing engine
+## want to know how many machines, drills, stores, conduits and workshops there
+## are; asking [P11] for each tag separately is six full scans of every building
+## on the map, which at stress scale is 1700 array searches a second for numbers
+## that move on the scale of a minute. Taken with the pacing sample, every 100
+## ticks, and read from the cache in between.
+func _take_census() -> void:
+	_census = {
+		"total": 0, "labs": 0, "workshops": 0,
+		"machines": 0, "extractors": 0, "stores": 0, "conduits": 0,
+	}
+	var b: Object = _live(_build)
+	if b == null:
+		return
+	var all: Array = b.call("all_buildings")
+	_census["total"] = all.size()
+	for entry: Variant in all:
+		var inst: BuildingInstance = entry as BuildingInstance
+		if inst == null or inst.def == null:
+			continue
+		var tags: Array[StringName] = inst.def.tags
+		var running: bool = inst.is_running()
+		for t: StringName in tags:
+			match t:
+				&"research":
+					if running:
+						_census["labs"] = int(_census["labs"]) + 1
+				&"crafter":
+					if running:
+						_census["workshops"] = int(_census["workshops"]) + 1
+					_census["machines"] = int(_census["machines"]) + 1
+				&"machine":
+					_census["machines"] = int(_census["machines"]) + 1
+				&"extractor":
+					_census["extractors"] = int(_census["extractors"]) + 1
+				&"storage":
+					_census["stores"] = int(_census["stores"]) + 1
+				&"conduit":
+					_census["conduits"] = int(_census["conduits"]) + 1
+
+
 ## How fast the city thinks. Workshops and labs do the work, heat keeps their
 ## hands warm enough to hold a pencil, and the deep cold takes it back.
 func _recompute_rate() -> void:
-	var labs: int = 0
-	var shops: int = 0
-	var b: Object = _live(_build)
-	if b != null:
-		labs = _running_with_tag(b, &"research")
-		shops = _running_with_tag(b, &"crafter")
+	var labs: int = int(_census.get("labs", 0))
+	var shops: int = int(_census.get("workshops", 0))
 	var raw: float = BASE_INSIGHT + float(labs) * INSIGHT_PER_LAB + float(shops) * INSIGHT_PER_WORKSHOP
 
 	var served: float = 1.0

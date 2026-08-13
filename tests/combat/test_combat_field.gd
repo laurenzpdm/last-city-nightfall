@@ -477,3 +477,71 @@ func _wall_health_total() -> float:
 	for b: BuildingInstance in build.buildings_with_tag(&"wall"):
 		total += b.hp
 	return total
+
+
+# =========================================================================
+# gates
+# =========================================================================
+
+func test_an_open_gate_is_the_cheapest_way_in() -> void:
+	# A gate is any structure the player has put a winch on: the &"gate" tag when
+	# [P11] ships one, or `meta.gate` on anything today. Combat never makes the
+	# tile physically passable — that is [P11]'s grid — it changes what the SIEGE
+	# thinks the tile costs, which is the half combat owns.
+	var start: Vector2i = _open_cell(Vector2i(16, -8))
+	var gate: BuildingInstance = null
+	for dy: int in range(-6, 7):
+		var w: BuildingInstance = _place(&"wall", Vector2i(start.x - 2, start.y + dy))
+		if dy == 0:
+			gate = w
+	gate.meta["gate"] = true
+	world.run(2)
+	combat.spawn(HOUND, start, 1)
+	world.run(2)
+	if not combat.assault.ready:
+		skip("the siege surface did not come up")
+		return
+	var idx: int = gate.cell.y * grid.map_size().x + gate.cell.x
+	assert_eq(int(combat.assault.cost[idx]), AssaultField.DIG_COST,
+		"a shut gate is just a wall")
+	assert_false(combat.gate_is_open(gate.id), "and it starts shut")
+
+	# Probe the tile an attacker would be standing on, outside the line: the cost
+	# of the gate cell itself only shows up in what its neighbours pay to enter it.
+	var outside: Vector2i = Vector2i(gate.cell.x + 1, gate.cell.y)
+	var shut_cost: int = combat.assault.distance_at(outside)
+
+	combat.set_gate_open(gate.id, true)
+	world.run(2)
+	assert_true(combat.gate_is_open(gate.id), "the winch turned")
+	assert_eq(int(combat.assault.cost[idx]), AssaultField.GATE_OPEN_COST,
+		"and the dark now walks through instead of digging")
+	assert_lt(float(combat.assault.distance_at(outside)), float(shut_cost),
+		"so standing outside it is measurably closer to the hearth than it was")
+
+	combat.set_gate_open(gate.id, false)
+	world.run(2)
+	assert_eq(int(combat.assault.cost[idx]), AssaultField.DIG_COST, "shutting it puts the wall back")
+
+
+func test_the_gate_list_reports_what_the_city_has_left_open() -> void:
+	var gate: BuildingInstance = _place(&"wall", _open_cell(Vector2i(12, -12)))
+	gate.meta["gate"] = true
+	combat.spawn(HOUND, _open_cell(Vector2i(14, -12)), 1)
+	world.run(2)
+	combat.set_gate_open(gate.id, true)
+	var rows: Array[Dictionary] = combat.gates()
+	assert_size(rows, 1, "one winch, one row")
+	if rows.is_empty():
+		return
+	assert_eq(int(rows[0]["id"]), gate.id)
+	assert_true(bool(rows[0]["open"]), "and it is reported open")
+
+
+func test_a_gate_command_can_be_scripted_by_cell() -> void:
+	var gate: BuildingInstance = _place(&"wall", _open_cell(Vector2i(12, 12)))
+	gate.meta["gate"] = true
+	combat.spawn(HOUND, _open_cell(Vector2i(14, 12)), 1)
+	world.run(2)
+	combat.handle_command({"op": "set_gate", "cell": [gate.cell.x, gate.cell.y], "open": true})
+	assert_true(combat.gate_is_open(gate.id), "a scenario can open a gate by tile")

@@ -271,7 +271,7 @@ func _sample_heat(tick: int) -> void:
 			flags |= LcnOverlayDefs.F_STARVED_FUEL
 		if nd.route_dist < 0 and nd.enabled and not nd.frozen:
 			flags |= LcnOverlayDefs.F_UNREACHABLE
-		if d.is_consumer() and nd.served < 0.999 and nd.enabled:
+		if d.is_consumer() and nd.served < 0.99 and nd.enabled:
 			flags |= LcnOverlayDefs.F_STARVED
 		if nid2 < 0 and d.is_consumer():
 			flags |= LcnOverlayDefs.F_NO_NETWORK
@@ -593,25 +593,42 @@ func frozen_count() -> int:
 
 ## The single worst thing happening to the heat grid, as one sentence. The
 ## legend puts this under the title; it is the line a stranger reads first.
+## The verdict is ordered by what actually costs the player something, and a
+## constraint that BINDS is not the same thing as a city that is going short:
+## the solver hits a limit and thermal mass covers it constantly. Saying
+## "cannot generate enough" while the deficit is zero is the kind of overlay
+## that teaches a player to stop reading overlays.
 func headline() -> String:
 	if node_count == 0:
 		return "no heat network yet"
-	if not bottlenecks.is_empty():
-		var b: Dictionary = bottlenecks[0]
-		var cell: Array = b.get("cell", [0, 0])
-		if String(b.get("reason", "")) == "capacity":
-			return "%s at (%d, %d) is over capacity %.0f/%.0f — %d starved" % [
-				String(b.get("kind", "line")), int(cell[0]), int(cell[1]),
-				float(b.get("load", 0.0)), float(b.get("capacity", 0.0)),
-				int(b.get("consumers", 0))]
-		return "network %d cannot generate enough — %d starved" % [
-			int(b.get("net", 0)), int(b.get("consumers", 0))]
+	var deficit: float = float(totals.get("deficit", 0.0))
 	var frozen: int = frozen_count()
 	if frozen > 0:
-		return "%d building%s frozen" % [frozen, "" if frozen == 1 else "s"]
+		return "%d building%s frozen%s" % [frozen, "" if frozen == 1 else "s",
+			", grid %.0f u/s short" % deficit if deficit > 0.5 else ""]
+	if deficit > 0.5:
+		var who: String = ""
+		if not bottlenecks.is_empty():
+			var b: Dictionary = bottlenecks[0]
+			var cell: Array = b.get("cell", [0, 0])
+			if String(b.get("reason", "")) == "capacity":
+				who = " — %s at (%d, %d) is the limit, %.0f/%.0f u/s" % [
+					String(b.get("kind", "line")), int(cell[0]), int(cell[1]),
+					float(b.get("load", 0.0)), float(b.get("capacity", 0.0))]
+			else:
+				who = " — grid %d is generating everything it has" % int(b.get("net", 0))
+		return "%.0f u/s short%s" % [deficit, who]
 	var starved: int = starved_count()
 	if starved > 0:
-		return "%d building%s short of heat" % [starved, "" if starved == 1 else "s"]
+		return "%d building%s below full heat" % [starved, "" if starved == 1 else "s"]
+	if not bottlenecks.is_empty():
+		var b2: Dictionary = bottlenecks[0]
+		var c2: Array = b2.get("cell", [0, 0])
+		if String(b2.get("reason", "")) == "capacity":
+			return "%s at (%d, %d) is at its limit — %.0f/%.0f u/s, nothing lost yet" % [
+				String(b2.get("kind", "line")), int(c2[0]), int(c2[1]),
+				float(b2.get("load", 0.0)), float(b2.get("capacity", 0.0))]
+		return "grid %d is running at full output, nothing lost yet" % int(b2.get("net", 0))
 	if nets.size() > 1:
 		return "%d separate grids — they do not share heat" % nets.size()
 	return "grid nominal"

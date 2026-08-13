@@ -141,11 +141,12 @@ func _draw() -> void:
 
 	var y: float = _y_first
 	for l: Dictionary in _lines:
-		style.draw_caps(self, Vector2(15.0, y), String(l.get("label", "")), style.fs(10),
-			style.ink_faint(), 1.6)
+		var label_w: float = style.draw_caps(self, Vector2(15.0, y),
+			String(l.get("label", "")), style.fs(10), style.ink_faint(), 1.6)
 		var good: float = float(l.get("good", 1.0))
 		var col: Color = style.ink() if good > 0.66 else style.health_colour(good)
-		style.draw_text(self, Vector2(120.0, y), String(l.get("value", "")), style.fs(13), col)
+		style.draw_text(self, Vector2(15.0 + maxf(100.0, label_w + 12.0), y),
+			String(l.get("value", "")), style.fs(13), col)
 		y += LINE
 
 	if not _problems.is_empty():

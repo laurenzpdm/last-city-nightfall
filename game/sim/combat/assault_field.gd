@@ -38,6 +38,9 @@ extends RefCounted
 const DIG_COST: int = 34
 ## What a structure below CombatTypes.BREACH_HEALTH costs instead.
 const WEAK_COST: int = 15
+## What an open gate costs: roughly clear ground, so the siege prefers it to
+## every wall around it and to every detour.
+const GATE_OPEN_COST: int = 10
 ## Cells compared against the live grid per tick while a sweep is running. A
 ## 256x256 map is eight ticks end to end, so a wall the PLAYER takes down is in
 ## the field within half a second; a wall COMBAT takes down is in it immediately,
@@ -67,6 +70,7 @@ var _scan_cursor: int = 0
 var _sweep_target: int = -1
 var _seen_version: int = -1
 var _weakened: Dictionary[int, bool] = {}
+var _open_gates: Dictionary[int, bool] = {}
 
 
 ## Builds the surface and floods it once. Call at the first spawn, not at world
@@ -200,6 +204,33 @@ func weaken(building_id: int, cells: Array[Vector2i]) -> void:
 
 func forget(building_id: int) -> void:
 	_weakened.erase(building_id)
+	_open_gates.erase(building_id)
+
+
+## An OPEN gate is a hole as far as the siege is concerned: its cells cost what
+## the ground under them costs, so the gradient runs straight through it and the
+## pack walks in rather than digging. Closing it puts the dig cost back. That is
+## the whole gate mechanic — the player decides, every dusk, whether the road
+## their citizens use is worth the door being shut.
+func set_gate_open(building_id: int, cells: Array[Vector2i], open: bool) -> void:
+	if not ready:
+		return
+	if bool(_open_gates.get(building_id, false)) == open:
+		return
+	_open_gates[building_id] = open
+	for cell: Vector2i in cells:
+		if cell.x < 0 or cell.y < 0 or cell.x >= _w or cell.y >= _h:
+			continue
+		var idx: int = cell.y * _w + cell.x
+		var want: int = GATE_OPEN_COST if open else DIG_COST
+		if cost[idx] == want:
+			continue
+		cost[idx] = want
+		_pending.append(idx)
+
+
+func gate_is_open(building_id: int) -> bool:
+	return bool(_open_gates.get(building_id, false))
 
 
 ## One step toward the core from a flat cell index, honouring dig routes.
@@ -229,6 +260,7 @@ func stats() -> Dictionary:
 		"repairs": repairs,
 		"cells_repaired": cells_repaired,
 		"weak_points": _weakened.size(),
+		"open_gates": _open_gates.size(),
 		"sweeping": _sweep_target >= 0,
 	}
 

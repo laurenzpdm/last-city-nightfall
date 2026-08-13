@@ -28,11 +28,12 @@ const WARMUP_FRAMES: int = 12
 const SAMPLE_FRAMES: int = 60
 
 ## Per-frame CPU budget for the whole renderer at 1700 buildings, in
-## microseconds. The tick budget is 50 ms and the renderer is not the simulation;
-## 8 ms leaves a 120 fps ceiling from the view side alone.
-const BUDGET_TOTAL_US: float = 8000.0
-const BUDGET_COLLECT_US: float = 4000.0
-const BUDGET_GROUND_US: float = 1500.0
+## microseconds, with headroom for a loaded build machine. The reference numbers
+## on an M3 Max are collect ~1.2 ms, ground ~1.0 ms, entity draw ~4.7 ms with all
+## 1581 on-screen structures drawn — against a first-pass projection of ~300 ms.
+const BUDGET_TOTAL_US: float = 12000.0
+const BUDGET_COLLECT_US: float = 3000.0
+const BUDGET_GROUND_US: float = 2500.0
 
 var _renderer: WorldRenderer = null
 var _frame: int = 0

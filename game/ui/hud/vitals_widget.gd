@@ -187,9 +187,11 @@ func _draw_condition() -> void:
 
 
 func _meter(baseline: float, label: String, value01: float, colour: Color) -> void:
-	style.draw_caps(self, Vector2(15.0, baseline), label, style.fs(9),
-		style.ink_faint(), 1.6)
-	var left: float = 15.0 + LABEL_COL
+	var label_w: float = style.draw_caps(self, Vector2(15.0, baseline), label,
+		style.fs(9), style.ink_faint(), 1.6)
+	# The column widens for the label rather than the label running into the
+	# meter: at font_scale 1.5 "DISCONTENT" is wider than any fixed column.
+	var left: float = 15.0 + maxf(LABEL_COL, label_w + 12.0)
 	style.draw_segments(self, Rect2(left, baseline - 9.0, WIDTH - left - 62.0, 8.0),
 		value01, 10, colour)
 	style.draw_text_right(self, WIDTH - 15.0, baseline, LcnHudFormat.percent(value01),
@@ -198,8 +200,8 @@ func _meter(baseline: float, label: String, value01: float, colour: Color) -> vo
 
 ## Days of food, which is a countdown wearing a number's clothes.
 func _food(baseline: float) -> void:
-	style.draw_caps(self, Vector2(15.0, baseline), "food", style.fs(9),
-		style.ink_faint(), 1.6)
+	var label_w: float = style.draw_caps(self, Vector2(15.0, baseline), "food",
+		style.fs(9), style.ink_faint(), 1.6)
 	var days: float = probe.food_days
 	var col: Color = style.health_colour(clampf(days / 3.0, 0.0, 1.0))
 	var text: String = "%.1f days" % days
@@ -208,4 +210,5 @@ func _food(baseline: float) -> void:
 		col = style.health_colour(1.0)
 	elif days < 0.05:
 		text = "none left"
-	style.draw_text(self, Vector2(15.0 + LABEL_COL, baseline), text, style.fs(13), col)
+	style.draw_text(self, Vector2(15.0 + maxf(LABEL_COL, label_w + 12.0), baseline),
+		text, style.fs(13), col)

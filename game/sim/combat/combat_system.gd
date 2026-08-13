@@ -107,6 +107,8 @@ var _handover_logged: bool = false
 ## wave number -> {spawned, first_id, last_id, groups}
 var _waves: Dictionary[int, Dictionary] = {}
 var _tags_cache: Array[StringName] = []
+## Gates ordered open or shut before the siege surface existed.
+var _pending_gates: Dictionary[int, bool] = {}
 
 
 func _init() -> void:
@@ -136,6 +138,7 @@ func setup() -> void:
 	_weakened.clear()
 	_target_index.clear()
 	_tags_cache.clear()
+	_pending_gates.clear()
 	_last_alert_tick.clear()
 	_waves.clear()
 	_discontent_carry = 0.0
@@ -403,6 +406,62 @@ func defence_report() -> Dictionary:
 	}
 
 
+## Opens or closes a gate. A gate is any structure carrying the &"gate" tag, or
+## any structure the player has marked with `meta.gate = true` — so a wall with a
+## winch on it is a gate, and the moment [P11] ships a proper gate building it
+## works with no change here.
+##
+## Combat does not (and must not) make the tile physically passable: [P11] owns
+## the grid footprint, and citizens keep using the road either way. What combat
+## owns is what the ATTACKERS think, and an open gate is the cheapest way in they
+## will ever see.
+func set_gate_open(building_id: int, open: bool) -> void:
+	if _build == null:
+		return
+	var b: Object = _build.call("get_building", building_id)
+	if b == null or not _is_gate(b):
+		Log.warn(TAG, "#%d is not a gate" % building_id)
+		return
+	if not assault.ready and not _ensure_field():
+		_pending_gates[building_id] = open
+		return
+	var typed: Array[Vector2i] = []
+	for c: Vector2i in (b.get("cells") as Array):
+		typed.append(c)
+	assault.set_gate_open(building_id, typed, open)
+	var meta: Dictionary = b.get("meta")
+	meta["gate_open"] = open
+
+
+func gate_is_open(building_id: int) -> bool:
+	return assault.gate_is_open(building_id)
+
+
+## Every gate the city has, and whether the dark can walk through it.
+func gates() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if _build == null:
+		return out
+	for entry: Variant in (_build.call("all_buildings") as Array):
+		var b: Object = entry
+		if b == null or not _is_gate(b):
+			continue
+		var c: Vector2i = b.get("cell")
+		out.append({"id": int(b.get("id")), "cell": [c.x, c.y],
+			"kind": String(b.get("kind")),
+			"open": assault.gate_is_open(int(b.get("id"))),
+			"health": snappedf(float(b.call("health_ratio")), 0.01)})
+	return out
+
+
+func _is_gate(b: Object) -> bool:
+	var def: Object = b.get("def")
+	if def != null and bool(def.call("has_tag", &"gate")):
+		return true
+	var meta: Variant = b.get("meta")
+	return typeof(meta) == TYPE_DICTIONARY and bool((meta as Dictionary).get("gate", false))
+
+
 ## Which kinds are on the map right now, by id.
 func threat_census() -> Dictionary:
 	return swarm.census()
@@ -594,6 +653,8 @@ func structure_at(cell: Vector2i) -> int:
 	var here: Object = _build.call("building_at", cell)
 	if here == null:
 		return 0
+	if _is_gate(here) and assault.gate_is_open(int(here.get("id"))):
+		return 0
 	var best: Object = here
 	var best_score: float = _softness(here)
 	for n: Vector2i in Grid.DIRS4:
@@ -710,6 +771,14 @@ func handle_command(cmd: Dictionary) -> void:
 			_refit(cmd)
 		"repair_defences":
 			_repair_defences(cmd)
+		"set_gate":
+			var gid: int = int(cmd.get("id", -1))
+			if gid < 0 and cmd.has("cell") and _build != null:
+				var gb: Object = _build.call("building_at", _to_cell(cmd["cell"]))
+				if gb != null:
+					gid = int(gb.get("id"))
+			if gid >= 0:
+				set_gate_open(gid, bool(cmd.get("open", true)))
 		"set_director":
 			director.enabled = bool(cmd.get("enabled", true))
 			Log.info(TAG, "fallback director %s by command" % [
@@ -927,6 +996,13 @@ func _ensure_field() -> bool:
 	var build_ms: int = Time.get_ticks_msec() - t0   # lint:allow log line only, never state
 	Log.info(TAG, "siege surface built in %d ms (%d cells flooded, dig cost %d)" % [
 		build_ms, assault.last_visited, AssaultField.DIG_COST])
+	if not _pending_gates.is_empty():
+		var ids: Array = _pending_gates.keys()
+		ids.sort()
+		var orders: Dictionary[int, bool] = _pending_gates
+		_pending_gates = {}
+		for gid: int in ids:
+			set_gate_open(gid, bool(orders[gid]))
 	return true
 
 
@@ -1281,6 +1357,7 @@ func serialize() -> Dictionary:
 		"director": director.serialize(),
 		"external_tick": _external_tick,
 		"field": assault.stats(),
+		"gates": gates(),
 		"census": swarm.census(),
 	}
 
@@ -1311,6 +1388,10 @@ func deserialize(data: Dictionary) -> void:
 		battery.restore(int(t.get("id", -1)), t)
 	if swarm.count > 0:
 		_ensure_field()
+	for entry: Variant in data.get("gates", []):
+		var g: Dictionary = entry
+		if bool(g.get("open", false)):
+			set_gate_open(int(g.get("id", -1)), true)
 
 
 func metrics() -> Dictionary:

@@ -731,16 +731,22 @@ def economy():
         #        already unlocked; a player who spends the day on housing
         #        instead loses the district.
         (3, ["coal_generator", "coal_generator", "heat_accumulator"]),
-        (4, ["coal_generator", "coal_generator", "warmth_radiator",
-             "housing_block", "granary"]),
-        (5, ["coal_generator", "coal_generator", "housing_block",
+        # days 4-5: the city grows faster than the grid. One generator each,
+        #           two blocks each — this is the stretch where an attentive
+        #           player is spending on homes and telling themselves the
+        #           margin is fine, and it is what makes day 6 land.
+        (4, ["coal_generator", "warmth_radiator",
+             "housing_block", "housing_block", "granary"]),
+        (5, ["coal_generator", "housing_block", "housing_block",
              "field_kitchen"]),
+        # day 6: the correction. Three burners in one day, because day 5 ended
+        #        thin and the player can read that off their own grid.
         (6, ["warmth_radiator", "coal_generator", "coal_generator",
-             "housing_block", "housing_block"]),
+             "coal_generator", "housing_block"]),
         # day 7: SECOND FROST, and the last day the run covers in full. The
         #        booster pump is what keeps the far rungs alive through it.
         (7, ["warmth_radiator", "coal_generator", "coal_generator",
-             "heat_booster_pump", "housing_block"]),
+             "coal_generator", "heat_booster_pump"]),
     ]
 
     day_ticks = 9600

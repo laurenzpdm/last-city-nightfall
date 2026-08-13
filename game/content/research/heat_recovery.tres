@@ -17,6 +17,7 @@ cost = Dictionary[StringName, int]({
 &"steel_plate": 60
 })
 work = 700
+grants = Array[StringName]([&"thermal_assembly"])
 effects = Dictionary[StringName, float]({
 &"heat.loss_mult": -0.2,
 &"heat.output_mult": 0.08

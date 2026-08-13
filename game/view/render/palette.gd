@@ -208,7 +208,7 @@ static func _keyframes() -> Array[Dictionary]:
 			"sun_dir": Vector2(-0.42, -0.55), "sun_col": Color(0.60, 0.72, 1.00), "sun_energy": 0.20,
 			"sun_height": 0.72,
 			"sky_col": Color(0.150, 0.210, 0.380), "sky_energy": 0.30,
-			"bounce": 0.95, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.62,
+			"bounce": 0.95, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.70,
 		},
 		{
 			"t": 0.19, "name": &"night",
@@ -221,7 +221,7 @@ static func _keyframes() -> Array[Dictionary]:
 			"sun_dir": Vector2(0.30, -0.60), "sun_col": Color(0.62, 0.74, 1.00), "sun_energy": 0.23,
 			"sun_height": 0.68,
 			"sky_col": Color(0.160, 0.225, 0.395), "sky_energy": 0.32,
-			"bounce": 0.88, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.56,
+			"bounce": 0.88, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.64,
 		},
 		{
 			# Dawn: a long low key from the east, still a cold fill behind it.
@@ -258,9 +258,9 @@ static func _keyframes() -> Array[Dictionary]:
 			"lift": Color(0.000, 0.003, 0.012), "gain": Color(1.02, 1.02, 1.03),
 			"sat": 0.72, "fog": Color(0.640, 0.690, 0.770), "fog_amt": 0.16,
 			"light_energy": 0.42, "bloom": 0.40, "chroma": 0.22, "star_amt": 0.0,
-			"sun_dir": Vector2(0.10, -0.86), "sun_col": Color(1.00, 0.985, 0.955), "sun_energy": 0.82,
+			"sun_dir": Vector2(0.10, -0.86), "sun_col": Color(1.00, 0.985, 0.955), "sun_energy": 0.76,
 			"sun_height": 0.95,
-			"sky_col": Color(0.560, 0.630, 0.780), "sky_energy": 0.38,
+			"sky_col": Color(0.560, 0.630, 0.780), "sky_energy": 0.34,
 			"bounce": 0.0, "bounce_col": Color(0.85, 0.90, 1.00), "wild": 0.0,
 		},
 		{
@@ -271,7 +271,7 @@ static func _keyframes() -> Array[Dictionary]:
 			"lift": Color(0.002, 0.005, 0.016), "gain": Color(1.04, 1.00, 0.98),
 			"sat": 0.82, "fog": Color(0.610, 0.610, 0.660), "fog_amt": 0.22,
 			"light_energy": 0.58, "bloom": 0.52, "chroma": 0.30, "star_amt": 0.0,
-			"sun_dir": Vector2(-0.50, -0.70), "sun_col": Color(1.00, 0.930, 0.830), "sun_energy": 0.78,
+			"sun_dir": Vector2(-0.50, -0.70), "sun_col": Color(1.00, 0.930, 0.830), "sun_energy": 0.74,
 			"sun_height": 0.52,
 			"sky_col": Color(0.520, 0.590, 0.740), "sky_energy": 0.40,
 			"bounce": 0.06, "bounce_col": Color(0.80, 0.86, 1.00), "wild": 0.04,
@@ -286,7 +286,7 @@ static func _keyframes() -> Array[Dictionary]:
 			"shadow_dir": Vector2(0.86, 0.50), "shadow_len": 2.9,
 			"lift": Color(0.008, 0.008, 0.024), "gain": Color(1.04, 0.99, 0.98),
 			"sat": 0.98, "fog": Color(0.330, 0.300, 0.360), "fog_amt": 0.30,
-			"light_energy": 0.90, "bloom": 0.75, "chroma": 0.40, "star_amt": 0.10,
+			"light_energy": 0.90, "bloom": 0.58, "chroma": 0.40, "star_amt": 0.10,
 			"sun_dir": Vector2(-0.93, -0.37), "sun_col": Color(1.00, 0.560, 0.300), "sun_energy": 0.72,
 			"sun_height": 0.16,
 			"sky_col": Color(0.290, 0.360, 0.560), "sky_energy": 0.38,
@@ -303,7 +303,7 @@ static func _keyframes() -> Array[Dictionary]:
 			"sun_dir": Vector2(-0.80, -0.60), "sun_col": Color(0.86, 0.62, 0.62), "sun_energy": 0.34,
 			"sun_height": 0.28,
 			"sky_col": Color(0.230, 0.270, 0.450), "sky_energy": 0.36,
-			"bounce": 0.55, "bounce_col": Color(0.72, 0.78, 0.98), "wild": 0.36,
+			"bounce": 0.55, "bounce_col": Color(0.72, 0.78, 0.98), "wild": 0.42,
 		},
 		{
 			"t": 1.00, "name": &"deep_night",
@@ -316,7 +316,7 @@ static func _keyframes() -> Array[Dictionary]:
 			"sun_dir": Vector2(-0.42, -0.55), "sun_col": Color(0.60, 0.72, 1.00), "sun_energy": 0.20,
 			"sun_height": 0.72,
 			"sky_col": Color(0.150, 0.210, 0.380), "sky_energy": 0.30,
-			"bounce": 0.95, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.62,
+			"bounce": 0.95, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.70,
 		},
 	]
 	return _keys_cache
@@ -382,7 +382,7 @@ static func light_at(grade: Dictionary, city: float, warm: float, up: float = 0.
 	var bc: Color = grade["bounce_col"]
 	var fill: float = float(grade["sky_energy"]) * (0.70 + 0.30 * up)
 	var b: float = float(grade["bounce"]) * clampf(city, 0.0, 1.0) * 0.60
-	var dark: float = 1.0 - float(grade["wild"]) * (1.0 - clampf(city * 1.7, 0.0, 1.0))
+	var dark: float = 1.0 - float(grade["wild"]) * (1.0 - clampf(city * 1.15, 0.0, 1.0))
 	var w: float = clampf(warm, 0.0, 1.0) * 0.34
 	return Color(
 		(sun.r * key + sky.r * fill + bc.r * b) * dark + WARM_EDGE.r * w,

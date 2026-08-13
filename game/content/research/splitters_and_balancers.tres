@@ -18,7 +18,7 @@ cost = Dictionary[StringName, int]({
 &"iron_plate": 80
 })
 work = 460
-grants = Array[StringName]([&"splitter", &"recipe_splitter"])
+grants = Array[StringName]([&"splitter", &"recipe_splitter", &"belt_gearing"])
 answers = &"tangle"
 answer_weight = 1.5
 also_answers = &"sprawl"

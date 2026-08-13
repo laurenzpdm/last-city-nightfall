@@ -109,7 +109,7 @@ void fragment() {
 	albedo = mix(albedo, base, 0.40);
 	// Macro tone drift: this is what stops a snowfield reading as one flat value
 	// with a tile pattern printed on it.
-	albedo *= (0.84 + macro * 0.34);
+	albedo *= (0.82 + macro * 0.30);
 
 	// Wind-scoured ridges, sheared so they never line up with the axes.
 	float ridge_n = fbm2(vec2(t.x + t.y * 0.42, t.y * 1.9) * 0.5);
@@ -175,15 +175,18 @@ void fragment() {
 	// filter over the frame.
 	vec3 L = normalize(vec3(sun_dir * (1.0 - sun_height * 0.55), max(sun_height, 0.06)));
 
-	float ndl = clamp(dot(N, L) * 0.5 + 0.5, 0.0, 1.0);
+	// Only lightly wrapped. A fully wrapped term (dot*0.5+0.5) hands flat ground
+	// 0.58 of the key even when the key is horizontal, which is precisely how a
+	// low sun turns back into a global orange multiply.
+	float ndl = clamp(dot(N, L) * 0.86 + 0.14, 0.0, 1.0);
 	ndl = ndl * ndl * (3.0 - 2.0 * ndl);
 	float city = texture(city_tex, muv).r;
 
 	vec3 light = sun_col * (sun_energy * (0.12 + 1.05 * ndl));
 	light += sky_col * (sky_energy * (0.72 + 0.28 * N.z));
-	light += bounce_col * (bounce * clamp(city * 1.25, 0.0, 1.0) * 0.55);
+	light += bounce_col * (bounce * clamp(city * 1.10, 0.0, 1.0) * 0.55);
 	// Beyond the settlement the night is allowed to be a night.
-	light *= mix(1.0 - wild, 1.0, clamp(city * 1.8, 0.0, 1.0));
+	light *= mix(1.0 - wild, 1.0, clamp(city * 1.15, 0.0, 1.0));
 	// Ground next to a fire is lit by the fire, in the fire's colour.
 	light += warm_col * (heat * 0.55 * (0.35 + 0.65 * bounce));
 

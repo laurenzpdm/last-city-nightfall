@@ -127,6 +127,9 @@ func _heat() -> void:
 	n.prereqs = [&"thermal_storage", &"combustion_tuning"]
 	n.cost = {&"steel_plate": 60, &"copper_coil": 50, &"pipe_segment": 20}
 	n.work = 700
+	# thermal_assembly is [P04]'s gate on the heat core recipe: the component
+	# that only makes sense once the city can recover its own exhaust.
+	n.grants = [&"thermal_assembly"]
 	n.effects = {&"heat.loss_mult": -0.20, &"heat.output_mult": 0.08}
 	n.answers = &"heat_loss"
 	n.answer_weight = 1.4
@@ -229,7 +232,9 @@ func _metallurgy() -> void:
 	n.prereqs = [&"alloy_steel"]
 	n.cost = {&"steel_plate": 70, &"gear": 60, &"copper_coil": 40}
 	n.work = 720
-	n.grants = [&"recipe_precision_gear"]
+	# electrotechnics is [P04]'s gate on the circuit recipe. Etched boards and
+	# hand-wound coils need the same tolerances as a machined gear.
+	n.grants = [&"recipe_precision_gear", &"electrotechnics"]
 	n.effects = {&"craft.speed_mult": 0.20}
 	n.answers = &"sprawl"
 	n.answer_weight = 1.2
@@ -307,7 +312,10 @@ func _logistics() -> void:
 	n.prereqs = [&"underground_belts"]
 	n.cost = {&"iron_plate": 80, &"gear": 60, &"copper_coil": 30}
 	n.work = 460
-	n.grants = [&"splitter", &"recipe_splitter"]
+	# belt_gearing is [P03]'s gate on the whole mk2 family — belt, underground,
+	# splitter, inserter, bunker chest. It lives here because this is the node
+	# where a player stops laying line and starts building a network.
+	n.grants = [&"splitter", &"recipe_splitter", &"belt_gearing"]
 	n.answers = &"tangle"
 	n.answer_weight = 1.5
 	n.also_answers = &"sprawl"
@@ -333,7 +341,9 @@ func _logistics() -> void:
 	n.prereqs = [&"splitters_and_balancers", &"inserter_arms"]
 	n.cost = {&"steel_plate": 60, &"copper_coil": 70, &"gear": 80}
 	n.work = 780
-	n.grants = [&"recipe_logistic_chest"]
+	# driven_rollers is [P03]'s mk3 gate. The capstone of the branch opens the
+	# fastest gear in it.
+	n.grants = [&"recipe_logistic_chest", &"driven_rollers"]
 	n.effects = {&"logistics.throughput_mult": 0.25, &"build.speed_mult": 0.10}
 	n.answers = &"sprawl"
 	n.answer_weight = 1.5

@@ -86,6 +86,7 @@ func _run() -> void:
 	await _wait_for_tooltip()
 	await _shot("06_tooltip")
 
+	_hud.call("hide_tooltip")
 	# Accessibility: bigger interface, bigger type, no motion.
 	var settings: Node = _node("Settings")
 	settings.call("set_value", "graphics", "ui_scale", 1.35)

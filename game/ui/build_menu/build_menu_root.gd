@@ -70,7 +70,9 @@ var _hover_cell: Vector2i = Vector2i.ZERO
 var _tooltip_kind: StringName = &""
 var _shot_dir: String = ""
 var _shot_step: int = -1
+var _shot_phase: int = 0
 var _shot_wait: int = 0
+var _shot_hover_lock: bool = false
 var _sheet_cache_key: String = ""
 
 
@@ -500,6 +502,8 @@ func last_refresh_usec() -> int:
 
 
 func _read_hover() -> void:
+	if _shot_hover_lock:
+		return
 	if _camera != null:
 		_hover_cell = _camera.call(&"hovered_cell")
 	elif _play != null:
@@ -577,7 +581,12 @@ func _place_tooltip() -> void:
 	var screen: Vector2 = _screen.size
 	var pos: Vector2
 	if palette != null and palette.is_open() and String(_tooltip_kind) != "":
+		# Docked beside the palette: a tooltip that hides the list it describes
+		# is the reason nobody reads tooltips.
 		pos = palette.position + Vector2(palette.size.x + 10.0, 0.0)
+	elif _shot_hover_lock and _camera != null and _camera.has_method(&"world_to_screen"):
+		pos = _camera.call(&"world_to_screen", Vector2(_hover_cell) * 32.0) \
+			+ Vector2(TOOLTIP_MARGIN, TOOLTIP_MARGIN)
 	else:
 		var mouse: Vector2 = _screen.get_local_mouse_position()
 		pos = mouse + Vector2(TOOLTIP_MARGIN, TOOLTIP_MARGIN)
@@ -596,7 +605,11 @@ func _apply_cli() -> void:
 		elif arg.begins_with("--ui-shots="):
 			_shot_dir = arg.substr(11)
 			_shot_step = 0
-			_shot_wait = 30
+			_shot_phase = 0
+			_shot_wait = WARMUP_FRAMES
+			# Run the world fast so the shots show a city that has been alive for
+			# a while: heat flowing, buffers filling, a real warning or two.
+			SimClock.speed = 4.0
 
 
 ## The screenshot rig for this part. Not the world harness: [P18] needs the REAL
@@ -605,49 +618,63 @@ func _apply_cli() -> void:
 ## the frame before it.
 ##
 ##   godot --path . --resolution 1920x1080 -- --ui-shots=artifacts/p18/shots
+const WARMUP_FRAMES: int = 150
+const SETTLE_FRAMES: int = 20
+const GAP_FRAMES: int = 20
+
 const SHOT_SEQUENCE: Array[Dictionary] = [
-	{"name": "01_palette", "panels": ["palette"]},
-	{"name": "02_palette_search", "panels": ["palette"], "query": "heat"},
+	{"name": "01_palette", "panels": ["palette"], "tooltip": true},
+	{"name": "02_palette_search", "panels": ["palette"], "query": "heat", "tooltip": true},
 	{"name": "03_recipes", "panels": ["recipes"]},
 	{"name": "04_tech", "panels": ["tech"]},
 	{"name": "05_blueprints", "panels": ["blueprints"], "capture": true},
 	{"name": "06_laws", "panels": ["laws"]},
-	{"name": "07_world_tooltip", "panels": []},
+	{"name": "07_world_tooltip", "panels": [], "hover": true},
 ]
 
 
 func _drive_shots() -> void:
 	if _shot_step < 0:
 		return
-	_shot_wait -= 1
 	if _shot_wait > 0:
+		_shot_wait -= 1
 		return
 	if _shot_step >= SHOT_SEQUENCE.size():
-		Log.info("ui.build_menu", "screenshots done; refresh cost %d us" % _last_refresh_usec)
+		Log.info("ui.build_menu", "screenshots done; last refresh cost %d us" % _last_refresh_usec)
 		_shot_step = -1
 		get_tree().quit(0)
 		return
 	var step: Dictionary = SHOT_SEQUENCE[_shot_step]
-	if _shot_wait == 0:
+	if _shot_phase == 0:
 		_stage_shot(step)
-		_shot_wait = -12
+		_shot_phase = 1
+		_shot_wait = SETTLE_FRAMES
 		return
 	_capture(String(step["name"]))
 	_shot_step += 1
-	_shot_wait = 26
+	_shot_phase = 0
+	_shot_wait = GAP_FRAMES
 
 
 func _stage_shot(step: Dictionary) -> void:
 	for id: StringName in PANEL_IDS:
 		_close(id)
+	_shot_hover_lock = false
+	_tooltip_kind = &""
+	_sheet_cache_key = ""
 	for raw: Variant in step.get("panels", []):
-		_open(StringName(String(raw)))
+		_open(LcnUiFormat.as_name(raw))
 	if step.has("query") and palette != null:
 		palette.set_query(String(step["query"]))
 	if bool(step.get("capture", false)):
 		_capture_demo_blueprint()
-	if String(step["name"]).ends_with("world_tooltip"):
+	if bool(step.get("tooltip", false)) and palette != null:
+		palette.set_cursor(palette.cursor)
+		_tooltip_kind = palette.current_kind()
+	if bool(step.get("hover", false)):
 		_hover_over_something()
+	_refresh_open_panels(true)
+	_refresh_tooltip()
 
 
 ## Copies a corner of the opening settlement into the book, through the same
@@ -674,6 +701,7 @@ func _hover_over_something() -> void:
 		var def: Resource = b.get(&"def") as Resource
 		if def != null and LcnUiFormat.as_number(def.get(&"heat_consumed")) + LcnUiFormat.as_number(def.get(&"heat_radius")) > 0.0:
 			_hover_cell = b.get(&"cell")
+			_shot_hover_lock = true
 			_tooltip_kind = &""
 			_sheet_cache_key = ""
 			if _camera != null and _camera.has_method(&"focus_on"):

@@ -44,6 +44,10 @@ class Site extends RefCounted:
 	var beds: int = 0
 	var operational: bool = false
 	var shelter_c: float = 0.0
+	## Somebody stands here: a job, a bed, an infirmary, or the warm square.
+	## Walls and pipes are most of a city's building count and nobody visits them,
+	## so everything expensive in refresh() is gated on this flag.
+	var needs_door: bool = false
 	var assigned: int = 0
 	var present: int = 0
 	var taken: int = 0              ## beds occupied
@@ -159,21 +163,24 @@ func refresh(_tick: int) -> PackedInt32Array:
 	var changed: bool = false
 	for entry: Variant in list:
 		var b: Object = entry
-		if b == null or not b.has_method("is_complete"):
+		if b == null:
 			continue
 		var id: int = int(b.get("id"))
-		var complete: bool = bool(b.call("is_complete"))
+		seen[id] = true
 		var s: Site = sites.get(id)
 		if s == null:
-			if not complete:
+			if not bool(b.call("is_complete")):
 				continue
 			s = _make_site(b)
 			if s == null:
 				continue
 			sites[id] = s
 			changed = true
-		seen[id] = true
-		s.operational = complete and bool(b.call("is_running"))
+		# A wall's operating state is nobody's business here. Skipping it is what
+		# keeps a seventeen-hundred-building city off this system's tick budget.
+		if not s.needs_door:
+			continue
+		s.operational = bool(b.call("is_running"))
 		s.shelter_c = _shelter_for(s)
 
 	for i: int in all_ids.size():
@@ -241,7 +248,8 @@ func _make_site(b: Object) -> Site:
 		if tags.has(t):
 			s.hazard = true
 			break
-	s.door = _find_door(s) if _needs_door(s) else s.center
+	s.needs_door = _needs_door(s)
+	s.door = _find_door(s) if s.needs_door else s.center
 	return s
 
 
@@ -334,7 +342,7 @@ func _rebuild_order() -> void:
 			care.append(id)
 		if s.food:
 			food.append(id)
-		if _needs_door(s):
+		if s.needs_door:
 			doors.append(id)
 	_door_ids = PackedInt32Array(doors)
 	# Heat and food outrank decoration when crews are short: build_priority is

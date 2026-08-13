@@ -16,7 +16,7 @@ extends LcnOverlayLayer
 ## The rest of the frame is dimmed rather than hidden — you still see your base,
 ## it just stops competing with the diagnosis.
 
-const SCRIM_ALPHA: float = 0.42
+const SCRIM_ALPHA: float = 0.26
 const MAX_LEADERS: int = 40
 const MAX_LABELS: int = 8
 
@@ -161,12 +161,12 @@ func _draw_verdicts() -> void:
 		var reason: String = String(b.get("reason", "capacity"))
 		var text: String
 		if reason == "capacity":
-			text = "OVER CAPACITY  %.0f/%.0f u/s  ->  %d starved" % [
+			text = "AT CAPACITY  %.0f/%.0f u/s  ->  %d buildings draw through it" % [
 				float(b.get("load", 0.0)), float(b.get("capacity", 0.0)),
 				int(b.get("consumers", 0))]
 		else:
-			text = "GRID %d OUT OF HEAT  ->  %d starved" % [
-				int(b.get("net", 0)), int(b.get("consumers", 0))]
+			text = "SOURCE AT FULL OUTPUT  ->  %d buildings draw on it" % [
+				int(b.get("consumers", 0))]
 		plate(r.position + Vector2(r.size.x + px(10.0), -px(6.0)), text, 15.0, pal.bad())
 
 	# Anything the router could not reach at all is a different failure and

@@ -19,7 +19,7 @@ extends LcnOverlayLayer
 
 const SURVIVAL_C: float = -10.0    ## HeatDef.ACTIVE_FREEZE_C
 const COMFORT_C: float = 10.0      ## HeatSystem.COMFORT_C
-const FIELD_ALPHA: float = 0.78
+const FIELD_ALPHA: float = 0.66
 ## Degrees above ambient at which the field reaches full opacity.
 const SOFT_RANGE: float = 9.0
 ## Opacity where the ground is exactly at outside air — a hint, not a sheet.

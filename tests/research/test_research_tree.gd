@@ -256,22 +256,41 @@ func test_costs_use_items_the_game_can_actually_make() -> void:
 
 # --- the join with [P11] -----------------------------------------------------
 
-func test_every_building_gate_exists_in_the_tree() -> void:
+## THE INTEGRATION TEST THAT MATTERS. Any part may gate its content behind a
+## research id — buildings, recipes, belts, weapons. If this tree never opens
+## that id, the content is unreachable for the whole campaign and nothing else
+## in the build will say so: it simply never appears in a menu.
+##
+## A failure here is not a research bug in isolation. The fix is one line in
+## tests/research/author_research.gd: add the id to the `grants` of whichever
+## node should hand it over, and re-run the authoring tool.
+func test_every_content_gate_in_the_game_exists_in_the_tree() -> void:
 	var opened: Dictionary[StringName, bool] = {}
 	for n: ResearchNode in nodes:
 		for u: StringName in n.unlock_ids():
 			opened[u] = true
+
 	var checked: int = 0
-	for res: Resource in Registry.all("buildings"):
-		var d := res as BuildingDef
-		if d == null or String(d.unlock_id) == "":
+	var orphans: Array[String] = []
+	for category: String in Registry.categories():
+		if category == CATEGORY:
 			continue
-		checked += 1
-		assert_true(opened.has(d.unlock_id),
-			"building '%s' is gated on '%s', which no research node ever opens"
-			% [String(d.id), String(d.unlock_id)])
+		for res: Resource in Registry.all(category):
+			if res == null or not ("unlock_id" in res):
+				continue
+			var gate: StringName = StringName(String(res.get("unlock_id")))
+			if String(gate) == "":
+				continue
+			checked += 1
+			if not opened.has(gate):
+				orphans.append("%s/%s needs '%s'" % [
+					category, res.resource_path.get_file().get_basename(), String(gate)])
 	if checked == 0:
-		skip("no gated buildings in the registry yet")
+		skip("nothing in the registry is gated on research yet")
+		return
+	assert_empty(orphans,
+		"content gated on a research id no node opens — it can never be built:\n      "
+		+ "\n      ".join(orphans))
 
 
 func test_the_early_gates_are_early() -> void:

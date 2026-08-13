@@ -31,6 +31,10 @@ var draw_us: int = 0
 
 var _lines: PackedVector2Array = PackedVector2Array()
 var _cols: PackedColorArray = PackedColorArray()
+## Plates already placed this frame. Callouts are drawn worst-first, so a later
+## one that would land on top of an earlier one is dropped rather than smeared
+## over it — two overlapping verdicts are less readable than one.
+var _plates: Array[Rect2] = []
 
 
 func _init() -> void:
@@ -48,6 +52,7 @@ func sync(s: LcnOverlaySnapshot, p: LcnOverlayPalette, v: Rect2, world_per_px: f
 	time_s = t
 	alt = alt_held
 	detail = detail_level
+	_plates.clear()
 
 
 ## Screen px -> world px.
@@ -134,6 +139,10 @@ func plate(at: Vector2, text: String, size_px: float, c: Color, centered: bool =
 	if centered:
 		pos.x -= w * 0.5
 	var box := Rect2(pos, Vector2(w, h))
+	for taken: Rect2 in _plates:
+		if taken.intersects(box):
+			return
+	_plates.append(box)
 	draw_rect(box, Color(0.02, 0.035, 0.063, 0.88), true)
 	draw_rect(box, LcnOverlayPalette.with_a(c, 0.9), false, stroke(1.5))
 	draw_set_transform(pos + Vector2(padx, float(s) * 0.82 + pady) * wpp, 0.0, Vector2(wpp, wpp))

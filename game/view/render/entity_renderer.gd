@@ -339,7 +339,7 @@ func _light_for(centre: Vector2, warm: float) -> Color:
 		city = field.city_at(cell)
 		heat = maxf(heat, field.heat_at(cell))
 	var b: float = _l_bounce * clampf(city, 0.0, 1.0)
-	var dark: float = 1.0 - _l_wild * (1.0 - clampf(city * 1.7, 0.0, 1.0))
+	var dark: float = 1.0 - _l_wild * (1.0 - clampf(city * 1.15, 0.0, 1.0))
 	var w: float = clampf(heat, 0.0, 1.0) * 0.34
 	return Color(
 		(_l_sun.r * _l_key + _l_sky.r * _l_fill + _l_bnc.r * b) * dark + LcnPalette.WARM_EDGE.r * w,

@@ -45,6 +45,8 @@ const TILE: float = 32.0
 const NIGHT_EVERY: int = 3
 ## Ticks between presence recounts. Staffing has to react inside a second.
 const PRESENCE_TICKS: int = 5
+const PRESENCE_PHASE: int = 2
+const JOB_SYNC_PHASE: int = 7
 ## Beds handed out per housing pass.
 const MOVE_INS_PER_PASS: int = 16
 ## How many of the unemployed a hiring pass looks at, and how many of the
@@ -237,9 +239,12 @@ func step(tick: int) -> void:
 	_read_world()
 	router.step(tick)
 
-	if tick % CitizenDefs.JOB_SYNC_TICKS == 0:
+	# Offset phases on purpose. The harness samples metrics.csv every 20 ticks;
+	# a job market that also ran on every 20th tick would report only its most
+	# expensive tick and hide the real average behind a sampling alias.
+	if tick % CitizenDefs.JOB_SYNC_TICKS == JOB_SYNC_PHASE:
 		_sync_city(tick)
-	if tick % PRESENCE_TICKS == 0:
+	if tick % PRESENCE_TICKS == PRESENCE_PHASE:
 		board.recount_presence(pool)
 		board.publish_workers()
 

@@ -18,7 +18,7 @@ cost = Dictionary[StringName, int]({
 &"steel_plate": 70
 })
 work = 720
-grants = Array[StringName]([&"recipe_precision_gear"])
+grants = Array[StringName]([&"recipe_precision_gear", &"electrotechnics"])
 effects = Dictionary[StringName, float]({
 &"craft.speed_mult": 0.2
 })

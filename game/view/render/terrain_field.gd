@@ -364,7 +364,10 @@ func refresh_city(buildings: Array[Dictionary]) -> void:
 	# The blur spreads the halo but flattens the peak, and an isolated hearth on
 	# an empty plain still has to light its own block. Take whichever is greater.
 	for i2: int in _city.size():
-		_city[i2] = mini(255, maxi(int(_city[i2]) * 4, int(_city_raw[i2])))
+		# x2, not x4: at the higher gain the halo of a modest settlement saturated
+		# forty tiles out and the wilderness stopped being wilderness — the plain
+		# in the night frames was lit like a street.
+		_city[i2] = mini(255, maxi(int(_city[i2]) * 2, int(_city_raw[i2])))
 	_city_img = Image.create_from_data(w, h, false, Image.FORMAT_R8, _city)
 	city_tex.update(_city_img)
 	_city_us = Time.get_ticks_usec() - t0

@@ -19,6 +19,8 @@ const COLD_HEADROOM: float = 8.0     ## degrees below the line the gauge shows
 const WARM_HEADROOM: float = 26.0    ## degrees above the line the gauge shows
 const ALARM_SECONDS: float = 90.0    ## below this ETA the building starts shouting
 const MAX_COUNTDOWNS: int = 14
+## Degrees above its own freeze point at which a building starts showing a gauge.
+const GAUGE_MARGIN: float = 30.0
 ## Anything colder than this never "freezes" — pipes and tanks are passive.
 const PASSIVE_LINE: float = -50.0
 
@@ -72,7 +74,10 @@ func _draw_buildings() -> void:
 
 		# The gauge. Scaled to this building's own threshold, so the zero point
 		# on every bar means the same thing: "this one is about to stop".
-		if gauges < 220 and wpp < 2.2:
+		# A gauge on every comfortably warm building is clutter rather than
+		# legibility, so only a building within reach of its own line gets one
+		# unless the player is holding the detail key and asked for all of them.
+		if gauges < 220 and wpp < 2.2 and (alt or temp - line < GAUGE_MARGIN):
 			gauges += 1
 			_gauge(r, temp, line)
 
@@ -85,8 +90,12 @@ func _draw_buildings() -> void:
 				_ring_cols.append(LcnOverlayPalette.with_a(c, 0.6 + 0.4 * beat))
 			if countdowns < MAX_COUNTDOWNS:
 				countdowns += 1
-				plate(r.position + Vector2(0.0, -px(20.0)),
-					"freezes in %ds" % maxi(1, int(round(eta))), 14.0, c)
+				# Below one second the countdown is a lie; the building is
+				# already under its line and only the hold timer is left.
+				var when: String = "BELOW THE LINE"
+				if eta >= 1.0:
+					when = "freezes in %ds" % int(round(eta))
+				plate(r.position + Vector2(0.0, -px(20.0)), when, 14.0, c)
 		elif alt:
 			label(r.position + Vector2(px(2.0), -px(6.0)), "%.0f C" % temp, 13.0, LcnOverlayPalette.INK_DIM)
 
