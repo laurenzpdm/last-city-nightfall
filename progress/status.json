@@ -1,8 +1,8 @@
 {
  "round": 1,
- "phase": "A \u2014 Foundation",
- "state": "7 part-owners building in parallel",
- "agents_live": 7,
+ "phase": "A \u2014 Audit + Integrate + Critic",
+ "state": "resumed after host crash; builders' code recovered from disk",
+ "agents_live": 3,
  "critic_score": null,
  "blind_wins": 0,
  "blind_total": 0,
@@ -10,13 +10,13 @@
   {
    "id": "P01",
    "name": "Grid & world",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
    "id": "P02",
    "name": "Heat & power network",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
@@ -58,7 +58,7 @@
   {
    "id": "P09",
    "name": "Climate & nightfall",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
@@ -70,7 +70,7 @@
   {
    "id": "P11",
    "name": "Build & blueprints",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
@@ -82,7 +82,7 @@
   {
    "id": "P13",
    "name": "Render & art direction",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
@@ -100,7 +100,7 @@
   {
    "id": "P16",
    "name": "Camera & input",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
