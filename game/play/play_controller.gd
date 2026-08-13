@@ -266,13 +266,13 @@ func _process(_delta: float) -> void:
 ## six times. Only ever runs under --harness --visual; a player's camera is the
 ## player's. Keyframes are in world tiles from the city core.
 const TOUR: Array[Dictionary] = [
-	{"t": 0.0, "off": Vector2(0.0, -2.0), "zoom": 1.05},
-	{"t": 1500.0, "off": Vector2(-11.0, -6.0), "zoom": 1.55},
-	{"t": 3400.0, "off": Vector2(8.0, 5.0), "zoom": 1.30},
-	{"t": 5500.0, "off": Vector2(0.0, 1.0), "zoom": 0.85},
-	{"t": 7200.0, "off": Vector2(-2.0, -20.0), "zoom": 1.15},
-	{"t": 8800.0, "off": Vector2(0.0, 0.0), "zoom": 0.60},
-	{"t": 11000.0, "off": Vector2(0.0, -4.0), "zoom": 0.95},
+	{"t": 0.0, "off": Vector2(0.0, 0.0), "zoom": 1.00},
+	{"t": 1500.0, "off": Vector2(-2.0, 5.0), "zoom": 1.20},
+	{"t": 3400.0, "off": Vector2(0.0, 1.0), "zoom": 0.70},
+	{"t": 5500.0, "off": Vector2(3.0, 6.0), "zoom": 1.00},
+	{"t": 7200.0, "off": Vector2(0.0, -13.0), "zoom": 0.62},
+	{"t": 8800.0, "off": Vector2(0.0, -2.0), "zoom": 0.50},
+	{"t": 11000.0, "off": Vector2(0.0, 0.0), "zoom": 0.85},
 ]
 
 

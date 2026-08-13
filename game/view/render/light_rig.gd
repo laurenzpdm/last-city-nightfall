@@ -81,7 +81,10 @@ func update(grade: Dictionary, view: Rect2, model: LcnWorldModel, lights_on: boo
 		l2.position = s2["pos"]
 		l2.texture_scale = (radius2 * 2.0) / 256.0
 		l2.color = LcnPalette.heat_light_color(intensity)
-		l2.energy = clampf(0.85 * intensity * energy * flicker, 0.0, 3.0)
+		# 0.55, not 0.85: with the heat system finally feeding real intensities the
+		# old coefficient blew every radiator out to a white disc and took the
+		# building underneath it with it. Warm light has to stay warm.
+		l2.energy = clampf(0.55 * intensity * energy * flicker, 0.0, 1.8)
 		l2.enabled = true
 	_active = n
 
