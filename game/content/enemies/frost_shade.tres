@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/combat/enemy_def.gd" id="1_fshd"]
+
+[resource]
+resource_name = "Frost Shade"
+script = ExtResource("1_fshd")
+id = &"frost_shade"
+display_name = "Frost Shade"
+description = "Bullets go through it and it knits itself back together out of the cold. It only truly dies to fire, or inside the warm ground your own radiators make, which is the one enemy in the roster that your heating plan kills for you."
+tags = Array[StringName]([&"spectral", &"regenerating"])
+min_day = 3
+wave_weight = 1.5
+threat_value = 5.0
+pack_size = 3
+health = 230.0
+armour = 0.0
+speed = 2.2
+body_radius = 0.4
+resist_kinetic = 0.3
+resist_flame = 2.1
+resist_blast = 0.75
+resist_shock = 1.2
+behaviour = &"advance"
+damage = 20.0
+damage_type = &"kinetic"
+attack_interval = 0.9
+attack_range = 0.8
+splash_radius = 0.0
+preferred_multiplier = 1.0
+target_pref = &"any"
+seek_radius = 0.0
+regen_per_second = 7.0
+regen_below_c = -20.0
+render_arch = &"swarm"
+tint = Color(0.55, 0.78, 0.92, 1)

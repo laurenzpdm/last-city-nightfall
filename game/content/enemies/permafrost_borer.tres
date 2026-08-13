@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/combat/enemy_def.gd" id="1_pbor"]
+
+[resource]
+resource_name = "Permafrost Borer"
+script = ExtResource("1_pbor")
+id = &"permafrost_borer"
+display_name = "Permafrost Borer"
+description = "Tunnels under everything. Walls, gates and turret arcs are not in its world, and while it is under the ice nothing can touch it. It surfaces ten tiles from the hearth and goes for the generators, which is why a city defended only at its edge loses its power plant to something it never saw coming."
+tags = Array[StringName]([&"burrowing", &"sapper"])
+min_day = 3
+wave_weight = 1.1
+threat_value = 7.0
+pack_size = 2
+health = 300.0
+armour = 8.0
+speed = 1.5
+body_radius = 0.5
+resist_kinetic = 0.9
+resist_flame = 1.1
+resist_blast = 1.2
+resist_shock = 1.0
+behaviour = &"burrow"
+damage = 45.0
+damage_type = &"kinetic"
+attack_interval = 1.2
+attack_range = 0.8
+splash_radius = 0.0
+preferred_multiplier = 1.8
+target_pref = &"heat_source"
+seek_radius = 14.0
+ignores_walls = true
+surfaces_within_tiles = 10.0
+render_arch = &"brute"
+tint = Color(0.45, 0.4, 0.52, 1)

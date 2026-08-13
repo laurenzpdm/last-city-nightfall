@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="WeaponDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/combat/weapon_def.gd" id="1_smor"]
+
+[resource]
+resource_name = "Siege Mortar"
+script = ExtResource("1_smor")
+id = &"siege_mortar"
+display_name = "Siege Mortar"
+description = "Eighteen tiles of reach and two and a half tiles of blast, at three and a half seconds a shell and eleven units of heat. It answers spitters and colossi. It cannot depress inside five tiles and it cannot lead anything quick, so it needs a wall in front of it."
+tags = Array[StringName]([&"siege", &"anti_armour"])
+delivery = &"projectile"
+damage = 95.0
+damage_type = &"blast"
+pierce = 6.0
+shots_per_burst = 1
+burst_interval = 0.05
+reload = 3.4
+range_tiles = 18.0
+min_range_tiles = 5.0
+projectile_speed = 16.0
+splash_radius = 2.6
+splash_falloff = 0.4
+cone_degrees = 30.0
+spread_degrees = 2.0
+burn_dps = 0.0
+burn_seconds = 0.0
+turn_rate = 55.0
+aim_tolerance = 4.0
+default_aim = &"strongest"
+lead_factor = 0.65
+heat_per_shot = 11.0
+ammo_item = &"ammo_shell"
+ammo_per_shot = 2
+ammo_capacity = 20
+tracer_color = Color(1.0, 0.66, 0.3, 1)
+tracer_width = 2.4

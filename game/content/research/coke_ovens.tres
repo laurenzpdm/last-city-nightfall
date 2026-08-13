@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_5tbec"]
+
+[resource]
+resource_name = "Coke Ovens"
+script = ExtResource("1_5tbec")
+id = &"coke_ovens"
+title = "Coke Ovens"
+description = "THE BEAT: when coal is the largest single flow on the map. A quarter more heat per lump is a quarter fewer belts, and that is felt the same hour on a base that has started to look like a coal railway."
+flavour = "Bake the coal without air. What is left burns twice as hot and half as fast."
+branch = &"metallurgy"
+tier = 2
+prereqs = Array[StringName]([&"bloomery_smelting"])
+cost = Dictionary[StringName, int]({
+&"iron_plate": 50,
+&"stone": 110
+})
+work = 400
+effects = Dictionary[StringName, float]({
+&"production.fuel_value_mult": 0.25
+})
+answers = &"fuel"
+answer_weight = 1.7
+urgency_line = "Raw coal burns fast, dirty and cold, and you are hauling more of it than anything else."

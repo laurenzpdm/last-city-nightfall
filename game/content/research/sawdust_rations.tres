@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_6gglh"]
+
+[resource]
+resource_name = "Sawdust Rations"
+script = ExtResource("1_6gglh")
+id = &"sawdust_rations"
+title = "Sawdust Rations"
+description = "THE BEAT: the food crisis of the middle campaign. It works — nearly half again the rations — and every single person can taste what is in it. The tree offers this exactly when the arithmetic of starvation has become unavoidable, because that is the only time a player takes it."
+flavour = "Sawdust, bark meal, and enough salt to hide it. It fills. It does not feed."
+branch = &"desperate"
+tier = 2
+prereqs = Array[StringName]([&"emergency_shift", &"soup_kitchens"])
+cost = Dictionary[StringName, int]({
+&"scrap": 50,
+&"timber": 80
+})
+work = 380
+grants = Array[StringName]([&"law_sawdust_rations"])
+effects = Dictionary[StringName, float]({
+&"citizens.food_mult": 0.45,
+&"society.hope_mult": -0.12
+})
+answers = &"hunger"
+answer_weight = 2.2
+urgency_line = "The granary will not reach the thaw and you both know it."

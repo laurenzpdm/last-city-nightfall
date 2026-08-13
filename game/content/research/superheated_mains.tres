@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_ke0kr"]
+
+[resource]
+resource_name = "Superheated Mains"
+script = ExtResource("1_ke0kr")
+id = &"superheated_mains"
+title = "Superheated Mains"
+description = "THE BEAT: late campaign, when the city has outgrown its own spine. The player solved this once already with trunk mains; this is the same problem returning at a scale where the answer has to be metallurgical rather than architectural. It also gates the heat lance, so the defence branch ends up caring about pipe pressure."
+flavour = "Steam at a pressure the old pipes would have opened like a tin. The new ones do not."
+tier = 4
+prereqs = Array[StringName]([&"geothermal_tapping", &"pressurised_mains"])
+cost = Dictionary[StringName, int]({
+&"copper_coil": 80,
+&"pipe_segment": 60,
+&"steel_plate": 140
+})
+work = 1250
+effects = Dictionary[StringName, float]({
+&"heat.loss_mult": -0.1,
+&"heat.throughput_mult": 0.45
+})
+answers = &"heat_bottleneck"
+answer_weight = 1.6
+urgency_line = "The trunk main you were so proud of is now the tile everything else is waiting behind."

@@ -133,15 +133,18 @@ func door_of(building_id: int) -> Vector2i:
 ## Re-reads [P11]. Adds new buildings, retires vanished ones, and refreshes the
 ## live facts — whether the place is running, and how warm it is inside, which
 ## is where [P02]'s per-building `served` becomes a citizen's body temperature.
-## Returns the ids of buildings that stopped being usable, so the caller can
-## lay off their crews.
-func refresh(tick: int) -> PackedInt32Array:
-	var lost := PackedInt32Array()
+##
+## Returns the ids of buildings that no longer EXIST, so the caller can tear up
+## the contracts pointing at them. A building that merely stopped running keeps
+## its crew: they walk to the dark workshop, find it dead and go home, which is
+## how a heat failure should read — not as a mass layoff and a mass rehire.
+func refresh(_tick: int) -> PackedInt32Array:
+	var gone := PackedInt32Array()
 	if _build == null or not _build.has_method("all_buildings"):
-		return lost
+		return gone
 	var raw: Variant = _build.call("all_buildings")
 	if typeof(raw) != TYPE_ARRAY:
-		return lost
+		return gone
 	var list: Array = raw
 	var seen: Dictionary[int, bool] = {}
 	var changed: bool = false
@@ -161,11 +164,7 @@ func refresh(tick: int) -> PackedInt32Array:
 			sites[id] = s
 			changed = true
 		seen[id] = true
-		var running: bool = complete and bool(b.call("is_running"))
-		if running != s.operational:
-			s.operational = running
-			if not running:
-				lost.append(id)
+		s.operational = complete and bool(b.call("is_running"))
 		s.shelter_c = _shelter_for(s)
 
 	var keys: Array = sites.keys()
@@ -173,7 +172,7 @@ func refresh(tick: int) -> PackedInt32Array:
 	for id: int in keys:
 		if seen.has(id):
 			continue
-		lost.append(id)
+		gone.append(id)
 		sites.erase(id)
 		changed = true
 	if changed:
@@ -182,7 +181,7 @@ func refresh(tick: int) -> PackedInt32Array:
 	if _order_dirty:
 		_rebuild_order()
 	_refresh_totals()
-	return lost
+	return gone
 
 
 func _make_site(b: Object) -> Site:
@@ -319,6 +318,10 @@ func _refresh_totals() -> void:
 		var s3: Site = sites[care_ids[i]]
 		if s3.operational:
 			care_capacity += maxi(s3.capacity, 2) * 2
+	# Until a building carries the medical tag, the sick are nursed in their own
+	# bunks. Worse than an infirmary and rationed by how many beds exist, but a
+	# city with housing is never a city with no care at all.
+	care_capacity += total_beds / 4
 	for i: int in food_ids.size():
 		var s4: Site = sites[food_ids[i]]
 		if not s4.operational or s4.required <= 0:

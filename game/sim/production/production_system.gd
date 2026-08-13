@@ -141,6 +141,7 @@ var _has_ambient: bool = false
 var _has_harvest: bool = false
 var _has_deliver_fuel: bool = false
 var _has_accept_output: bool = false
+var _has_staffing_of: bool = false
 ## Nobody assigns crews yet, so machines run themselves. The moment [P05] lands,
 ## staffing is real. Mirrors [P02]'s fuel autarky, for the same reason.
 var _staff_autarky: bool = true
@@ -233,6 +234,7 @@ func post_setup() -> void:
 	_has_ambient = _climate != null and _climate.has_method("ambient_temperature")
 	_has_harvest = _grid != null and _grid.has_method("harvest")
 	_has_accept_output = _logistics != null and _logistics.has_method("accept_output")
+	_has_staffing_of = _citizens != null and _citizens.has_method("staffing_of")
 	_staff_autarky = _citizens == null
 	_heat_autarky = _heat == null
 
@@ -419,6 +421,13 @@ func chain_depth_max() -> int:
 ## Recoverable heat per second currently being fed back into [P02]'s grid.
 func waste_recovered() -> float:
 	return waste.recovered_rate
+
+
+## The back-pressure hook. [P03] closes this when the belts and the yards are
+## genuinely full; every machine then fills its output buffer and stalls with
+## REASON_OUTPUT_FULL, which is exactly what a jammed factory should look like.
+func set_output_accepting(on: bool) -> void:
+	store.accepting = on
 
 
 ## City-wide production totals, the same numbers metrics() reports.
@@ -669,7 +678,12 @@ func _read_environment(m: ProdMachine) -> void:
 		m.staffing = clampf(_staffing_of(m.id), 0.0, 1.0)
 
 
+## [P05] publishes `staffing_of(id)` for exactly this call — crew PRESENT, not
+## crew on the roster, so a shift that has walked home stops the machine.
+## Falls back to [P11]'s worker count, and finally to "it runs itself".
 func _staffing_of(building_id: int) -> float:
+	if _has_staffing_of:
+		return float(_citizens.call("staffing_of", building_id))
 	if _build == null:
 		return 1.0
 	var b: Object = _build.call("get_building", building_id)
@@ -747,11 +761,18 @@ func _park(m: ProdMachine, state: int, reason: StringName, item: StringName, tic
 		_idle += 1
 	else:
 		_stalled += 1
-	if m.announced_reason == reason and tick - m.announced_tick < STALL_REANNOUNCE_TICKS:
+	var fresh: bool = m.announced_reason != reason
+	if not fresh and tick - m.announced_tick < STALL_REANNOUNCE_TICKS:
 		return
 	m.announced_reason = reason
 	m.announced_tick = tick
 	Bus.machine_stalled.emit(m.id, reason)
+	if fresh and reason == ProdMachine.REASON_DEPLETED:
+		# A seam running out is a chapter of the game, not a status light: the
+		# city has to go further out, into the dark, for the next one. Severity 1
+		# — a brownout is gameplay, and so is this.
+		Bus.alert_raised.emit(1, &"seam_depleted",
+			"%s has worked out the ground under it." % m.def.display_name, m.world_pos)
 
 
 # --- recipes --------------------------------------------------------------

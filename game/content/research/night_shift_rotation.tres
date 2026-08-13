@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_x02sk"]
+
+[resource]
+resource_name = "Night Shift Rotation"
+script = ExtResource("1_x02sk")
+id = &"night_shift_rotation"
+title = "Night Shift Rotation"
+description = "THE BEAT: around day three, when the player first tries to finish a wall before dusk and cannot. It is the honest version of the desperate branch's answer to the same problem: you can pay for the hours with organisation now, or pay for them with people later."
+flavour = "Two shifts, staggered, and the second one fed first. Nobody likes it. Everybody sleeps."
+branch = &"survival"
+tier = 2
+prereqs = Array[StringName]([&"soup_kitchens"])
+cost = Dictionary[StringName, int]({
+&"coal": 60,
+&"iron_plate": 40,
+&"timber": 70
+})
+work = 400
+effects = Dictionary[StringName, float]({
+&"citizens.night_work_mult": 0.35
+})
+answers = &"labour"
+answer_weight = 1.9
+urgency_line = "Half of your day is dark and nothing gets built in it."

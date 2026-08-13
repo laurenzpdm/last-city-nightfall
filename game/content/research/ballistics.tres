@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_t03qf"]
+
+[resource]
+resource_name = "Ballistics"
+script = ExtResource("1_t03qf")
+id = &"ballistics"
+title = "Ballistics"
+description = "THE BEAT: the first night the player watches a turret connect and nothing happens. Raw damage is the least interesting answer in the branch and the correct first one, because at this point the player does not yet know what kind of enemy they are failing against."
+flavour = "Heavier shot, tighter bore, and a powder charge somebody finally measured."
+branch = &"defence"
+cost = Dictionary[StringName, int]({
+&"iron_plate": 40,
+&"timber": 30
+})
+work = 180
+effects = Dictionary[StringName, float]({
+&"combat.turret_damage_mult": 0.18
+})
+answers = &"wave"
+answer_weight = 1.6
+urgency_line = "Your turret fires, and the thing it hit keeps walking."

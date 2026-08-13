@@ -32,7 +32,7 @@ const SNOW_BUDGET: int = 3
 
 var model: LcnWorldModel = null
 var field: LcnTerrainField = null
-var material: ShaderMaterial = null
+var ground_material: ShaderMaterial = null
 
 var _quad: Node2D = null
 var _white: ImageTexture = null
@@ -65,8 +65,8 @@ func setup(world_model: LcnWorldModel) -> void:
 	if shader == null:
 		Log.error("render", "ground shader missing at %s — the world will not draw" % SHADER_PATH)
 		return
-	material = ShaderMaterial.new()
-	material.shader = shader
+	ground_material = ShaderMaterial.new()
+	ground_material.shader = shader
 
 	var img: Image = Image.create(1, 1, false, Image.FORMAT_RGBA8)
 	img.fill(Color(1, 1, 1, 1))
@@ -77,7 +77,7 @@ func setup(world_model: LcnWorldModel) -> void:
 	_quad.name = "Ground"
 	_quad.z_index = -100
 	_quad.z_as_relative = false
-	_quad.material = material
+	_quad.material = ground_material
 	_quad.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	add_child(_quad)
 	_ready_ok = true
@@ -88,20 +88,20 @@ func bind_world() -> void:
 	if not _ready_ok or model == null:
 		return
 	field.setup(model.world_size(), model.snow_cap())
-	material.set_shader_parameter("kind_tex", field.kind_tex)
-	material.set_shader_parameter("snow_tex", field.snow_tex)
-	material.set_shader_parameter("heat_tex", field.heat_tex)
-	material.set_shader_parameter("soot_tex", field.soot_tex)
-	material.set_shader_parameter("city_tex", field.city_tex)
-	material.set_shader_parameter("noise_tex", field.noise_tex)
-	material.set_shader_parameter("pal_tex", field.palette_tex)
-	material.set_shader_parameter("map_px", Vector2(field.size) * float(TILE))
-	material.set_shader_parameter("snow_scale", field.snow_scale)
-	material.set_shader_parameter("snow_mid", _v3(LcnPalette.SNOW_MID))
-	material.set_shader_parameter("snow_lit", _v3(LcnPalette.SNOW_LIT))
-	material.set_shader_parameter("snow_shadow", _v3(LcnPalette.SNOW_SHADOW))
-	material.set_shader_parameter("ash_col", _v3(LcnPalette.ASH))
-	material.set_shader_parameter("warm_col", _v3(LcnPalette.WARM_EDGE))
+	ground_material.set_shader_parameter("kind_tex", field.kind_tex)
+	ground_material.set_shader_parameter("snow_tex", field.snow_tex)
+	ground_material.set_shader_parameter("heat_tex", field.heat_tex)
+	ground_material.set_shader_parameter("soot_tex", field.soot_tex)
+	ground_material.set_shader_parameter("city_tex", field.city_tex)
+	ground_material.set_shader_parameter("noise_tex", field.noise_tex)
+	ground_material.set_shader_parameter("pal_tex", field.palette_tex)
+	ground_material.set_shader_parameter("map_px", Vector2(field.size) * float(TILE))
+	ground_material.set_shader_parameter("snow_scale", field.snow_scale)
+	ground_material.set_shader_parameter("snow_mid", _v3(LcnPalette.SNOW_MID))
+	ground_material.set_shader_parameter("snow_lit", _v3(LcnPalette.SNOW_LIT))
+	ground_material.set_shader_parameter("snow_shadow", _v3(LcnPalette.SNOW_SHADOW))
+	ground_material.set_shader_parameter("ash_col", _v3(LcnPalette.ASH))
+	ground_material.set_shader_parameter("warm_col", _v3(LcnPalette.WARM_EDGE))
 	_buildings_stamp = -1
 	_source_cooldown = 0
 	_city_cooldown = 0
@@ -138,16 +138,16 @@ func render(view: Rect2, grade: Dictionary, zoom: float, full: bool = false) -> 
 		_city_cooldown = 20
 		field.refresh_city(model.buildings())
 
-	material.set_shader_parameter("detail", _detail)
-	material.set_shader_parameter("time_s", SimClock.seconds())
-	material.set_shader_parameter("sun_dir", grade["sun_dir"])
-	material.set_shader_parameter("sun_col", _v3(grade["sun_col"]))
-	material.set_shader_parameter("sun_energy", float(grade["sun_energy"]))
-	material.set_shader_parameter("sky_col", _v3(grade["sky_col"]))
-	material.set_shader_parameter("sky_energy", float(grade["sky_energy"]))
-	material.set_shader_parameter("bounce_col", _v3(grade["bounce_col"]))
-	material.set_shader_parameter("bounce", float(grade["bounce"]))
-	material.set_shader_parameter("wild", float(grade["wild"]))
+	ground_material.set_shader_parameter("detail", _detail)
+	ground_material.set_shader_parameter("time_s", SimClock.seconds())
+	ground_material.set_shader_parameter("sun_dir", grade["sun_dir"])
+	ground_material.set_shader_parameter("sun_col", _v3(grade["sun_col"]))
+	ground_material.set_shader_parameter("sun_energy", float(grade["sun_energy"]))
+	ground_material.set_shader_parameter("sky_col", _v3(grade["sky_col"]))
+	ground_material.set_shader_parameter("sky_energy", float(grade["sky_energy"]))
+	ground_material.set_shader_parameter("bounce_col", _v3(grade["bounce_col"]))
+	ground_material.set_shader_parameter("bounce", float(grade["bounce"]))
+	ground_material.set_shader_parameter("wild", float(grade["wild"]))
 	_quad.queue_redraw()
 	_update_us = Time.get_ticks_usec() - t0
 

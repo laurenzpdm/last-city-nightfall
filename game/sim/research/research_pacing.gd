@@ -197,7 +197,7 @@ func snapshot() -> Dictionary:
 func _sample_climate() -> void:
 	var c: Object = _live(_climate)
 	if c == null:
-		_set(ResearchDefs.SIG_COLD, 0.35, "the plain is always lethal here", &"proxy")
+		_put(ResearchDefs.SIG_COLD, 0.35, "the plain is always lethal here", &"proxy")
 		return
 	_day = int(c.call("day"))
 	var ambient: float = float(c.call("ambient_temperature"))
@@ -206,7 +206,7 @@ func _sample_climate() -> void:
 
 	# -15 C is survivable in a coat; -40 kills an unsheltered citizen outright.
 	var cold: float = clampf((-15.0 - ambient) / 25.0, 0.0, 1.0)
-	_set(ResearchDefs.SIG_COLD, cold, "%.0f C outside" % ambient, &"measured")
+	_put(ResearchDefs.SIG_COLD, cold, "%.0f C outside" % ambient, &"measured")
 
 	var storm_sig: float = storm
 	var until: float = float(c.call("seconds_until_storm"))
@@ -219,13 +219,13 @@ func _sample_climate() -> void:
 		storm_detail = "%s is on the city" % String(c.call("storm_title"))
 	elif until >= 0.0:
 		storm_detail = "%s in %d:%02d" % [title, int(until) / 60, int(until) % 60]
-	_set(ResearchDefs.SIG_STORM, storm_sig, storm_detail, &"measured")
+	_put(ResearchDefs.SIG_STORM, storm_sig, storm_detail, &"measured")
 
 	var vis: float = float(c.call("visibility"))
 	var blind: float = clampf(1.0 - vis, 0.0, 1.0)
 	if night:
 		blind = maxf(blind, 0.4)
-	_set(ResearchDefs.SIG_BLIND, blind, "visibility %d%%" % int(vis * 100.0), &"measured")
+	_put(ResearchDefs.SIG_BLIND, blind, "visibility %d%%" % int(vis * 100.0), &"measured")
 
 
 func _sample_heat() -> void:
@@ -242,7 +242,7 @@ func _sample_heat() -> void:
 	var deficit_frac: float = 0.0
 	if demand > 0.001:
 		deficit_frac = clampf(deficit / demand, 0.0, 1.0)
-	_set(ResearchDefs.SIG_HEAT_DEFICIT, deficit_frac,
+	_put(ResearchDefs.SIG_HEAT_DEFICIT, deficit_frac,
 		"%d%% of demand unserved" % int(deficit_frac * 100.0), &"measured")
 
 	# A third of production dying in the pipes is a five-alarm reading; scale so
@@ -250,7 +250,7 @@ func _sample_heat() -> void:
 	var loss_frac: float = 0.0
 	if supply > 0.001:
 		loss_frac = clampf(loss / supply * 3.0, 0.0, 1.0)
-	_set(ResearchDefs.SIG_HEAT_LOSS, loss_frac,
+	_put(ResearchDefs.SIG_HEAT_LOSS, loss_frac,
 		"%.0f u/s lost in transmission" % loss, &"measured")
 
 	# Night memory. This is the signal that lets the tree offer accumulators the
@@ -260,10 +260,10 @@ func _sample_heat() -> void:
 		_night_peak = maxf(_night_peak, deficit_frac)
 	else:
 		_night_peak *= NIGHT_PEAK_DECAY
-	_set(ResearchDefs.SIG_HEAT_PEAK, _night_peak,
+	_put(ResearchDefs.SIG_HEAT_PEAK, _night_peak,
 		"last night the grid ran %d%% short" % int(_night_peak * 100.0), &"measured")
 
-	_set(ResearchDefs.SIG_FROZEN, clampf(float(frozen) / 3.0, 0.0, 1.0),
+	_put(ResearchDefs.SIG_FROZEN, clampf(float(frozen) / 3.0, 0.0, 1.0),
 		"%d building(s) frozen solid" % frozen, &"measured")
 
 	var worst_consumers: int = 0
@@ -286,10 +286,10 @@ func _sample_heat() -> void:
 			var cell: Array = worst.get("cell", [0, 0])
 			if cell.size() == 2:
 				worst_cell = Vector2i(int(cell[0]), int(cell[1]))
-	_set(ResearchDefs.SIG_HEAT_BOTTLENECK, clampf(float(worst_consumers) / 6.0, 0.0, 1.0),
+	_put(ResearchDefs.SIG_HEAT_BOTTLENECK, clampf(float(worst_consumers) / 6.0, 0.0, 1.0),
 		"one tile at %d,%d is throttling %d buildings" % [worst_cell.x, worst_cell.y, worst_consumers],
 		&"measured")
-	_set(ResearchDefs.SIG_FUEL, clampf(float(starved) / 2.0, 0.0, 1.0),
+	_put(ResearchDefs.SIG_FUEL, clampf(float(starved) / 2.0, 0.0, 1.0),
 		"%d burner(s) running on fumes" % starved, &"measured")
 
 
@@ -298,7 +298,7 @@ func _sample_build() -> void:
 	if b == null:
 		return
 	var total: int = int(b.call("building_count"))
-	_set(ResearchDefs.SIG_SPRAWL, clampf(float(total) / 70.0, 0.0, 1.0),
+	_put(ResearchDefs.SIG_SPRAWL, clampf(float(total) / 70.0, 0.0, 1.0),
 		"%d buildings to keep supplied" % total, &"measured")
 
 	# Tangle is density, not size: pipes and machines competing for the same
@@ -306,18 +306,18 @@ func _sample_build() -> void:
 	var conduits: int = (b.call("buildings_with_tag", &"conduit") as Array).size()
 	var machines: int = (b.call("buildings_with_tag", &"machine") as Array).size()
 	var tangle: float = clampf((float(conduits) / 60.0) * (0.4 + 0.6 * clampf(float(machines) / 8.0, 0.0, 1.0)), 0.0, 1.0)
-	_set(ResearchDefs.SIG_TANGLE, tangle,
+	_put(ResearchDefs.SIG_TANGLE, tangle,
 		"%d conduit tiles around %d machines" % [conduits, machines], &"measured")
 
 	var m: Dictionary = b.call("metrics")
 	var materials: int = int(m.get("materials", -1))
 	if materials >= 0:
 		# 400 units in the yard is comfortable; empty is a five-alarm reading.
-		_set(ResearchDefs.SIG_MATERIALS, clampf(1.0 - float(materials) / 400.0, 0.0, 1.0),
+		_put(ResearchDefs.SIG_MATERIALS, clampf(1.0 - float(materials) / 400.0, 0.0, 1.0),
 			"%d units left in the yard" % materials, &"measured")
 	var queued: int = int(m.get("queued", 0))
 	var ghosts: int = int(m.get("ghosts", 0))
-	_set(ResearchDefs.SIG_LABOUR, clampf(float(queued + ghosts) / 12.0, 0.0, 1.0),
+	_put(ResearchDefs.SIG_LABOUR, clampf(float(queued + ghosts) / 12.0, 0.0, 1.0),
 		"%d site(s) waiting on hands" % (queued + ghosts), &"measured")
 
 
@@ -326,24 +326,24 @@ func _sample_threat() -> void:
 	var proxy: float = clampf(float(_day - 2) / 5.0, 0.0, 1.0)
 
 	var wave: float = _probe(t, ["pressure", "threat_level", "wave_strength"], proxy)
-	_set(ResearchDefs.SIG_WAVE, clampf(wave, 0.0, 1.0),
+	_put(ResearchDefs.SIG_WAVE, clampf(wave, 0.0, 1.0),
 		"night pressure at %d%%" % int(clampf(wave, 0.0, 1.0) * 100.0),
 		&"measured" if t != null else &"proxy")
 
 	var armoured: float = _probe(t, ["armoured_share", "armored_share", "heavy_share"],
 		clampf(float(_day - 3) / 4.0, 0.0, 1.0))
-	_set(ResearchDefs.SIG_ARMOURED, clampf(armoured, 0.0, 1.0),
+	_put(ResearchDefs.SIG_ARMOURED, clampf(armoured, 0.0, 1.0),
 		"%d%% of what is coming is armoured" % int(clampf(armoured, 0.0, 1.0) * 100.0),
 		&"measured" if t != null and _has(t, ["armoured_share", "armored_share", "heavy_share"]) else &"proxy")
 
 	var swarm: float = _probe(t, ["swarm_share", "enemy_pressure"], proxy * 0.7)
-	_set(ResearchDefs.SIG_SWARM, clampf(swarm, 0.0, 1.0), "",
+	_put(ResearchDefs.SIG_SWARM, clampf(swarm, 0.0, 1.0), "",
 		&"measured" if t != null and _has(t, ["swarm_share", "enemy_pressure"]) else &"proxy")
 
 	var c: Object = _live(_combat)
 	var lost: float = _probe(c, ["structures_lost", "structures_destroyed"], -1.0)
 	if lost >= 0.0:
-		_set(ResearchDefs.SIG_STRUCTURE_LOSS, clampf(lost / 4.0, 0.0, 1.0),
+		_put(ResearchDefs.SIG_STRUCTURE_LOSS, clampf(lost / 4.0, 0.0, 1.0),
 			"%d structure(s) lost" % int(lost), &"measured")
 	else:
 		var b: Object = _live(_build)
@@ -351,43 +351,43 @@ func _sample_threat() -> void:
 		if b != null:
 			destroyed = float((b.call("metrics") as Dictionary).get("destroyed_total", -1))
 		if destroyed >= 0.0:
-			_set(ResearchDefs.SIG_STRUCTURE_LOSS, clampf(destroyed / 4.0, 0.0, 1.0),
+			_put(ResearchDefs.SIG_STRUCTURE_LOSS, clampf(destroyed / 4.0, 0.0, 1.0),
 				"%d structure(s) lost" % int(destroyed), &"measured")
 		else:
-			_set(ResearchDefs.SIG_STRUCTURE_LOSS, proxy * 0.5, "", &"proxy")
+			_put(ResearchDefs.SIG_STRUCTURE_LOSS, proxy * 0.5, "", &"proxy")
 
 
 func _sample_people() -> void:
 	var p: Object = _live(_citizens)
 	var deaths: float = _probe(p, ["deaths", "died_total", "casualties"], -1.0)
 	if deaths >= 0.0:
-		_set(ResearchDefs.SIG_CASUALTIES, clampf(deaths / 5.0, 0.0, 1.0),
+		_put(ResearchDefs.SIG_CASUALTIES, clampf(deaths / 5.0, 0.0, 1.0),
 			"%d dead so far" % int(deaths), &"measured")
 	else:
 		# No population system yet: the cold itself stands in for the toll.
-		_set(ResearchDefs.SIG_CASUALTIES, value(ResearchDefs.SIG_COLD) * 0.6, "", &"proxy")
+		_put(ResearchDefs.SIG_CASUALTIES, value(ResearchDefs.SIG_COLD) * 0.6, "", &"proxy")
 
 	var hunger: float = _probe(p, ["hunger", "starvation"], -1.0)
 	if hunger >= 0.0:
-		_set(ResearchDefs.SIG_HUNGER, clampf(hunger, 0.0, 1.0),
+		_put(ResearchDefs.SIG_HUNGER, clampf(hunger, 0.0, 1.0),
 			"%d%% of the city went hungry" % int(clampf(hunger, 0.0, 1.0) * 100.0), &"measured")
 	else:
-		_set(ResearchDefs.SIG_HUNGER, clampf(float(_day - 1) / 8.0, 0.0, 1.0), "", &"proxy")
+		_put(ResearchDefs.SIG_HUNGER, clampf(float(_day - 1) / 8.0, 0.0, 1.0), "", &"proxy")
 
 	var s: Object = _live(_society)
 	var discontent: float = _probe(s, ["discontent", "unrest"], -1.0)
 	if discontent >= 0.0:
-		_set(ResearchDefs.SIG_DISCONTENT, clampf(discontent, 0.0, 1.0),
+		_put(ResearchDefs.SIG_DISCONTENT, clampf(discontent, 0.0, 1.0),
 			"discontent at %d%%" % int(clampf(discontent, 0.0, 1.0) * 100.0), &"measured")
 	else:
-		_set(ResearchDefs.SIG_DISCONTENT,
+		_put(ResearchDefs.SIG_DISCONTENT,
 			maxf(value(ResearchDefs.SIG_CASUALTIES), value(ResearchDefs.SIG_HUNGER)) * 0.7,
 			"", &"proxy")
 
 
 # --- plumbing ---------------------------------------------------------------
 
-func _set(sig: StringName, v: float, text: String, src: StringName) -> void:
+func _put(sig: StringName, v: float, text: String, src: StringName) -> void:
 	signals[sig] = clampf(v, 0.0, 1.0)
 	if text != "":
 		details[sig] = text

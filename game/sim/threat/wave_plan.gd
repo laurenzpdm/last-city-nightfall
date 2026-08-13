@@ -87,8 +87,27 @@ func vector_of(index: int) -> ThreatVector:
 	return vectors[index]
 
 
-## Compass labels of every vector carrying anything, worst first.
+## Units actually arriving on each vector, index-aligned with `vectors`.
+func units_per_vector() -> PackedInt32Array:
+	var out: PackedInt32Array = PackedInt32Array()
+	out.resize(vectors.size())
+	out.fill(0)
+	for g: WaveGroup in groups:
+		if g.vector >= 0 and g.vector < out.size():
+			out[g.vector] += g.count
+	return out
+
+
+## Compass labels of every vector carrying anything, heaviest first. Before the
+## composition has been split it falls back to the shares, so a preview taken
+## between planning and distribution still names the right roads.
 func direction_labels() -> PackedStringArray:
+	var units: PackedInt32Array = units_per_vector()
+	var any: bool = false
+	for n: int in units:
+		if n > 0:
+			any = true
+			break
 	var order: Array[ThreatVector] = vectors.duplicate()
 	order.sort_custom(func(a: ThreatVector, b: ThreatVector) -> bool:
 		if absf(a.share - b.share) > 0.0001:
@@ -96,7 +115,8 @@ func direction_labels() -> PackedStringArray:
 		return a.index < b.index)
 	var out: PackedStringArray = PackedStringArray()
 	for v: ThreatVector in order:
-		if v.share > 0.0001:
+		var carries: bool = (units[v.index] > 0) if any else (v.share > 0.0001)
+		if carries:
 			out.append(v.label())
 	return out
 

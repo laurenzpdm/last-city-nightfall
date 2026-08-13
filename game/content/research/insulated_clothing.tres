@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_h2vth"]
+
+[resource]
+resource_name = "Insulated Clothing"
+script = ExtResource("1_h2vth")
+id = &"insulated_clothing"
+title = "Insulated Clothing"
+description = "THE BEAT: the first citizen death, which in this game is always the cold and almost never the enemy. It is the node that teaches a new player that the temperature on the HUD is a body count, and it is cheap enough to take the same minute they learn it."
+flavour = "Layered hide, hood and mitten. Nothing clever. Fewer names on the board."
+branch = &"survival"
+cost = Dictionary[StringName, int]({
+&"scrap": 50,
+&"timber": 40
+})
+work = 170
+effects = Dictionary[StringName, float]({
+&"citizens.exposure_resist": 0.25
+})
+answers = &"cold"
+answer_weight = 1.7
+also_answers = &"casualties"
+urgency_line = "People are freezing on the walk between the house and the job."

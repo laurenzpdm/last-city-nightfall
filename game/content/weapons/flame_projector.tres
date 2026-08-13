@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="WeaponDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/combat/weapon_def.gd" id="1_flpr"]
+
+[resource]
+resource_name = "Flame Projector"
+script = ExtResource("1_flpr")
+id = &"flame_projector"
+display_name = "Flame Projector"
+description = "Holds a cone of burning gas open and charges you nine units of heat a second for the privilege. Everything in the cone burns, so it does not care how many there are, and it is the only weapon a frost shade genuinely fears. Five tiles is all the reach you get."
+tags = Array[StringName]([&"incendiary", &"anti_swarm"])
+delivery = &"cone"
+damage = 46.0
+damage_type = &"flame"
+pierce = 0.0
+shots_per_burst = 1
+burst_interval = 0.05
+reload = 0.2
+range_tiles = 5.0
+min_range_tiles = 0.0
+projectile_speed = 1.0
+splash_radius = 0.0
+splash_falloff = 0.35
+cone_degrees = 26.0
+spread_degrees = 0.0
+burn_dps = 9.0
+burn_seconds = 3.0
+turn_rate = 260.0
+aim_tolerance = 20.0
+default_aim = &"closest"
+lead_factor = 0.0
+heat_per_shot = 9.0
+tracer_color = Color(1.0, 0.55, 0.2, 1)
+tracer_width = 3.0

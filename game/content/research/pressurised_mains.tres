@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_rcv7i"]
+
+[resource]
+resource_name = "Pressurised Mains"
+script = ExtResource("1_rcv7i")
+id = &"pressurised_mains"
+title = "Pressurised Mains"
+description = "THE BEAT: the first time the heat overlay paints a single tile red and says it is choking eleven buildings. The simulation has computed per-consumer bottleneck attribution since minute one; this node is the reward for finally reading it. Trunk mains carry four times what a pipe does and booster pumps reset the distance loss, which turns 'my base is too far from the hearth' from a wall into a layout problem."
+flavour = "Wider bore, higher pressure, and a pump every twenty tiles to argue with the cold."
+tier = 2
+prereqs = Array[StringName]([&"pipe_lagging"])
+cost = Dictionary[StringName, int]({
+&"copper_coil": 20,
+&"gear": 40,
+&"iron_plate": 90
+})
+work = 420
+effects = Dictionary[StringName, float]({
+&"heat.throughput_mult": 0.15
+})
+answers = &"heat_bottleneck"
+answer_weight = 2.2
+urgency_line = "One pipe tile is throttling everything behind it, and the overlay has already named it."

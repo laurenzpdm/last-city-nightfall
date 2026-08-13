@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_3vj8i"]
+
+[resource]
+resource_name = "Geothermal Tapping"
+script = ExtResource("1_3vj8i")
+id = &"geothermal_tapping"
+title = "Geothermal Tapping"
+description = "THE BEAT: the day the coal near the city is visibly thin and the player is deciding whether to push a supply line out into the dark. The vents were on the map from the first minute; this node is the payoff for having noticed them, and it is the first heat source that costs no fuel at all. It should arrive around day four, when fuel logistics has stopped being fun."
+flavour = "Drive a column into the vent and take the heat straight out of the ground. No smoke. No hauling."
+tier = 3
+prereqs = Array[StringName]([&"pressurised_mains", &"combustion_tuning"])
+cost = Dictionary[StringName, int]({
+&"pipe_segment": 30,
+&"steel_plate": 80,
+&"stone": 120
+})
+work = 820
+answers = &"fuel"
+answer_weight = 2.4
+urgency_line = "The coal is running out and the vents have been steaming since the day you landed."

@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_wtmrl"]
+
+[resource]
+resource_name = "Armour-Piercing Rounds"
+script = ExtResource("1_wtmrl")
+id = &"armour_piercing"
+title = "Armour-Piercing Rounds"
+description = "THE BEAT: the night the armoured breaker first appears. This node exists for exactly one moment in the campaign and the pacing engine watches for it — the share of what is coming that is armoured. It requires alloy steel on purpose: the answer to a defence problem lives in the metallurgy branch, so a player who ignored the furnaces is one night behind on the night it matters."
+flavour = "A hardened penetrator in a soft jacket. The jacket peels; the core keeps going."
+branch = &"defence"
+tier = 2
+prereqs = Array[StringName]([&"ballistics", &"alloy_steel"])
+cost = Dictionary[StringName, int]({
+&"copper_coil": 40,
+&"steel_plate": 70
+})
+work = 480
+effects = Dictionary[StringName, float]({
+&"combat.turret_damage_mult": 0.05,
+&"combat.turret_pierce_add": 4.0
+})
+answers = &"armoured"
+answer_weight = 2.6
+urgency_line = "Something came out of the dark with a plate on its front and your rounds bounced off it."

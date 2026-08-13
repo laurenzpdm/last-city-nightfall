@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/combat/enemy_def.gd" id="1_keen"]
+
+[resource]
+resource_name = "Keener"
+script = ExtResource("1_keen")
+id = &"keener"
+display_name = "Keener"
+description = "It never closes. It stands eight tiles out, screams, and everything around it moves and hits harder while the city's nerve goes. Ignore it and the pack that would have broken on your wall goes through it instead; it is the target your gunners should be picking first, and the reason a turret has a targeting policy at all."
+tags = Array[StringName]([&"support", &"morale"])
+min_day = 2
+wave_weight = 1.0
+threat_value = 5.0
+pack_size = 1
+health = 95.0
+armour = 1.0
+speed = 1.7
+body_radius = 0.36
+resist_kinetic = 1.1
+resist_flame = 1.2
+resist_blast = 1.1
+resist_shock = 0.8
+behaviour = &"support"
+damage = 6.0
+damage_type = &"shock"
+attack_interval = 1.4
+attack_range = 8.0
+splash_radius = 0.0
+preferred_multiplier = 1.0
+target_pref = &"any"
+seek_radius = 9.0
+aura = &"rally"
+aura_radius = 7.0
+aura_power = 0.3
+discontent_per_second = 0.05
+render_arch = &"swarm"
+tint = Color(0.72, 0.42, 0.85, 1)

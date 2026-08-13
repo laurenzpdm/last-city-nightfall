@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_n0b43"]
+
+[resource]
+resource_name = "Heat Recovery"
+script = ExtResource("1_n0b43")
+id = &"heat_recovery"
+title = "Heat Recovery"
+description = "THE BEAT: mid campaign, once the base is wide enough that transmission loss is a line item rather than a rounding error. This is the node that rewards a player who has actually read the flow overlay, and it stacks with lagging instead of replacing it — the two together take a thirty-five percent loss down to something survivable."
+flavour = "The exhaust goes back into the intake. The stack stops steaming."
+tier = 3
+prereqs = Array[StringName]([&"thermal_storage", &"combustion_tuning"])
+cost = Dictionary[StringName, int]({
+&"copper_coil": 50,
+&"pipe_segment": 20,
+&"steel_plate": 60
+})
+work = 700
+effects = Dictionary[StringName, float]({
+&"heat.loss_mult": -0.2,
+&"heat.output_mult": 0.08
+})
+answers = &"heat_loss"
+answer_weight = 1.4
+urgency_line = "A fifth of everything you make is dying between the generator and the house."

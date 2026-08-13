@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_k0h1g"]
+
+[resource]
+resource_name = "Bleed the Grid"
+script = ExtResource("1_k0h1g")
+id = &"bleed_the_grid"
+title = "Bleed the Grid"
+description = "THE BEAT: the night the grid cannot cover the city and somebody has to go cold. The heat solver already sheds load by priority tier; this law lets the player choose that tier by district and take a whole quarter offline deliberately. It is the difference between a brownout that happened to them and a sacrifice they made."
+flavour = "Close the valve at the district head. Whatever is behind it is dark by morning."
+branch = &"desperate"
+tier = 3
+prereqs = Array[StringName]([&"thermal_storage", &"emergency_shift"])
+cost = Dictionary[StringName, int]({
+&"copper_coil": 50,
+&"gear": 40,
+&"iron_plate": 80
+})
+work = 640
+grants = Array[StringName]([&"law_district_shutdown"])
+effects = Dictionary[StringName, float]({
+&"heat.buffer_mult": 0.15
+})
+answers = &"heat_deficit"
+answer_weight = 2.3
+urgency_line = "You can hold four districts through the night, and you have five."

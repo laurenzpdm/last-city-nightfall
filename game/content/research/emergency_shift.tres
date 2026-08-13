@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_gc4hq"]
+
+[resource]
+resource_name = "Emergency Shift"
+script = ExtResource("1_gc4hq")
+id = &"emergency_shift"
+title = "Emergency Shift"
+description = "THE BEAT: the first Great Frost warning, when the player counts the work left against the clock and comes up short. This is the door into the dark branch and it is deliberately the reasonable one — an extra shift is not a crime. Everything below it is easier to sign because this one was signed first."
+flavour = "Fourteen hours. Signed at dusk, felt at dawn."
+branch = &"desperate"
+prereqs = Array[StringName]([&"insulated_clothing"])
+cost = Dictionary[StringName, int]({
+&"coal": 60,
+&"timber": 40
+})
+work = 260
+grants = Array[StringName]([&"law_extended_shift"])
+effects = Dictionary[StringName, float]({
+&"citizens.night_work_mult": 0.2,
+&"society.discontent_mult": 0.1
+})
+answers = &"labour"
+answer_weight = 1.8
+urgency_line = "You are three hours short and the storm is four hours out."

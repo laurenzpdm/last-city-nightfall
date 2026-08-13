@@ -114,6 +114,9 @@ func _on_world_ready() -> void:
 	terrain.clear_all()
 	terrain.bind_world()
 	entities.bind_field(terrain.field)
+	if terrain.field != null:
+		post.bind_heat_field(terrain.field.heat_tex,
+			Vector2(terrain.field.size) * float(TILE))
 	_first_frame = true
 	_ensure_camera()
 	if _owns_camera and _camera != null:

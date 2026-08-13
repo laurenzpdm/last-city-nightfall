@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/combat/enemy_def.gd" id="1_rsap"]
+
+[resource]
+resource_name = "Rime Sapper"
+script = ExtResource("1_rsap")
+id = &"rime_sapper"
+display_name = "Rime Sapper"
+description = "Runs at the nearest panel of wall and comes apart on it, taking two and a half tiles of masonry with it. One layer of wall is not a wall against these; the answer is depth, or killing them before they arrive."
+tags = Array[StringName]([&"swarm", &"demolition"])
+min_day = 4
+wave_weight = 1.2
+threat_value = 4.0
+pack_size = 3
+health = 80.0
+armour = 0.0
+speed = 2.7
+body_radius = 0.34
+resist_kinetic = 1.2
+resist_flame = 1.6
+resist_blast = 1.0
+resist_shock = 1.0
+behaviour = &"suicide"
+damage = 240.0
+damage_type = &"blast"
+attack_interval = 1.0
+attack_range = 0.8
+splash_radius = 2.2
+preferred_multiplier = 1.6
+target_pref = &"wall"
+seek_radius = 12.0
+detonates = true
+render_arch = &"swarm"
+tint = Color(0.9, 0.42, 0.24, 1)

@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_5xm8k"]
+
+[resource]
+resource_name = "Cold-Rolled Plate"
+script = ExtResource("1_5xm8k")
+id = &"cold_rolled_plate"
+title = "Cold-Rolled Plate"
+description = "THE BEAT: the first night the wall does not hold. Every structure in the city gets tougher, which is why it sits in metallurgy rather than defence: a player who invested in furnaces gets a defensive payoff without ever having built a turret."
+flavour = "Rolled cold, so the grain runs the length of the plate. It dents instead of splitting."
+branch = &"metallurgy"
+tier = 3
+prereqs = Array[StringName]([&"alloy_steel", &"coke_ovens"])
+cost = Dictionary[StringName, int]({
+&"coal": 100,
+&"steel_plate": 110
+})
+work = 760
+effects = Dictionary[StringName, float]({
+&"combat.structure_armor_add": 1.5,
+&"combat.structure_hp_mult": 0.25
+})
+answers = &"structure_loss"
+answer_weight = 2.0
+urgency_line = "The breakers are chewing through your wall faster than the crews can patch it."

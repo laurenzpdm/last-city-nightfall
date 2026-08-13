@@ -280,16 +280,20 @@ func _fill_context() -> void:
 	_ctx.rng = Rng.stream(RNG_STREAM)
 
 
+## [P06] society has not landed yet and may name its number anything. Whatever
+## it hands back is folded into morale as a bounded offset: a hope figure on
+## 0..100 reads as a swing around the neutral middle, an already-signed modifier
+## passes through unchanged.
 func _society_morale() -> float:
 	if _society == null or _m_hope == "":
 		return 0.0
 	var v: Variant = _society.call(_m_hope)
-	if typeof(v) == TYPE_FLOAT or typeof(v) == TYPE_INT:
-		# A hope value on 0..100 reads as an offset around the neutral middle;
-		# anything already centred on zero passes through unharmed.
-		var f: float = float(v)
-		return clampf(f - 50.0, -30.0, 30.0) * 0.4 if f > 30.0 else clampf(f, -30.0, 30.0)
-	return 0.0
+	if typeof(v) != TYPE_FLOAT and typeof(v) != TYPE_INT:
+		return 0.0
+	var f: float = float(v)
+	if _m_hope == "hope":
+		return clampf((f - 50.0) * 0.4, -20.0, 20.0)
+	return clampf(f, -20.0, 20.0)
 
 
 # =========================================================================
@@ -297,11 +301,13 @@ func _society_morale() -> float:
 # =========================================================================
 
 func _sync_city(tick: int) -> void:
-	var lost: PackedInt32Array = board.refresh(tick)
-	if not lost.is_empty():
-		board.release(pool, lost)
-		# A wall or a demolition changes what "walkable" means; a path cached
-		# through the old world walks into the new one.
+	var before: int = board.version
+	var gone: PackedInt32Array = board.refresh(tick)
+	if not gone.is_empty():
+		board.release(pool, gone)
+	if board.version != before:
+		# A new wall or a demolition changes what "walkable" means, and a path
+		# cached through the old world walks into the new one.
 		router.invalidate()
 	_collect_free_hands()
 	if not _homeless.is_empty():
@@ -461,7 +467,7 @@ func _bury(tick: int) -> void:
 			"id": id,
 			"name": _name_of(slot),
 			"age": pool.age[slot],
-			"trade": String(CitizenDefs.trade_label(pool.trade[slot])),
+			"trade": _trade_label(slot),
 			"cause": String(cause),
 			"cell": [int(pool.px[slot]), int(pool.py[slot])],
 			"homeless": pool.home[slot] < 0,
@@ -476,7 +482,7 @@ func _bury(tick: int) -> void:
 		_last_deaths.append(id)
 
 		var sentence: String = "%s, %d, %s, %s." % [
-			_name_of(slot), pool.age[slot], CitizenDefs.trade_label(pool.trade[slot]),
+			_name_of(slot), pool.age[slot], _trade_label(slot),
 			String(CitizenDefs.CAUSE_PHRASES.get(cause, "died"))]
 		Bus.citizen_died.emit(id, cause)
 		Bus.alert_raised.emit(1, &"citizen_died", sentence, _citizen_pos(slot))
@@ -712,8 +718,8 @@ func citizen_info(id: int) -> Dictionary:
 		"age": pool.age[s],
 		"age_bracket": String(CitizenDefs.age_name(bracket)),
 		"trait": String(CitizenDefs.TRAIT_LABELS[pool.traits[s]]),
-		"profession": String(CitizenDefs.trade_label(pool.trade[s])),
-		"profession_id": String(CitizenDefs.trade_name(pool.trade[s])),
+		"profession": _trade_label(s),
+		"profession_id": String(CitizenDefs.trade_name(_trade_index(s))),
 		"state": String(CitizenDefs.state_name(pool.state[s])),
 		"state_label": CitizenDefs.state_label(pool.state[s]),
 		"state_ticks": _tick - pool.state_since[s],
@@ -740,7 +746,7 @@ func citizen_info(id: int) -> Dictionary:
 		"condition": condition,
 		"doing": doing,
 		"summary": "%s, %d, %s — %s, %s" % [_name_of(s), pool.age[s],
-			CitizenDefs.trade_label(pool.trade[s]), condition, doing],
+			_trade_label(s), condition, doing],
 	}
 
 
@@ -753,7 +759,9 @@ func _activity_phrase(s: int, dest_site: CitizenJobBoard.Site) -> String:
 		CitizenDefs.State.WORKING:
 			return "working at %s" % (dest_site.label if dest_site != null else "their post")
 		CitizenDefs.State.SLEEPING:
-			return "asleep at %s" % dest_site.label if dest_site != null else "sleeping rough"
+			if dest_site != null and pool.home[s] == dest_site.id:
+				return "asleep at %s" % dest_site.label
+			return "sleeping rough"
 		CitizenDefs.State.EATING:
 			return "taking a meal"
 		CitizenDefs.State.SICK:
@@ -1292,6 +1300,23 @@ func _staffed_ratio() -> float:
 
 func _name_of(slot: int) -> String:
 	return CitizenDefs.compose_name(pool.first_name[slot], pool.last_name[slot])
+
+
+## What to call someone. A trade if they hold one; otherwise what they are —
+## "child", "pensioner", "labourer". Nobody in this city is "trade 0".
+func _trade_index(slot: int) -> int:
+	if pool.job[slot] >= 0:
+		return pool.trade[slot]
+	match CitizenDefs.age_bracket(pool.age[slot]):
+		CitizenDefs.Age.CHILD:
+			return CitizenDefs.Trade.CHILD
+		CitizenDefs.Age.ELDER:
+			return CitizenDefs.Trade.ELDER
+	return pool.trade[slot]
+
+
+func _trade_label(slot: int) -> String:
+	return CitizenDefs.trade_label(_trade_index(slot))
 
 
 func _first_index(full: String) -> int:

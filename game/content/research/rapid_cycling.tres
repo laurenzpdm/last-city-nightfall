@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_p5ob3"]
+
+[resource]
+resource_name = "Rapid Cycling"
+script = ExtResource("1_p5ob3")
+id = &"rapid_cycling"
+title = "Rapid Cycling"
+description = "THE BEAT: the night the wave stops being a line and becomes a crowd. Note the cost: faster cycling draws more heat, so this node makes the defence grid a heavier customer of the heat grid. That coupling is the entire game in one node."
+flavour = "A second feed pawl and a return spring that does not care how cold it is."
+branch = &"defence"
+tier = 2
+prereqs = Array[StringName]([&"ballistics"])
+cost = Dictionary[StringName, int]({
+&"copper_coil": 30,
+&"gear": 60,
+&"iron_plate": 80
+})
+work = 420
+effects = Dictionary[StringName, float]({
+&"combat.turret_rate_mult": 0.25,
+&"heat.demand_mult": 0.05
+})
+answers = &"swarm"
+answer_weight = 2.0
+urgency_line = "They arrive in a mass and your turret fires once."

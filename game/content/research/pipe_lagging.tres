@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_lo7bf"]
+
+[resource]
+resource_name = "Pipe Lagging"
+script = ExtResource("1_lo7bf")
+id = &"pipe_lagging"
+title = "Pipe Lagging"
+description = "THE BEAT: the moment the player runs a pipe past about eight tiles and notices the radiator at the end never gets warm. The heat overlay is already telling them why — distance costs heat — and this is the answer that makes the reading actionable. It has to arrive on day one or two, while the base is still small enough that one insulated run visibly fixes a district."
+flavour = "Wool, then hide, then wool again. The pipe stops screaming."
+prereqs = Array[StringName]([&"draught_sealing"])
+cost = Dictionary[StringName, int]({
+&"iron_plate": 20,
+&"scrap": 60,
+&"timber": 40
+})
+work = 220
+effects = Dictionary[StringName, float]({
+&"heat.loss_mult": -0.25
+})
+answers = &"heat_loss"
+answer_weight = 1.8
+urgency_line = "The far end of your first long run is coming up cold, and wrapping the mains is what stops it."

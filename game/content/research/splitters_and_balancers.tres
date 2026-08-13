@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_dum5g"]
+
+[resource]
+resource_name = "Splitters & Balancers"
+script = ExtResource("1_dum5g")
+id = &"splitters_and_balancers"
+title = "Splitters & Balancers"
+description = "THE BEAT: when the player has two machines eating from one line and finds out the first one takes everything. It is the node that turns a belt from a pipe into a network, and it is where a logistics player starts building things they are proud of."
+flavour = "Two lanes in, two lanes out, and an argument settled by a lever."
+branch = &"logistics"
+tier = 2
+prereqs = Array[StringName]([&"underground_belts"])
+cost = Dictionary[StringName, int]({
+&"copper_coil": 30,
+&"gear": 60,
+&"iron_plate": 80
+})
+work = 460
+grants = Array[StringName]([&"splitter", &"recipe_splitter"])
+answers = &"tangle"
+answer_weight = 1.5
+also_answers = &"sprawl"
+urgency_line = "One furnace is backed up and the one beside it has been idle since dawn."

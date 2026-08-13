@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_6a776"]
+
+[resource]
+resource_name = "Scrap Sorting"
+script = ExtResource("1_6a776")
+id = &"scrap_sorting"
+title = "Scrap Sorting"
+description = "THE BEAT: the first time the yard runs dry mid-build, usually inside the first ten minutes. It is the cheapest node in the tree and it pays back within the hour. It exists so that a player who is losing always has something to do that is not waiting."
+flavour = "Sort before you smelt. Half of what you were burning was already iron."
+branch = &"metallurgy"
+cost = Dictionary[StringName, int]({
+&"stone": 30,
+&"timber": 30
+})
+work = 130
+effects = Dictionary[StringName, float]({
+&"mining.scrap_mult": 0.3
+})
+answers = &"materials"
+answer_weight = 1.6
+urgency_line = "The ruins are the only mine you have and you are working them like a rubbish heap."

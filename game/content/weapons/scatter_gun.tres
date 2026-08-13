@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="WeaponDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/combat/weapon_def.gd" id="1_scat"]
+
+[resource]
+resource_name = "Scatter Gun"
+script = ExtResource("1_scat")
+id = &"scatter_gun"
+display_name = "Scatter Gun"
+description = "Six pellets in a wide fan at seven tiles. It shreds anything unarmoured that gets close and it is the cheapest honest answer to a pack of hounds. It cannot reach a spitter and it cannot hurt a breaker."
+tags = Array[StringName]([&"anti_swarm"])
+delivery = &"projectile"
+damage = 9.0
+damage_type = &"kinetic"
+pierce = 0.0
+shots_per_burst = 6
+burst_interval = 0.04
+reload = 0.9
+range_tiles = 7.0
+min_range_tiles = 0.0
+projectile_speed = 34.0
+splash_radius = 0.0
+splash_falloff = 0.35
+cone_degrees = 30.0
+spread_degrees = 12.0
+burn_dps = 0.0
+burn_seconds = 0.0
+turn_rate = 300.0
+aim_tolerance = 14.0
+default_aim = &"closest"
+lead_factor = 0.8
+heat_per_shot = 0.9
+ammo_item = &"ammo_shell"
+ammo_per_shot = 1
+ammo_capacity = 60
+tracer_color = Color(1.0, 0.78, 0.42, 1)
+tracer_width = 1.0

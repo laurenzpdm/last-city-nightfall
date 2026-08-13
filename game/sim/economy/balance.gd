@@ -216,10 +216,22 @@ static func research_rate(workers: int, power_factor: float) -> float:
 #  THREAT — [P08]
 # ==========================================================================
 
-## Enemy hit points the design throws at the city on this night. `city_points`
-## is the labour value of everything standing (see city_points_of), which is how
-## the pressure adapts to a player who overbuilds.
+## Budget points the design throws at the city on this night.
+##
+## [P08] owns the wave director and ships a far richer curve than a balance
+## table should duplicate, so this DELEGATES to `ThreatSystem.budget_for_night`
+## whenever that system exists, and only computes from the table when it does
+## not. One source of truth at runtime; a documented envelope when [P08] is
+## absent, so a scenario written against economy alone still behaves.
+##
+## `city_points` is the labour value of everything standing (see
+## `city_points_of`), which is how the fallback adapts to an overbuilder.
 static func threat_budget(campaign_day: int, city_points: float = 0.0) -> float:
+	var threat: SimSystem = Sim.get_system(&"threat")
+	if threat != null and threat.has_method("budget_for_night"):
+		var v: Variant = threat.call("budget_for_night", campaign_day)
+		if typeof(v) == TYPE_FLOAT or typeof(v) == TYPE_INT:
+			return float(v) * table().threat_mult
 	var t: BalanceTable = table()
 	var base: float = _scripted_threat(t, campaign_day)
 	var adapt: float = 1.0
@@ -227,6 +239,13 @@ static func threat_budget(campaign_day: int, city_points: float = 0.0) -> float:
 		adapt = clampf(1.0 + t.threat_city_size_k * (city_points / t.threat_city_size_reference),
 			1.0, t.threat_city_size_max_mult)
 	return base * adapt * t.threat_mult
+
+
+## Material points of defence the design expects a player to have standing on
+## night N. The number the tutorial's "you are under-defended" nudge should use.
+static func defence_investment_target(campaign_day: int) -> float:
+	var t: BalanceTable = table()
+	return _scripted_threat(t, campaign_day) * t.defence_points_per_threat_point
 
 
 ## Attack lanes open at once on this night.

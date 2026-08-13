@@ -20,6 +20,12 @@ extends RefCounted
 
 ## Local ledger. Only authoritative when no build system is attached.
 var amounts: Dictionary[StringName, int] = {}
+## The back-pressure switch. While false, `deposit()` refuses everything and
+## machines fill their output buffers and stall with REASON_OUTPUT_FULL. [P03]
+## closes it when the belts and the yards are genuinely full; nothing else does,
+## because losing a construction refund to a full yard would be a bug, and
+## refunds go through `give()`, which is never refused.
+var accepting: bool = true
 
 var _build: SimSystem = null
 var _stock: Object = null
@@ -107,7 +113,7 @@ func give(item: StringName, amount: int) -> void:
 ## this is the one place that has to start saying no, and every machine already
 ## handles a refusal by stalling with REASON_OUTPUT_FULL.
 func deposit(item: StringName, amount: int) -> int:
-	if amount <= 0:
+	if amount <= 0 or not accepting:
 		return 0
 	give(item, amount)
 	return amount

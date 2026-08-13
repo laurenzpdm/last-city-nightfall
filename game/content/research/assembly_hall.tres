@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_664uk"]
+
+[resource]
+resource_name = "Assembly Hall"
+script = ExtResource("1_664uk")
+id = &"assembly_hall"
+title = "Assembly Hall"
+description = "THE BEAT: the first time discontent outruns hope, which is usually straight after a law the city did not like. This is the survival branch's answer to the desperate branch and the two are meant to be read against each other: a hall where people can shout at you, or martial law so that they cannot."
+flavour = "A roof, a stove, and room for two hundred. They will use it to complain. That is the point."
+branch = &"survival"
+tier = 3
+prereqs = Array[StringName]([&"night_shift_rotation", &"insulated_clothing"])
+cost = Dictionary[StringName, int]({
+&"iron_plate": 60,
+&"stone": 110,
+&"timber": 120
+})
+work = 720
+grants = Array[StringName]([&"assembly_hall_building", &"law_public_assembly"])
+effects = Dictionary[StringName, float]({
+&"society.discontent_mult": -0.15,
+&"society.hope_mult": 0.2
+})
+answers = &"discontent"
+answer_weight = 2.0
+urgency_line = "The crowd at the hearth has stopped asking politely."

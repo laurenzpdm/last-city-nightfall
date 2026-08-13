@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_rjrrq"]
+
+[resource]
+resource_name = "Logistic Scheduling"
+script = ExtResource("1_rjrrq")
+id = &"logistic_scheduling"
+title = "Logistic Scheduling"
+description = "THE BEAT: late-mid campaign, when the player stops laying belts by hand and starts thinking in flows. This is where logistics graduates from moving items to declaring intent, and it is the last node before the branch's payoff becomes purely a matter of scale."
+flavour = "Requests on one side, offers on the other, and a clerk who never sleeps."
+branch = &"logistics"
+tier = 3
+prereqs = Array[StringName]([&"splitters_and_balancers", &"inserter_arms"])
+cost = Dictionary[StringName, int]({
+&"copper_coil": 70,
+&"gear": 80,
+&"steel_plate": 60
+})
+work = 780
+grants = Array[StringName]([&"recipe_logistic_chest"])
+effects = Dictionary[StringName, float]({
+&"build.speed_mult": 0.1,
+&"logistics.throughput_mult": 0.25
+})
+answers = &"sprawl"
+answer_weight = 1.5
+urgency_line = "Your base has more lines running through it than you can hold in your head."

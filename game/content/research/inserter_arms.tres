@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_bu586"]
+
+[resource]
+resource_name = "Inserter Arms"
+script = ExtResource("1_bu586")
+id = &"inserter_arms"
+title = "Inserter Arms"
+description = "THE BEAT: immediately after the first belt, when the player discovers that a belt ending at a machine does nothing on its own. This is the second half of one idea and it must never be more than one node away from the first, or the belt reads as broken rather than incomplete."
+flavour = "A counterweighted arm on a cam. It does one thing forever and never asks for heat."
+branch = &"logistics"
+tier = 2
+prereqs = Array[StringName]([&"belt_drives"])
+cost = Dictionary[StringName, int]({
+&"copper_coil": 25,
+&"gear": 50,
+&"iron_plate": 70
+})
+work = 380
+grants = Array[StringName]([&"inserter", &"recipe_inserter"])
+answers = &"labour"
+answer_weight = 1.6
+urgency_line = "The belt runs right past the smelter and a person still has to lift each plate off it."

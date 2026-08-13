@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/combat/enemy_def.gd" id="1_hbrk"]
+
+[resource]
+resource_name = "Hoarfrost Breaker"
+script = ExtResource("1_hbrk")
+id = &"hoarfrost_breaker"
+display_name = "Hoarfrost Breaker"
+description = "Fourteen points of rime plating on a slab of muscle that walks straight at the perimeter and takes it apart. Rate-of-fire weapons scratch it; every pellet loses its whole damage to armour. It is the reason a wall needs one gun that hits hard rather than ten that hit often."
+tags = Array[StringName]([&"armoured", &"breaker"])
+min_day = 2
+wave_weight = 1.4
+threat_value = 9.0
+pack_size = 1
+health = 900.0
+armour = 14.0
+speed = 0.85
+body_radius = 0.6
+resist_kinetic = 0.85
+resist_flame = 0.7
+resist_blast = 1.0
+resist_shock = 1.3
+behaviour = &"breaker"
+damage = 60.0
+damage_type = &"kinetic"
+attack_interval = 1.5
+attack_range = 0.8
+splash_radius = 0.0
+preferred_multiplier = 2.4
+target_pref = &"wall"
+seek_radius = 11.0
+render_arch = &"brute"
+tint = Color(0.62, 0.68, 0.78, 1)

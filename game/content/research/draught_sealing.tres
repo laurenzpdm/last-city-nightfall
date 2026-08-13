@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_si1se"]
+
+[resource]
+resource_name = "Draught Sealing"
+script = ExtResource("1_si1se")
+id = &"draught_sealing"
+title = "Draught Sealing"
+description = "THE BEAT: the first dusk. One hearth, a handful of huts, and the heat number starts falling faster than the player can feed it. This is the first thing the tree should offer, because it is the first thing they can feel going wrong — and because eight percent off every consumer in the city is a bigger number than anything they can build on day one."
+flavour = "Tar, rag and board. It is not engineering. It works."
+cost = Dictionary[StringName, int]({
+&"scrap": 40,
+&"timber": 30
+})
+work = 140
+effects = Dictionary[StringName, float]({
+&"heat.demand_mult": -0.08
+})
+answers = &"heat_deficit"
+answer_weight = 1.4
+also_answers = &"frozen"
+urgency_line = "Every hut you own is bleeding heat into the dark, and the cheapest answer is rags, tar and boarded windows."

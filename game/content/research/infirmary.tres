@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_kkyis"]
+
+[resource]
+resource_name = "Infirmary"
+script = ExtResource("1_kkyis")
+id = &"infirmary"
+title = "Infirmary"
+description = "THE BEAT: after the first bad night — a wave that got through, or a Great Frost that did. The player has a pile of injured and a post built for three. This is the node that turns a disaster into a recovery instead of into a spiral."
+flavour = "Beds, heat, and a door that closes. Most of medicine is those three things."
+branch = &"survival"
+tier = 2
+prereqs = Array[StringName]([&"field_medicine"])
+cost = Dictionary[StringName, int]({
+&"iron_plate": 70,
+&"stone": 60,
+&"timber": 80
+})
+work = 420
+grants = Array[StringName]([&"infirmary_building"])
+effects = Dictionary[StringName, float]({
+&"citizens.heal_mult": 0.4,
+&"society.discontent_mult": -0.05
+})
+answers = &"casualties"
+answer_weight = 1.8
+urgency_line = "Your medical post is treating people in the corridor."

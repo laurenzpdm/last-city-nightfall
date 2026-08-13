@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_76tvk"]
+
+[resource]
+resource_name = "Bloomery Smelting"
+script = ExtResource("1_76tvk")
+id = &"bloomery_smelting"
+title = "Bloomery Smelting"
+description = "THE BEAT: the point where salvage stops scaling. Every player hits it, because the ruins are finite and the ore field is not. This is the node that turns the map's deposits from scenery into an economy, and the whole metallurgy branch hangs off it."
+flavour = "A clay stack, a bellows, and a boy to work it. Iron comes out the bottom."
+branch = &"metallurgy"
+prereqs = Array[StringName]([&"scrap_sorting"])
+cost = Dictionary[StringName, int]({
+&"scrap": 60,
+&"stone": 70
+})
+work = 200
+grants = Array[StringName]([&"recipe_iron_plate"])
+effects = Dictionary[StringName, float]({
+&"craft.speed_mult": 0.1
+})
+answers = &"materials"
+answer_weight = 1.3
+urgency_line = "Scrap runs out. Ore does not, and you cannot use ore."

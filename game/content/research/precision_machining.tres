@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_ckc5k"]
+
+[resource]
+resource_name = "Precision Machining"
+script = ExtResource("1_ckc5k")
+id = &"precision_machining"
+title = "Precision Machining"
+description = "THE BEAT: mid campaign, when the workshop is the bottleneck rather than the mine. It is also the prerequisite for prosthetics, which is deliberate — the same lathe that makes a gear makes a hand."
+flavour = "Tolerances a tenth of what the old jigs held. Things fit the first time."
+branch = &"metallurgy"
+tier = 3
+prereqs = Array[StringName]([&"alloy_steel"])
+cost = Dictionary[StringName, int]({
+&"copper_coil": 40,
+&"gear": 60,
+&"steel_plate": 70
+})
+work = 720
+grants = Array[StringName]([&"recipe_precision_gear"])
+effects = Dictionary[StringName, float]({
+&"craft.speed_mult": 0.2
+})
+answers = &"sprawl"
+answer_weight = 1.2
+urgency_line = "Everything downstream of the workshop is waiting on parts you make one at a time."

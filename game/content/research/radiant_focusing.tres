@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_dfsdp"]
+
+[resource]
+resource_name = "Radiant Focusing"
+script = ExtResource("1_dfsdp")
+id = &"radiant_focusing"
+title = "Radiant Focusing"
+description = "THE BEAT: when the city stops being one block and becomes districts with gaps. Warmth radiates from a radiator in a circle, and the gaps between those circles are where citizens die walking to work. Thirty percent more radius is a quarter of the map warmed without a single new generator."
+flavour = "Polished plate behind the coils. The heat stops going where nobody is standing."
+tier = 2
+prereqs = Array[StringName]([&"draught_sealing"])
+cost = Dictionary[StringName, int]({
+&"copper_coil": 40,
+&"iron_plate": 50
+})
+work = 320
+effects = Dictionary[StringName, float]({
+&"heat.radius_mult": 0.3
+})
+answers = &"cold"
+answer_weight = 1.5
+also_answers = &"casualties"
+urgency_line = "People are freezing in the streets between buildings you have already heated."

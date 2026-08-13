@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_bnu8y"]
+
+[resource]
+resource_name = "Combustion Tuning"
+script = ExtResource("1_bnu8y")
+id = &"combustion_tuning"
+title = "Combustion Tuning"
+description = "THE BEAT: day two or three, when the coal curve turns over. The player has enough generators; what they do not have is enough fuel to keep them lit. Twelve percent more heat for ten percent less coal is the difference between a supply line that works and one that needs doubling."
+flavour = "Preheat the air, close the damper, and stop throwing half the fire up the flue."
+tier = 2
+prereqs = Array[StringName]([&"draught_sealing"])
+cost = Dictionary[StringName, int]({
+&"gear": 25,
+&"iron_plate": 60,
+&"stone": 40
+})
+work = 340
+effects = Dictionary[StringName, float]({
+&"heat.fuel_mult": -0.1,
+&"heat.output_mult": 0.12
+})
+answers = &"fuel"
+answer_weight = 1.6
+also_answers = &"heat_deficit"
+urgency_line = "Your burners are eating coal faster than the collectors bring it in."

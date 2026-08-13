@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_f0kon"]
+
+[resource]
+resource_name = "Incendiary Rounds"
+script = ExtResource("1_f0kon")
+id = &"incendiary_rounds"
+title = "Incendiary Rounds"
+description = "THE BEAT: when single-target damage is arithmetically hopeless and the player needs area denial. It hangs off coke ovens rather than off ballistics, because what makes fire work here is fuel chemistry — another deliberate cross-branch dependency."
+flavour = "Coke dust and pitch in a thin shell. It does not need to hit hard, only to land."
+branch = &"defence"
+tier = 3
+prereqs = Array[StringName]([&"rapid_cycling", &"coke_ovens"])
+cost = Dictionary[StringName, int]({
+&"coal": 120,
+&"copper_coil": 40,
+&"steel_plate": 60
+})
+work = 700
+grants = Array[StringName]([&"flame_turret"])
+effects = Dictionary[StringName, float]({
+&"combat.turret_damage_mult": 0.1
+})
+answers = &"swarm"
+answer_weight = 2.2
+urgency_line = "Killing them one at a time stopped working three nights ago."

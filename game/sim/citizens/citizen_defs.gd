@@ -193,7 +193,7 @@ const FATIGUE_EXHAUSTED: float = 92.0
 const EXHAUST_HEALTH_PER_SEC: float = 0.06
 
 ## Cold below this feeds illness, at this much illness per second per degree.
-const COLD_SICK_BELOW: float = 32.0
+const COLD_SICK_BELOW: float = 40.0
 const COLD_SICK_PER_SEC: float = 0.0075
 const MALNUTRITION_SICK_PER_SEC: float = 0.045
 const EXHAUSTION_SICK_PER_SEC: float = 0.035
@@ -234,7 +234,7 @@ const CHILD_SICK_FACTOR: float = 1.30
 
 ## Morale drifts toward a target computed from everything else, this fast.
 const MORALE_DRIFT_PER_SEC: float = 0.11
-const MORALE_BASE: float = 38.0
+const MORALE_BASE: float = 20.0
 const MORALE_FROM_WARMTH: float = 26.0
 const MORALE_FROM_FOOD: float = 22.0
 const MORALE_FROM_REST: float = 11.0
@@ -283,12 +283,12 @@ const LAW_EMERGENCY: StringName = &"emergency"
 
 const SHIFT_LAWS: Dictionary[StringName, Dictionary] = {
 	&"standard": {
-		"day_mask": 0b000110, "night_mask": 0b110000,
+		"day_mask": 0b000111, "night_mask": 0b111000,
 		"fatigue": 1.0, "output": 1.0, "morale": 0.0,
 		"label": "Standard Shifts",
 	},
 	&"extended": {
-		"day_mask": 0b001111, "night_mask": 0b111000,
+		"day_mask": 0b001111, "night_mask": 0b111001,
 		"fatigue": 1.45, "output": 1.22, "morale": -8.0,
 		"label": "Extended Shifts",
 	},
@@ -326,7 +326,7 @@ const ARRIVAL_GROUP_MIN: int = 2
 const ARRIVAL_GROUP_MAX: int = 6
 
 ## Rations the founders carry in. Enough to matter, not enough to relax.
-const STARTING_LARDER: float = 90.0
+const STARTING_LARDER: float = 220.0
 ## Item ids the city eats, best first. [P03]/[P04] fill the shelves; until then
 ## the larder is the whole pantry.
 const FOOD_ITEMS: Array[StringName] = [&"ration", &"grain"]

@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_pqyps"]
+
+[resource]
+resource_name = "Hand Carts"
+script = ExtResource("1_pqyps")
+id = &"hand_carts"
+title = "Hand Carts"
+description = "THE BEAT: the first construction queue longer than the day. Nothing about this is exciting and that is the point — it is the node a player takes when they work out the bottleneck is not materials but hands, and it makes every build after it faster."
+flavour = "Two wheels and a plank. The oldest technology in the city and still the best return."
+branch = &"logistics"
+cost = Dictionary[StringName, int]({
+&"scrap": 30,
+&"timber": 50
+})
+work = 150
+effects = Dictionary[StringName, float]({
+&"build.speed_mult": 0.15,
+&"logistics.throughput_mult": 0.1
+})
+answers = &"labour"
+answer_weight = 1.5
+urgency_line = "Half your workforce is walking somewhere, carrying something, and walking back."

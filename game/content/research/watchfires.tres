@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_av5mo"]
+
+[resource]
+resource_name = "Watchfires"
+script = ExtResource("1_av5mo")
+id = &"watchfires"
+title = "Watchfires"
+description = "THE BEAT: the first deep night, or the first blizzard, when visibility collapses and the player realises their turrets are shooting at noises. It ties defence to the climate system directly — in a whiteout this node is worth more than damage is."
+flavour = "Pitch, bone and fat burning in an iron basket. Crude, and you can see the plain."
+branch = &"defence"
+prereqs = Array[StringName]([&"palisade_engineering"])
+cost = Dictionary[StringName, int]({
+&"coal": 50,
+&"scrap": 40,
+&"timber": 60
+})
+work = 220
+effects = Dictionary[StringName, float]({
+&"combat.turret_accuracy_mult": 0.1,
+&"combat.vision_mult": 0.3
+})
+answers = &"blind"
+answer_weight = 1.8
+urgency_line = "You cannot see what is killing you until it is already inside the wall."

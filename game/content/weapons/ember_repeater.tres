@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="WeaponDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/combat/weapon_def.gd" id="1_erep"]
+
+[resource]
+resource_name = "Ember Repeater"
+script = ExtResource("1_erep")
+id = &"ember_repeater"
+display_name = "Ember Repeater"
+description = "Three light rounds a burst, cheap heat, respectable damage per second on paper. On plating it is worthless: every round loses its whole damage to armour. Fit it where the swarm comes and nowhere else."
+tags = Array[StringName]([&"anti_swarm", &"cheap"])
+delivery = &"projectile"
+damage = 6.0
+damage_type = &"kinetic"
+pierce = 0.0
+shots_per_burst = 3
+burst_interval = 0.06
+reload = 0.35
+range_tiles = 8.0
+min_range_tiles = 0.0
+projectile_speed = 40.0
+splash_radius = 0.0
+splash_falloff = 0.35
+cone_degrees = 30.0
+spread_degrees = 3.0
+burn_dps = 0.0
+burn_seconds = 0.0
+turn_rate = 420.0
+aim_tolerance = 10.0
+default_aim = &"closest"
+lead_factor = 1.0
+heat_per_shot = 0.55
+ammo_item = &"ammo_shell"
+ammo_per_shot = 1
+ammo_capacity = 90
+tracer_color = Color(1.0, 0.84, 0.5, 1)
+tracer_width = 1.2

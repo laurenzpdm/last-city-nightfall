@@ -23,8 +23,8 @@ extends RefCounted
 ## come from a counter. Nothing here iterates an unordered container.
 
 const MAX_ROUTES: int = 192
-const MAX_NODES: int = 2200
-const REQUESTS_PER_TICK: int = 3
+const MAX_NODES: int = 1400
+const REQUESTS_PER_TICK: int = 1
 ## Ticks a cached route is trusted for. One in-world minute.
 const ROUTE_TTL: int = 1200
 ## After a failed search, do not try that pair again for this long.

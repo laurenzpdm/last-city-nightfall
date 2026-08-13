@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_ig27i"]
+
+[resource]
+resource_name = "Heat Lance"
+script = ExtResource("1_ig27i")
+id = &"heat_lance"
+title = "Heat Lance"
+description = "THE BEAT: the late-campaign monster. The lance burns the city's own heat as ammunition, at a rate that browns out whatever shares its network, so fielding it is a decision about the grid rather than about the wall. It is the point where the three genres finally collapse into one object."
+flavour = "A lance of superheated gas at four thousand degrees. It does not pierce armour. It removes it."
+branch = &"defence"
+tier = 4
+prereqs = Array[StringName]([&"armour_piercing", &"superheated_mains"])
+cost = Dictionary[StringName, int]({
+&"copper_coil": 110,
+&"pipe_segment": 70,
+&"steel_plate": 160
+})
+work = 1350
+grants = Array[StringName]([&"heat_lance_turret"])
+effects = Dictionary[StringName, float]({
+&"combat.turret_pierce_add": 6.0
+})
+answers = &"armoured"
+answer_weight = 2.0
+urgency_line = "Something is walking through your wall as though it were not there."

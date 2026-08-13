@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_p4ce8"]
+
+[resource]
+resource_name = "Palisade Engineering"
+script = ExtResource("1_p4ce8")
+id = &"palisade_engineering"
+title = "Palisade Engineering"
+description = "THE BEAT: the afternoon of day one, when the player looks at the dark treeline and at their fence in the same glance. It is cheap, it is fast, and it is the first node in the game that says out loud that something is coming."
+flavour = "Sharpened stakes, a rubble core and a firing step. It will not stop everything."
+branch = &"defence"
+cost = Dictionary[StringName, int]({
+&"stone": 60,
+&"timber": 70
+})
+work = 160
+grants = Array[StringName]([&"wall_reinforced"])
+effects = Dictionary[StringName, float]({
+&"combat.structure_hp_mult": 0.15
+})
+answers = &"wave"
+answer_weight = 1.4
+urgency_line = "The thing you are calling a wall is a suggestion."

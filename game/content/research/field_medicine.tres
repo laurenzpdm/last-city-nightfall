@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_bndhx"]
+
+[resource]
+resource_name = "Field Medicine"
+script = ExtResource("1_bndhx")
+id = &"field_medicine"
+title = "Field Medicine"
+description = "THE BEAT: the first sickness, usually day two. Without it an injured citizen is a dead one, and the player only finds that out by losing somebody. It sits at the very front of the branch so that lesson is survivable."
+flavour = "Boiled cloth, splints, and somebody who has read the book twice."
+branch = &"survival"
+cost = Dictionary[StringName, int]({
+&"scrap": 30,
+&"stone": 20,
+&"timber": 40
+})
+work = 180
+grants = Array[StringName]([&"medical_post"])
+effects = Dictionary[StringName, float]({
+&"citizens.heal_mult": 0.4
+})
+answers = &"casualties"
+answer_weight = 1.6
+urgency_line = "The first cough went through a whole hut in one night."

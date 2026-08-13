@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/combat/enemy_def.gd" id="1_clch"]
+
+[resource]
+resource_name = "Cinder Leech"
+script = ExtResource("1_clch")
+id = &"cinder_leech"
+display_name = "Cinder Leech"
+description = "It does not care about your wall. It walks over the pipes, bites through a heat main in two seconds, heals off what spills out, and drains the magazines of every turret nearby while it feeds. Kill it fast or the guns go quiet and the houses go cold at the same moment."
+tags = Array[StringName]([&"parasite", &"network"])
+min_day = 2
+wave_weight = 1.6
+threat_value = 4.0
+pack_size = 3
+health = 140.0
+armour = 3.0
+speed = 2.1
+body_radius = 0.34
+resist_kinetic = 1.0
+resist_flame = 0.5
+resist_blast = 1.1
+resist_shock = 1.6
+behaviour = &"siphon"
+damage = 18.0
+damage_type = &"kinetic"
+attack_interval = 0.7
+attack_range = 0.7
+splash_radius = 0.0
+preferred_multiplier = 6.0
+target_pref = &"conduit"
+seek_radius = 22.0
+lifesteal = 0.35
+siphon_rate = 4.0
+aura_radius = 7.0
+render_arch = &"swarm"
+tint = Color(0.94, 0.55, 0.22, 1)

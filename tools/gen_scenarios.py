@@ -475,7 +475,10 @@ def stress():
         L.line(t, "heat_pipe", (-40, dy), (40, dy), free=True, instant=True)
         t += 3
     for dx in range(-40, 41, 8):
-        L.line(t, "heat_pipe", (dx, -30), (dx, 30), free=True, instant=True)
+        # Two rows past the last trunk on each side: the plots that hug the
+        # outermost trunk sit at rows 31-32, and a spur that stopped at 30 left
+        # them with bare ground on every side.
+        L.line(t, "heat_pipe", (dx, -32), (dx, 32), free=True, instant=True)
         t += 3
     # The hearth sits inside the block but its 5x5 footprint spans dx -2..2,
     # which no trunk or spur passes through. One stub joins it to the spur at

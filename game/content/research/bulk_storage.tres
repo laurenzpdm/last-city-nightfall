@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_nbnsk"]
+
+[resource]
+resource_name = "Bulk Storage"
+script = ExtResource("1_nbnsk")
+id = &"bulk_storage"
+title = "Bulk Storage"
+description = "THE BEAT: the first surplus. A player who has solved production and not storage watches a smelter stall with a full output buffer, which reads as a bug until they understand it. Half again the capacity buys the room to keep building instead of babysitting."
+flavour = "Roofed bays, raised floors, and a tally board at the gate."
+branch = &"logistics"
+tier = 2
+prereqs = Array[StringName]([&"hand_carts"])
+cost = Dictionary[StringName, int]({
+&"iron_plate": 40,
+&"stone": 100,
+&"timber": 90
+})
+work = 400
+grants = Array[StringName]([&"storage_yard_large"])
+effects = Dictionary[StringName, float]({
+&"logistics.storage_mult": 0.5
+})
+answers = &"materials"
+answer_weight = 1.3
+urgency_line = "You are producing more than you can keep and the overflow is sitting in the snow."

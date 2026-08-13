@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_xt61t"]
+
+[resource]
+resource_name = "Thermal Storage"
+script = ExtResource("1_xt61t")
+id = &"thermal_storage"
+title = "Thermal Storage"
+description = "THE BEAT: the morning after the first night the city ran short. Production was never the problem — the AVERAGE was fine and the peak was not. The pacing engine remembers last night's worst deficit right across the following day, so this offer lands while the player still remembers watching the bar drain, not two days later when they have stopped caring."
+flavour = "A tank of hot brine and a great deal of insulation. It gives back what the day did not need."
+tier = 2
+prereqs = Array[StringName]([&"pipe_lagging"])
+cost = Dictionary[StringName, int]({
+&"copper_coil": 30,
+&"iron_plate": 70,
+&"stone": 80
+})
+work = 380
+effects = Dictionary[StringName, float]({
+&"heat.buffer_mult": 0.25
+})
+answers = &"heat_peak"
+answer_weight = 2.0
+also_answers = &"storm"
+urgency_line = "Your generators cover the day and lose the night; something has to hold the difference."

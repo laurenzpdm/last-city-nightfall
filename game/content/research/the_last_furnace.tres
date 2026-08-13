@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_yxwr7"]
+
+[resource]
+resource_name = "The Last Furnace"
+script = ExtResource("1_yxwr7")
+id = &"the_last_furnace"
+title = "The Last Furnace"
+description = "THE BEAT: the end of the dark branch, reachable only by a player who took every step of it. Everything that is not the hearth becomes fuel: outbuildings, stores, whole districts. It ends the campaign one way or the other, and it exists so that 'we survived' is not automatically the same sentence as 'we were right'."
+flavour = "The hearth burns hotter than it ever has. There is nothing left around it to warm."
+branch = &"desperate"
+tier = 4
+prereqs = Array[StringName]([&"corpse_furnaces", &"martial_law", &"superheated_mains"])
+cost = Dictionary[StringName, int]({
+&"copper_coil": 120,
+&"pipe_segment": 80,
+&"steel_plate": 200
+})
+work = 1500
+grants = Array[StringName]([&"law_the_last_furnace"])
+effects = Dictionary[StringName, float]({
+&"heat.output_mult": 0.45,
+&"society.discontent_mult": 0.2,
+&"society.hope_mult": -0.3
+})
+answers = &"heat_deficit"
+answer_weight = 2.0
+urgency_line = "There is one more furnace and it runs on the city."
+priority_bias = -0.8

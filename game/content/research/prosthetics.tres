@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_j74b8"]
+
+[resource]
+resource_name = "Prosthetics"
+script = ExtResource("1_j74b8")
+id = &"prosthetics"
+title = "Prosthetics"
+description = "THE BEAT: late-mid, once the campaign has actually cost the player limbs. This node gives back a workforce they already lost, which lands very differently from one that hands them a new one — and it needs the lathe from metallurgy, because the tolerance that makes a gear makes a hand."
+flavour = "Ash, leather and a machined joint. A man walks out of the ward and back onto the line."
+branch = &"survival"
+tier = 3
+prereqs = Array[StringName]([&"infirmary", &"precision_machining"])
+cost = Dictionary[StringName, int]({
+&"copper_coil": 40,
+&"gear": 70,
+&"steel_plate": 60
+})
+work = 760
+effects = Dictionary[StringName, float]({
+&"citizens.workforce_mult": 0.12,
+&"society.hope_mult": 0.08
+})
+answers = &"labour"
+answer_weight = 1.5
+also_answers = &"casualties"
+urgency_line = "You have a ward full of people who want to work and cannot hold a tool."

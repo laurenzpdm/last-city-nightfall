@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_2jvt2"]
+
+[resource]
+resource_name = "Targeting Lattice"
+script = ExtResource("1_2jvt2")
+id = &"targeting_lattice"
+title = "Targeting Lattice"
+description = "THE BEAT: the first Great Frost the player fights through rather than hides from. The climate system already tells combat that a blizzard costs accuracy; this is the answer, and its arrival should track the storm calendar rather than a tier number."
+flavour = "Ranging wires, a shared clock, and turrets that agree on where the target is."
+branch = &"defence"
+tier = 3
+prereqs = Array[StringName]([&"rapid_cycling", &"watchfires"])
+cost = Dictionary[StringName, int]({
+&"copper_coil": 90,
+&"gear": 50,
+&"steel_plate": 60
+})
+work = 740
+effects = Dictionary[StringName, float]({
+&"combat.turret_accuracy_mult": 0.35,
+&"combat.turret_range_mult": 0.1
+})
+answers = &"blind"
+answer_weight = 2.0
+urgency_line = "In a whiteout your turrets are firing at where something used to be."

@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="WeaponDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/combat/weapon_def.gd" id="1_alnc"]
+
+[resource]
+resource_name = "Arc Lance"
+script = ExtResource("1_alnc")
+id = &"arc_lance"
+display_name = "Arc Lance"
+description = "An instantaneous discharge that walks straight past plating: twenty-four points of pierce, so a breaker's rime is not there. Slow, thirsty and useless against a crowd, and the only thing on the wall that reliably kills the heavy."
+tags = Array[StringName]([&"anti_armour", &"hitscan"])
+delivery = &"hitscan"
+damage = 42.0
+damage_type = &"shock"
+pierce = 24.0
+shots_per_burst = 1
+burst_interval = 0.05
+reload = 1.6
+range_tiles = 12.0
+min_range_tiles = 0.0
+projectile_speed = 1.0
+splash_radius = 0.0
+splash_falloff = 0.35
+cone_degrees = 30.0
+spread_degrees = 0.0
+burn_dps = 0.0
+burn_seconds = 0.0
+turn_rate = 120.0
+aim_tolerance = 3.0
+default_aim = &"armoured"
+lead_factor = 0.0
+heat_per_shot = 8.0
+tracer_color = Color(0.65, 0.86, 1.0, 1)
+tracer_width = 2.0

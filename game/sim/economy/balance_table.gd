@@ -242,10 +242,21 @@ extends Resource
 @export var pop_workforce_fraction: float = 0.62
 
 # ==========================================================================
-#  6. RESEARCH — [P10] reads this
+#  6. RESEARCH — the affordability side of [P10]'s tech tree
 # ==========================================================================
+# A ResearchNode owns its own `cost` (materials) and `work` (ticks). What it
+# cannot know is whether the city can PAY that by the day the tree expects it
+# to. That is an economy question, and these are its numbers.
 
-## Cost in research points of the first unlock at each tier, index 0 = tier 1.
+## Material points a whole tier of research may cost, floor and ceiling. The
+## audit sums every node in a tier and complains when the tier is free or
+## unreachable. Index 0 = tier 1.
+@export var research_tier_points_min: PackedFloat32Array = PackedFloat32Array([40.0, 200.0, 700.0, 1600.0])
+@export var research_tier_points_max: PackedFloat32Array = PackedFloat32Array([1400.0, 5000.0, 16000.0, 48000.0])
+
+## Cost in abstract research points of the first unlock at each tier. Used by
+## `Balance.research_cost()` when a caller wants a planning figure rather than a
+## node's own material bill — the tutorial and the [P20] stats screen do.
 @export var research_tier_base: PackedFloat32Array = PackedFloat32Array([60.0, 220.0, 700.0, 2000.0])
 ## Each further unlock in a tier costs this much more than the one before it.
 @export var research_tier_growth: float = 1.28
@@ -253,21 +264,27 @@ extends Resource
 @export var research_points_per_worker: float = 0.09
 
 # ==========================================================================
-#  7. THREAT — [P08] reads this
+#  7. THREAT & DEFENCE — the envelope around [P08]'s wave director
 # ==========================================================================
-# The budget is expressed as enemy hit points thrown at the city in one night,
-# because HP is the only currency a turret and a wall both understand.
+# [P08] owns the wave director and ships a far more detailed ThreatProfile than
+# a balance table should try to duplicate: set pieces, lulls, adaptation, storm
+# synchronisation. `Balance.threat_budget()` DELEGATES to that profile whenever
+# it is present and only falls back to the table below when it is not.
+#
+# What lives here instead is the thing neither part owns alone: whether a player
+# following the intended build order can AFFORD the night the director plans.
+# `Balance.audit_threat()` measures one against the other.
 
-## Nights that carry a scripted budget, and the budget for each. Beyond the last
-## entry the budget compounds at threat_growth_per_day.
+## Nights that carry a fallback budget, and the budget for each, in [P08]'s
+## budget-point currency. Used only when no ThreatProfile is loaded.
 @export var threat_day: PackedInt32Array = PackedInt32Array([1, 2, 3, 4, 6, 8, 12, 18, 25])
 @export var threat_budget_hp: PackedFloat32Array = PackedFloat32Array([
-	0.0, 420.0, 900.0, 1400.0, 2600.0, 4200.0, 9000.0, 19000.0, 38000.0,
+	8.0, 18.0, 30.0, 44.0, 80.0, 132.0, 286.0, 620.0, 1300.0,
 ])
-## Compounding factor per day past the last scripted night.
+## Compounding factor per night past the last entry.
 @export var threat_growth_per_day: float = 1.11
 
-## Adaptive pressure: the budget is multiplied by
+## Adaptive pressure: the fallback budget is multiplied by
 ## (1 + threat_city_size_k * city_points / threat_city_size_reference),
 ## so a player who builds twice the city gets a harder night rather than a
 ## victory lap. Kept gentle — Factorio's evolution, not a rubber band.
@@ -275,13 +292,28 @@ extends Resource
 @export var threat_city_size_reference: float = 6000.0
 @export var threat_city_size_max_mult: float = 2.4
 
-## Attack lanes opened at once, by night. The grid's chokepoints cap this.
+## Attack lanes opened at once, by night, when [P08] is absent.
 @export var threat_lanes_day: PackedInt32Array = PackedInt32Array([1, 3, 7, 14, 24])
 @export var threat_lanes: PackedInt32Array = PackedInt32Array([1, 2, 3, 4, 5])
 
-## Fraction of a night's budget that arrives in the first wave. The rest is
-## spread over the dark hours, so a single alpha strike never ends a run.
+## Fraction of a night's budget that arrives in the first wave.
 @export var threat_first_wave_fraction: float = 0.35
+
+## THE AFFORDABILITY LINE. Material points of defence the design expects a
+## player to have standing per point of that night's threat budget. A turret
+## costs 224 points and a wall segment 6, so 9.0 means night 12's budget of 286
+## expects roughly eleven turrets and a perimeter — reachable, and only just.
+@export var defence_points_per_threat_point: float = 9.0
+
+## Fraction of everything the city has built that the design is willing to see
+## spent on defence. Above this the game is a tower defence with a city attached,
+## which is the wrong game.
+@export var defence_share_of_city_max: float = 0.35
+
+## How far [P08]'s curve may run past the affordability line before the audit
+## calls it, as a multiple. Wide, because the director also has walls, terrain
+## and chokepoints working for it that this line does not model.
+@export var defence_affordability_slack: float = 2.5
 
 # ==========================================================================
 #  8. GLOBAL KNOBS — one line to move the whole game
@@ -360,8 +392,19 @@ func validate() -> bool:
 	if research_tier_base.size() < tiers:
 		research_tier_base = PackedFloat32Array([60.0, 220.0, 700.0, 2000.0])
 		ok = false
+	if research_tier_points_min.size() < tiers or research_tier_points_max.size() < tiers:
+		research_tier_points_min = PackedFloat32Array([40.0, 200.0, 700.0, 1600.0])
+		research_tier_points_max = PackedFloat32Array([1400.0, 5000.0, 16000.0, 48000.0])
+		ok = false
+	for i: int in tiers:
+		if research_tier_points_max[i] < research_tier_points_min[i]:
+			research_tier_points_max[i] = research_tier_points_min[i]
+			ok = false
 	research_tier_growth = maxf(1.0, research_tier_growth)
 	research_points_per_worker = maxf(0.0, research_points_per_worker)
+	defence_points_per_threat_point = maxf(0.0, defence_points_per_threat_point)
+	defence_share_of_city_max = clampf(defence_share_of_city_max, 0.01, 1.0)
+	defence_affordability_slack = maxf(1.0, defence_affordability_slack)
 
 	var beats: int = mini(threat_day.size(), threat_budget_hp.size())
 	if beats < 1:

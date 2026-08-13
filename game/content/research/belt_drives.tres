@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_liaso"]
+
+[resource]
+resource_name = "Belt Drives"
+script = ExtResource("1_liaso")
+id = &"belt_drives"
+title = "Belt Drives"
+description = "THE BEAT: the moment the player builds a second extractor and realises the distance between it and the smelter is now their whole game. This is the automation genre's front door and it must open on day one or two — a Factorio player who cannot lay a belt in the first hour has been told the wrong thing about what this game is."
+flavour = "A loop of hide over wooden rollers, turned by the same shaft that turns everything else."
+branch = &"logistics"
+prereqs = Array[StringName]([&"hand_carts"])
+cost = Dictionary[StringName, int]({
+&"gear": 20,
+&"iron_plate": 40,
+&"timber": 60
+})
+work = 260
+grants = Array[StringName]([&"belt", &"recipe_belt"])
+answers = &"sprawl"
+answer_weight = 1.8
+urgency_line = "You are walking ore across your own base, and the base is only getting wider."

@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_5or2m"]
+
+[resource]
+resource_name = "Martial Law"
+script = ExtResource("1_5or2m")
+id = &"martial_law"
+title = "Martial Law"
+description = "THE BEAT: after the laws above have been signed and the city has noticed. It suppresses discontent rather than answering it, which is precisely the trap: it buys nights, and the bill compounds. The tree places it opposite the assembly hall so the player has to decide which kind of city they are running."
+flavour = "Guard posts, a curfew, and the word 'order' used a great deal."
+branch = &"desperate"
+tier = 3
+prereqs = Array[StringName]([&"child_apprenticeships"])
+cost = Dictionary[StringName, int]({
+&"iron_plate": 90,
+&"steel_plate": 40
+})
+work = 620
+grants = Array[StringName]([&"law_martial_law", &"guard_post"])
+effects = Dictionary[StringName, float]({
+&"society.discontent_mult": -0.35,
+&"society.hope_mult": -0.15
+})
+answers = &"discontent"
+answer_weight = 2.4
+urgency_line = "The crowd at the hearth is not asking any more."

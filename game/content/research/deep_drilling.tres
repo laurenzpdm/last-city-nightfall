@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_dk2af"]
+
+[resource]
+resource_name = "Deep Drilling"
+script = ExtResource("1_dk2af")
+id = &"deep_drilling"
+title = "Deep Drilling"
+description = "THE BEAT: the moment before the player pushes extractors past the wall. Thirty percent more from a seam they already defend is the alternative to a mining outpost they cannot protect, and offering it here turns an overextension into a real choice."
+flavour = "Longer bit, heavier column, and a drill head that survives the frost line."
+branch = &"metallurgy"
+tier = 2
+prereqs = Array[StringName]([&"bloomery_smelting"])
+cost = Dictionary[StringName, int]({
+&"gear": 40,
+&"iron_plate": 80
+})
+work = 440
+effects = Dictionary[StringName, float]({
+&"mining.yield_mult": 0.3
+})
+answers = &"materials"
+answer_weight = 1.4
+also_answers = &"sprawl"
+urgency_line = "The near seam is thinning and the next one is a long way out into the dark."

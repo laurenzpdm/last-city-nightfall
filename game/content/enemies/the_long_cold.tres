@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/combat/enemy_def.gd" id="1_tlcd"]
+
+[resource]
+resource_name = "The Long Cold"
+script = ExtResource("1_tlcd")
+id = &"the_long_cold"
+display_name = "The Long Cold"
+description = "The night boss. Twenty points of plating, a swing that flattens three tiles of city, an aura that freezes the charge out of every magazine within nine tiles, and a fresh pack of hounds every time you take a fifteenth of its life off it. You do not out-shoot it with the wall you had; you out-plan it."
+tags = Array[StringName]([&"boss", &"armoured", &"elite"])
+min_day = 4
+wave_weight = 0.0
+threat_value = 60.0
+pack_size = 1
+health = 9000.0
+armour = 20.0
+speed = 0.62
+body_radius = 1.1
+resist_kinetic = 0.75
+resist_flame = 0.6
+resist_blast = 0.9
+resist_shock = 1.05
+behaviour = &"boss"
+damage = 280.0
+damage_type = &"blast"
+attack_interval = 2.5
+attack_range = 1.4
+splash_radius = 2.8
+preferred_multiplier = 1.0
+target_pref = &"any"
+seek_radius = 8.0
+aura = &"chill"
+aura_radius = 9.0
+aura_power = 0.65
+spawns_kind = &"drift_hound"
+spawns_count = 5
+spawns_every_fraction = 0.15
+spawns_on_death = true
+render_arch = &"brute"
+tint = Color(0.36, 0.44, 0.62, 1)

@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_d6d1e"]
+
+[resource]
+resource_name = "Alloy Steel"
+script = ExtResource("1_d6d1e")
+id = &"alloy_steel"
+title = "Alloy Steel"
+description = "THE BEAT: after the first night something got through. Steel gates half the mid tree — armour-piercing rounds, cold-rolled plate, precision machining — so the beat here is the night that taught the player iron is not enough, and the branch opens outward from exactly that."
+flavour = "Carbon, time, and a furnace that does not cool down between heats."
+branch = &"metallurgy"
+tier = 2
+prereqs = Array[StringName]([&"bloomery_smelting"])
+cost = Dictionary[StringName, int]({
+&"coal": 80,
+&"iron_plate": 90
+})
+work = 420
+grants = Array[StringName]([&"recipe_steel_plate"])
+answers = &"structure_loss"
+answer_weight = 1.5
+urgency_line = "Iron came apart on you, and iron is what the whole city is made of."

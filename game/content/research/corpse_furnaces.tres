@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_wpje1"]
+
+[resource]
+resource_name = "Corpse Furnaces"
+script = ExtResource("1_wpje1")
+id = &"corpse_furnaces"
+title = "Corpse Furnaces"
+description = "THE BEAT: the darkest arithmetic in the game, and it is only reachable by a player who has already been hungry and already been short of fuel. It arrives with the bodies. The pacing engine carries a negative bias on it, so an honest fuel answer is always offered first when one exists — the city has to run out of those before it runs out of scruples."
+flavour = "They are already cold. The furnace does not know the difference."
+branch = &"desperate"
+tier = 3
+prereqs = Array[StringName]([&"sawdust_rations", &"combustion_tuning"])
+cost = Dictionary[StringName, int]({
+&"steel_plate": 70,
+&"stone": 90
+})
+work = 700
+grants = Array[StringName]([&"law_corpse_furnaces"])
+effects = Dictionary[StringName, float]({
+&"production.fuel_value_mult": 0.2,
+&"society.hope_mult": -0.25
+})
+answers = &"fuel"
+answer_weight = 2.0
+urgency_line = "The dead are stacked at the gate because the ground is too hard to dig."
+priority_bias = -0.6

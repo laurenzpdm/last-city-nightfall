@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_c640x"]
+
+[resource]
+resource_name = "Soup Kitchens"
+script = ExtResource("1_c640x")
+id = &"soup_kitchens"
+title = "Soup Kitchens"
+description = "THE BEAT: the end of the first week, when food stops being a number that only falls slowly and starts deciding how much work gets done. A hot meal is worth more than its calories in this climate, which is why this node touches hope as well as food."
+flavour = "One pot, one fire, one queue. The queue is where the city talks to itself."
+branch = &"survival"
+prereqs = Array[StringName]([&"insulated_clothing"])
+cost = Dictionary[StringName, int]({
+&"iron_plate": 30,
+&"stone": 60,
+&"timber": 40
+})
+work = 240
+grants = Array[StringName]([&"recipe_hot_ration"])
+effects = Dictionary[StringName, float]({
+&"citizens.food_mult": 0.25,
+&"society.hope_mult": 0.05
+})
+answers = &"hunger"
+answer_weight = 1.7
+urgency_line = "Cold rations keep a person alive and do not keep them working."

@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ResearchNode" format=3]
+
+[ext_resource type="Script" path="res://game/sim/research/research_node.gd" id="1_e3sa4"]
+
+[resource]
+resource_name = "Underground Belts"
+script = ExtResource("1_e3sa4")
+id = &"underground_belts"
+title = "Underground Belts"
+description = "THE BEAT: the first time the base tangles. The pacing engine measures this directly — conduit tiles per machine — so the offer arrives on the exact day the player's careful grid stops working: not before, when it would be an abstraction, and not after, when they have already torn it up. This is the clearest node in the tree for what the whole design is trying to do."
+flavour = "Down, under, and up again. The pipe never knows it was crossed."
+branch = &"logistics"
+tier = 2
+prereqs = Array[StringName]([&"belt_drives"])
+cost = Dictionary[StringName, int]({
+&"gear": 30,
+&"iron_plate": 90,
+&"stone": 80
+})
+work = 420
+grants = Array[StringName]([&"belt_underground", &"recipe_belt_underground"])
+answers = &"tangle"
+answer_weight = 2.3
+urgency_line = "A belt has to cross a pipe and one of them has to lose."

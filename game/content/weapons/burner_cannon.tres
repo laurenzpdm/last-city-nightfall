@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="WeaponDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/combat/weapon_def.gd" id="1_bcan"]
+
+[resource]
+resource_name = "Burner Cannon"
+script = ExtResource("1_bcan")
+id = &"burner_cannon"
+display_name = "Burner Cannon"
+description = "The default barrel on a turret mount. One heavy slug, three quarters of a second, three units of heat. Good at everything and best at nothing, which is exactly what a first wall wants."
+tags = Array[StringName]([&"general"])
+delivery = &"projectile"
+damage = 26.0
+damage_type = &"kinetic"
+pierce = 3.0
+shots_per_burst = 1
+burst_interval = 0.05
+reload = 0.75
+range_tiles = 11.0
+min_range_tiles = 0.0
+projectile_speed = 30.0
+splash_radius = 0.0
+splash_falloff = 0.35
+cone_degrees = 30.0
+spread_degrees = 1.5
+burn_dps = 0.0
+burn_seconds = 0.0
+turn_rate = 160.0
+aim_tolerance = 6.0
+default_aim = &"first"
+lead_factor = 1.0
+heat_per_shot = 3.0
+ammo_item = &"ammo_shell"
+ammo_per_shot = 1
+ammo_capacity = 40
+tracer_color = Color(1.0, 0.72, 0.36, 1)
+tracer_width = 1.8
