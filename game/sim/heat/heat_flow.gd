@@ -67,6 +67,12 @@ const B_NONE: int = 0
 const B_CAPACITY: int = 1
 const B_SUPPLY: int = 2
 
+static var PROF: Dictionary = {}
+static func _pk(k: String, t0: int) -> int:
+	PROF[k] = int(PROF.get(k, 0)) + (Time.get_ticks_usec() - t0)
+	PROF["n_" + k] = int(PROF.get("n_" + k, 0)) + 1
+	return Time.get_ticks_usec()
+
 var _nodes: Dictionary[int, HeatNode] = {}
 var _net: HeatNetwork = null
 var _topo: HeatTopology = null
@@ -142,8 +148,11 @@ func solve(net: HeatNetwork, members: PackedInt32Array, nodes: Dictionary[int, H
 	_topo = net.topology(members, nodes, neigh, graph_version)
 	_n = _topo.count
 	_grow(_n)
+	var _t: int = Time.get_ticks_usec()
 	_reset()
+	_t = _pk("reset", _t)
 	_classify(cold_mult, autarky)
+	_t = _pk("classify", _t)
 
 	var live: PackedInt32Array = _live_sources(_producers)
 	# The cache key has to cover EVERYTHING the router branches on, not just which
@@ -159,11 +168,16 @@ func solve(net: HeatNetwork, members: PackedInt32Array, nodes: Dictionary[int, H
 	else:
 		_use_route(_topo.primary)
 
+	_t = Time.get_ticks_usec()
 	for tier: int in _tiers:
 		_serve_tier(_tier_members[tier])
+	_t = _pk("serve", _t)
 	_phase_buffers()
+	_t = _pk("buffers", _t)
 	_phase_charge()
+	_t = _pk("charge", _t)
 	_write_back()
+	_t = _pk("writeback", _t)
 
 
 ## Grows every scratch table to hold the largest network solved so far. Nothing
@@ -412,6 +426,7 @@ func _use_route(r: HeatRoute) -> void:
 ## network carrying a deficit.
 func _route(seeds: PackedInt32Array, residual: bool) -> void:
 	var topo: HeatTopology = _topo
+	var _tr: int = Time.get_ticks_usec()
 	var r: HeatRoute = topo.scratch if residual else topo.primary
 
 	var dist: PackedInt32Array = r.dist
@@ -484,14 +499,18 @@ func _route(seeds: PackedInt32Array, residual: bool) -> void:
 			next_frontier.append(v)
 		frontier = next_frontier
 		level += 1
+		PROF["levels"] = int(PROF.get("levels",0)) + 1
+		PROF["level_nodes"] = int(PROF.get("level_nodes",0)) + touched.size()
 
 	r.dist = dist
 	r.eta = eta
 	r.parent = parent
 	r.root = root
 	r.valid = true
+	PROF["seeds"] = int(PROF.get("seeds",0)) + seeds.size()
 	r.bump()
 	_use_route(r)
+	_pk("route_residual" if residual else "route_primary", _tr)
 
 
 ## Path from a sink up to its source, source last. The sink itself is on the
@@ -531,6 +550,7 @@ func _serve_tier(tier: PackedInt32Array) -> void:
 		var live: PackedInt32Array = _live_sources(_avail_ids)
 		if live.is_empty():
 			return
+		PROF["src_serve"] = int(PROF.get("src_serve",0)) + 1
 		_route(live, true)
 
 
@@ -573,6 +593,9 @@ func _fill(tier: PackedInt32Array) -> bool:
 				touched.append(node)
 	touched.sort()
 
+	PROF["fills"] = int(PROF.get("fills",0)) + 1
+	PROF["touched"] = int(PROF.get("touched",0)) + touched.size()
+	var _tf: int = Time.get_ticks_usec()
 	var saturated: bool = false
 	var rounds: int = 0
 	while not active.is_empty() and rounds < MAX_ROUNDS:
@@ -643,6 +666,8 @@ func _fill(tier: PackedInt32Array) -> bool:
 		if not froze_any:
 			break
 		active = next_active
+	PROF["rounds"] = int(PROF.get("rounds",0)) + rounds
+	_pk("fill_rounds", _tf)
 	return saturated
 
 
@@ -671,6 +696,7 @@ func _phase_buffers() -> void:
 		added = true
 	if not added:
 		return
+	PROF["src_buffers"] = int(PROF.get("src_buffers",0)) + 1
 	_route(_live_sources(_avail_ids), true)
 	for tier: int in _tiers:
 		_serve_tier(_tier_members[tier])
@@ -705,6 +731,7 @@ func _phase_charge() -> void:
 	if tier.is_empty():
 		return
 
+	PROF["src_charge"] = int(PROF.get("src_charge",0)) + 1
 	_route(sources, true)
 	_fill(tier)
 	for k: int in tier.size():
