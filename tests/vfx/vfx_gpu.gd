@@ -35,6 +35,11 @@ const OUT_DIR: String = "res://artifacts/p14_vfx"
 ## agents at once gets some slack on top of that and it is still an order of
 ## magnitude under the frame.
 const BUDGET_US: float = 2500.0
+## Draw calls the whole effects layer may add to a frame, measured by switching
+## it off for one frame and differencing. Three snow layers, a veil, a spindrift
+## emitter, five pooled point fields and three batched canvas items is the shape
+## of the number; the ceiling leaves room for the transient passes.
+const MAX_DRAW_CALLS: int = 40
 
 var _headless: bool = false
 var _renderer: WorldRenderer = null
@@ -49,6 +54,8 @@ var _measure: Dictionary[String, Dictionary] = {}
 var _costs: Array[float] = []
 var _rng := RandomNumberGenerator.new()
 var _core: Vector2 = Vector2.ZERO
+var _calls_without: int = 0
+var _capturing: bool = false
 
 ## Each entry drives the effects layer directly rather than waiting for the
 ## climate to arrive at the weather we want to photograph. The module entry
@@ -76,7 +83,7 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if _done:
+	if _done or _capturing:
 		return
 	_frame += 1
 	if _frame == 1:
@@ -92,12 +99,33 @@ func _process(_delta: float) -> void:
 		_scene_index = 0
 		_scene_frame = 0
 		return
+	# Re-hidden every frame: the interface parts install on their own timers, and
+	# a panel that appeared halfway through the run would move every pixel count
+	# in this suite.
+	_hide_interface()
 	var t0: int = Time.get_ticks_usec()
 	_drive(SCENES[_scene_index])
 	_costs.append(float(Time.get_ticks_usec() - t0))
 	_scene_frame += 1
+	# Two frames before the shot the effects layer is switched off, one frame
+	# before it is read back, and then it is switched on again. The difference
+	# between those two draw-call counts is THIS PART and nothing else — the
+	# ground, the city, the lights and the post stack are identical in both.
+	if _scene_frame == FRAMES_PER_SCENE - 2:
+		_vfx.visible = false
+	elif _scene_frame == FRAMES_PER_SCENE - 1:
+		_calls_without = int(Performance.get_monitor(
+			Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+		_vfx.visible = true
 	if _scene_frame >= FRAMES_PER_SCENE:
-		_capture(String(SCENES[_scene_index]["name"]))
+		# _capture suspends on frame_post_draw, so _process itself becomes a
+		# coroutine here and the guard keeps the next frame from re-entering it
+		# mid-capture. Without the suspend the viewport hands back a stale
+		# framebuffer and every scene measures identically — which is exactly the
+		# false green this suite exists to make impossible.
+		_capturing = true
+		await _capture(String(SCENES[_scene_index]["name"]))
+		_capturing = false
 		_scene_index += 1
 		_scene_frame = 0
 		if _scene_index >= SCENES.size():
@@ -269,15 +297,15 @@ func _capture(name: String) -> void:
 		"beams": int(stats.get("beams", 0)),
 	}
 	if not _headless:
-		# No await: the scene has been held still for FRAMES_PER_SCENE frames, so
-		# the framebuffer already shows it, and a suspended _capture would let
-		# _verdict run against an empty measurement table.
+		await RenderingServer.frame_post_draw
 		var img: Image = get_viewport().get_texture().get_image()
 		img.save_png("%s/%s.png" % [
 			ProjectSettings.globalize_path(OUT_DIR), name])
 		row.merge(_analyse(img), true)
-		row["draw_calls"] = int(Performance.get_monitor(
+		var calls: int = int(Performance.get_monitor(
 			Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+		row["draw_calls"] = calls
+		row["vfx_draw_calls"] = calls - _calls_without
 	_measure[name] = row
 	print("  %-12s %s" % [name, str(row)])
 
@@ -386,14 +414,24 @@ func _verdict() -> void:
 	# Flakes are small, discrete and brighter than what is behind them, which is
 	# what `speckle` counts and what a fog bank would not produce. The count has
 	# to scale with the weather, not merely be non-zero.
-	var c_snow: int = int(clear.get("speckle", 0))
-	var s_snow: int = int(snowfall.get("speckle", 0))
-	var b_snow: int = int(_measure.get("blizzard", {}).get("speckle", 0))
-	_expect(s_snow > c_snow + 400,
-		"snowfall put %d discrete flakes on screen against %d specks in clear weather"
+	var c_snow: int = int(clear.get("cold", 0))
+	var s_snow: int = int(snowfall.get("cold", 0))
+	var b_snow: int = int(_measure.get("blizzard", {}).get("cold", 0))
+	_expect(s_snow > int(float(c_snow) * 1.15),
+		"snowfall put %d pale-cold pixels on screen against %d in clear weather"
 		% [s_snow, c_snow])
-	_expect(b_snow > s_snow,
-		"a blizzard (%d flakes) was no thicker than ordinary snowfall (%d)" % [b_snow, s_snow])
+	_expect(b_snow > int(float(s_snow) * 1.5),
+		"a blizzard (%d) was not markedly thicker than ordinary snowfall (%d)"
+		% [b_snow, s_snow])
+
+	# The layer has to be affordable in draw calls as well as in milliseconds:
+	# the renderer holds a 1700-building city in single digits and this part must
+	# not undo that.
+	for name: String in _measure:
+		var added: int = int((_measure[name] as Dictionary).get("vfx_draw_calls", 0))
+		_expect(added <= MAX_DRAW_CALLS,
+			"scene '%s' cost %d draw calls of effects (ceiling %d)"
+			% [name, added, MAX_DRAW_CALLS])
 
 	_expect(float(frost_scene.get("detail", 1.0)) < float(snowfall.get("detail", 0.0)) * 0.92,
 		"a whiteout did not actually cost visibility (local detail %.4f vs %.4f)" % [

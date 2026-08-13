@@ -343,8 +343,8 @@ func test_the_night_report_reads_the_window_it_was_given() -> void:
 			&"heat_frozen": 2.0 if (night and i > 40 and i < 45) else 0.0,
 			&"deaths": 0.0 if i < 60 else 3.0,
 			&"kills": float(i),
-			&"hope": 0.6 if not night else 0.15,
-			&"discontent": 0.2,
+			&"hope": 60.0 if not night else 15.0,
+			&"discontent": 20.0,
 			&"pop": 40.0,
 			&"temperature": -20.0 - (15.0 if night else 0.0),
 			LcnStatsDefs.produced_key(&"iron_plate"): float(i) * 4.0,
@@ -365,7 +365,7 @@ func test_the_night_report_reads_the_window_it_was_given() -> void:
 		"the grid was short for minutes, not seconds (%.0f)" % float(heat["deficit_seconds"]))
 	var soc: Dictionary = report["society"]
 	assert_near(float(soc["deaths"]), 3.0, 0.01, "three died inside the window")
-	assert_near(float(soc["hope_low"]), 0.15, 0.01, "hope bottomed out at 0.15")
+	assert_near(float(soc["hope_low"]), 15.0, 0.01, "hope bottomed out at 15 of 100")
 	var made: Array = report["produced"]
 	assert_eq(made.size(), 1, "one item was produced")
 	assert_near(float((made[0] as Dictionary)["amount"]), 240.0, 0.5,
@@ -374,19 +374,19 @@ func test_the_night_report_reads_the_window_it_was_given() -> void:
 
 func test_the_verdict_and_the_closest_call_are_worded_from_the_worst_thing() -> void:
 	var quiet: Dictionary = _report_with({"deaths": 0.0, "structures": 0.0,
-		"frozen": 0.0, "deficit": 0.0, "hope_low": 0.8, "discontent_high": 0.1})
+		"frozen": 0.0, "deficit": 0.0, "hope_low": 80.0, "discontent_high": 10.0})
 	assert_eq(String(quiet["verdict"]), "HELD CLEAN", "a clean night")
 	assert_true(String(quiet["closest_call"]).contains("Nothing came close"),
 		"and nothing to report: '%s'" % String(quiet["closest_call"]))
 
 	var bad: Dictionary = _report_with({"deaths": 9.0, "structures": 1.0,
-		"frozen": 4.0, "deficit": 90.0, "hope_low": 0.1, "discontent_high": 0.9})
+		"frozen": 4.0, "deficit": 90.0, "hope_low": 10.0, "discontent_high": 90.0})
 	assert_eq(String(bad["verdict"]), "MAULED", "nine dead is a mauling")
 	assert_true(String(bad["closest_call"]).contains("died"),
 		"and the dead outrank every other complaint: '%s'" % String(bad["closest_call"]))
 
 	var frozen: Dictionary = _report_with({"deaths": 0.0, "structures": 0.0,
-		"frozen": 6.0, "deficit": 40.0, "hope_low": 0.6, "discontent_high": 0.2})
+		"frozen": 6.0, "deficit": 40.0, "hope_low": 60.0, "discontent_high": 20.0})
 	assert_eq(String(frozen["verdict"]), "HELD, BARELY", "buildings froze")
 	assert_true(String(frozen["closest_call"]).contains("below working temperature"),
 		"the freeze is the story: '%s'" % String(frozen["closest_call"]))

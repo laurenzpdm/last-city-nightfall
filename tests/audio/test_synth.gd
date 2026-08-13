@@ -164,6 +164,18 @@ func test_no_sustained_loop_clicks_at_its_loop_point() -> void:
 		var seam: float = absf(float(pcm.decode_s16(0)) - float(pcm.decode_s16((n - 1) * 2)))
 		assert_lt(seam, maxf(p99 * 2.0, 400.0),
 			"%s: loop seam %d must not tower over its own p99 step %d" % [key, int(seam), int(p99)])
+	# Guards the guard: a filter on the exclusion rule that quietly matched
+	# everything would turn this whole test into a pass by vacuum.
+	assert_ge(float(measured), 10.0, "at least ten continuous loops were actually measured")
+
+
+## Does this recipe put a transient exactly on the loop point?
+func _hits_the_downbeat(spec: Dictionary) -> bool:
+	for block: Dictionary in spec.get("events", []):
+		for offset: Variant in block.get("offsets", []):
+			if absf(float(offset)) < 0.001:
+				return true
+	return false
 
 
 func test_a_looping_recipe_discards_a_run_up_and_a_one_shot_does_not() -> void:
@@ -177,16 +189,39 @@ func test_a_looping_recipe_discards_a_run_up_and_a_one_shot_does_not() -> void:
 		"a one-shot opens at or near silence")
 
 
-func test_a_rhythmic_loop_wraps_its_last_hit_around_the_loop_point() -> void:
-	# mus_perc's final tick is at 9.0 s of a 9.6 s loop; press hits at 0.0 and
-	# 0.8 of a 1.6 s loop. If wrapping were broken the tail would be cut dead.
-	for key: StringName in [&"mus_perc", &"mach_press", &"mach_pump"]:
-		var pcm: PackedByteArray = _built[key].stream.data
-		var n: int = pcm.size() / 2
-		var tail: float = 0.0
-		for i: int in range(maxi(0, n - n / 20), n):
-			tail = maxf(tail, absf(float(pcm.decode_s16(i * 2))))
-		assert_gt(tail, 0.0, "%s has something in its last 5%%" % key)
+func test_a_hit_at_the_end_of_a_loop_rings_into_the_next_pass() -> void:
+	# A rhythm whose last hit lands just before the loop point must not be cut
+	# dead there. Asserted with a purpose-built recipe rather than by hoping one
+	# of the shipped ones happens to straddle the boundary: an event at 0.98 of
+	# the loop with a 0.4 s decay has three quarters of its tail past the end,
+	# and that tail belongs at the head.
+	var spec: Dictionary = {
+		"engine": &"noise", "sr": 11025, "seconds": 1.0, "loop": true,
+		"seed": 4242, "bed": 0.0,
+		"events": [{"kind": &"thud", "offsets": [0.98], "hz": 90.0,
+			"decay": 0.4, "amp": 0.9, "noise": 0.05}],
+	}
+	var job := LcnSynthJob.new(&"wrap_probe", spec)
+	while not job.advance(1 << 22):
+		pass
+	var pcm: PackedByteArray = job.stream.data
+	var n: int = pcm.size() / 2
+	var head: float = 0.0
+	for i: int in mini(n, 2000):
+		head = maxf(head, absf(float(pcm.decode_s16(i * 2))))
+	assert_gt(head, 1000.0, "the tail of the last hit wrapped onto the head of the loop")
+
+	# ...and a one-shot must NOT wrap: a shell that rings back onto its own
+	# attack is a shell that sounds like a loop.
+	var once: Dictionary = spec.duplicate()
+	once["loop"] = false
+	var shot := LcnSynthJob.new(&"wrap_probe_once", once)
+	while not shot.advance(1 << 22):
+		pass
+	var shot_head: float = 0.0
+	for i: int in mini(shot.stream.data.size() / 2, 2000):
+		shot_head = maxf(shot_head, absf(float(shot.stream.data.decode_s16(i * 2))))
+	assert_lt(shot_head, 400.0, "a one-shot leaves its head alone")
 
 
 func test_the_loop_flag_matches_the_recipe() -> void:

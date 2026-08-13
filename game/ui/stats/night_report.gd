@@ -22,6 +22,9 @@ extends RefCounted
 
 ## Items listed in the produced / consumed columns.
 const TOP_N: int = 6
+## [P06]'s meters run 0..100. Below and above these, the night was a near miss.
+const HOPE_FLOOR: float = 20.0
+const DISCONTENT_CEILING: float = 75.0
 
 
 ## Builds one report. `night` is a band from [LcnStatsJournal]; an unfinished
@@ -222,17 +225,18 @@ static func _closest_call(report: Dictionary) -> String:
 			best_score = score3
 			best = "%d %s died before dawn." % [int(deaths),
 				"person" if int(deaths) == 1 else "people"]
-	if float(soc["hope_low"]) < 0.20:
-		var score4: float = 90.0 + (0.20 - float(soc["hope_low"])) * 200.0
+	# Both meters run 0..100 (SocietyDefs.METER_MAX), not 0..1.
+	if float(soc["hope_low"]) < HOPE_FLOOR:
+		var score4: float = 90.0 + (HOPE_FLOOR - float(soc["hope_low"])) * 2.0
 		if score4 > best_score:
 			best_score = score4
-			best = "Hope fell to %.2f. Much lower and they stop believing there is a morning." % \
+			best = "Hope fell to %.0f. Much lower and they stop believing there is a morning." % \
 				float(soc["hope_low"])
-	if float(soc["discontent_high"]) > 0.75:
-		var score5: float = 85.0 + (float(soc["discontent_high"]) - 0.75) * 200.0
+	if float(soc["discontent_high"]) > DISCONTENT_CEILING:
+		var score5: float = 85.0 + (float(soc["discontent_high"]) - DISCONTENT_CEILING) * 2.0
 		if score5 > best_score:
 			best_score = score5
-			best = "Discontent peaked at %.2f. They are one bad law from refusing you." % \
+			best = "Discontent peaked at %.0f. They are one bad law from refusing you." % \
 				float(soc["discontent_high"])
 	if float(com["structures_lost"]) >= 1.0:
 		var score6: float = 95.0 + float(com["structures_lost"]) * 12.0

@@ -198,6 +198,7 @@ func step(tick: int) -> void:
 	_advance_chapter()
 	_react_to_the_dead()
 	_react_to_the_night()
+	_react_to_the_book()
 	_expire_deadlines()
 	_evaluate_events()
 	_maybe_say_something()
@@ -311,24 +312,41 @@ func _react_to_the_night() -> void:
 	if _threat == null:
 		return
 	var cleared: int = int(world.fact(&"waves_cleared"))
-	if cleared > _waves_seen:
-		_waves_seen = cleared
-		var line: String = _draw(NarrativeFlavour.BANK_ASSAULT,
-			NarrativeFlavour.bank(NarrativeFlavour.BANK_ASSAULT))
-		if line != "":
-			journal.say(_tick, _day(), NarrativeDefs.CAT_REPORT, line, "wall")
-			Bus.narrative_event.emit(NarrativeDefs.EV_FLAVOUR, {
-				"kind": "assault", "text": line, "wave": cleared,
-			})
+	if cleared <= _waves_seen:
+		return
+	_waves_seen = cleared
+	var line: String = _draw(NarrativeFlavour.BANK_ASSAULT,
+		NarrativeFlavour.bank(NarrativeFlavour.BANK_ASSAULT))
+	if line == "":
+		return
+	journal.say(_tick, _day(), NarrativeDefs.CAT_REPORT, line, "wall")
+	Bus.narrative_event.emit(NarrativeDefs.EV_FLAVOUR, {
+		"kind": "assault", "text": line, "wave": cleared,
+	})
+
+
+## [P06] owns the prose of a law. This part owns the fact that it happened,
+## because the chronicle has to be able to say what the city agreed to and on
+## which day, months later, when the epilogue reads it back.
+func _react_to_the_book() -> void:
 	if _society == null:
 		return
 	var laws: int = int(world.fact(&"laws_signed"))
-	if laws > _laws_seen:
-		_laws_seen = laws
-		journal.record(_tick, _day(), NarrativeDefs.CAT_REPORT, &"law_signed",
-			"A page was signed",
-			"The book in the Survey Hall has %d pages in it now." % laws,
-			PackedStringArray(["Laws signed (%d) is at or above %d." % [laws, laws]]))
+	if laws <= _laws_seen:
+		return
+	_laws_seen = laws
+	var titles: PackedStringArray = PackedStringArray()
+	for row: Variant in _society.call("book_view") as Array:
+		var law: Dictionary = row
+		if bool(law.get("signed", false)):
+			titles.append(String(law.get("title", "")))
+	var newest: String = "" if titles.is_empty() else titles[titles.size() - 1]
+	journal.record(_tick, _day(), NarrativeDefs.CAT_REPORT, &"law_signed",
+		"A page was signed",
+		"The book on the map table in the Survey Hall has %d page%s in it now." % [
+			laws, "" if laws == 1 else "s"],
+		PackedStringArray(["The city signed something on day %d%s." % [
+			_day(), "" if newest == "" else ": " + newest]]))
 
 
 # =========================================================================

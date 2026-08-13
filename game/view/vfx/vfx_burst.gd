@@ -59,6 +59,10 @@ var _sheet: ImageTexture = null
 var _drawn: int = 0
 var _dropped: int = 0
 var _wind: Vector2 = Vector2.ZERO
+## Scratch buffers for the batched streak pass. Members, not locals, so a frame
+## of drawing allocates nothing.
+var _streak_pts: PackedVector2Array = PackedVector2Array()
+var _streak_cols: PackedColorArray = PackedColorArray()
 
 
 func configure(cap: int, additive: bool, z: int) -> void:
@@ -202,38 +206,32 @@ func _draw() -> void:
 			Rect2(px - s, py - s, s * 2.0, s * 2.0), _REGION[sh],
 			Color(_r[i], _g[i], _b[i], _a[i] * f))
 		_drawn += 1
+	# Streaks go out as ONE multiline command for the whole spray. Drawn as
+	# individual lines they were one draw call each — measured at ~450 extra
+	# calls for a single volley, which is more than the entire renderer spends
+	# on a 1700-building city.
+	_streak_pts.clear()
+	_streak_cols.clear()
 	for i: int in count:
 		if _shape[i] != Shape.STREAK:
 			continue
-		var px: float = _x[i]
-		var py: float = _y[i]
-		if use_cull and not cull.has_point(Vector2(px, py)):
+		var px2: float = _x[i]
+		var py2: float = _y[i]
+		if use_cull and not cull.has_point(Vector2(px2, py2)):
 			continue
-		var f: float = clampf(_life[i] / _life0[i], 0.0, 1.0)
+		var f2: float = clampf(_life[i] / _life0[i], 0.0, 1.0)
 		var v := Vector2(_vx[i], _vy[i])
-		var len_px: float = clampf(v.length() * 0.035, 3.0, 26.0) * (0.4 + f * 0.6)
+		var len_px: float = clampf(v.length() * 0.035, 3.0, 26.0) * (0.4 + f2 * 0.6)
 		var dir: Vector2 = v.normalized() if v.length_squared() > 0.01 else Vector2.RIGHT
-		# NOT antialiased: an antialiased line is its own mesh in the Compatibility
-		# renderer and breaks canvas batching, which measured as ~370 extra draw
-		# calls for 370 sparks. Aliased, the whole spray is one batch.
-		draw_line(Vector2(px, py), Vector2(px, py) - dir * len_px,
-			Color(_r[i], _g[i], _b[i], _a[i] * f), maxf(1.0, _size[i] * 0.5), false)
+		var head := Vector2(px2, py2)
+		_streak_pts.append(head)
+		_streak_pts.append(head - dir * len_px)
+		var col := Color(_r[i], _g[i], _b[i], _a[i] * f2)
+		# draw_multiline_colors takes one colour per SEGMENT, not per point.
+		_streak_cols.append(col)
 		_drawn += 1
-
-
-## Where particle `i` is right now, in world pixels. Diagnostics and tests only —
-## nothing in the effects layer reads a particle back out.
-func position_of(i: int) -> Vector2:
-	if i < 0 or i >= count:
-		return Vector2.ZERO
-	return Vector2(_x[i], _y[i])
-
-
-## Seconds of life left on particle `i`.
-func life_of(i: int) -> float:
-	if i < 0 or i >= count:
-		return 0.0
-	return _life[i]
+	if not _streak_pts.is_empty():
+		draw_multiline_colors(_streak_pts, _streak_cols, 1.6)
 
 
 func stats() -> Dictionary:

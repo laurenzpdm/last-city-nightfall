@@ -95,6 +95,13 @@ func _setup() -> void:
 	SimClock.advance(2)
 	var cam2: GameCamera = GameCamera.current()
 	if cam2 != null:
+		# Bounds FIRST. Without them the camera clamps to its default roaming
+		# rect, never reaches the city, and every view-culled layer downstream
+		# correctly draws nothing — which looks exactly like a broken layer.
+		var grid: SimSystem = Sim.get_system(&"grid")
+		if grid != null and grid.has_method("map_size"):
+			var size: Vector2i = grid.call("map_size")
+			cam2.set_world_bounds(Rect2(Vector2.ZERO, Vector2(size) * 32.0))
 		cam2.focus_on(Vector2(_core()) * 32.0, true)
 		cam2.set_zoom_level(1.0, false)
 
@@ -179,8 +186,17 @@ func _finish() -> void:
 		print("  pool          %d alive of %d, %d spawned, %d overwritten" % [
 			int((s["world"] as Dictionary)["alive"]), LcnFeel.POOL,
 			int((s["world"] as Dictionary)["spawned"]), int((s["world"] as Dictionary)["dropped"])])
-		print("  idle anchors  %d (cap %d)" % [
-			int((s["idle"] as Dictionary)["anchors"]), LcnFeelIdleLife.MAX_ANCHORS])
+		var idle: Dictionary = s["idle"]
+		print("  idle anchors  %d (cap %d) — %d structures offered, %d survived the view cull, zoom %.2f" % [
+			int(idle["anchors"]), LcnFeelIdleLife.MAX_ANCHORS,
+			int(idle["seen"]), int(idle["in_view"]), float(idle["zoom"])])
+		print("  view rect     %s" % String(idle["view"]))
+		var cam3: GameCamera = GameCamera.current()
+		var m: LcnWorldModel = (get_tree().get_first_node_in_group(WorldRenderer.GROUP) as WorldRenderer).world_model()
+		var b0: Array[Dictionary] = m.buildings()
+		print("  DEBUG core=%s cam=%s first_centre=%s count=%d" % [
+			str(_core()), str(cam3.global_position if cam3 != null else Vector2.ZERO),
+			str(b0[0]["centre"]) if not b0.is_empty() else "none", b0.size()])
 		print("  _process      avg %6.1f us   max %6.1f us   (budget %.0f)" % [
 			proc_avg, proc_max, BUDGET_PROCESS_US])
 		print("  _draw         avg %6.1f us   max %6.1f us   (budget %.0f)  %s" % [
@@ -191,8 +207,13 @@ func _finish() -> void:
 
 		_check(int((s["world"] as Dictionary)["alive"]) <= LcnFeel.POOL,
 			"the pool never exceeds its capacity")
-		_check(int((s["idle"] as Dictionary)["anchors"]) <= LcnFeelIdleLife.MAX_ANCHORS,
+		_check(int(idle["anchors"]) <= LcnFeelIdleLife.MAX_ANCHORS,
 			"the anchor list stays capped at a %d-building city" % BUILDINGS)
+		# A cap that is never reached proves nothing. This is the assertion that
+		# would have caught the layer quietly drawing nothing for a whole phase.
+		_check(int(idle["anchors"]) > 0,
+			"and the city actually breathes (%d anchors from %d structures)" % [
+				int(idle["anchors"]), int(idle["seen"])])
 		_check(proc_max <= BUDGET_PROCESS_US,
 			"_process stays inside %.0f us (worst frame %.1f)" % [BUDGET_PROCESS_US, proc_max])
 		if _draw_calls > 0:

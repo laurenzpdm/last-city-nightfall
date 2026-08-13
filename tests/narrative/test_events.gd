@@ -280,6 +280,51 @@ func test_the_account_is_available_before_the_end() -> void:
 	assert_gt(float(String(r["text"]).length()), 300.0, "the account is a stub")
 
 
+func test_an_empty_city_gets_an_epilogue() -> void:
+	world.run(60)
+	var n: NarrativeSystem = narrative()
+	# Nobody left, and people died getting there. The ending path reads the same
+	# fact table everything else does, so it can be driven the same way.
+	n.world.facts[&"population"] = 0.0
+	n.world.facts[&"deaths"] = 23.0
+	n.world.facts[&"deaths_cold"] = 15.0
+	n.world.facts[&"deaths_starvation"] = 8.0
+	n._check_ending()
+	assert_true(n.ended, "the city emptied and nothing was written about it")
+	assert_eq(String(n.epilogue["outcome"]), "lost")
+	assert_eq(int(n.epilogue["dead"]), 23)
+	assert_has(String(n.epilogue["text"]), "15 froze",
+		"the epilogue must quote this run rather than a template")
+	assert_has(String(n.epilogue["title"]), "Did Not Stand")
+
+
+func test_the_epilogue_reaches_the_chronicle_and_the_bus() -> void:
+	world.run(60)
+	var n: NarrativeSystem = narrative()
+	var seen: Array[StringName] = []
+	var probe: Callable = func(id: StringName, _payload: Dictionary) -> void:
+		seen.append(id)
+	Bus.narrative_event.connect(probe)
+	n.world.facts[&"population"] = 0.0
+	n.world.facts[&"deaths"] = 4.0
+	n._check_ending()
+	Bus.narrative_event.disconnect(probe)
+	assert_has(seen, NarrativeDefs.EV_EPILOGUE, "nothing announced the ending")
+	var last: Array[Dictionary] = n.journal.last(1)
+	assert_eq(String(last[0]["id"]), "epilogue")
+
+
+func test_the_ending_only_happens_once() -> void:
+	world.run(60)
+	var n: NarrativeSystem = narrative()
+	n.world.facts[&"population"] = 0.0
+	n.world.facts[&"deaths"] = 4.0
+	n._check_ending()
+	var entries: int = n.journal.entries.size()
+	n._check_ending()
+	assert_eq(n.journal.entries.size(), entries, "the city ended twice")
+
+
 func _card(n: NarrativeSystem, id: String) -> Dictionary:
 	for card: Dictionary in n.pending_cards():
 		if String(card["id"]) == id:

@@ -88,6 +88,7 @@ func _refresh() -> void:
 
 func _draw() -> void:
 	var t: LcnStatsTheme = _theme()
+	clear_hot()
 	var report: Dictionary = current()
 	if report.is_empty():
 		t.plate(self, Rect2(Vector2.ZERO, size), t.PANEL, t.RIM_SOFT)
@@ -100,11 +101,23 @@ func _draw() -> void:
 	var col_w: float = (size.x - PAD * 4.0) / 3.0
 	var head_h: float = _draw_verdict(t, report)
 	var y: float = head_h + BLOCK_GAP
-	var body_h: float = size.y - y - PAD
+	var available: float = size.y - y - PAD
+	# Cards are sized to what they hold. Three full-height columns with two
+	# inches of content in them read as an empty screen, and the space they were
+	# hogging is where the run's own history goes.
+	var wanted: float = maxf(_made_height(t, report),
+		maxf(_cost_height(t, report), _record_height(t, report)))
+	var strip: float = 0.0
+	if reports.size() > 1 or available - wanted > 150.0:
+		strip = clampf(available - wanted - BLOCK_GAP, 0.0, 190.0)
+	var body_h: float = clampf(wanted, 120.0, available - (strip + BLOCK_GAP if strip > 0.0 else 0.0))
 	_draw_made(t, report, Rect2(Vector2(PAD, y), Vector2(col_w, body_h)))
 	_draw_cost(t, report, Rect2(Vector2(PAD * 2.0 + col_w, y), Vector2(col_w, body_h)))
 	_draw_record(t, report, Rect2(Vector2(PAD * 3.0 + col_w * 2.0, y),
 		Vector2(col_w, body_h)))
+	if strip > 100.0:
+		_draw_nights(t, Rect2(Vector2(PAD, y + body_h + BLOCK_GAP),
+			Vector2(size.x - PAD * 2.0, strip)))
 
 
 func _draw_verdict(t: LcnStatsTheme, report: Dictionary) -> float:
@@ -203,9 +216,9 @@ func _draw_cost(t: LcnStatsTheme, report: Dictionary, rect: Rect2) -> void:
 		_row("Damage absorbed", LcnStatsTheme.compact(float(com["damage_taken"])), t.TEXT_DIM),
 		_row("Peak on the map", "%d" % int(com["peak_enemies"]), t.TEXT_DIM),
 		_row("Crafts finished", "%d" % int(city["crafts"]), t.TEXT_DIM),
-		_row("Hope", "%.2f → %.2f" % [float(soc["hope_start"]), float(soc["hope_end"])],
+		_row("Hope", "%.0f → %.0f" % [float(soc["hope_start"]), float(soc["hope_end"])],
 			t.GOOD if float(soc["hope_end"]) >= float(soc["hope_start"]) else t.BAD),
-		_row("Discontent", "%.2f → %.2f" % [float(soc["discontent_start"]),
+		_row("Discontent", "%.0f → %.0f" % [float(soc["discontent_start"]),
 			float(soc["discontent_end"])],
 			t.BAD if float(soc["discontent_end"]) > float(soc["discontent_start"]) else t.GOOD),
 		_row("Coldest it got", "%.1f C" % float(soc["coldest"]), t.COOL),
@@ -247,6 +260,100 @@ func _draw_record(t: LcnStatsTheme, report: Dictionary, rect: Rect2) -> void:
 			"%s  ·  %s" % [LcnStatsJournal.kind_label(int(m["kind"])),
 				LcnStatsTheme.ticks_as_clock(int(m["tick"]))], tiny, t.TEXT_FAINT)
 		y += float(small) + float(tiny) + 12.0
+
+
+## THE strip. Every night you have survived, side by side: how long it ran, what
+## it killed, what it cost you and how long the grid was short. Night four only
+## means something next to night one, and this is the row that makes a player
+## want a fifth.
+func _draw_nights(t: LcnStatsTheme, rect: Rect2) -> void:
+	t.plate(self, rect, t.PANEL, t.RIM_SOFT)
+	var y: float = _block_head(t, rect, "Every night so far")
+	var n: int = reports.size()
+	var cell: float = (rect.size.x - 28.0) / float(maxi(1, n))
+	var chart_h: float = maxf(24.0, rect.position.y + rect.size.y - y - 26.0)
+	var peak_kills: float = 1.0
+	var peak_short: float = 1.0
+	for r: Dictionary in reports:
+		peak_kills = maxf(peak_kills, float((r["combat"] as Dictionary)["kills"]))
+		peak_short = maxf(peak_short, float((r["heat"] as Dictionary)["deficit_seconds"]))
+	var tiny: int = t.fs(t.FS_TINY)
+	var current_i: int = index if index >= 0 else n - 1
+	for i: int in n:
+		var r2: Dictionary = reports[i]
+		var x: float = rect.position.x + 14.0 + float(i) * cell
+		var col := Rect2(Vector2(x, y - 4.0), Vector2(maxf(18.0, cell - 8.0), chart_h + 22.0))
+		if i == current_i:
+			draw_rect(col, t.ROW_SELECTED, true)
+		elif i % 2 == 1:
+			draw_rect(col, t.ROW_ODD, true)
+		add_hot(col, &"night", i)
+
+		var verdict: String = String(r2["verdict"])
+		var vc: Color = t.GOOD
+		if verdict == "MAULED":
+			vc = t.BAD
+		elif verdict == "HELD, BARELY":
+			vc = t.WARN
+		elif verdict == "HELD":
+			vc = t.COOL
+		var bar_w: float = minf(16.0, (cell - 20.0) / 3.0)
+		var kills: float = float((r2["combat"] as Dictionary)["kills"])
+		var deaths: float = float((r2["society"] as Dictionary)["deaths"])
+		var short_s: float = float((r2["heat"] as Dictionary)["deficit_seconds"])
+		var bars: Array[Dictionary] = [
+			{"f": kills / peak_kills, "c": t.GOOD},
+			{"f": deaths / maxf(1.0, peak_kills * 0.25), "c": t.BAD},
+			{"f": short_s / peak_short, "c": t.WARN},
+		]
+		for b: int in bars.size():
+			var f: float = clampf(float(bars[b]["f"]), 0.0, 1.0)
+			var bx: float = x + 6.0 + float(b) * (bar_w + 3.0)
+			var h: float = maxf(1.0, chart_h * f)
+			draw_rect(Rect2(Vector2(bx, y), Vector2(bar_w, chart_h)),
+				Color(0.0, 0.0, 0.0, 0.22), true)
+			var c: Color = bars[b]["c"]
+			draw_rect(Rect2(Vector2(bx, y + chart_h - h), Vector2(bar_w, h)),
+				Color(c.r, c.g, c.b, 0.55), true)
+			draw_rect(Rect2(Vector2(bx, y + chart_h - h), Vector2(bar_w, 2.0)), c, true)
+		t.text(self, Vector2(x + 6.0, y + chart_h + 14.0),
+			"N%d" % int(r2["night"]), tiny, t.TEXT_DIM)
+		draw_rect(Rect2(Vector2(x + 6.0, y + chart_h + 18.0),
+			Vector2(maxf(10.0, cell - 20.0), 2.0)), vc, true)
+	t.text_right(self, rect.position.x + rect.size.x - 14.0,
+		rect.position.y + 22.0, "killed  ·  lost  ·  grid short", t.fs(t.FS_TINY),
+		t.TEXT_FAINT)
+
+
+# ------------------------------------------------------------- measurement --
+
+func _made_height(t: LcnStatsTheme, report: Dictionary) -> float:
+	var made: Array = report["produced"]
+	var used: Array = report["consumed"]
+	var h: float = 50.0 + float(made.size()) * (BAR_H + 10.0)
+	if not used.is_empty():
+		h += 24.0 + float(used.size()) * (float(t.fs(t.FS_SMALL)) + 6.0)
+	return h + 14.0
+
+
+func _cost_height(t: LcnStatsTheme, _report: Dictionary) -> float:
+	return 50.0 + 14.0 * (float(t.fs(t.FS_BODY)) + 9.0) + 14.0
+
+
+func _record_height(t: LcnStatsTheme, report: Dictionary) -> float:
+	var events: Array = report["events"]
+	var row: float = float(t.fs(t.FS_SMALL)) + float(t.fs(t.FS_TINY)) + 12.0
+	return 50.0 + maxf(1.0, float(events.size())) * row + 14.0
+
+
+func activate(index_hit: int) -> void:
+	if index_hit < 0 or index_hit >= hot.size():
+		return
+	var e: Dictionary = hot[index_hit]
+	if StringName(String(e["id"])) == &"night":
+		index = clampi(int(e["arg"]), 0, maxi(0, reports.size() - 1))
+		invalidate()
+		queue_redraw()
 
 
 func _block_head(t: LcnStatsTheme, rect: Rect2, title: String) -> float:

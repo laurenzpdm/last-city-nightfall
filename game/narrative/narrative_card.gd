@@ -221,15 +221,27 @@ func _refresh_ticker() -> void:
 	_ticker.text = "\n".join(out)
 
 
+## Where the card goes is not a taste question, it is the layer table's rule in
+## two dimensions. [P17] owns the four corners: heat grid and attention upper
+## left, the clock upper centre, the people and the wave upper right, stores
+## along the bottom. The first version of this card sat on the right and put
+## itself straight through the NEXT WAVE panel — the same class of mistake as a
+## world badge over the clock, and just as visible in a screenshot.
+##
+## So: horizontally centred, below the clock, above the stores. The ticker goes
+## down the left flank between [P17]'s attention stack and [P19]'s legend.
 func _layout() -> void:
 	var size: Vector2 = _root.size
 	if size.x <= 0.0:
 		size = Vector2(get_viewport().get_visible_rect().size)
-	_panel.custom_minimum_size = Vector2(CARD_W + PAD * 2.0, 0.0)
-	_panel.position = Vector2(size.x - CARD_W - PAD * 2.0 - MARGIN,
-		maxf(MARGIN, (size.y - _panel.size.y) * 0.4))
-	_ticker.position = Vector2(MARGIN, size.y - MARGIN - 72.0)
-	_ticker.size = Vector2(size.x * 0.5, 72.0)
+	var width: float = CARD_W + PAD * 2.0
+	_panel.custom_minimum_size = Vector2(width, 0.0)
+	var top: float = size.y * 0.22
+	var bottom_limit: float = size.y - MARGIN * 3.0 - _panel.size.y
+	_panel.position = Vector2(roundf((size.x - width) * 0.5),
+		roundf(clampf(top, MARGIN, maxf(MARGIN, bottom_limit))))
+	_ticker.position = Vector2(MARGIN, size.y * 0.55)
+	_ticker.size = Vector2(size.x * 0.36, 90.0)
 
 
 # =========================================================================

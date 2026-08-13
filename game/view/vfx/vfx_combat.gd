@@ -78,6 +78,9 @@ var _py: PackedFloat32Array = PackedFloat32Array()
 var _pvx: PackedFloat32Array = PackedFloat32Array()
 var _pvy: PackedFloat32Array = PackedFloat32Array()
 var _pown: PackedInt32Array = PackedInt32Array()
+## Scratch buffers for the batched line pass.
+var _line_pts: PackedVector2Array = PackedVector2Array()
+var _line_cols: PackedColorArray = PackedColorArray()
 
 
 func setup(add_buffer: LcnVfxBurst, mix_buffer: LcnVfxBurst) -> void:
@@ -376,24 +379,43 @@ func _visible_at(p: Vector2, pad: float) -> bool:
 
 # --------------------------------------------------------------------- draw --
 
+## One pass, three batches: cones as polygons (there are never many), every
+## tracer, muzzle line and shell trail as ONE multiline, and the muzzle blooms
+## as textured quads out of one sheet. Drawn as individual antialiased lines
+## this cost a draw call per round in the air.
 func _draw() -> void:
+	_line_pts.clear()
+	_line_cols.clear()
 	for b: Beam in _beams:
 		var f: float = clampf(b.life / b.life0, 0.0, 1.0)
 		match b.kind:
 			2:
 				_draw_cone(b, f)
 			1:
-				var c: Color = Color(b.col.r, b.col.g, b.col.b, b.col.a * f)
-				draw_line(b.a, b.b, c, b.width * f, true)
-				draw_texture_rect(LcnVfxArt.texture("dot"),
-					Rect2(b.a - Vector2(14, 14) * f, Vector2(28, 28) * f), false,
-					Color(b.col.r, b.col.g, b.col.b, 0.9 * f))
+				_push_line(b.a, b.b, Color(b.col.r, b.col.g, b.col.b, b.col.a * f))
 			_:
 				# A tracer thins and dims rather than just fading, so a burst of
 				# them reads as separate rounds instead of one smear.
-				var c2: Color = Color(b.col.r, b.col.g, b.col.b, b.col.a * f * f)
-				draw_line(b.a, b.b, c2, maxf(0.8, b.width * (0.4 + f * 0.6)), true)
-	_draw_shells()
+				_push_line(b.a, b.b, Color(b.col.r, b.col.g, b.col.b, b.col.a * f * f))
+	_gather_shells()
+	if not _line_pts.is_empty():
+		draw_multiline_colors(_line_pts, _line_cols, 2.0)
+	# The blooms go last so they sit on top of their own tracers.
+	var dot: ImageTexture = LcnVfxArt.texture("dot")
+	for b2: Beam in _beams:
+		if b2.kind != 1:
+			continue
+		var f2: float = clampf(b2.life / b2.life0, 0.0, 1.0)
+		draw_texture_rect(dot, Rect2(b2.a - Vector2(15, 15) * f2, Vector2(30, 30) * f2),
+			false, Color(b2.col.r, b2.col.g, b2.col.b, 0.9 * f2))
+
+
+## draw_multiline_colors takes one colour per SEGMENT, so two points go in and
+## one colour comes with them.
+func _push_line(a: Vector2, b: Vector2, col: Color) -> void:
+	_line_pts.append(a)
+	_line_pts.append(b)
+	_line_cols.append(col)
 
 
 func _draw_cone(b: Beam, f: float) -> void:
@@ -415,8 +437,9 @@ func _draw_cone(b: Beam, f: float) -> void:
 
 
 ## Live shells, straight out of [ProjectilePool]. Travel time, lead error and
-## all — what is drawn here IS the round the simulation is flying.
-func _draw_shells() -> void:
+## all — what is drawn here IS the round the simulation is flying, at the
+## position the simulation has it at this instant.
+func _gather_shells() -> void:
 	var n: int = _shell_n
 	if n <= 0:
 		return
@@ -428,12 +451,11 @@ func _draw_shells() -> void:
 			continue
 		var w: Dictionary = _weapon.get(_sown[i], {})
 		var col: Color = w.get("col", Color(1.0, 0.72, 0.36))
-		var width: float = float(w.get("width", 1.6))
 		var v := Vector2(_svx[i], _svy[i])
 		var dir: Vector2 = v.normalized() if v.length_squared() > 0.01 else Vector2.RIGHT
 		var tail: Vector2 = p - dir * clampf(v.length() * 0.045, 6.0, 30.0)
-		draw_line(tail, p, Color(col.r, col.g, col.b, 0.10), maxf(1.0, width * 1.6), true)
-		draw_line(p - dir * 7.0, p, col, maxf(1.0, width), true)
+		_push_line(tail, p, Color(col.r, col.g, col.b, 0.16))
+		_push_line(p - dir * 7.0, p, col)
 		_shells_drawn += 1
 
 

@@ -244,7 +244,7 @@ func _process(delta: float) -> void:
 	var ui_dt: float = LcnTiming.advance_ui(delta / maxf(Engine.time_scale, 0.05))
 	_advance_hit_stop(ui_dt)
 
-	var view: Rect2 = _renderer.view_rect() if _renderer != null else Rect2()
+	var view: Rect2 = _visible_rect()
 	var grade: Dictionary = _renderer.current_grade() if _renderer != null else {}
 	var zoom: float = _camera.zoom_level() if _camera != null else 1.0
 
@@ -268,6 +268,22 @@ func _process(delta: float) -> void:
 	_cost_us_avg = _cost_us_avg * 0.92 + us * 0.08 if _frames > 1 else us
 	if _frames % 240 == 0:
 		_log_cost()
+
+
+## What is on screen right now, in world pixels. [P16]'s camera is asked first
+## because it is the authority and it is computed THIS frame; [P13]'s renderer is
+## the fallback and its rect is one frame old, since this layer deliberately
+## ticks before it. An empty rect means "cull nothing" downstream rather than
+## "cull everything", which is the difference between a city that breathes and a
+## layer that silently draws nothing.
+func _visible_rect() -> Rect2:
+	if _camera != null and _camera.has_method("visible_world_rect"):
+		var r: Rect2 = _camera.visible_world_rect()
+		if r.size.x > 1.0:
+			return r
+	if _renderer != null:
+		return _renderer.view_rect()
+	return Rect2()
 
 
 ## Sim seconds elapsed since the last frame, which is what the idle layer breathes

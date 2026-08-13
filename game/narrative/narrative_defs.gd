@@ -150,7 +150,7 @@ const FACTS: Dictionary = {
 	&"phase": ["Time of day", "", 0],
 	&"is_night": ["Night", "", 0],
 	&"is_deep_night": ["Deep night", "", 0],
-	&"temperature": ["Outside temperature", " C", 1],
+	&"temperature": ["Outside temperature", "°C", 1],
 	&"severity": ["How bad the winter has got", "", 2],
 	&"era": ["Winter era", "", 0],
 	&"storm_active": ["A Great Frost is blowing", "", 0],
@@ -176,7 +176,7 @@ const FACTS: Dictionary = {
 	&"avg_morale": ["Morale", "", 1],
 	&"avg_health": ["Health", "", 1],
 	&"hunger_share": ["Share of the city going hungry", "", 2],
-	&"food_days": ["Days of food left", " d", 1],
+	&"food_days": ["Food left", " days", 1],
 	&"unrest": ["Share of the city ready to make trouble", "", 2],
 
 	# --- the meters ---------------------------------------------------------

@@ -32,8 +32,12 @@ func screen_subtitle() -> String:
 func _build() -> void:
 	make_plot()
 	plot.title = "Hope against discontent"
+	# [P06] runs both meters 0..100 (SocietyDefs.METER_MAX). The axis is pinned
+	# to that range rather than fitted to the data, so day four is comparable
+	# with day one by eye — a chart that rescales itself is a chart you cannot
+	# read two of.
 	plot.forced_min = 0.0
-	plot.forced_max = 1.0
+	plot.forced_max = 100.0
 	plot.zero_baseline = true
 	plot.empty_note = "Nobody has had an opinion yet."
 

@@ -97,12 +97,16 @@ func _read_stats(t: LcnStatTrack) -> Array[Dictionary]:
 	var supply: LcnStatSeries = t.series(&"heat_supply")
 	var demand: LcnStatSeries = t.series(&"heat_demand")
 
-	var short_samples: int = 0
+	# INTERVALS, not samples. n samples span n-1 intervals, so counting samples
+	# and multiplying by the stride reported "short for 7 min 40 s of 7 min 20 s
+	# charted" — a number a player would rightly stop trusting the screen over.
+	var short_intervals: int = 0
 	if deficit != null:
-		for i: int in n:
+		for i: int in range(1, n):
 			if deficit.at(i) > 0.01:
-				short_samples += 1
-	var short_seconds: float = float(short_samples) * t.sample_seconds()
+				short_intervals += 1
+	var window_s: float = t.window_seconds()
+	var short_seconds: float = minf(float(short_intervals) * t.sample_seconds(), window_s)
 	var margin: float = 0.0
 	if supply != null and demand != null:
 		margin = supply.last() - demand.last()
@@ -116,12 +120,12 @@ func _read_stats(t: LcnStatTrack) -> Array[Dictionary]:
 		"heat/s at the worst moment",
 		_theme().BAD if deficit != null and deficit.max_value() > 0.01 else _theme().TEXT_DIM))
 	out.append(_stat("TIME SHORT", LcnStatsTheme.duration(short_seconds),
-		"of %s charted" % LcnStatsTheme.duration(t.window_seconds()),
+		"of %s charted" % LcnStatsTheme.duration(window_s),
 		_theme().WARN if short_seconds > 1.0 else _theme().TEXT_DIM))
-	out.append(_stat("BUFFER LOW",
-		LcnStatsTheme.compact(buffer.min_value() if buffer != null else 0.0),
+	var low: float = _buffer_low(buffer, n)
+	out.append(_stat("BUFFER LOW", LcnStatsTheme.compact(low),
 		"lowest the accumulators fell",
-		_theme().WARN if buffer != null and buffer.min_value() <= 0.01 else _theme().TEXT_DIM))
+		_theme().WARN if low <= 0.01 else _theme().TEXT_DIM))
 	out.append(_stat("FROZE",
 		"%d" % int(frozen.max_value() if frozen != null else 0.0),
 		"buildings at once",
@@ -134,6 +138,26 @@ func _read_stats(t: LcnStatTrack) -> Array[Dictionary]:
 		LcnStatsTheme.compact(pipe), LcnStatsTheme.compact(burn)],
 		"pipes / turrets, heat per second", _theme().TEXT_DIM))
 	return out
+
+
+## The lowest the buffer FELL, which is not the same as its minimum. Every run
+## starts with empty accumulators, so a plain minimum reports zero forever and
+## tells a player they ran dry on a night they never dipped below eighty per
+## cent. The search starts at the first sample the buffer was actually charged.
+func _buffer_low(buffer: LcnStatSeries, n: int) -> float:
+	if buffer == null or n <= 0:
+		return 0.0
+	var from: int = -1
+	for i: int in n:
+		if buffer.at(i) > 0.01:
+			from = i
+			break
+	if from < 0:
+		return 0.0
+	var low: float = buffer.at(from)
+	for j: int in range(from, n):
+		low = minf(low, buffer.at(j))
+	return low
 
 
 func _stat(label: String, value: String, note: String, colour: Color) -> Dictionary:

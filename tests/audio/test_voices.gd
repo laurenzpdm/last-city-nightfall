@@ -8,6 +8,7 @@ extends TestCase
 
 var _pool: LcnVoicePool = null
 var _bank: LcnSoundBank = null
+var _mixer: LcnAudioMixer = null
 
 
 func suite_name() -> String:
@@ -15,12 +16,23 @@ func suite_name() -> String:
 
 
 func before_all() -> void:
+	# The desk first: a cue naming a bus that does not exist would be routed to
+	# Master, and the test proving cues land on the right bus would prove the
+	# opposite of what it claims.
+	_mixer = LcnAudioMixer.new()
+	_mixer.install()
 	_bank = LcnSoundBank.new()
 	_bank.queue_all()
 	var guard: int = 0
 	while not _bank.finished() and guard < 20000:
 		_bank.pump(20000)
 		guard += 1
+
+
+func after_all() -> void:
+	if _mixer != null:
+		_mixer.uninstall()
+		_mixer = null
 
 
 func setup() -> void:
@@ -165,9 +177,12 @@ func test_the_pool_never_grows_past_its_cap() -> void:
 
 func test_a_critical_cue_can_take_a_voice_from_furniture() -> void:
 	_pool.world_cap = 3
+	# Spread out beyond the coalescing radius, or these three are one voice and
+	# the pool never fills up at all.
 	for i: int in 3:
 		_pool.begin_frame()
-		_pool.play(&"enemy_hit", Vector2(i * 60, 0))       # priority AMBIENT
+		_pool.play(&"enemy_hit", Vector2(i * 900, 0))      # priority AMBIENT
+	assert_eq(_pool.started, 3, "three separate hits, three voices")
 	_pool.begin_frame()
 	var breach: LcnVoicePool.Voice = _pool.play(&"breach", Vector2(500, 500))
 	assert_not_null(breach, "a breach is always heard")

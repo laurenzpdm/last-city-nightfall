@@ -35,6 +35,13 @@ fi
 mkdir -p artifacts && : > artifacts/.gdignore
 fail=0
 
+# Engine errors are graded ONCE, by tools/scan_errors.py (tools/check.sh runs it
+# over every stage log, and tools/gate.sh over every run it makes). Without this
+# opt-out run_sim.sh would also fail here, and a perf stage that goes red because
+# an unrelated script did not compile reports 'PERF OK' and 'FAILED' in the same
+# breath — one stage, one question.
+export LCN_NO_ERROR_GATE=1
+
 for scenario in "${SCENARIOS[@]}"; do
   if [ ! -f "tests/scenarios/${scenario}.json" ]; then
     echo "determinism: no scenario tests/scenarios/${scenario}.json"

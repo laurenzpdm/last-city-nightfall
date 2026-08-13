@@ -52,6 +52,9 @@ var _damaged: int = 0
 var _rng := RandomNumberGenerator.new()
 ## Freeze announcements that arrived before the sweep had seen the structure.
 var _pending_frozen: Dictionary[int, bool] = {}
+## Scratch buffers for the batched frost-arm pass.
+var _arm_pts: PackedVector2Array = PackedVector2Array()
+var _arm_cols: PackedColorArray = PackedColorArray()
 
 
 func setup(model: LcnWorldModel, add_buffer: LcnVfxBurst, mix_buffer: LcnVfxBurst) -> void:
@@ -228,6 +231,8 @@ func _draw() -> void:
 	var dot: ImageTexture = LcnVfxArt.texture("dot")
 	var ids: Array = _frost.keys()
 	ids.sort()
+	_arm_pts.clear()
+	_arm_cols.clear()
 	for id: int in ids:
 		var e: Dictionary = _frost[id]
 		var g: float = float(e.get("growth", 0.0))
@@ -237,21 +242,28 @@ func _draw() -> void:
 		if not wide and not cull.has_point(pos):
 			continue
 		var size: float = float(e.get("size", 24.0))
-		# Rime grows from the edges inward: a ring of crystals first, a pale
-		# sheet over the whole footprint only once it is properly frozen.
+		# Rime grows from the edges inward: a pale sheet over the footprint, and
+		# crystal arms reaching further out the longer the structure has been
+		# left cold.
 		var spread: float = size * (0.55 + 0.45 * g)
 		draw_texture_rect(dot, Rect2(pos - Vector2(spread, spread) * 0.9,
 			Vector2(spread, spread) * 1.8), false,
 			Color(LcnVfxTuning.ICE.r, LcnVfxTuning.ICE.g, LcnVfxTuning.ICE.b, 0.20 * g))
 		var arms: int = 8
 		var h: int = (id * 2654435761) & 0xFFFF
+		var col := Color(LcnVfxTuning.ICE_PALE.r, LcnVfxTuning.ICE_PALE.g,
+			LcnVfxTuning.ICE_PALE.b, 0.42 * g)
 		for i: int in arms:
 			var a: float = TAU * float(i) / float(arms) + float(h % 71) * 0.02
 			var reach: float = size * (0.35 + 0.75 * g) * (0.7 + 0.3 * float((h >> i) & 1))
-			var tip: Vector2 = pos + Vector2(cos(a), sin(a) * 0.65) * reach
-			draw_line(pos, tip,
-				Color(LcnVfxTuning.ICE_PALE.r, LcnVfxTuning.ICE_PALE.g,
-					LcnVfxTuning.ICE_PALE.b, 0.42 * g), 1.0 + 1.6 * g, true)
+			_arm_pts.append(pos)
+			_arm_pts.append(pos + Vector2(cos(a), sin(a) * 0.65) * reach)
+			# One colour per SEGMENT, not per point.
+			_arm_cols.append(col)
+	# Every crystal arm on the map in one command. Sixty-four freezing structures
+	# is 512 line segments, and 512 draw calls would cost more than the city.
+	if not _arm_pts.is_empty():
+		draw_multiline_colors(_arm_pts, _arm_cols, 1.8)
 
 
 func frost_count() -> int:

@@ -46,6 +46,10 @@ var _t: float = 0.0
 var _draw_us: int = 0
 var _model: LcnWorldModel = null
 var _view: Rect2 = Rect2()
+## Diagnostics for the rebuild, so "0 anchors" is answerable without a debugger:
+## how many structures the model offered, and how many survived the view cull.
+var _seen: int = 0
+var _in_view: int = 0
 
 
 func _ready() -> void:
@@ -85,7 +89,14 @@ func refresh(dt: float, ui_dt: float, view: Rect2, day_grade: Dictionary,
 
 
 func stats() -> Dictionary:
-	return {"anchors": _anchors.size(), "draw_us": _draw_us}
+	return {
+		"anchors": _anchors.size(),
+		"seen": _seen,
+		"in_view": _in_view,
+		"zoom": snappedf(zoom, 0.001),
+		"view": "%.0f,%.0f %.0fx%.0f" % [_view.position.x, _view.position.y, _view.size.x, _view.size.y],
+		"draw_us": _draw_us,
+	}
 
 
 ## Walks the renderer's cached building list once, keeps what is on screen and
@@ -93,16 +104,25 @@ func stats() -> Dictionary:
 ## whole feel layer and it happens twice a second.
 func _rebuild() -> void:
 	_anchors.clear()
+	_seen = 0
+	_in_view = 0
 	if _model == null or zoom < MIN_ZOOM:
 		return
+	# An empty view rect means the renderer has not computed one yet (this layer
+	# ticks BEFORE it, by design, so the cursor is answered in the same frame it
+	# moved). Culling against a zero rect would silently drop the whole city, so
+	# on those frames nothing is culled at all.
 	var cull: Rect2 = _view.grow(96.0)
+	var cull_on: bool = _view.size.x > 1.0 and _view.size.y > 1.0
 	var pipes: int = 0
 	for b: Dictionary in _model.buildings():
 		if _anchors.size() >= MAX_ANCHORS:
 			break
+		_seen += 1
 		var centre: Vector2 = b["centre"]
-		if not cull.has_point(centre):
+		if cull_on and not cull.has_point(centre):
 			continue
+		_in_view += 1
 		var state: int = int(b.get("state", LcnWorldModel.BUILD_OPERATIONAL))
 		if state != LcnWorldModel.BUILD_OPERATIONAL:
 			continue
