@@ -936,16 +936,19 @@ func describe_citizen(id: int) -> Dictionary:
 	return {}
 
 
-## The id under a map cell, asked of whoever owns entities there. A citizen
-## standing on a tile wins over the building underneath: the player clicked the
-## person they could see moving.
+## The BUILDING id under a map cell, or -1. Buildings and citizens number
+## themselves independently, so the two lookups stay separate: an id on its own
+## is meaningless without knowing which system minted it.
 func entity_at_cell(cell: Vector2i) -> int:
-	if _citizens != null and _citizens.has_method("citizen_at_cell"):
-		var who: int = int(_citizens.call("citizen_at_cell", cell))
-		if who >= 0:
-			return who
 	if _build != null and _build.has_method("entity_at_cell"):
 		return int(_build.call("entity_at_cell", cell))
+	return -1
+
+
+## The CITIZEN id standing on a cell, or -1.
+func citizen_at_cell(cell: Vector2i) -> int:
+	if _citizens != null and _citizens.has_method("citizen_at_cell"):
+		return int(_citizens.call("citizen_at_cell", cell))
 	return -1
 
 

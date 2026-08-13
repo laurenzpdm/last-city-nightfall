@@ -65,6 +65,16 @@ func _run() -> void:
 	await _settle(4)
 	await _shot("04_selection")
 
+	# And a person, which is a different panel of the same shape.
+	var folk: SimSystem = _node("Sim").call("get_system", &"citizens") as SimSystem
+	if folk != null and folk.has_method("citizen_ids"):
+		var ids: PackedInt32Array = folk.call("citizen_ids")
+		if not ids.is_empty():
+			_hud.call("select_citizen", ids[0])
+			await _settle(4)
+			await _shot("05_citizen")
+			_hud.call("select", id)
+
 	# Now break the city: switch the hearth off. Demand stays, supply goes, the
 	# solver starts attributing bottlenecks and buildings begin to freeze.
 	var hearth: int = _first_building_of(&"the_hearth")
@@ -79,12 +89,12 @@ func _run() -> void:
 	threat.set("seconds", 26.0)
 	_advance(2400)
 	await _settle(8)
-	await _shot("05_city_dying")
+	await _shot("06_city_dying")
 
 	# The tooltip, on the number a player would actually interrogate.
 	_hover_first_hot(_hud.get("heat_panel"))
 	await _wait_for_tooltip()
-	await _shot("06_tooltip")
+	await _shot("07_tooltip")
 
 	_hud.call("hide_tooltip")
 	# Accessibility: bigger interface, bigger type, no motion.
@@ -95,7 +105,7 @@ func _run() -> void:
 	settings.call("set_value", "accessibility", "high_contrast_overlays", true)
 	_hud.call("_relayout")
 	await _settle(6)
-	await _shot("07_scaled_up")
+	await _shot("08_scaled_up")
 
 	print("shots written: %d -> %s" % [_shots, OUT_DIR])
 	quit(0)

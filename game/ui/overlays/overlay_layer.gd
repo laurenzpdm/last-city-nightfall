@@ -69,11 +69,10 @@ func visible_rect(r: Rect2) -> bool:
 
 
 # --- batched line drawing --------------------------------------------------
-
-func begin_lines() -> void:
-	_lines.clear()
-	_cols.clear()
-
+#
+# push_lines() accumulates; flush_lines() emits ONE draw_multiline_colors for
+# everything pushed since the last flush. A lens that issues a draw call per
+# ring would spend more time in the driver than in the simulation it explains.
 
 ## Appends every segment already in `pts` with one colour.
 func push_lines(pts: PackedVector2Array, c: Color) -> void:
@@ -87,13 +86,7 @@ func push_lines(pts: PackedVector2Array, c: Color) -> void:
 		_cols[j] = c
 
 
-func push_segment(a: Vector2, b: Vector2, c: Color) -> void:
-	_lines.append(a)
-	_lines.append(b)
-	_cols.append(c)
-
-
-## One draw call for everything pushed since begin_lines().
+## One draw call for everything pushed since the last flush.
 func flush_lines(width: float) -> void:
 	if _lines.size() < 2:
 		return

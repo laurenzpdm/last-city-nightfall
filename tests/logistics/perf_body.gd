@@ -3,7 +3,9 @@ extends RefCounted
 
 func run() -> void:
 	Log.min_level = Log.Level.WARN
-	map(Vector2i(40, 36), Vector2i(60, 46))
+	_throughput()
+	_scale(40, 24)
+	_scale(100, 32)
 
 
 func _fresh() -> LogisticsSystem:
@@ -89,17 +91,3 @@ func _scale(lines: int, length: int) -> void:
 	print(" logistics.step  %.3f ms" % (float(only_us) / float(samples) / 1000.0))
 
 
-
-## Prints which ground in a rectangle will take a foundation. Used once, to lay
-## out tests/logistics/factory_line.json on ground that actually exists.
-func map(from: Vector2i, to: Vector2i) -> void:
-	var logi: LogisticsSystem = _fresh()
-	var build: SimSystem = Sim.get_system(&"build")
-	print("")
-	print("-- buildable ground %s..%s (# = yes) --" % [str(from), str(to)])
-	for y: int in range(from.y, to.y + 1):
-		var row: String = "%3d " % y
-		for x: int in range(from.x, to.x + 1):
-			var ok: bool = bool(build.call("can_place", &"coal_generator", Vector2i(x, y), 0, false)["ok"])
-			row += "#" if ok else "."
-		print(row + "   (logi: %s)" % str(logi != null))

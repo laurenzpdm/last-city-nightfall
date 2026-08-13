@@ -289,8 +289,9 @@ func _check_citizen_selection(panel: Control) -> void:
 	var ids: PackedInt32Array = citizens.call("citizen_ids")
 	if ids.is_empty():
 		return
-	_hud.call("select", ids[0])
+	_hud.call("select_citizen", ids[0])
 	_ok(panel.visible, "selecting a citizen opens the panel")
+	_ok(bool(_hud.get("selected_is_citizen")), "and it knows it is looking at a person")
 	var lines: Array = (_hud.get("selection_panel") as Control).get("_lines")
 	_ok(not lines.is_empty(), "a citizen has rows to show")
 	var labels: PackedStringArray = PackedStringArray()

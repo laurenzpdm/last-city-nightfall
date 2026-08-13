@@ -81,7 +81,6 @@ var _perf_us: int = 0
 var _perf_max_us: int = 0
 var _perf_steps: int = 0
 var _sync_tick: int = -100000
-var _sync_count: int = -1
 var _burner_cache: Array[int] = []
 var _burner_fuel: Dictionary[int, StringName] = {}
 var _burner_seen: Dictionary[int, bool] = {}

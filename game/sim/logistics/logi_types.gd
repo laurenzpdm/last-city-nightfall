@@ -51,10 +51,6 @@ enum Sink {
 ## Roles a logistics definition can take.
 enum Role { NONE, BELT, UNDERGROUND, SPLITTER, INSERTER, CHEST }
 
-const ROLE_NAMES: Array[StringName] = [
-	&"none", &"belt", &"underground", &"splitter", &"inserter", &"chest",
-]
-
 ## Rotation 0..3 as a step on the grid. Clockwise in a y-down world:
 ## 0 east, 1 south, 2 west, 3 north.
 const DIRS: Array[Vector2i] = [

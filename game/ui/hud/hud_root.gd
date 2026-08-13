@@ -53,6 +53,9 @@ var tooltip: LcnHudTooltip = null
 ## Microseconds the last data refresh took. Read by the perf test.
 var last_refresh_us: int = 0
 var selected_id: int = -1
+## Buildings and citizens mint ids independently, so the panel has to remember
+## which of the two it is looking at.
+var selected_is_citizen: bool = false
 
 var _root: Control = null
 var _vignette: Control = null
@@ -155,24 +158,20 @@ func refresh(context: Object = null) -> void:
 	_context = context
 
 
-## Drives the selection panel. -1 clears it.
+## Drives the selection panel with a BUILDING id. -1 clears it.
 func select(id: int) -> void:
-	if id == selected_id:
+	if id == selected_id and not selected_is_citizen:
 		return
 	selected_id = id
+	selected_is_citizen = false
 	if id < 0:
 		selection_panel.clear_entity()
 		_repaint()
 		return
 	var info: Dictionary = probe.describe_building(id)
 	if info.is_empty():
-		var citizen: Dictionary = probe.describe_citizen(id)
-		if citizen.is_empty():
-			selection_panel.clear_entity()
-			selected_id = -1
-			_repaint()
-			return
-		selection_panel.show_entity(_citizen_view(citizen), true)
+		selection_panel.clear_entity()
+		selected_id = -1
 		_repaint()
 		return
 	selection_panel.show_entity(info, false)
@@ -181,8 +180,27 @@ func select(id: int) -> void:
 	_repaint()
 
 
-## Selects whatever stands on a map cell. Returns the id, or -1.
+## Drives the selection panel with a CITIZEN id.
+func select_citizen(id: int) -> void:
+	if id == selected_id and selected_is_citizen:
+		return
+	var citizen: Dictionary = probe.describe_citizen(id)
+	if citizen.is_empty():
+		return
+	selected_id = id
+	selected_is_citizen = true
+	selection_panel.show_entity(_citizen_view(citizen), true)
+	_repaint()
+
+
+## Selects whatever stands on a map cell — the person on top of it before the
+## building under it, because the person is what the player was pointing at.
+## Returns the id, or -1.
 func select_cell(cell: Vector2i) -> int:
+	var who: int = probe.citizen_at_cell(cell)
+	if who >= 0:
+		select_citizen(who)
+		return who
 	var id: int = probe.entity_at_cell(cell)
 	select(id)
 	return id
@@ -281,9 +299,14 @@ func _after_probe() -> void:
 	_urgency_target = maxf(probe.stress(), _alert_pressure())
 	style.urgency = _urgency
 	if selected_id >= 0:
-		var info: Dictionary = probe.describe_building(selected_id)
-		if not info.is_empty():
-			selection_panel.show_entity(info, false)
+		if selected_is_citizen:
+			var who: Dictionary = probe.describe_citizen(selected_id)
+			if not who.is_empty():
+				selection_panel.show_entity(_citizen_view(who), true)
+		else:
+			var info: Dictionary = probe.describe_building(selected_id)
+			if not info.is_empty():
+				selection_panel.show_entity(info, false)
 	_repaint()
 
 
@@ -560,6 +583,24 @@ func _on_camera_selection(ids: PackedInt32Array, cell_rect: Rect2i) -> void:
 ## needs on a 0..100 scale plus its own written `condition` and `doing` phrases —
 ## those phrases are used as written, because the part that models a person is
 ## better placed to describe them than the part that draws rectangles.
+## Cold, hungry, exhausted, ill or hurt — [P05]'s own thresholds, on its own
+## 0..100 needs scale.
+func _citizen_in_trouble(info: Dictionary) -> bool:
+	return _need(info, "warmth", 100.0) < 40.0 \
+		or _need(info, "hunger", 0.0) > 60.0 \
+		or _need(info, "fatigue", 0.0) > 80.0 \
+		or _need(info, "illness", 0.0) > 0.5 \
+		or _need(info, "injury", 0.0) > 0.5 \
+		or _need(info, "health", 100.0) < 60.0
+
+
+func _need(info: Dictionary, key: String, fallback: float) -> float:
+	if not info.has(key):
+		return fallback
+	var v: float = float(info[key])
+	return v * 100.0 if v <= 1.0001 and v > 0.0 else v
+
+
 func _citizen_view(info: Dictionary) -> Dictionary:
 	var lines: Array[Dictionary] = []
 	var problems: Array[String] = []
@@ -599,9 +640,20 @@ func _citizen_view(info: Dictionary) -> Dictionary:
 		})
 	if not bool(info.get("housed", true)):
 		problems.append("They have nowhere to sleep.")
+	# [P05] writes one phrase for how this person is doing. It is only a PROBLEM
+	# when something is actually wrong with them — "in good spirits" under a red
+	# exclamation mark is how an interface teaches a player to stop reading it.
 	var condition: String = String(info.get("condition", ""))
 	if condition != "":
-		problems.append(LcnHudFormat.titleize(condition) + ".")
+		var text: String = LcnHudFormat.titleize(condition) + "."
+		if _citizen_in_trouble(info):
+			problems.append(text)
+		else:
+			lines.append({
+				"label": "Doing", "value": LcnHudFormat.titleize(condition),
+				"good": 1.0,
+				"tip": "How this citizen is holding up, in their own words.",
+			})
 	for key2: String in ["problem", "why", "complaint"]:
 		if info.has(key2):
 			problems.append(String(info[key2]))

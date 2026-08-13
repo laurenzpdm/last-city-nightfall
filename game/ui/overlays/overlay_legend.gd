@@ -142,12 +142,15 @@ func _draw_panel() -> void:
 		LcnOverlayPalette.with_a(LcnOverlayPalette.INK_DIM, 0.7))
 
 
+## Red is reserved for something the player is actually LOSING. A binding
+## constraint that thermal mass is still covering is amber: crying wolf on the
+## headline is how a player learns to stop reading it.
 func _accent() -> Color:
 	if snap == null:
 		return pal.good()
-	if not snap.bottlenecks.is_empty() or snap.frozen_count() > 0:
+	if snap.frozen_count() > 0 or float(snap.totals.get("deficit", 0.0)) > 0.5:
 		return pal.bad()
-	if snap.starved_count() > 0:
+	if snap.starved_count() > 0 or not snap.bottlenecks.is_empty():
 		return pal.warn()
 	return pal.good()
 
