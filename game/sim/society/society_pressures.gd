@@ -113,7 +113,7 @@ func _cold(reading: SocietyReading, pop: SocietyPopulace, cold_share: float) -> 
 		var lit: String = "nothing is lit" if reading.hearths_lit == 0 \
 			else "%s heat sources are lit" % SocietyDefs.spell(reading.hearths_lit)
 		var text: String = "%s are under canvas at %.0f degrees, and %s." % [
-			SocietyDefs.people(int(round(pop.tented))).capitalize(), pop.camp_temp_c, lit]
+			SocietyDefs.sentence(SocietyDefs.people(int(round(pop.tented)))), pop.camp_temp_c, lit]
 		var share: float = clampf(pop.tented / maxf(pop.population, 1.0), 0.0, 1.0)
 		_push(DISCONTENT, &"tents", "Sleeping under canvas", text, 3.4 * share * maxf(cold_share, 0.25))
 		_push(HOPE, &"tents", "Sleeping under canvas", text, -1.6 * share * maxf(cold_share, 0.25))
@@ -126,7 +126,7 @@ func _cold(reading: SocietyReading, pop: SocietyPopulace, cold_share: float) -> 
 	if cold_share > 0.02:
 		var n: int = reading.homes_cold
 		var text: String = "%s of %s homes are below twelve degrees. The coldest is at %.0f." % [
-			SocietyDefs.spell(n).capitalize(), SocietyDefs.spell(reading.homes_total),
+			SocietyDefs.sentence(SocietyDefs.spell(n)), SocietyDefs.spell(reading.homes_total),
 			reading.coldest_home_c]
 		_push(DISCONTENT, &"cold_homes", "Cold houses", text, 4.6 * cold_share)
 		_push(HOPE, &"cold_homes", "Cold houses", text, -2.2 * cold_share)
@@ -136,7 +136,7 @@ func _cold(reading: SocietyReading, pop: SocietyPopulace, cold_share: float) -> 
 			1.9 * reading.warm_share)
 	if reading.homes_frozen > 0:
 		_push(DISCONTENT, &"frozen_homes", "Frozen houses",
-			"%s houses have iced over completely. Nobody is going back into those." % SocietyDefs.spell(reading.homes_frozen).capitalize(),
+			"%s houses have iced over completely. Nobody is going back into those." % SocietyDefs.sentence(SocietyDefs.spell(reading.homes_frozen)),
 			2.2 * float(reading.homes_frozen))
 
 
@@ -148,7 +148,7 @@ func _shelter(reading: SocietyReading, pop: SocietyPopulace, homeless_share: flo
 		return
 	var n: int = int(round(pop.homeless))
 	var text: String = "%s have no bunk. They are sleeping in the lee of the wall at %.0f degrees." % [
-		SocietyDefs.people(n).capitalize(), reading.outdoor_c]
+		SocietyDefs.sentence(SocietyDefs.people(n)), reading.outdoor_c]
 	_push(DISCONTENT, &"homeless", "Nowhere to sleep", text, 7.0 * homeless_share)
 	_push(HOPE, &"homeless", "Nowhere to sleep", text, -3.0 * homeless_share)
 
@@ -158,8 +158,8 @@ func _food(reading: SocietyReading, pop: SocietyPopulace) -> void:
 	if h > 0.03:
 		var short_people: int = int(round(pop.population * h))
 		var text: String = "%s go without today. %s kitchens are running." % [
-			SocietyDefs.people(short_people).capitalize(),
-			SocietyDefs.spell(int(round(reading.kitchens_running))).capitalize()]
+			SocietyDefs.sentence(SocietyDefs.people(short_people)),
+			SocietyDefs.sentence(SocietyDefs.spell(int(round(reading.kitchens_running))))]
 		_push(DISCONTENT, &"hunger", "Short rations", text, 6.4 * h)
 		_push(HOPE, &"hunger", "Short rations", text, -2.6 * h)
 	elif reading.kitchens > 0:
@@ -169,7 +169,7 @@ func _food(reading: SocietyReading, pop: SocietyPopulace) -> void:
 
 func _health(pop: SocietyPopulace, sick_share: float, book: LawBook) -> void:
 	if sick_share > 0.02:
-		var text: String = "%s are ill. It is moving room to room." % SocietyDefs.people(int(round(pop.sick))).capitalize()
+		var text: String = "%s are ill. It is moving room to room." % SocietyDefs.sentence(SocietyDefs.people(int(round(pop.sick))))
 		_push(DISCONTENT, &"sickness", "The fever", text, 4.0 * sick_share)
 		_push(HOPE, &"sickness", "The fever", text, -1.8 * sick_share)
 	var care: float = book.policy_value(&"medical_care")
@@ -202,7 +202,7 @@ func _labour(book: LawBook, work_hours: float, strain: float) -> void:
 func _dead(pop: SocietyPopulace, book: LawBook, corpse_share: float) -> void:
 	if pop.corpses >= 1.0 and book.policy_value(&"corpse_capacity") <= 0.0:
 		var text: String = "%s lie under a tarp by the east wall. The tarp is not long enough." % \
-			SocietyDefs.people(int(round(pop.corpses))).capitalize()
+			SocietyDefs.sentence(SocietyDefs.people(int(round(pop.corpses))))
 		_push(DISCONTENT, &"unburied", "The dead are still here", text, 4.4 * corpse_share)
 		_push(HOPE, &"unburied", "The dead are still here", text, -2.0 * corpse_share)
 	elif book.policy_flag(SocietyDefs.FLAG_NAMED_GRAVES) and pop.deaths_total >= 1.0:
@@ -224,7 +224,7 @@ func _infrastructure(reading: SocietyReading) -> void:
 	if reading.frozen_buildings > 0:
 		_push(HOPE, &"frozen_buildings", "Buildings are icing over",
 			"%s buildings have gone below the line and stopped." % \
-				SocietyDefs.spell(reading.frozen_buildings).capitalize(),
+				SocietyDefs.sentence(SocietyDefs.spell(reading.frozen_buildings)),
 			-0.55 * float(reading.frozen_buildings))
 
 
@@ -309,21 +309,24 @@ func _hope_floor(hope: float, discontent: float) -> void:
 func _grievances(reading: SocietyReading, pop: SocietyPopulace, book: LawBook,
 		cold_share: float, homeless_share: float, sick_share: float,
 		strain: float, corpse_share: float) -> void:
-	_grievance(&"cold", cold_share,
-		"%s of %s homes are below twelve degrees." % [
-			SocietyDefs.spell(reading.homes_cold).capitalize(),
-			SocietyDefs.spell(reading.homes_total)])
+	var cold_detail: String = "The camp is at %.0f degrees and there is not a house in it." \
+		% pop.camp_temp_c
+	if reading.homes_total > 0:
+		cold_detail = "%s of %s homes are below twelve degrees." % [
+			SocietyDefs.sentence(SocietyDefs.spell(reading.homes_cold)),
+			SocietyDefs.spell(reading.homes_total)]
+	_grievance(&"cold", cold_share, cold_detail)
 	_grievance(&"hunger", pop.hunger_share,
-		"%s go short today." % SocietyDefs.people(int(round(pop.population * pop.hunger_share))).capitalize())
+		"%s go short today." % SocietyDefs.sentence(SocietyDefs.people(int(round(pop.population * pop.hunger_share)))))
 	_grievance(&"overwork", strain,
 		"The shift is %.0f hours long." % book.policy_value(&"work_hours"))
 	_grievance(&"sickness", clampf(sick_share * 3.5, 0.0, 1.0),
-		"%s are ill." % SocietyDefs.people(int(round(pop.sick))).capitalize())
+		"%s are ill." % SocietyDefs.sentence(SocietyDefs.people(int(round(pop.sick)))))
 	var tent_share: float = clampf(pop.tented / maxf(pop.population, 1.0), 0.0, 1.0)
 	_grievance(&"homeless", clampf(maxf(homeless_share * 2.5, tent_share * 0.55), 0.0, 1.0),
 		"%s have no bunk. %s are under canvas." % [
-			SocietyDefs.people(int(round(pop.homeless))).capitalize(),
-			SocietyDefs.people(int(round(pop.tented))).capitalize()])
+			SocietyDefs.sentence(SocietyDefs.people(int(round(pop.homeless)))),
+			SocietyDefs.sentence(SocietyDefs.people(int(round(pop.tented))))])
 
 	var child: float = 0.9 if book.policy_flag(SocietyDefs.FLAG_CHILD_LABOUR) else 0.0
 	if book.policy_value(&"child_risk") > 0.0 and child < 0.5:
@@ -332,7 +335,7 @@ func _grievances(reading: SocietyReading, pop: SocietyPopulace, book: LawBook,
 
 	var dead: float = corpse_share if book.policy_value(&"corpse_capacity") <= 0.0 else corpse_share * 0.2
 	_grievance(&"dead_unburied", dead,
-		"%s are stacked by the east wall." % SocietyDefs.people(int(round(pop.corpses))).capitalize())
+		"%s are stacked by the east wall." % SocietyDefs.sentence(SocietyDefs.people(int(round(pop.corpses)))))
 
 	var fear: float = clampf(book.policy_value(&"discipline") * 0.55, 0.0, 1.0)
 	if book.policy_flag(SocietyDefs.FLAG_MARTIAL_LAW):

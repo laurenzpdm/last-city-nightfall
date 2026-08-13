@@ -38,7 +38,7 @@ const DISCONTENT_SETTLE_PER_HOUR: float = -0.55
 
 
 # =========================================================================
-#  the escalation ladder — both losses are telegraphed, never sudden
+#  the escalation ladder: both losses are telegraphed, never sudden
 # =========================================================================
 
 ## Discontent rungs. Crossing one raises a worded warning; the top one starts a
@@ -64,7 +64,7 @@ const REASON_DESPAIR: String = "despair"
 
 
 # =========================================================================
-#  Bus keys — narrative_event ids and alert keys
+#  Bus keys: narrative_event ids and alert keys
 # =========================================================================
 
 const EV_LAW_PROPOSED: StringName = &"society_law_proposed"
@@ -316,7 +316,7 @@ const FLAG_NEW_FAITH: StringName = &"new_faith"
 
 
 # =========================================================================
-#  the human model — only authoritative while [P05] citizens is absent
+#  the human model: only authoritative while [P05] citizens is absent
 # =========================================================================
 
 ## Degrees at which a room stops costing people their health.
@@ -389,7 +389,8 @@ static func branch_title(id: StringName) -> String:
 static func spell(n: int) -> String:
 	const WORDS: Array[String] = [
 		"no", "one", "two", "three", "four", "five", "six", "seven", "eight",
-		"nine", "ten", "eleven", "twelve",
+		"nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+		"sixteen", "seventeen", "eighteen", "nineteen", "twenty",
 	]
 	if n >= 0 and n < WORDS.size():
 		return WORDS[n]
@@ -399,3 +400,11 @@ static func spell(n: int) -> String:
 ## "one person" / "three people".
 static func people(n: int) -> String:
 	return "%s %s" % [spell(n), "person" if n == 1 else "people"]
+
+
+## Start of a sentence. String.capitalize() title cases every word, which turns
+## "one person" into "One Person" and makes the whole part read like a form.
+static func sentence(s: String) -> String:
+	if s.is_empty():
+		return s
+	return s.substr(0, 1).to_upper() + s.substr(1)

@@ -189,6 +189,26 @@ func test_every_weapon_costs_heat_to_fire() -> void:
 			"'%s' burns heat — a free turret breaks the whole fusion" % w.id)
 
 
+func test_the_wall_can_be_armed_with_and_without_a_supply_line() -> void:
+	# The heat/ammunition split is a real trade, so both halves must exist: a
+	# barrel that needs nothing but warmth (so a city with no factory can still
+	# defend itself) and a barrel that trades heat for shells (so the factory is
+	# worth building).
+	var heat_only: WeaponDef = null
+	var shell_fed: WeaponDef = null
+	for w: WeaponDef in weapons:
+		if String(w.ammo_item) == "" and heat_only == null:
+			heat_only = w
+		elif String(w.ammo_item) != "" and shell_fed == null:
+			shell_fed = w
+	assert_not_null(heat_only, "at least one barrel runs on heat alone")
+	assert_not_null(shell_fed, "at least one barrel runs on a supply line")
+	if heat_only == null or shell_fed == null:
+		return
+	assert_gt(heat_only.heat_per_second(), shell_fed.heat_per_second(),
+		"and the one that needs no shells pays for it in warmth")
+
+
 func test_the_default_turret_barrel_exists() -> void:
 	# turret_mount.tres is [P11]'s and names its weapon; combat must supply it.
 	var mount: Resource = Registry.get_item("buildings", &"turret_mount")

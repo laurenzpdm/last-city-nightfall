@@ -1,7 +1,18 @@
 extends SceneTree
 ## Scratch probe: how a smelter on a fresh hearth grid warms up over time.
 
-func _initialize() -> void:
+var _done: bool = false
+
+
+func _process(_d: float) -> bool:
+	if _done:
+		return true
+	_done = true
+	_run()
+	return true
+
+
+func _run() -> void:
 	var sim: Node = root.get_node_or_null("/root/Sim")
 	var clock: Node = root.get_node_or_null("/root/SimClock")
 	clock.call("set_manual", true)
@@ -21,7 +32,7 @@ func _initialize() -> void:
 	sim.call("submit_command", {"system": &"build", "op": "place", "kind": "smelter",
 		"cell": [o.x + 17, o.y + 1], "free": true, "instant": true})
 	sim.call("submit_command", {"system": &"build", "op": "place", "kind": "workshop",
-		"cell": [o.x + 17, o.y - 2], "free": true, "instant": true})
+		"cell": [o.x + 5, o.y - 1], "free": true, "instant": true})
 	clock.call("advance", 2)
 	var ms: Dictionary = prod.get("machines")
 	var keys: Array = ms.keys()
@@ -36,4 +47,11 @@ func _initialize() -> void:
 				heat.call("warmth_at", m.get("center_cell")), String(m.get("reason")),
 				m.call("output_total")])
 	print("produced ", prod.call("serialize")["produced"])
+	for nid: int in heat.call("network_ids"):
+		print("net %d %s" % [nid, str(heat.call("network_stats", nid))])
+	for k2: int in keys:
+		var mm: Object = ms[k2]
+		print("%s served %.3f state %d net %d bottleneck %s" % [String(mm.get("kind")),
+			heat.call("served_of", k2), heat.call("state_of", k2),
+			heat.call("network_of", k2), str(heat.call("bottleneck_of", k2))])
 	quit(0)

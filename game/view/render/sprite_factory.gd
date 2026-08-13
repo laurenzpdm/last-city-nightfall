@@ -311,6 +311,25 @@ func _mass(c: LcnVectorCanvas, r: Rect2, h: float, top: Color, ft: Color, fb: Co
 
 	var top_rect := Rect2(r.position.x, r.position.y - h, r.size.x, r.size.y)
 	c.fill_rect_gradient(top_rect, top, top.darkened(0.22))
+	# Panel seams and a ridge beam. A roof is most of what a top-down camera sees
+	# of a building, and an unbroken filled rectangle up there is what made every
+	# industrial block read as the same grey slab at far zoom.
+	var panels: int = clampi(int(top_rect.size.x / 15.0), 2, 7)
+	for i: int in panels - 1:
+		var px: float = lerpf(top_rect.position.x, top_rect.end.x, float(i + 1) / float(panels))
+		c.stroke_polyline(PackedVector2Array([
+			Vector2(px, top_rect.position.y + 1.0), Vector2(px, top_rect.end.y - 1.0),
+		]), Color(SEAM.r, SEAM.g, SEAM.b, 0.40), 1.1)
+		c.stroke_polyline(PackedVector2Array([
+			Vector2(px + 1.0, top_rect.position.y + 1.0), Vector2(px + 1.0, top_rect.end.y - 1.0),
+		]), Color(1.0, 1.0, 1.0, 0.055), 1.0)
+	var ridge_y: float = top_rect.position.y + top_rect.size.y * 0.42
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(top_rect.position.x + 1.0, ridge_y), Vector2(top_rect.end.x - 1.0, ridge_y),
+	]), Color(1.0, 1.0, 1.0, 0.085), 2.0)
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(top_rect.position.x + 1.0, ridge_y + 2.0), Vector2(top_rect.end.x - 1.0, ridge_y + 2.0),
+	]), Color(SEAM.r, SEAM.g, SEAM.b, 0.35), 1.2)
 	c.stroke_polyline(PackedVector2Array([Vector2(r.position.x, roof_y), Vector2(r.end.x, roof_y)]), SEAM, 1.4)
 	if outline:
 		c.stroke_rect(Rect2(r.position.x, r.position.y - h, r.size.x, r.size.y + h), OUTLINE, 1.7)
@@ -336,6 +355,21 @@ func _snow_roof(c: LcnVectorCanvas, r: Rect2, h: float, coverage: float, seed_va
 	var top_rect := Rect2(r.position.x, r.position.y - h, r.size.x, r.size.y)
 	c.fill_rect_gradient(top_rect,
 		LcnPalette.SNOW_MID.darkened(0.30), LcnPalette.SNOW_LIT)
+	# A drift banked against the windward edge. Without it the roof is a flat
+	# gradient and every roofed building in the frame is the same rectangle.
+	var bank: float = top_rect.size.x * 0.30
+	c.fill_polygon(PackedVector2Array([
+		Vector2(top_rect.position.x, top_rect.position.y),
+		Vector2(top_rect.position.x + bank, top_rect.position.y),
+		Vector2(top_rect.position.x + bank * 0.45, top_rect.end.y),
+		Vector2(top_rect.position.x, top_rect.end.y),
+	]), Color(1.0, 1.0, 1.0, 0.34))
+	c.fill_polygon(PackedVector2Array([
+		Vector2(top_rect.end.x - bank * 0.5, top_rect.position.y),
+		Vector2(top_rect.end.x, top_rect.position.y),
+		Vector2(top_rect.end.x, top_rect.end.y),
+		Vector2(top_rect.end.x - bank * 0.22, top_rect.end.y),
+	]), Color(0.42, 0.49, 0.60, 0.28))
 
 	# Wind-scoured patches where the roof shows through.
 	var bare: int = clampi(int((1.0 - coverage) * 7.0), 1, 5)

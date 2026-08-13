@@ -7,7 +7,7 @@ resource_name = "Draught Sealing"
 script = ExtResource("1_si1se")
 id = &"draught_sealing"
 title = "Draught Sealing"
-description = "THE BEAT: the first dusk. One hearth, a handful of huts, and the heat number starts falling faster than the player can feed it. This is the first thing the tree should offer, because it is the first thing they can feel going wrong — and because eight percent off every consumer in the city is a bigger number than anything they can build on day one."
+description = "THE BEAT: the first dusk, and again the first morning something froze solid. One hearth, a handful of huts, and the heat number falling faster than the player can feed it. This is the first heat node the tree should offer, because eight percent off every consumer in the city is a bigger number than anything they can build on day one — and because a building that froze last night is the loudest possible argument for it."
 flavour = "Tar, rag and board. It is not engineering. It works."
 cost = Dictionary[StringName, int]({
 &"scrap": 40,
@@ -17,7 +17,7 @@ work = 140
 effects = Dictionary[StringName, float]({
 &"heat.demand_mult": -0.08
 })
-answers = &"heat_deficit"
-answer_weight = 1.4
-also_answers = &"frozen"
+answers = &"frozen"
+answer_weight = 1.9
+also_answers = &"heat_deficit"
 urgency_line = "Every hut you own is bleeding heat into the dark, and the cheapest answer is rags, tar and boarded windows."

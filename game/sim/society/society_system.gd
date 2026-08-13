@@ -146,7 +146,7 @@ func post_setup() -> void:
 	_set_day_length(_reading.day_ticks)
 	_day = _reading.day
 	_rebuild_pressures()
-	Log.info(TAG, "ready — %d laws in the book, people from %s, sees %s" % [
+	Log.info(TAG, "ready: %d laws in the book, people from %s, sees %s" % [
 		book.count(),
 		"citizens" if _reading.citizens_authoritative() else "its own stand-in model",
 		_source_list()])
@@ -294,7 +294,7 @@ func _roll_day(new_day: int) -> void:
 		var gain: float = maxf(0.6, 2.8 - 0.55 * float(toll))
 		var line: String = "The light came back. Nobody expected anything else and everybody checked."
 		if toll > 0:
-			line = "The light came back. %s did not." % SocietyDefs.people(toll).capitalize()
+			line = "The light came back. %s did not." % SocietyDefs.sentence(SocietyDefs.people(toll))
 		_impulse(SocietyDefs.METER_HOPE, &"dawn", "Another dawn", line, gain)
 	for ev: Dictionary in populace.dawn(_reading, hope_value):
 		_on_populace_event(ev)
@@ -312,10 +312,10 @@ func _apply_external_events() -> void:
 	_destroyed_seen = _reading.buildings_destroyed_total
 	if lost > 0:
 		_impulse(SocietyDefs.METER_HOPE, &"buildings_lost", "Something was taken from us",
-			"%s buildings came down and everyone watched it happen." % SocietyDefs.spell(lost).capitalize(),
+			"%s buildings came down and everyone watched it happen." % SocietyDefs.sentence(SocietyDefs.spell(lost)),
 			-1.8 * float(lost))
 		_impulse(SocietyDefs.METER_DISCONTENT, &"buildings_lost", "Something was taken from us",
-			"%s buildings came down." % SocietyDefs.spell(lost).capitalize(), 1.4 * float(lost))
+			"%s buildings came down." % SocietyDefs.sentence(SocietyDefs.spell(lost)), 1.4 * float(lost))
 
 	var done: int = _reading.research_completed_total - _research_seen
 	_research_seen = _reading.research_completed_total
@@ -839,7 +839,7 @@ func deserialize(data: Dictionary) -> void:
 	_waves_seen = int(seen.get("waves", 0))
 	_sample_world()
 	_rebuild_pressures()
-	Log.info(TAG, "restored — hope %.1f, discontent %.1f, %d laws" % [
+	Log.info(TAG, "restored: hope %.1f, discontent %.1f, %d laws" % [
 		hope_value, discontent_value, book.signed_count()])
 
 

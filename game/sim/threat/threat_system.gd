@@ -1174,6 +1174,7 @@ func serialize() -> Dictionary:
 		"night_samples": [_night_samples, _night_heat_ok],
 		"buildings_at_dusk": _buildings_at_dusk,
 		"plan": _plan.to_dict() if _plan != null else {},
+		"approaches": _planner.to_dict(),
 		"schedule": _schedule.to_dict(),
 		"pressure_state": _pressure.to_dict(),
 		"siege": _siege.to_dict(_plan),

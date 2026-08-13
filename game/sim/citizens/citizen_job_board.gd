@@ -19,6 +19,10 @@ extends RefCounted
 ## on the def, so dropping a new .tres into game/content/buildings/ is enough to
 ## create a trade, an infirmary or a bunkhouse.
 
+## Doors re-derived per refresh pass. Bounded on purpose — see _revalidate_doors.
+const DOOR_FIXES_PER_PASS: int = 8
+
+
 ## One building, as the population cares about it.
 class Site extends RefCounted:
 	var id: int = 0
@@ -51,6 +55,9 @@ class Site extends RefCounted:
 
 
 var sites: Dictionary[int, Site] = {}
+## Every site id, ascending. Rebuilt only when the building set changes, because
+## sorting seventeen hundred keys several times a second is a tick all by itself.
+var all_ids: PackedInt32Array = PackedInt32Array()
 var job_ids: PackedInt32Array = PackedInt32Array()     ## sorted, hiring order
 var home_ids: PackedInt32Array = PackedInt32Array()
 var care_ids: PackedInt32Array = PackedInt32Array()
@@ -72,6 +79,7 @@ var _has_served: bool = false
 var _has_frozen: bool = false
 var _has_walkable: bool = false
 var _order_dirty: bool = true
+var _door_ids: PackedInt32Array = PackedInt32Array()
 
 
 func bind(build: SimSystem, heat: SimSystem, grid: SimSystem) -> void:
@@ -85,6 +93,7 @@ func bind(build: SimSystem, heat: SimSystem, grid: SimSystem) -> void:
 
 func clear() -> void:
 	sites.clear()
+	all_ids = PackedInt32Array()
 	job_ids = PackedInt32Array()
 	home_ids = PackedInt32Array()
 	care_ids = PackedInt32Array()
@@ -167,10 +176,9 @@ func refresh(_tick: int) -> PackedInt32Array:
 		s.operational = complete and bool(b.call("is_running"))
 		s.shelter_c = _shelter_for(s)
 
-	var keys: Array = sites.keys()
-	keys.sort()
-	for id: int in keys:
-		if seen.has(id):
+	for i: int in all_ids.size():
+		var id: int = all_ids[i]
+		if seen.has(id) or not sites.has(id):
 			continue
 		gone.append(id)
 		sites.erase(id)
@@ -180,8 +188,29 @@ func refresh(_tick: int) -> PackedInt32Array:
 		version += 1
 	if _order_dirty:
 		_rebuild_order()
+	_revalidate_doors()
 	_refresh_totals()
 	return gone
+
+
+## A door is a fact about the ground, and the ground changes: the pipe run laid
+## last minute can seal the only threshold a workshop had. Re-derive any door
+## that is no longer standable — but only for buildings somebody walks to, and
+## only a few per pass, because re-deriving a hundred at once IS the spike this
+## whole file is arranged to avoid. A door nobody could fix this pass gets fixed
+## on the next one.
+func _revalidate_doors() -> void:
+	if not _has_walkable:
+		return
+	var fixed: int = 0
+	for i: int in _door_ids.size():
+		if fixed >= DOOR_FIXES_PER_PASS:
+			return
+		var s: Site = sites.get(_door_ids[i])
+		if s == null or bool(_grid.call("is_walkable", s.door)):
+			continue
+		s.door = _find_door(s)
+		fixed += 1
 
 
 func _make_site(b: Object) -> Site:
@@ -212,8 +241,15 @@ func _make_site(b: Object) -> Site:
 		if tags.has(t):
 			s.hazard = true
 			break
-	s.door = _find_door(s)
+	s.door = _find_door(s) if _needs_door(s) else s.center
 	return s
+
+
+## True when a citizen ever has to stand at this building: a job, a bed, an
+## infirmary, or the warm square the homeless huddle in. Walls and pipes are
+## eighty percent of a city's building count and nobody knocks on them.
+static func _needs_door(s: Site) -> bool:
+	return s.capacity > 0 or s.beds > 0 or s.medical or s.comfort > 0.0
 
 
 ## The tile a worker stands on. Buildings block movement, so "at the workshop"
@@ -240,9 +276,24 @@ func _find_door(s: Site) -> Vector2i:
 			if score < best_score:
 				best_score = score
 				best = c
-	if best.x < 0:
-		return s.center
-	return best
+	if best.x >= 0:
+		return best
+	# Walled in on every side. Widen the search once rather than handing back a
+	# cell inside the footprint, which no path can ever reach.
+	for r: int in range(2, 5):
+		for y2: int in range(s.cell.y - r, s.cell.y + s.size.y + r):
+			for x2: int in range(s.cell.x - r, s.cell.x + s.size.x + r):
+				var c2 := Vector2i(x2, y2)
+				if not bool(_grid.call("is_walkable", c2)):
+					continue
+				var d2: int = absi(c2.x - s.center.x) + absi(c2.y - s.center.y)
+				var score2: int = d2 * 100000 + (y2 & 0xFF) * 256 + (x2 & 0xFF)
+				if score2 < best_score:
+					best_score = score2
+					best = c2
+		if best.x >= 0:
+			return best
+	return s.center
 
 
 ## Degrees of warmth a roof is worth here. A frozen or starved building is
@@ -267,10 +318,12 @@ func _rebuild_order() -> void:
 	_order_dirty = false
 	var keys: Array = sites.keys()
 	keys.sort()
+	all_ids = PackedInt32Array(keys)
 	var jobs: Array[int] = []
 	var homes: Array[int] = []
 	var care: Array[int] = []
 	var food: Array[int] = []
+	var doors: Array[int] = []
 	for id: int in keys:
 		var s: Site = sites[id]
 		if s.capacity > 0:
@@ -281,6 +334,9 @@ func _rebuild_order() -> void:
 			care.append(id)
 		if s.food:
 			food.append(id)
+		if _needs_door(s):
+			doors.append(id)
+	_door_ids = PackedInt32Array(doors)
 	# Heat and food outrank decoration when crews are short: build_priority is
 	# already [P11]'s statement of what the city cannot do without.
 	jobs.sort_custom(func(a: int, b: int) -> bool:
@@ -331,10 +387,8 @@ func _refresh_totals() -> void:
 	kitchen_factor = 0.0 if kitchens == 0 else clampf(kitchen_staffed / float(kitchens), 0.0, 1.0)
 	# The warmest running building is where the homeless huddle. Picking it by
 	# radiated warmth (never by dictionary order) keeps the choice replayable.
-	var keys: Array = sites.keys()
-	keys.sort()
-	for id: int in keys:
-		var s5: Site = sites[id]
+	for i: int in _door_ids.size():
+		var s5: Site = sites[_door_ids[i]]
 		if not s5.operational or s5.comfort <= 0.0:
 			continue
 		if s5.comfort > best_comfort:
@@ -352,10 +406,8 @@ func _refresh_totals() -> void:
 ## times a second, which is what keeps `staffing_of` honest during a shift
 ## change instead of reporting the roster.
 func recount_presence(pool: CitizenPool) -> void:
-	var keys: Array = sites.keys()
-	keys.sort()
-	for id: int in keys:
-		sites[id].present = 0
+	for i: int in job_ids.size():
+		sites[job_ids[i]].present = 0
 	var n: int = pool.alive.size()
 	for i: int in n:
 		var s: int = pool.alive[i]
@@ -374,13 +426,9 @@ func recount_presence(pool: CitizenPool) -> void:
 func publish_workers() -> void:
 	if _build == null or not _build.has_method("get_building"):
 		return
-	var keys: Array = sites.keys()
-	keys.sort()
-	for id: int in keys:
-		var site: Site = sites[id]
-		if site.capacity <= 0:
-			continue
-		var b: Object = _build.call("get_building", id)
+	for i: int in job_ids.size():
+		var site: Site = sites[job_ids[i]]
+		var b: Object = _build.call("get_building", site.id)
 		if b != null:
 			b.set("workers", site.present)
 
@@ -501,11 +549,10 @@ func release(pool: CitizenPool, building_ids: PackedInt32Array) -> void:
 ## Rebuilds assigned/taken from the citizens themselves. The counters are a
 ## cache of the truth, and after any bulk change the truth wins.
 func _recount_assignments(pool: CitizenPool) -> void:
-	var keys: Array = sites.keys()
-	keys.sort()
-	for id: int in keys:
-		sites[id].assigned = 0
-		sites[id].taken = 0
+	for i: int in job_ids.size():
+		sites[job_ids[i]].assigned = 0
+	for j: int in home_ids.size():
+		sites[home_ids[j]].taken = 0
 	var n: int = pool.alive.size()
 	for i: int in n:
 		var s: int = pool.alive[i]

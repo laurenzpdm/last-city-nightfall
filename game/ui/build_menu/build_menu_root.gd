@@ -461,7 +461,7 @@ func _on_research_requested(id: StringName) -> void:
 	if _research == null:
 		Bus.toast.emit("No research system in this build yet.")
 		return
-	_submit({"system": &"research", "op": "start_research", "id": String(id)})
+	_submit({"system": &"research", "op": "start", "id": String(id)})
 
 
 func _on_sign_requested(id: StringName) -> void:

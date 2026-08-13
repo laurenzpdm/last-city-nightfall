@@ -197,37 +197,98 @@ func test_destroying_a_landmark_ends_the_run() -> void:
 # turrets
 # =========================================================================
 
-func test_a_turret_with_no_heat_is_a_decoration() -> void:
+func test_a_turret_the_grid_stops_feeding_stops_shooting() -> void:
+	# The whole fusion, end to end and with nothing forced: a mount with no heat
+	# source anywhere runs on its own thermal buffer for a few seconds, and once
+	# that is gone the grid serves it nothing, the magazine stops filling, and the
+	# gun is a decoration with a reason attached.
 	var mount: BuildingInstance = _place(&"turret_mount", _open_cell(Vector2i(8, 0)))
-	world.run(12)
+	world.run(150)
 	var t: TurretBattery.Turret = combat.battery.get_turret(mount.id)
 	assert_not_null(t, "the mount registered as a turret")
 	if t == null:
 		return
+	assert_near(t.served, 0.0, 0.01, "the grid is delivering it nothing")
+	var charge_before: float = t.charge
+	world.run(100)
+	assert_near(t.charge, charge_before, 0.001, "so the magazine has stopped filling")
+
+	t.charge = 0.0
+	var shots_before: int = t.shots
 	combat.spawn(HOUND, mount.cell + Vector2i(4, 0), 4)
-	world.run(10)          # long enough to find a target and swing onto it
-	t.charge = 0.0         # ... and then the city takes the warmth back
-	world.run(1)
-	assert_lt(t.charge, t.weapon.heat_per_shot, "the magazine is empty")
+	world.run(20)
 	assert_eq(CombatTypes.idle_name(t.idle), &"no_heat",
 		"and the gun says exactly why it is quiet")
-	assert_eq(t.shots, 0, "nothing was fired")
+	assert_eq(t.shots, shots_before, "nothing was fired")
 
 
-func test_a_charged_turret_fires_spends_heat_and_kills() -> void:
-	var mount: BuildingInstance = _place(&"turret_mount", _open_cell(Vector2i(8, 6)))
-	world.run(12)
+func test_a_turret_wired_to_a_hearth_keeps_firing() -> void:
+	# The positive control for the test above, and the one that proves the shots
+	# are paid for: a mount hung off a lit hearth is served in full and keeps
+	# putting rounds out, and every one of them shows up as heat spent.
+	var hearth: BuildingInstance = _place(&"the_hearth", _open_cell(Vector2i(-18, -18)))
+	if hearth == null:
+		return
+	var mount: BuildingInstance = _place(&"turret_mount",
+		Vector2i(hearth.cell.x + 5, hearth.cell.y))
+	if mount == null:
+		return
+	world.run(60)
+	var t: TurretBattery.Turret = combat.battery.get_turret(mount.id)
+	if t == null:
+		fail("no turret registered")
+		return
+	assert_gt(t.served, 0.9, "the hearth is feeding it")
+	combat.spawn(HOUND, mount.cell + Vector2i(5, 0), 8)
+	var fired: Dictionary = world.count_bus_signals(PackedStringArray(["turret_fired"]),
+		func() -> void: world.run(200))
+	assert_gt(float(fired["turret_fired"]), 3.0, "the gun fired repeatedly and said so")
+	assert_gt(combat.heat_spent_on_defence(), 0.0, "every shot cost the city heat")
+	assert_gt(combat.battery.damage_dealt, 0.0, "and the shells connected")
+	assert_gt(float(combat.swarm.kills), 0.0, "and killed something")
+
+
+func test_a_siphon_drains_the_magazines_around_it() -> void:
+	var mount: BuildingInstance = _place(&"turret_mount", _open_cell(Vector2i(10, 10)))
+	if mount == null:
+		return
+	world.run(20)
 	var t: TurretBattery.Turret = combat.battery.get_turret(mount.id)
 	if t == null:
 		fail("no turret registered")
 		return
 	t.charge = t.capacity
-	combat.spawn(HOUND, mount.cell + Vector2i(5, 0), 3)
-	var fired: Dictionary = world.count_bus_signals(PackedStringArray(["turret_fired"]),
-		func() -> void: world.run(60))
-	assert_gt(float(fired["turret_fired"]), 0.0, "the gun fired and said so")
-	assert_gt(combat.heat_spent_on_defence(), 0.0, "every shot cost the city heat")
-	assert_gt(combat.battery.damage_dealt, 0.0, "and the shells connected")
+	var before: float = t.charge
+	# A leech feeding on something two tiles from the gun.
+	var taken: float = combat.siphon_turrets(mount.world_center() + Vector2(64.0, 0.0),
+		7.0 * 32.0, 12.0)
+	assert_near(taken, 12.0, 0.001, "the leech got what it bit for")
+	assert_near(t.charge, before - 12.0, 0.001, "straight out of the magazine")
+	assert_near(combat.siphon_turrets(Vector2(1.0, 1.0), 32.0, 5.0), 0.0, 0.001,
+		"and a leech nowhere near a gun gets nothing")
+
+
+func test_a_chill_aura_slows_a_magazine_without_touching_it() -> void:
+	var hearth: BuildingInstance = _place(&"the_hearth", _open_cell(Vector2i(-18, 14)))
+	if hearth == null:
+		return
+	var mount: BuildingInstance = _place(&"turret_mount",
+		Vector2i(hearth.cell.x + 5, hearth.cell.y))
+	if mount == null:
+		return
+	world.run(60)
+	var t: TurretBattery.Turret = combat.battery.get_turret(mount.id)
+	if t == null:
+		return
+	t.charge = 0.0
+	world.run(4)
+	var warm_gain: float = t.charge
+	t.charge = 0.0
+	for _i: int in range(4):
+		combat.chill_turrets(mount.world_center(), 9.0 * 32.0, 0.65)
+		world.run(1)
+	assert_lt(t.charge, warm_gain * 0.7,
+		"a chilled magazine fills measurably slower than a warm one")
 
 
 func test_a_turret_charges_at_the_rate_heat_is_serving_it() -> void:

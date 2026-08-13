@@ -116,8 +116,15 @@ extends Resource
 @export var vector_share_cap: float = 0.72
 ## Tiles either side of a lane that count as "defending that lane".
 @export var lane_corridor_radius: int = 5
-## Path cells behind the chokepoint that the defence envelope covers.
-@export var lane_envelope_cells: int = 34
+## Path cells PAST the chokepoint (outward) that the defence envelope covers.
+## Everything between the chokepoint and the core counts too — players build
+## their line where their city ends, not where the terrain is prettiest, and a
+## director that only looked at the chokepoint would read a fortified city as
+## an empty one.
+@export var lane_envelope_cells: int = 6
+## ...but not the core itself. The corridor starts this many cells out, so the
+## hearth district is not counted as defending every lane at once.
+@export var lane_core_clear: int = 10
 ## Defence rating that reads as 0.5 on the 0..1 scale. Saturating, so the
 ## twentieth turret on one road still counts, just not as much as the second.
 @export var defence_reference: float = 55.0
@@ -298,7 +305,8 @@ func validate() -> bool:
 	probe_ramp_nights = maxi(1, probe_ramp_nights)
 	vector_share_cap = clampf(vector_share_cap, 0.4, 1.0)
 	lane_corridor_radius = clampi(lane_corridor_radius, 1, 24)
-	lane_envelope_cells = clampi(lane_envelope_cells, 4, 200)
+	lane_envelope_cells = clampi(lane_envelope_cells, 0, 200)
+	lane_core_clear = clampi(lane_core_clear, 0, 64)
 	defence_reference = maxf(1.0, defence_reference)
 	defence_hp_weight = maxf(0.0, defence_hp_weight)
 

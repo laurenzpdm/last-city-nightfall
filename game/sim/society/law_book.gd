@@ -43,6 +43,9 @@ var _cooldown_until: int = 0
 var _policy: Dictionary[StringName, float] = {}
 var _flags: Dictionary[StringName, bool] = {}
 var _dirty: bool = true
+## id -> the signed law responsible for shutting it. Rebuilt on any change.
+var _foreclosed: Dictionary[StringName, StringName] = {}
+var _forecl_dirty: bool = true
 
 
 # =========================================================================
@@ -56,6 +59,8 @@ func load_from_registry() -> PackedStringArray:
 	_defs.clear()
 	_ordered.clear()
 	_excludes.clear()
+	_foreclosed.clear()
+	_forecl_dirty = true
 	var problems: PackedStringArray = PackedStringArray()
 
 	for id: StringName in Registry.ids(CATEGORY):
@@ -227,27 +232,74 @@ func signed_count() -> int:
 	return _signed_order.size()
 
 
-## Laws this run can never sign now, because something in force excludes them.
+## Laws this run can never sign now, because something in force shut the door,
+## or shut a door on the way to the door.
 func foreclosed_ids() -> Array[StringName]:
+	_resolve_foreclosure()
 	var out: Array[StringName] = []
 	for law: LawDef in _ordered:
-		if _signed.has(law.id):
-			continue
-		if _foreclosed_by(law.id) != &"":
+		if not _signed.has(law.id) and _foreclosed.has(law.id):
 			out.append(law.id)
 	return out
 
 
 ## True when something already in force has shut this page for good.
 func is_foreclosed(id: StringName) -> bool:
-	return _foreclosed_by(id) != &""
+	_resolve_foreclosure()
+	return _foreclosed.has(id)
 
 
+## The law IN FORCE that is responsible, not the intermediate page it closed.
+## The player wants to be told The Pits shut this, not that Whispers did.
 func _foreclosed_by(id: StringName) -> StringName:
-	for other: StringName in (_excludes.get(id, []) as Array):
-		if _signed.has(other):
-			return other
-	return &""
+	_resolve_foreclosure()
+	return StringName(String(_foreclosed.get(id, &"")))
+
+
+## Closure over exclusion AND prerequisite. Signing one path does not merely
+## grey out the opposite fork, it greys out every page that can only be reached
+## through it, which is what makes the second half of the book feel like a
+## consequence instead of a menu you happen not to have unlocked.
+func _resolve_foreclosure() -> void:
+	if not _forecl_dirty:
+		return
+	_foreclosed.clear()
+	for law: LawDef in _ordered:
+		if _signed.has(law.id):
+			continue
+		for other: StringName in (_excludes.get(law.id, []) as Array):
+			if _signed.has(other):
+				_foreclosed[law.id] = other
+				break
+	var changed: bool = true
+	var guard: int = 0
+	while changed and guard < 64:
+		changed = false
+		guard += 1
+		for law: LawDef in _ordered:
+			if _signed.has(law.id) or _foreclosed.has(law.id):
+				continue
+			var cause: StringName = &""
+			for r: StringName in law.requires:
+				if _foreclosed.has(r):
+					cause = StringName(String(_foreclosed[r]))
+					break
+			if cause == &"" and not law.requires_any.is_empty():
+				var any_alive: bool = false
+				var fallback: StringName = &""
+				for r: StringName in law.requires_any:
+					if not _defs.has(r):
+						continue
+					if _signed.has(r) or not _foreclosed.has(r):
+						any_alive = true
+						break
+					fallback = StringName(String(_foreclosed[r]))
+				if not any_alive and fallback != &"":
+					cause = fallback
+			if cause != &"":
+				_foreclosed[law.id] = cause
+				changed = true
+	_forecl_dirty = false
 
 
 ## The branch the player has committed to, or &"" while both doors are open.
@@ -368,6 +420,7 @@ func propose(id: StringName, day: int, tick: int, hour_ticks: int) -> Dictionary
 	_pending_from = tick
 	_pending_until = tick + int(round(law.effective_debate_hours() * float(hour_ticks)))
 	_dirty = true
+	_forecl_dirty = true
 	return {"ok": true, "reason": "", "until_tick": _pending_until}
 
 
@@ -395,11 +448,12 @@ func advance(tick: int, hour_ticks: int) -> LawDef:
 	_signed_order.append(law.id)
 	_cooldown_until = tick + int(round(SocietyDefs.SIGN_COOLDOWN_HOURS * float(hour_ticks)))
 	_dirty = true
+	_forecl_dirty = true
 	return law
 
 
 # =========================================================================
-#  the policy vector — what the book does to the world
+#  the policy vector: what the book does to the world
 # =========================================================================
 
 ## Base value plus every signed law's offset. Other parts read this to find out
@@ -533,6 +587,7 @@ func deserialize(data: Dictionary) -> void:
 	_pending_until = int(data.get("pending_until", 0))
 	_cooldown_until = int(data.get("cooldown_until", 0))
 	_dirty = true
+	_forecl_dirty = true
 
 
 # --- small helpers -----------------------------------------------------------

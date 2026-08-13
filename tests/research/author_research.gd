@@ -52,11 +52,11 @@ func _heat() -> void:
 	n.cost = {&"timber": 30, &"scrap": 40}
 	n.work = 140
 	n.effects = {&"heat.demand_mult": -0.08}
-	n.answers = &"heat_deficit"
-	n.answer_weight = 1.4
-	n.also_answers = &"frozen"
+	n.answers = &"frozen"
+	n.answer_weight = 1.9
+	n.also_answers = &"heat_deficit"
 	n.urgency_line = "Every hut you own is bleeding heat into the dark, and the cheapest answer is rags, tar and boarded windows."
-	n.description = "THE BEAT: the first dusk. One hearth, a handful of huts, and the heat number starts falling faster than the player can feed it. This is the first thing the tree should offer, because it is the first thing they can feel going wrong — and because eight percent off every consumer in the city is a bigger number than anything they can build on day one."
+	n.description = "THE BEAT: the first dusk, and again the first morning something froze solid. One hearth, a handful of huts, and the heat number falling faster than the player can feed it. This is the first heat node the tree should offer, because eight percent off every consumer in the city is a bigger number than anything they can build on day one — and because a building that froze last night is the loudest possible argument for it."
 	n.flavour = "Tar, rag and board. It is not engineering. It works."
 	_save(n)
 

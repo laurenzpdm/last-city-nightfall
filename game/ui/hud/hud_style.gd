@@ -210,8 +210,8 @@ func _cb(c: Color) -> Color:
 ## The whole HUD dims when the city is calm. This is the single knob that makes
 ## a healthy base almost invisible, Factorio-style.
 func plate_alpha() -> float:
-	var base: float = 0.66 if high_contrast else 0.50
-	return clampf(base + urgency * 0.30, 0.0, 0.95)
+	var base: float = 0.88 if high_contrast else 0.74
+	return clampf(base + urgency * 0.14, 0.0, 0.98)
 
 
 ## 0..1 pulse for anything that should breathe when things are bad. Flat when

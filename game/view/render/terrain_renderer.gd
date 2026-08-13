@@ -143,6 +143,7 @@ func render(view: Rect2, grade: Dictionary, zoom: float, full: bool = false) -> 
 	ground_material.set_shader_parameter("sun_dir", grade["sun_dir"])
 	ground_material.set_shader_parameter("sun_col", _v3(grade["sun_col"]))
 	ground_material.set_shader_parameter("sun_energy", float(grade["sun_energy"]))
+	ground_material.set_shader_parameter("sun_height", float(grade["sun_height"]))
 	ground_material.set_shader_parameter("sky_col", _v3(grade["sky_col"]))
 	ground_material.set_shader_parameter("sky_energy", float(grade["sky_energy"]))
 	ground_material.set_shader_parameter("bounce_col", _v3(grade["bounce_col"]))

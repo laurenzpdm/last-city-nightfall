@@ -67,7 +67,13 @@ func update(new_pressure: float, hours: float) -> StringName:
 		change = &"closed"
 
 	if open:
-		var target: float = maxf(pressure, 0.12)
+		# The floor keeps a grievance simmering while the cause is only half
+		# fixed, but it must NOT apply once the cause is genuinely gone: a floor
+		# that outlives the problem is a grievance that can never be closed, and
+		# a city that can never be forgiven is not a system, it is a countdown.
+		var target: float = pressure
+		if pressure > SocietyDefs.GRIEVANCE_CLOSE:
+			target = maxf(pressure, 0.12)
 		if target > intensity:
 			intensity = minf(target, intensity + SocietyDefs.GRIEVANCE_RISE_PER_HOUR * hours)
 		else:

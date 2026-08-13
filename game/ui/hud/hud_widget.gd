@@ -223,21 +223,33 @@ func _on_focus_exited() -> void:
 
 # ======================================================================  draw =
 
-## Standard chrome: plate, title in stencilled caps, and the focus/hover marks.
-## Returns the y baseline where content may start.
+## y of the stencilled title's baseline. Font-relative, so raising the
+## accessibility font scale moves the whole panel down instead of overprinting it.
+func title_baseline() -> float:
+	return 15.0 + float(style.fs(10))
+
+
+## y where a panel's first row of content may sit. Every widget lays out from
+## here, and `layout()` — never `_draw()` — decides the rest, so a hot region and
+## the pixels under it cannot drift apart.
+func content_top() -> float:
+	return title_baseline() + 12.0
+
+
+## Standard chrome: plate, title in stencilled caps, the rule under it.
+## Returns `content_top()` so a `_draw` can start where `layout` did.
 func draw_frame(title: String, sev: int = S.Sev.CALM, lit: float = 0.35) -> float:
 	var rect := Rect2(Vector2.ZERO, size)
 	style.draw_plate(self, rect, lit, sev, _panel_seed)
-	var y: float = 14.0 + float(style.fs(10))
-	if title != "":
-		style.draw_caps(self, Vector2(14.0, y), title, style.fs(10),
-			style.ink_faint(), 2.2)
-		var line_y: float = y + 6.0
-		var edge: Color = LcnHudStyle.P.COLD_RIM
-		draw_line(Vector2(14.0, line_y), Vector2(size.x - 14.0, line_y),
-			Color(edge.r, edge.g, edge.b, 0.45), 1.0)
-		return line_y + 10.0 + float(style.fs(12))
-	return y
+	if title == "":
+		return content_top()
+	var y: float = title_baseline()
+	style.draw_caps(self, Vector2(15.0, y), title, style.fs(10), style.ink_faint(), 2.2)
+	var line_y: float = y + 7.0
+	var edge: Color = LcnHudStyle.P.COLD_RIM
+	draw_line(Vector2(15.0, line_y), Vector2(size.x - 15.0, line_y),
+		Color(edge.r, edge.g, edge.b, 0.45), 1.0)
+	return content_top()
 
 
 ## Draws hover and keyboard marks over the hot regions. Call last in `_draw`.

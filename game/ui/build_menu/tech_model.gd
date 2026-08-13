@@ -28,21 +28,42 @@ enum State { LOCKED, AVAILABLE, ACTIVE, DONE }
 
 const MAX_DEPTH_PASSES: int = 64
 
+## [P10] publishes six states; the screen only draws four, so the two that are
+## really "started, not finished" fold onto ACTIVE and the queue is a badge.
+const RESEARCH_STATE_NAMES: Array[String] = [
+	"locked", "available", "queued", "active", "parked", "done",
+]
+
 
 class TechNode extends RefCounted:
 	var id: StringName = &""
 	var display_name: String = ""
 	var description: String = ""
+	var flavour: String = ""
+	var branch: StringName = &""
+	var tier: int = 1
 	var cost: Dictionary = {}
 	var cost_points: float = 0.0
 	var prereqs: Array[StringName] = []
 	var unlocks: Array[StringName] = []          ## building kinds
 	var grants: Array[StringName] = []           ## non-building unlock ids
+	var leads_to: Array[StringName] = []
 	var state: int = State.LOCKED
+	## The word [P10] itself used: locked / available / queued / active / parked / done.
+	var state_word: String = "locked"
 	var progress: float = 0.0
+	## Materials still owed before it can finish, and whether the yard has them.
+	var remaining_cost: Dictionary = {}
+	var affordable: bool = true
+	var eta_seconds: float = -1.0
 	var column: int = 0
 	var row: int = 0
-	## Filled by refresh_relevance(); the "why this, why now" line.
+	## The AUTHORED "why now" line. [P10] writes one per node and the pacing
+	## engine decides when to shout it; showing it is most of this screen's value.
+	var urgency: String = ""
+	## The pacing engine's own reason for recommending this node right now.
+	var reason: String = ""
+	## Filled by refresh_relevance(): derived from the city when nothing authored.
 	var relevance: String = ""
 	var relevance_tone: int = LcnUiStyle.Tone.DIM
 	var source: StringName = &"derived"
@@ -51,20 +72,47 @@ class TechNode extends RefCounted:
 		return state == State.DONE
 
 	func cost_label() -> String:
+		var parts: PackedStringArray = PackedStringArray()
 		if not cost.is_empty():
-			return LcnUiFormat.items(cost)
+			parts.append(LcnUiFormat.items(cost))
 		if cost_points > 0.0:
-			return "%s research" % LcnUiFormat.num(cost_points)
-		return "—"
+			parts.append("%s insight" % LcnUiFormat.num(cost_points))
+		if parts.is_empty():
+			return "—"
+		return "   ·   ".join(parts)
+
+	## What is still owed, and whether the city can pay it. The single most
+	## useful line on a tech screen in a game where research competes with the
+	## wall for the same steel.
+	func owed_label() -> String:
+		if remaining_cost.is_empty():
+			return ""
+		return "%s%s" % [LcnUiFormat.items(remaining_cost),
+			"" if affordable else "   (the yard is short)"]
+
+	func eta_label() -> String:
+		return "" if eta_seconds < 0.0 else LcnUiFormat.duration(eta_seconds)
+
+	## Whichever "why now" line exists: the author's beats the derived one.
+	func why_now() -> String:
+		if reason != "":
+			return reason
+		if urgency != "":
+			return urgency
+		return relevance
 
 
 var nodes: Array[TechNode] = []
+## [P10]'s current recommendation, if it makes one: {id, score, signal, reason}.
+var suggestion: Dictionary = {}
 
 var _by_id: Dictionary[StringName, TechNode] = {}
 var _columns: int = 0
 var _edges: Array[Dictionary] = []
 var _revision: int = 0
 var _source: StringName = &"none"
+## True when the tree came with its own coordinates and we must not re-lay it.
+var _published_layout: bool = false
 
 
 # ------------------------------------------------------------------ build ----
@@ -134,40 +182,71 @@ func _from_research(research: Object) -> bool:
 	var list: Array = []
 	if typeof(raw) == TYPE_DICTIONARY:
 		list = (raw as Dictionary).get("nodes", [])
+		suggestion = (raw as Dictionary).get("suggestion", {})
 	elif typeof(raw) == TYPE_ARRAY:
 		list = raw
 	if list.is_empty():
 		return false
+	var placed: int = 0
 	for entry: Variant in list:
 		if typeof(entry) != TYPE_DICTIONARY:
 			continue
 		var d: Dictionary = entry
 		var n := TechNode.new()
-		n.id = StringName(String(d.get("id", "")))
+		n.id = LcnUiFormat.as_name(d.get("id", ""))
 		if String(n.id) == "":
 			continue
-		n.display_name = LcnUiFormat.as_text(d.get("display_name", d.get("name", "")))
+		n.display_name = LcnUiFormat.as_text(d.get("title", d.get("display_name", d.get("name", ""))))
 		if n.display_name == "":
 			n.display_name = LcnUiFormat.item_name(n.id)
 		n.description = LcnUiFormat.as_text(d.get("description", ""))
+		n.flavour = LcnUiFormat.as_text(d.get("flavour", ""))
+		n.branch = LcnUiFormat.as_name(d.get("branch", ""))
+		n.tier = LcnUiFormat.as_int(d.get("tier", 1))
 		# A published cost may be a scalar or a bill of materials, and [P10] is
 		# free to change its mind: read whichever shape actually arrived.
-		for source: Variant in [d.get("cost_items", null), d.get("cost", null), d.get("points", null)]:
-			if typeof(source) == TYPE_DICTIONARY and not (source as Dictionary).is_empty():
-				n.cost = source
-			elif typeof(source) == TYPE_FLOAT or typeof(source) == TYPE_INT:
-				if n.cost_points <= 0.0:
-					n.cost_points = float(source)
+		for shape: Variant in [d.get("cost_items", null), d.get("cost", null)]:
+			if typeof(shape) == TYPE_DICTIONARY and not (shape as Dictionary).is_empty():
+				n.cost = shape
+				break
+		n.cost_points = LcnUiFormat.as_number(d.get("work", d.get("points", 0.0)))
+		var owed: Variant = d.get("remaining_cost", null)
+		if typeof(owed) == TYPE_DICTIONARY:
+			n.remaining_cost = owed
+		n.affordable = LcnUiFormat.as_flag(d.get("affordable", true))
+		n.eta_seconds = LcnUiFormat.as_number(d.get("eta_seconds", -1.0))
+		n.progress = clampf(LcnUiFormat.as_number(d.get("progress", 0.0)), 0.0, 1.0)
+		n.urgency = LcnUiFormat.as_text(d.get("urgency", ""))
+		n.reason = LcnUiFormat.as_text(d.get("reason", ""))
 		n.prereqs = _string_names(d.get("prereqs", d.get("requires", [])))
 		n.unlocks = _string_names(d.get("unlocks", d.get("buildings", [])))
 		n.grants = _string_names(d.get("grants", []))
-		if d.has("column"):
-			n.column = int(d["column"])
-		if d.has("row"):
-			n.row = int(d["row"])
+		n.leads_to = _string_names(d.get("leads_to", []))
+		if d.has("column") and d.has("row"):
+			n.column = LcnUiFormat.as_int(d["column"])
+			n.row = LcnUiFormat.as_int(d["row"])
+			placed += 1
+		n.state_word = LcnUiFormat.as_text(d.get("state", "locked"))
+		n.state = _fold_state(n.state_word, LcnUiFormat.as_int(d.get("state_index", 0)))
 		n.source = &"research"
 		_add(n)
+	# Only trust a published layout when EVERY node came with coordinates; a
+	# half-placed tree drawn on its own numbers is worse than one we lay out.
+	_published_layout = placed > 0 and placed == nodes.size()
 	return not nodes.is_empty()
+
+
+## Folds [P10]'s six-state vocabulary onto the four this screen draws. QUEUED and
+## PARKED both mean "started but not finished", which is what ACTIVE looks like.
+static func _fold_state(word: String, index: int) -> int:
+	var name: String = word
+	if name == "" and index >= 0 and index < RESEARCH_STATE_NAMES.size():
+		name = RESEARCH_STATE_NAMES[index]
+	match name:
+		"done": return State.DONE
+		"active", "queued", "parked": return State.ACTIVE
+		"available": return State.AVAILABLE
+	return State.LOCKED
 
 
 func _from_registry(registry: Object) -> bool:
@@ -183,12 +262,19 @@ func _from_registry(registry: Object) -> bool:
 			n.id = StringName(res.resource_path.get_file().get_basename())
 		if String(n.id) == "":
 			continue
-		n.display_name = LcnUiFormat.as_text(res.get(&"display_name"))
-		if n.display_name == "":
-			n.display_name = LcnUiFormat.as_text(res.get(&"name"))
+		for field: StringName in [&"title", &"display_name", &"name"]:
+			n.display_name = LcnUiFormat.as_text(res.get(field))
+			if n.display_name != "":
+				break
 		if n.display_name == "":
 			n.display_name = LcnUiFormat.item_name(n.id)
 		n.description = LcnUiFormat.as_text(res.get(&"description"))
+		n.flavour = LcnUiFormat.as_text(res.get(&"flavour"))
+		n.branch = LcnUiFormat.as_name(res.get(&"branch"))
+		n.tier = LcnUiFormat.as_int(res.get(&"tier"))
+		n.urgency = LcnUiFormat.as_text(res.get(&"urgency_line"))
+		if n.cost_points <= 0.0:
+			n.cost_points = LcnUiFormat.as_number(res.get(&"work"))
 		for field: StringName in [&"cost", &"cost_items", &"science"]:
 			var c: Variant = res.get(field)
 			if typeof(c) == TYPE_DICTIONARY and not (c as Dictionary).is_empty():
@@ -278,7 +364,18 @@ func _layout() -> void:
 			if _by_id.has(p) and p != n.id:
 				keep.append(p)
 		n.prereqs = keep
-		n.column = 0
+		if not _published_layout:
+			n.column = 0
+
+	if _published_layout:
+		# [P10] already placed every node in branch bands. Re-laying it out would
+		# throw away the one thing a hand-authored tree has that a derived one
+		# does not: lanes that mean something.
+		nodes.sort_custom(_node_less)
+		for n5: TechNode in nodes:
+			_columns = maxi(_columns, n5.column + 1)
+		_rebuild_edges()
+		return
 
 	var changed: bool = true
 	var passes: int = 0
@@ -301,6 +398,10 @@ func _layout() -> void:
 		row_of_column[n3.column] = r + 1
 		_columns = maxi(_columns, n3.column + 1)
 
+	_rebuild_edges()
+
+
+func _rebuild_edges() -> void:
 	_edges.clear()
 	for n4: TechNode in nodes:
 		for p3: StringName in n4.prereqs:
@@ -321,8 +422,15 @@ static func _node_less(a: TechNode, b: TechNode) -> bool:
 
 # ------------------------------------------------------------------ state ----
 
-## Re-reads progress from the sim. Cheap: one call per node, no allocation.
+## Re-reads progress from the sim.
+##
+## When [P10] publishes a layout it is the authority on state, progress, what is
+## still owed and why a node is being recommended — re-deriving any of that here
+## would only produce a second, worse answer.
 func refresh_state(research: Object, build_system: Object) -> void:
+	if _published_layout and research != null and research.has_method(&"tree_layout"):
+		_refresh_from_layout(research)
+		return
 	var active := StringName("")
 	if research != null and research.has_method(&"current_research"):
 		active = StringName(String(research.call(&"current_research")))
@@ -344,6 +452,30 @@ func refresh_state(research: Object, build_system: Object) -> void:
 				ready = false
 				break
 		n.state = State.AVAILABLE if ready else State.LOCKED
+
+
+func _refresh_from_layout(research: Object) -> void:
+	var raw: Variant = research.call(&"tree_layout")
+	if typeof(raw) != TYPE_DICTIONARY:
+		return
+	var layout: Dictionary = raw
+	suggestion = layout.get("suggestion", {})
+	for entry: Variant in layout.get("nodes", []):
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = entry
+		var n: TechNode = _by_id.get(LcnUiFormat.as_name(d.get("id", "")))
+		if n == null:
+			continue
+		n.state_word = LcnUiFormat.as_text(d.get("state", n.state_word))
+		n.state = _fold_state(n.state_word, LcnUiFormat.as_int(d.get("state_index", 0)))
+		n.progress = clampf(LcnUiFormat.as_number(d.get("progress", 0.0)), 0.0, 1.0)
+		var owed: Variant = d.get("remaining_cost", null)
+		if typeof(owed) == TYPE_DICTIONARY:
+			n.remaining_cost = owed
+		n.affordable = LcnUiFormat.as_flag(d.get("affordable", true))
+		n.eta_seconds = LcnUiFormat.as_number(d.get("eta_seconds", -1.0))
+		n.reason = LcnUiFormat.as_text(d.get("reason", ""))
 
 
 func _is_unlocked(id: StringName, research: Object, build_system: Object) -> bool:

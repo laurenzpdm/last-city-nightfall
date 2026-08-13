@@ -163,6 +163,9 @@ static func terrain_takes_snow(kind: int) -> bool:
 ##
 ## Light-rig keys (second pass — these are what make light *fall on* things):
 ##   sun_dir       Vector2, unit direction TOWARD the key light in screen space
+##   sun_height    float, 0..1 elevation of that key. A low sun GRAZES the plain
+##                 instead of shining down it, which is the whole reason dusk
+##                 now picks out drift faces instead of washing the frame
 ##   sun_col       Color, colour of the key light (sun, or the moon after dark)
 ##   sun_energy    float, key intensity
 ##   sky_col       Color, colour of the sky fill on unlit faces
@@ -178,7 +181,7 @@ const _GRADE_COLORS: Array[String] = [
 const _GRADE_FLOATS: Array[String] = [
 	"shadow_alpha", "shadow_len", "sat", "fog_amt",
 	"light_energy", "bloom", "chroma", "star_amt",
-	"sun_energy", "sky_energy", "bounce", "wild",
+	"sun_energy", "sky_energy", "bounce", "wild", "sun_height",
 ]
 
 ## Built once. `grade_at` used to allocate nine dictionaries per call and it is
@@ -203,6 +206,7 @@ static func _keyframes() -> Array[Dictionary]:
 			"sat": 0.78, "fog": Color(0.075, 0.106, 0.192), "fog_amt": 0.30,
 			"light_energy": 0.86, "bloom": 0.72, "chroma": 1.00, "star_amt": 1.00,
 			"sun_dir": Vector2(-0.42, -0.55), "sun_col": Color(0.60, 0.72, 1.00), "sun_energy": 0.20,
+			"sun_height": 0.72,
 			"sky_col": Color(0.150, 0.210, 0.380), "sky_energy": 0.30,
 			"bounce": 0.95, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.62,
 		},
@@ -215,6 +219,7 @@ static func _keyframes() -> Array[Dictionary]:
 			"sat": 0.82, "fog": Color(0.086, 0.118, 0.208), "fog_amt": 0.26,
 			"light_energy": 0.82, "bloom": 0.68, "chroma": 0.85, "star_amt": 0.85,
 			"sun_dir": Vector2(0.30, -0.60), "sun_col": Color(0.62, 0.74, 1.00), "sun_energy": 0.23,
+			"sun_height": 0.68,
 			"sky_col": Color(0.160, 0.225, 0.395), "sky_energy": 0.32,
 			"bounce": 0.88, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.56,
 		},
@@ -228,6 +233,7 @@ static func _keyframes() -> Array[Dictionary]:
 			"sat": 0.88, "fog": Color(0.290, 0.360, 0.490), "fog_amt": 0.42,
 			"light_energy": 0.80, "bloom": 0.62, "chroma": 0.55, "star_amt": 0.25,
 			"sun_dir": Vector2(0.90, -0.44), "sun_col": Color(1.00, 0.74, 0.58), "sun_energy": 0.52,
+			"sun_height": 0.20,
 			"sky_col": Color(0.320, 0.420, 0.620), "sky_energy": 0.40,
 			"bounce": 0.32, "bounce_col": Color(0.70, 0.80, 1.00), "wild": 0.20,
 		},
@@ -240,6 +246,7 @@ static func _keyframes() -> Array[Dictionary]:
 			"sat": 0.90, "fog": Color(0.470, 0.540, 0.650), "fog_amt": 0.26,
 			"light_energy": 0.62, "bloom": 0.50, "chroma": 0.35, "star_amt": 0.0,
 			"sun_dir": Vector2(0.58, -0.64), "sun_col": Color(1.00, 0.955, 0.895), "sun_energy": 0.78,
+			"sun_height": 0.58,
 			"sky_col": Color(0.480, 0.560, 0.720), "sky_energy": 0.40,
 			"bounce": 0.08, "bounce_col": Color(0.80, 0.86, 1.00), "wild": 0.05,
 		},
@@ -251,8 +258,9 @@ static func _keyframes() -> Array[Dictionary]:
 			"lift": Color(0.000, 0.003, 0.012), "gain": Color(1.02, 1.02, 1.03),
 			"sat": 0.72, "fog": Color(0.640, 0.690, 0.770), "fog_amt": 0.16,
 			"light_energy": 0.42, "bloom": 0.40, "chroma": 0.22, "star_amt": 0.0,
-			"sun_dir": Vector2(0.10, -0.86), "sun_col": Color(1.00, 0.985, 0.955), "sun_energy": 0.90,
-			"sky_col": Color(0.560, 0.630, 0.780), "sky_energy": 0.42,
+			"sun_dir": Vector2(0.10, -0.86), "sun_col": Color(1.00, 0.985, 0.955), "sun_energy": 0.82,
+			"sun_height": 0.95,
+			"sky_col": Color(0.560, 0.630, 0.780), "sky_energy": 0.38,
 			"bounce": 0.0, "bounce_col": Color(0.85, 0.90, 1.00), "wild": 0.0,
 		},
 		{
@@ -263,7 +271,8 @@ static func _keyframes() -> Array[Dictionary]:
 			"lift": Color(0.002, 0.005, 0.016), "gain": Color(1.04, 1.00, 0.98),
 			"sat": 0.82, "fog": Color(0.610, 0.610, 0.660), "fog_amt": 0.22,
 			"light_energy": 0.58, "bloom": 0.52, "chroma": 0.30, "star_amt": 0.0,
-			"sun_dir": Vector2(-0.50, -0.70), "sun_col": Color(1.00, 0.930, 0.830), "sun_energy": 0.82,
+			"sun_dir": Vector2(-0.50, -0.70), "sun_col": Color(1.00, 0.930, 0.830), "sun_energy": 0.78,
+			"sun_height": 0.52,
 			"sky_col": Color(0.520, 0.590, 0.740), "sky_energy": 0.40,
 			"bounce": 0.06, "bounce_col": Color(0.80, 0.86, 1.00), "wild": 0.04,
 		},
@@ -275,10 +284,11 @@ static func _keyframes() -> Array[Dictionary]:
 			"sky": Color(1.000, 0.980, 0.960), "ambient": Color(0.540, 0.410, 0.380),
 			"shadow": Color(0.090, 0.085, 0.150), "shadow_alpha": 0.52,
 			"shadow_dir": Vector2(0.86, 0.50), "shadow_len": 2.9,
-			"lift": Color(0.008, 0.008, 0.024), "gain": Color(1.08, 0.98, 0.94),
+			"lift": Color(0.008, 0.008, 0.024), "gain": Color(1.04, 0.99, 0.98),
 			"sat": 0.98, "fog": Color(0.330, 0.300, 0.360), "fog_amt": 0.30,
 			"light_energy": 0.90, "bloom": 0.75, "chroma": 0.40, "star_amt": 0.10,
 			"sun_dir": Vector2(-0.93, -0.37), "sun_col": Color(1.00, 0.560, 0.300), "sun_energy": 0.72,
+			"sun_height": 0.16,
 			"sky_col": Color(0.290, 0.360, 0.560), "sky_energy": 0.38,
 			"bounce": 0.14, "bounce_col": Color(0.90, 0.78, 0.72), "wild": 0.14,
 		},
@@ -291,6 +301,7 @@ static func _keyframes() -> Array[Dictionary]:
 			"sat": 0.88, "fog": Color(0.250, 0.240, 0.330), "fog_amt": 0.34,
 			"light_energy": 0.84, "bloom": 0.76, "chroma": 0.65, "star_amt": 0.55,
 			"sun_dir": Vector2(-0.80, -0.60), "sun_col": Color(0.86, 0.62, 0.62), "sun_energy": 0.34,
+			"sun_height": 0.28,
 			"sky_col": Color(0.230, 0.270, 0.450), "sky_energy": 0.36,
 			"bounce": 0.55, "bounce_col": Color(0.72, 0.78, 0.98), "wild": 0.36,
 		},
@@ -303,6 +314,7 @@ static func _keyframes() -> Array[Dictionary]:
 			"sat": 0.78, "fog": Color(0.075, 0.106, 0.192), "fog_amt": 0.30,
 			"light_energy": 0.86, "bloom": 0.72, "chroma": 1.00, "star_amt": 1.00,
 			"sun_dir": Vector2(-0.42, -0.55), "sun_col": Color(0.60, 0.72, 1.00), "sun_energy": 0.20,
+			"sun_height": 0.72,
 			"sky_col": Color(0.150, 0.210, 0.380), "sky_energy": 0.30,
 			"bounce": 0.95, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.62,
 		},
@@ -420,7 +432,7 @@ static func terrain_params(kind: int) -> Color:
 		Terrain.ICE: return Color(0.040, 0.10, 1.00, 0.34)
 		Terrain.ROCK: return Color(0.090, 0.18, 0.05, 1.00)
 		Terrain.GRAVEL: return Color(0.150, 0.10, 0.08, 0.70)
-		Terrain.ASH_FIELD: return Color(0.130, 0.16, 0.02, 0.55)
+		Terrain.ASH_FIELD: return Color(0.130, 0.40, 0.02, 0.85)
 		Terrain.PAVED: return Color(0.050, 0.04, 0.04, 0.22)
 		Terrain.WATER_FROZEN: return Color(0.030, 0.05, 0.75, 0.18)
 		Terrain.RUBBLE: return Color(0.170, 0.12, 0.06, 0.90)

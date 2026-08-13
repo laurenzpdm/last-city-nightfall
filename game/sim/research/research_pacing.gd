@@ -134,9 +134,10 @@ func score(node: ResearchNode, affordable: bool, breadth: int) -> float:
 		return 0.0
 	var s: float = 0.0
 	if String(node.answers) != "":
-		s += W_PRIMARY * maxf(0.0, node.answer_weight) * value(node.answers)
+		s += W_PRIMARY * maxf(0.0, node.answer_weight) \
+				* ResearchDefs.stake(node.answers) * value(node.answers)
 	if String(node.also_answers) != "":
-		s += W_SECONDARY * value(node.also_answers)
+		s += W_SECONDARY * ResearchDefs.stake(node.also_answers) * value(node.also_answers)
 	# Cheap things first, gently: a tier-1 answer beats a tier-4 answer to the
 	# same problem, which is how a player ends up climbing rather than leaping.
 	s += 0.6 / float(maxi(1, node.tier))

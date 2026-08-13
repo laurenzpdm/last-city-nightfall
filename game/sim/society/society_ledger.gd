@@ -22,10 +22,17 @@ extends RefCounted
 const RECENT_HALF_LIFE_HOURS: float = 1.0
 const EPS: float = 0.0000005
 
-## key -> record. Never iterated without sorting the keys first.
+## "<meter>/<key>" -> record. The meter is part of the identity on purpose:
+## almost every real force pushes BOTH meters at once (cold houses cost hope AND
+## raise discontent), and keying on the bare name silently merged the two into
+## one record whose sign was whichever half happened to be written first.
 var _entries: Dictionary[StringName, Dictionary] = {}
 var _keys: Array[StringName] = []
 var _keys_dirty: bool = false
+
+
+static func _slot(meter: StringName, key: StringName) -> StringName:
+	return StringName("%s/%s" % [String(meter), String(key)])
 
 
 func clear() -> void:
@@ -39,10 +46,12 @@ func clear() -> void:
 ## impulse. Returns nothing: the caller has already applied the delta.
 func add(meter: StringName, key: StringName, label: String, text: String,
 		delta: float, rate: float, tick: int) -> void:
-	var rec: Dictionary = _entries.get(key, {})
+	var slot: StringName = _slot(meter, key)
+	var rec: Dictionary = _entries.get(slot, {})
 	if rec.is_empty():
 		rec = {
 			"meter": String(meter),
+			"key": String(key),
 			"label": label,
 			"text": text,
 			"rate": 0.0,
@@ -53,7 +62,7 @@ func add(meter: StringName, key: StringName, label: String, text: String,
 			"last_tick": tick,
 			"count": 0,
 		}
-		_entries[key] = rec
+		_entries[slot] = rec
 		_keys_dirty = true
 	rec["label"] = label
 	if text != "":
@@ -68,28 +77,28 @@ func add(meter: StringName, key: StringName, label: String, text: String,
 
 ## Marks a reason as no longer acting without touching its history, so a UI can
 ## grey it out instead of having it vanish mid-frame.
-func silence(key: StringName) -> void:
-	var rec: Dictionary = _entries.get(key, {})
+func silence(meter: StringName, key: StringName) -> void:
+	var rec: Dictionary = _entries.get(_slot(meter, key), {})
 	if not rec.is_empty():
 		rec["rate"] = 0.0
 
 
-func has(key: StringName) -> bool:
-	return _entries.has(key)
+func has(meter: StringName, key: StringName) -> bool:
+	return _entries.has(_slot(meter, key))
 
 
-func rate_of(key: StringName) -> float:
-	var rec: Dictionary = _entries.get(key, {})
+func rate_of(meter: StringName, key: StringName) -> float:
+	var rec: Dictionary = _entries.get(_slot(meter, key), {})
 	return float(rec.get("rate", 0.0))
 
 
-func total_of(key: StringName) -> float:
-	var rec: Dictionary = _entries.get(key, {})
+func total_of(meter: StringName, key: StringName) -> float:
+	var rec: Dictionary = _entries.get(_slot(meter, key), {})
 	return float(rec.get("total", 0.0))
 
 
-func today_of(key: StringName) -> float:
-	var rec: Dictionary = _entries.get(key, {})
+func today_of(meter: StringName, key: StringName) -> float:
+	var rec: Dictionary = _entries.get(_slot(meter, key), {})
 	return float(rec.get("today", 0.0))
 
 
@@ -100,8 +109,8 @@ func today_of(key: StringName) -> float:
 func meter_total(meter: StringName) -> float:
 	var sum: float = 0.0
 	var want: String = String(meter)
-	for key: StringName in _sorted_keys():
-		var rec: Dictionary = _entries[key]
+	for slot: StringName in _sorted_keys():
+		var rec: Dictionary = _entries[slot]
 		if String(rec["meter"]) == want:
 			sum += float(rec["total"])
 	return sum
@@ -111,8 +120,8 @@ func meter_total(meter: StringName) -> float:
 func meter_today(meter: StringName) -> float:
 	var sum: float = 0.0
 	var want: String = String(meter)
-	for key: StringName in _sorted_keys():
-		var rec: Dictionary = _entries[key]
+	for slot: StringName in _sorted_keys():
+		var rec: Dictionary = _entries[slot]
 		if String(rec["meter"]) == want:
 			sum += float(rec["today"])
 	return sum
@@ -123,16 +132,16 @@ func decay(hours: float) -> void:
 	if hours <= 0.0:
 		return
 	var f: float = pow(0.5, hours / RECENT_HALF_LIFE_HOURS)
-	for key: StringName in _sorted_keys():
-		var rec: Dictionary = _entries[key]
+	for slot: StringName in _sorted_keys():
+		var rec: Dictionary = _entries[slot]
 		var r: float = float(rec["recent"]) * f
 		rec["recent"] = 0.0 if absf(r) < EPS else r
 
 
 ## Dawn. `today` resets, everything else survives.
 func roll_day() -> void:
-	for key: StringName in _sorted_keys():
-		(_entries[key] as Dictionary)["today"] = 0.0
+	for slot: StringName in _sorted_keys():
+		(_entries[slot] as Dictionary)["today"] = 0.0
 
 
 ## Every reason acting on one meter, strongest first. `limit` <= 0 means all.
@@ -141,11 +150,11 @@ func roll_day() -> void:
 func top(meter: StringName, limit: int = 0) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var want: String = String(meter)
-	for key: StringName in _sorted_keys():
-		var rec: Dictionary = _entries[key]
+	for slot: StringName in _sorted_keys():
+		var rec: Dictionary = _entries[slot]
 		if want != "" and String(rec["meter"]) != want:
 			continue
-		out.append(_view(key, rec))
+		out.append(_view(rec))
 	out.sort_custom(_rank)
 	if limit > 0 and out.size() > limit:
 		out.resize(limit)
@@ -161,12 +170,12 @@ func all(limit: int = 0) -> Array[Dictionary]:
 ## state diff between two runs lines up.
 func serialize() -> Array:
 	var out: Array = []
-	for key: StringName in _sorted_keys():
-		var rec: Dictionary = _entries[key]
+	for slot: StringName in _sorted_keys():
+		var rec: Dictionary = _entries[slot]
 		if absf(float(rec["total"])) < EPS and int(rec["count"]) == 0:
 			continue
 		out.append({
-			"key": String(key),
+			"key": String(rec["key"]),
 			"meter": String(rec["meter"]),
 			"label": String(rec["label"]),
 			"text": String(rec["text"]),
@@ -188,8 +197,10 @@ func deserialize(data: Array) -> void:
 		var key: StringName = StringName(String(d.get("key", "")))
 		if key == &"":
 			continue
-		_entries[key] = {
-			"meter": String(d.get("meter", "hope")),
+		var meter: StringName = StringName(String(d.get("meter", "hope")))
+		_entries[_slot(meter, key)] = {
+			"meter": String(meter),
+			"key": String(key),
 			"label": String(d.get("label", "")),
 			"text": String(d.get("text", "")),
 			"rate": float(d.get("rate", 0.0)),
@@ -209,10 +220,10 @@ func size() -> int:
 
 # --- internals ---------------------------------------------------------------
 
-func _view(key: StringName, rec: Dictionary) -> Dictionary:
+func _view(rec: Dictionary) -> Dictionary:
 	var total: float = float(rec["total"])
 	return {
-		"key": String(key),
+		"key": String(rec["key"]),
 		"meter": String(rec["meter"]),
 		"label": String(rec["label"]),
 		"text": String(rec["text"]),
@@ -236,7 +247,9 @@ func _rank(a: Dictionary, b: Dictionary) -> bool:
 	var tb: float = absf(float(b["total"]))
 	if absf(ta - tb) > EPS:
 		return ta > tb
-	return String(a["key"]) < String(b["key"])
+	if String(a["key"]) != String(b["key"]):
+		return String(a["key"]) < String(b["key"])
+	return String(a["meter"]) < String(b["meter"])
 
 
 func _sorted_keys() -> Array[StringName]:

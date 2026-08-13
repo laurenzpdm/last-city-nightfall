@@ -256,6 +256,43 @@ const SIGNAL_LINES: Dictionary = {
 }
 
 
+## WHAT EACH PROBLEM COSTS YOU IF YOU IGNORE IT.
+##
+## A signal at 1.0 is not the same emergency in every case: buildings freezing
+## solid kills people, and belts crossing pipes costs you patience. Without this
+## the ranking is a popularity contest between measurements, and a tangled base
+## outranks a city that is dying — which is exactly what the first reference run
+## did before this table existed.
+const SIGNAL_STAKES: Dictionary = {
+	SIG_FROZEN: 1.5,
+	SIG_CASUALTIES: 1.5,
+	SIG_HEAT_DEFICIT: 1.4,
+	SIG_COLD: 1.3,
+	SIG_STRUCTURE_LOSS: 1.3,
+	SIG_ARMOURED: 1.3,
+	SIG_HUNGER: 1.2,
+	SIG_SWARM: 1.2,
+	SIG_STORM: 1.2,
+	SIG_WAVE: 1.1,
+	SIG_FUEL: 1.1,
+	SIG_HEAT_PEAK: 1.1,
+	SIG_HEAT_BOTTLENECK: 1.0,
+	SIG_BLIND: 1.0,
+	SIG_DISCONTENT: 1.0,
+	SIG_HEAT_LOSS: 0.9,
+	SIG_LABOUR: 0.9,
+	SIG_MATERIALS: 0.9,
+	SIG_SPRAWL: 0.8,
+	SIG_TANGLE: 0.8,
+}
+
+
+## How much this problem matters relative to the others, 0.8 (annoying) to
+## 1.5 (fatal). Unknown signals are ordinary.
+static func stake(sig: StringName) -> float:
+	return float(SIGNAL_STAKES.get(sig, 1.0))
+
+
 static func signal_line(sig: StringName) -> String:
 	return String(SIGNAL_LINES.get(sig, "the city needs something it does not have"))
 

@@ -40,8 +40,13 @@ var _height: int = 0
 
 ## The vectors this world offers, independent of any one night.
 var _candidates: Array[ThreatVector] = []
-## Corridor cell -> candidate index. Ties go to the lower index.
+## Corridor cell -> BITMASK of the candidate indices that corridor belongs to.
+## A mask rather than one owner because lanes converge near the city: a turret
+## between two roads genuinely defends both, and giving it to whichever lane was
+## painted first would read a fortified side as an open one.
 var _zone: Dictionary[Vector2i, int] = {}
+## Candidates whose index fits in the mask. Anything past this is not scored.
+const MAX_MASKED_VECTORS: int = 30
 ## Cached per-kind classification, so rescoring never touches the Registry.
 var _kind_cache: Dictionary[StringName, Dictionary] = {}
 ## Offsets of a disc of radius `lane_corridor_radius`, precomputed once.
@@ -116,35 +121,40 @@ func rescore() -> void:
 		var b: Object = entry
 		if b == null or not b.has_method("is_complete") or not bool(b.call("is_complete")):
 			continue
-		var zone: int = _zone_of(b)
-		if zone < 0:
+		var mask: int = _zone_of(b)
+		if mask == 0:
 			continue
-		var v3: ThreatVector = _candidates[zone]
 		var kind: StringName = StringName(String(b.get("kind")))
 		var info: Dictionary = _kind_info(kind)
 		var health: float = 1.0
 		if b.has_method("health_ratio"):
 			health = clampf(float(b.call("health_ratio")), 0.0, 1.0)
 		var id: int = int(b.get("id"))
-		if bool(info.get("turret", false)):
-			var power: float = 1.0
-			if has_power:
-				power = clampf(float(_heat.call("power_factor", id)), 0.0, 1.0)
-			# A cold turret is a decoration. This one line is the whole reason
-			# the heat grid IS the defence grid.
-			v3.defence_dps += _profile.turret_dps * health * (0.15 + 0.85 * power)
-			v3.turrets += 1
-		elif bool(info.get("defense", false)):
-			v3.defence_dps += _profile.support_dps * health
-			v3.walls += 1
-			v3.barrier_hp += float(b.get("hp")) * _profile.wall_barrier_scale
-		else:
-			# Anything else is still a body in the way, and still something they
-			# can stop to take apart.
-			v3.barrier_hp += float(b.get("hp")) * 0.25
-		var list: Array = found.get(zone, [])
-		list.append(id)
-		found[zone] = list
+		var turret: bool = bool(info.get("turret", false))
+		var power: float = 1.0
+		if turret and has_power:
+			power = clampf(float(_heat.call("power_factor", id)), 0.0, 1.0)
+		var hp: float = float(b.get("hp"))
+		for zone: int in _candidates.size():
+			if (mask & (1 << zone)) == 0:
+				continue
+			var v3: ThreatVector = _candidates[zone]
+			if turret:
+				# A cold turret is a decoration. This one line is the whole reason
+				# the heat grid IS the defence grid.
+				v3.defence_dps += _profile.turret_dps * health * (0.15 + 0.85 * power)
+				v3.turrets += 1
+			elif bool(info.get("defense", false)):
+				v3.defence_dps += _profile.support_dps * health
+				v3.walls += 1
+				v3.barrier_hp += hp * _profile.wall_barrier_scale
+			else:
+				# Anything else is still a body in the way, and still something
+				# they can stop to take apart.
+				v3.barrier_hp += hp * 0.25
+			var list: Array = found.get(zone, [])
+			list.append(id)
+			found[zone] = list
 
 	var zones: Array = found.keys()
 	zones.sort()
@@ -305,8 +315,11 @@ func _vector_from_lane(lane: Dictionary, idx: int) -> ThreatVector:
 				break
 	v.choke_cell = cell_of(path[choke_at])
 	v.sector = ThreatDefs.compass_sector(v.entry_cell - _core)
-	v.envelope_from = maxi(0, choke_at - _profile.lane_envelope_cells)
-	v.envelope_to = mini(path.size() - 1, choke_at + 4)
+	# From just outside the core out to a little past the chokepoint. That whole
+	# stretch is "the approach": it is where a wall means something and where a
+	# turret can reach the road.
+	v.envelope_from = mini(_profile.lane_core_clear, maxi(0, choke_at - 1))
+	v.envelope_to = mini(path.size() - 1, choke_at + _profile.lane_envelope_cells)
 	v.travel = _travel_of(v.entry_cell, path.size())
 	return v
 
@@ -344,36 +357,36 @@ func _synthesise() -> void:
 			var c: Vector2i = _core + d * step
 			path.append(c.y * _width + c.x)
 		v.path = path
-		v.envelope_from = maxi(0, path.size() / 2 - _profile.lane_envelope_cells)
-		v.envelope_to = mini(path.size() - 1, path.size() / 2 + 4)
+		v.envelope_from = mini(_profile.lane_core_clear, maxi(0, path.size() / 2 - 1))
+		v.envelope_to = mini(path.size() - 1, path.size() / 2 + _profile.lane_envelope_cells)
 		v.travel = reach * 10
 		_candidates.append(v)
 
 
 func _paint_zone(v: ThreatVector) -> void:
+	if v.index >= MAX_MASKED_VECTORS:
+		return
+	var bit: int = 1 << v.index
 	for i: int in range(v.envelope_from, v.envelope_to + 1):
 		var c: Vector2i = cell_of(v.path[i])
 		for o: Vector2i in _disc:
 			var cell: Vector2i = c + o
 			if cell.x < 0 or cell.y < 0 or cell.x >= _width or cell.y >= _height:
 				continue
-			if not _zone.has(cell):
-				_zone[cell] = v.index
+			_zone[cell] = int(_zone.get(cell, 0)) | bit
 
 
-## Which lane a building defends, or -1. Checks the anchor cell and the
+## Mask of the lanes a building defends, or 0. Checks the anchor cell and the
 ## footprint centre, which covers everything up to a 4x4 without a full scan.
 func _zone_of(b: Object) -> int:
 	var cell: Vector2i = b.get("cell")
-	var z: int = int(_zone.get(cell, -1))
-	if z >= 0:
-		return z
+	var mask: int = int(_zone.get(cell, 0))
 	if b.has_method("rect"):
 		var r: Rect2i = b.call("rect")
 		var mid: Vector2i = r.position + r.size / 2
 		if mid != cell:
-			return int(_zone.get(mid, -1))
-	return -1
+			mask |= int(_zone.get(mid, 0))
+	return mask
 
 
 ## Classification of a building kind, resolved once and then cached. Read

@@ -61,7 +61,6 @@ var _has_bulk_terrain: bool = false
 ## and snow as PackedByteArrays, which is the difference between reading a
 ## 65 536-tile map in one pass and calling terrain_at() 65 536 times.
 var _world_grid: Object = null
-var _snow_stamp: int = -1
 var _building_stamp: int = 0
 var _has_phase_clock: bool = false
 var _has_heat_view: bool = false
@@ -489,90 +488,6 @@ func snow_at(cell: Vector2i) -> float:
 		if d < r:
 			depth *= clampf(d / r, 0.0, 1.0)
 	return depth
-
-
-## Bulk fill of the three per-tile overlay fields for one chunk.
-##
-## Doing this per chunk instead of per tile is what keeps the ground layer
-## affordable: heat sources and sooty buildings are filtered against the chunk
-## bounds once, so the inner loop only touches the handful that can reach it.
-func fill_overlay_fields(origin: Vector2i, n: int, out_snow: PackedFloat32Array,
-		out_soot: PackedFloat32Array, out_temp: PackedFloat32Array) -> void:
-	var rect := Rect2(Vector2(origin) * float(TILE), Vector2(float(n), float(n)) * float(TILE))
-	var srcs: Array[Dictionary] = []
-	for s: Dictionary in heat_sources():
-		var r: float = float(s["radius"])
-		if rect.grow(r).has_point(s["pos"]):
-			srcs.append(s)
-	var soots: Array[Dictionary] = []
-	for b: Dictionary in buildings():
-		var sr: float = float(b.get("soot_radius", 0.0))
-		if sr > 0.0 and float(b.get("soot", 0.0)) > 0.0 and rect.grow(sr).has_point(b["centre"]):
-			soots.append(b)
-
-	var grid_snow: bool = _grid != null and _grid.has_method("snow_at")
-	var heat_temp: bool = _heat != null and _heat.has_method("temperature_at")
-	var ambient: float = ambient_temperature()
-
-	for y: int in n:
-		for x: int in n:
-			var cell := Vector2i(origin.x + x, origin.y + y)
-			var pos := Vector2(float(cell.x) * TILE + 16.0, float(cell.y) * TILE + 16.0)
-			var i: int = y * n + x
-
-			var temp: float = ambient
-			if heat_temp:
-				temp = float(_heat.call("temperature_at", cell))
-			else:
-				for s2: Dictionary in srcs:
-					var d: float = (s2["pos"] as Vector2).distance_to(pos)
-					var r2: float = float(s2["radius"])
-					if d < r2:
-						var f: float = 1.0 - d / r2
-						temp += 70.0 * float(s2["intensity"]) * f * f
-			out_temp[i] = temp
-
-			var terrain: int = terrain_at(cell)
-			var snow: float = 0.0
-			if grid_snow:
-				snow = clampf(float(_grid.call("snow_at", cell)) / _snow_cap, 0.0, 1.0)
-			elif LcnPalette.terrain_takes_snow(terrain):
-				var base: float = _snow_phase
-				if terrain == LcnPalette.Terrain.PAVED:
-					base *= 0.55
-				var nz: float = LcnNoise.fbm(float(cell.x) * 0.055, float(cell.y) * 0.055, 4242, 3)
-				snow = clampf(base * (0.45 + nz * 1.1), 0.0, 1.0)
-				for s3: Dictionary in srcs:
-					var d2: float = (s3["pos"] as Vector2).distance_to(pos)
-					var r3: float = float(s3["radius"]) * 0.85
-					if d2 < r3:
-						snow *= clampf(d2 / r3, 0.0, 1.0)
-			out_snow[i] = snow
-
-			var soot: float = 0.0
-			for b2: Dictionary in soots:
-				var d3: float = (b2["centre"] as Vector2).distance_to(pos)
-				var r4: float = float(b2["soot_radius"])
-				if d3 < r4:
-					var f2: float = 1.0 - d3 / r4
-					soot += float(b2["soot"]) * f2 * f2
-			out_soot[i] = clampf(soot, 0.0, 1.0)
-
-
-## 0..1 industrial soot on a tile, derived from nearby industry.
-func soot_at(cell: Vector2i) -> float:
-	var pos := Vector2(float(cell.x) * TILE + 16.0, float(cell.y) * TILE + 16.0)
-	var acc: float = 0.0
-	for b: Dictionary in buildings():
-		var w: float = float(b.get("soot", 0.0))
-		if w <= 0.0:
-			continue
-		var d: float = (b["centre"] as Vector2).distance_to(pos)
-		var r: float = float(b.get("soot_radius", 96.0))
-		if d < r:
-			var f: float = 1.0 - d / r
-			acc += w * f * f
-	return clampf(acc, 0.0, 1.0)
 
 
 # ---------------------------------------------------------------- buildings --

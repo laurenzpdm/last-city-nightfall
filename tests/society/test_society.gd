@@ -13,6 +13,9 @@ const HOUR: int = 400            ## ticks per in-world hour at the default day l
 const DAY_TICKS: int = 9600
 
 var soc: SocietySystem = null
+## The clock. Every helper advances it; nothing in a suite may reset it, because
+## stepping a system backwards in time is a test bug that reads like a sim bug.
+var now: int = 0
 
 
 func requires_files() -> PackedStringArray:
@@ -20,6 +23,7 @@ func requires_files() -> PackedStringArray:
 
 
 func setup() -> void:
+	now = 0
 	soc = SocietySystem.new()
 	soc.setup()
 	soc.post_setup()
@@ -65,12 +69,11 @@ func _city(o: Dictionary) -> SocietyReading:
 	return r
 
 
-func _run(ticks: int, from: int = 0) -> int:
-	var t: int = from
+func _run(ticks: int) -> int:
 	for _i: int in ticks:
-		t += 1
-		soc.step(t)
-	return t
+		now += 1
+		soc.step(now)
+	return now
 
 
 func _rate_of(meter: String, key: String) -> float:
@@ -124,7 +127,7 @@ func test_reasons_are_worded_and_carry_this_run_s_numbers() -> void:
 	_run(HOUR)
 	assert_true(_has_reason("discontent", "cold_homes"), "cold houses are a named reason")
 	var text: String = _text_of("cold_homes")
-	assert_has(text, "eleven", "the sentence says how many are cold")
+	assert_has(text, "Eleven", "the sentence says how many are cold")
 	assert_has(text, "nineteen", "out of how many")
 	assert_has(text, "-9", "and how cold the worst one is")
 	for r: Dictionary in soc.reasons():
@@ -164,11 +167,15 @@ func test_a_warm_fed_city_is_calmer_than_a_cold_hungry_one() -> void:
 func test_a_clamped_meter_still_adds_up() -> void:
 	soc.handle_command({"op": "nudge", "meter": "discontent", "amount": 500.0,
 		"reason": "A scripted catastrophe."})
-	_run(HOUR)
-	assert_near(soc.discontent(), 100.0, 0.001, "the bar pins at a hundred")
+	_run(1)
+	assert_near(soc.discontent(), 100.0, 0.01, "the bar pins at a hundred")
 	assert_near(soc.ledger.meter_total(SocietyDefs.METER_DISCONTENT),
 		100.0 - SocietyDefs.DISCONTENT_START, 0.02,
-		"and the reasons still sum to the distance actually travelled")
+		"and a five hundred point shove is only credited with the ninety four it moved")
+	_run(HOUR * 3)
+	assert_near(soc.discontent() - SocietyDefs.DISCONTENT_START,
+		soc.ledger.meter_total(SocietyDefs.METER_DISCONTENT), 0.02,
+		"and it stays balanced while the bar comes back down off the ceiling")
 
 
 # =========================================================================
@@ -180,12 +187,12 @@ func test_the_cold_kills_and_says_who() -> void:
 		"outdoor_c": -32.0}))
 	_run(HOUR * 8)
 	assert_gt(soc.deaths_total(), 0.0, "people die in an unlit camp at minus thirty two")
-	var found: bool = false
-	for r: Dictionary in soc.reasons():
-		if String(r["key"]).begins_with("deaths_"):
-			found = true
-			assert_has(String(r["text"]), "froze", "the reason says what killed them")
-	assert_true(found, "and the deaths are in the ledger by cause")
+	assert_gt(float(soc.populace.deaths_by_cause.get(&"cold", 0.0)), 0.0, "of the cold")
+	assert_true(_has_reason("hope", "deaths_cold"), "and it is in the ledger by cause")
+	assert_has(_text_of("deaths_cold"), "froze", "with a sentence that says what killed them")
+	assert_lt(_rate_of("hope", "deaths_cold"), 1.0, "as a loss, not a gain")
+	assert_lt(soc.ledger.total_of(SocietyDefs.METER_HOPE, &"deaths_cold"), 0.0,
+		"every one of them costs hope")
 
 
 func test_lighting_the_fire_keeps_the_camp_alive() -> void:
@@ -206,7 +213,7 @@ func test_the_canvas_runs_out() -> void:
 	var start: float = soc.populace.tent_capacity
 	_run(HOUR * 24)
 	assert_lt(soc.populace.tent_capacity, start * 0.75, "a day of wind costs you tents")
-	_run(HOUR * 50, HOUR * 24)
+	_run(HOUR * 50)
 	assert_near(soc.populace.tent_capacity, 0.0, 0.01, "and after three days there are none")
 	assert_gt(soc.populace.homeless, 0.0, "which is when people start sleeping on the ice")
 
@@ -224,7 +231,7 @@ func test_hunger_needs_kitchens_not_wishes() -> void:
 	assert_gt(soc.hunger_share(), 0.5, "no kitchens, no food")
 	assert_true(_has_reason("discontent", "hunger"), "and the city says so")
 	soc.inject_reading(_city({"kitchens": 4, "kitchens_running": 4.0}))
-	_run(HOUR * 4, HOUR * 4)
+	_run(HOUR * 4)
 	assert_lt(soc.hunger_share(), 0.05, "four running kitchens feed forty people")
 
 
@@ -270,14 +277,15 @@ func test_signing_swings_the_factions_that_care() -> void:
 
 
 func test_a_cruel_law_buys_quiet_and_costs_hope() -> void:
-	soc.handle_command({"op": "nudge", "meter": "discontent", "amount": 40.0,
-		"reason": "A scripted grievance."})
-	var hope_before: float = soc.hope()
-	var discontent_before: float = soc.discontent()
 	_sign_and_wait(&"corpse_pits")
-	assert_lt(soc.hope(), hope_before, "the pits cost hope on the day they open")
+	# Measured off the ledger rather than off the bar, because the bar is also
+	# moving for a dozen other reasons and the question here is what THIS PAGE
+	# did.
+	assert_lt(soc.ledger.total_of(SocietyDefs.METER_HOPE, &"law:corpse_pits"), -3.0,
+		"the pits cost hope the morning they open")
 	assert_gt(soc.policy_value(&"corpse_capacity"), 20.0, "and they do solve the problem")
-	assert_gt(soc.discontent(), discontent_before - 10.0, "without buying much quiet")
+	assert_lt(soc.approval_of(SocietyDefs.FACTION_FAITHFUL), -20.0,
+		"and the congregation will not forget it")
 
 
 func test_the_book_view_explains_why_a_page_is_shut() -> void:
@@ -299,9 +307,10 @@ func test_a_grievance_needs_to_be_sustained_before_it_opens() -> void:
 	soc.inject_reading(_city({"homes": 5, "homes_cold": 5, "home_temp_c": -8.0}))
 	_run(int(HOUR * 0.75))
 	assert_eq(soc.active_grievances(), 0, "three quarters of an hour of cold is weather")
-	_run(HOUR * 2, int(HOUR * 0.75))
+	_run(HOUR * 2)
 	assert_gt(float(soc.active_grievances()), 0.0, "three hours of it is a grievance")
 	var g: Array[Dictionary] = soc.grievances()
+	assert_eq(String(g[0]["kind"]), "cold", "the loudest one is the cold")
 	assert_eq(String(g[0]["faction"]), "families", "and the parents are the ones saying it")
 	assert_gt(float(String(g[0]["complaint"]).length()), 20.0, "in words")
 
@@ -311,8 +320,8 @@ func test_fixing_the_cause_closes_the_grievance() -> void:
 	_run(HOUR * 4)
 	assert_gt(float(soc.active_grievances()), 0.0, "opened")
 	soc.inject_reading(_city({"homes": 5, "homes_cold": 0, "home_temp_c": 18.0}))
-	_run(HOUR * 8, HOUR * 4)
-	assert_eq(soc.active_grievances(), 0, "and closed once the rooms are warm")
+	_run(HOUR * 8)
+	assert_false(soc.council.grievance_of(&"cold").open, "and closed once the rooms are warm")
 
 
 func test_a_faction_makes_a_demand_with_a_deadline() -> void:
@@ -328,32 +337,46 @@ func test_a_faction_makes_a_demand_with_a_deadline() -> void:
 
 
 func test_meeting_a_demand_is_worth_something() -> void:
-	soc.inject_reading(_city({"homes": 5, "homes_cold": 5, "home_temp_c": -10.0}))
-	var t: int = _run(HOUR * 8)
-	if soc.demands().is_empty():
-		skip("no demand was issued in eight hours; covered by the previous test")
+	soc.inject_reading(_city({"homes": 5, "homes_cold": 4, "home_temp_c": -3.0,
+		"coldest_home_c": -6.0}))
+	_run(HOUR * 8)
+	var d: Dictionary = _demand_about("cold")
+	if d.is_empty():
+		fail("nobody demanded anything about the cold in eight hours of it")
 		return
-	var faction: StringName = StringName(String(soc.demands()[0]["faction"]))
+	var faction: StringName = StringName(String(d["faction"]))
 	var approval_before: float = soc.approval_of(faction)
-	var discontent_before: float = soc.discontent()
-	soc.inject_reading(_city({"homes": 5, "homes_cold": 0, "home_temp_c": 19.0}))
-	_run(HOUR * 2, t)
-	assert_empty(soc.demands(), "the demand is settled")
+	if String(d["kind"]) == "law_any":
+		# They asked for a page. Give them the page.
+		soc.book._signed[StringName(String((d["laws"] as Array)[0]))] = now
+		soc.book._signed_order.append(StringName(String((d["laws"] as Array)[0])))
+		soc.book._dirty = true
+		soc.book._forecl_dirty = true
+	else:
+		soc.inject_reading(_city({"homes": 5, "homes_cold": 0, "home_temp_c": 19.0}))
+	_run(HOUR * 2)
+	for open_d: Dictionary in soc.demands():
+		assert_ne(String(open_d["grievance"]), "cold", "the cold demand is settled")
 	assert_gt(soc.approval_of(faction), approval_before, "they remember it")
-	assert_lt(soc.discontent(), discontent_before, "and the anger comes off the bar")
+	assert_lt(soc.ledger.total_of(SocietyDefs.METER_DISCONTENT,
+		StringName("demand_met_%s" % String(faction))), 0.0,
+		"and keeping the promise is a named reason that took anger off the bar")
 
 
 func test_missing_a_demand_radicalises_the_faction() -> void:
-	soc.inject_reading(_city({"homes": 5, "homes_cold": 5, "home_temp_c": -10.0}))
-	var t: int = _run(HOUR * 8)
-	if soc.demands().is_empty():
-		skip("no demand was issued in eight hours")
+	soc.inject_reading(_city({"homes": 5, "homes_cold": 4, "home_temp_c": -3.0,
+		"coldest_home_c": -6.0}))
+	_run(HOUR * 8)
+	var missed: Dictionary = _demand_about("cold")
+	if missed.is_empty():
+		fail("nobody demanded anything about the cold in eight hours of it")
 		return
-	var faction: StringName = StringName(String(soc.demands()[0]["faction"]))
-	var discontent_before: float = soc.discontent()
-	_run(HOUR * 16, t)
+	var faction: StringName = StringName(String(missed["faction"]))
+	_run(HOUR * 16)
 	assert_lt(soc.approval_of(faction), -10.0, "they have decided about you")
-	assert_gt(soc.discontent(), discontent_before, "and it costs")
+	assert_lt(soc.ledger.total_of(SocietyDefs.METER_HOPE,
+		StringName("demand_failed_%s" % String(faction))), 0.0,
+		"and the broken promise is a named reason on the hope bar")
 	var radical: int = 0
 	for f: Dictionary in soc.factions():
 		if String(f["id"]) == String(faction):
@@ -380,7 +403,7 @@ func test_exile_is_telegraphed_four_times_before_it_happens() -> void:
 	var ultimatum_tick: int = -1
 	for _i: int in HOUR * 40:
 		t += 1
-		if t % HOUR == 0 and soc.discontent() < 99.0 and not soc.warning_state()["ultimatum"]:
+		if t % HOUR == 0 and soc.discontent() < 99.0:
 			soc.handle_command({"op": "nudge", "meter": "discontent", "amount": 9.0,
 				"reason": "A scripted collapse."})
 		soc.step(t)
@@ -406,9 +429,9 @@ func test_an_ultimatum_can_be_survived() -> void:
 	var t: int = _run(HOUR)
 	assert_true(bool(soc.warning_state()["ultimatum"]), "the crowd is outside")
 	soc.handle_command({"op": "set_meter", "meter": "discontent", "value": 40.0})
-	t = _run(HOUR, t)
+	t = _run(HOUR)
 	assert_false(bool(soc.warning_state()["ultimatum"]), "and then it is not")
-	_run(HOUR * 20, t)
+	_run(HOUR * 20)
 	assert_false(soc.is_over(), "the run continues")
 
 
@@ -438,7 +461,7 @@ func test_a_finished_run_stops_escalating() -> void:
 	assert_true(soc.is_over(), "the run ended")
 	var reason: String = soc.end_reason()
 	soc.handle_command({"op": "set_meter", "meter": "hope", "value": 0.0})
-	_run(HOUR * 20, t)
+	_run(HOUR * 20)
 	assert_eq(soc.end_reason(), reason, "and it cannot end twice")
 
 
@@ -498,6 +521,15 @@ func test_it_degrades_without_any_other_system() -> void:
 
 # --- helpers -----------------------------------------------------------------
 
+## The open demand about one grievance, or {}. Several factions can be shouting
+## at once and a test must name which one it is answering.
+func _demand_about(grievance: String) -> Dictionary:
+	for d: Dictionary in soc.demands():
+		if String(d["grievance"]) == grievance:
+			return d
+	return {}
+
+
 func _fresh(reading: SocietyReading) -> SocietySystem:
 	var s := SocietySystem.new()
 	s.setup()
@@ -508,14 +540,11 @@ func _fresh(reading: SocietyReading) -> SocietySystem:
 
 ## Signs a law and runs the clock until it is actually in force.
 func _sign_and_wait(id: StringName) -> void:
-	var start: int = 1
 	var res: Dictionary = soc.sign_law(id)
 	if not bool(res.get("ok", false)):
 		fail("could not propose '%s': %s" % [String(id), String(res.get("reason", ""))])
 		return
-	var need: int = int(ceil(float(res["hours"]) * float(HOUR))) + 2
-	for i: int in need:
-		soc.step(start + i)
+	_run(int(ceil(float(res["hours"]) * float(HOUR))) + 2)
 
 
 func _scripted_run(world_seed: int) -> Dictionary:

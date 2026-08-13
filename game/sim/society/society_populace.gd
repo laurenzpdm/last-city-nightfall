@@ -134,7 +134,7 @@ func _mirror_citizens(reading: SocietyReading) -> Array[Dictionary]:
 		_bump_cause(&"reported", float(fresh))
 		out.append({
 			"kind": &"death", "cause": &"reported", "count": fresh,
-			"detail": "%s died." % SocietyDefs.people(fresh).capitalize(),
+			"detail": "%s died." % SocietyDefs.sentence(SocietyDefs.people(fresh)),
 		})
 	return out
 
@@ -249,7 +249,7 @@ func _kill(cause: StringName, amount: float, reading: SocietyReading) -> Array[D
 
 
 func _death_sentence(cause: StringName, n: int, reading: SocietyReading) -> String:
-	var who: String = SocietyDefs.people(n).capitalize()
+	var who: String = SocietyDefs.sentence(SocietyDefs.people(n))
 	match cause:
 		&"cold":
 			if homeless > 0.5:
@@ -294,7 +294,7 @@ func dawn(reading: SocietyReading, hope: float) -> Array[Dictionary]:
 		"cause": &"newcomers",
 		"count": whole,
 		"detail": "%s walked in out of the white at first light. They had heard there was a fire here."
-			% SocietyDefs.people(whole).capitalize(),
+			% SocietyDefs.sentence(SocietyDefs.people(whole)),
 	})
 	return events
 

@@ -29,6 +29,7 @@ uniform float time_s = 0.0;
 uniform vec2 sun_dir = vec2(-0.5, -0.7);
 uniform vec3 sun_col = vec3(1.0);
 uniform float sun_energy = 0.9;
+uniform float sun_height = 0.8;
 uniform vec3 sky_col = vec3(0.55, 0.63, 0.78);
 uniform float sky_energy = 0.42;
 uniform vec3 bounce_col = vec3(0.62, 0.74, 0.98);
@@ -128,7 +129,11 @@ void fragment() {
 	// so the snow line crosses tile boundaries as a drift edge instead of
 	// stepping along them. The band is wide on purpose: a hard cut is exactly
 	// the staircase this replaces.
-	float sn = fbm3(t * 0.78 + vec2(211.0, 17.0)) * 0.68 + fbm2(t * 0.11 + vec2(9.0)) * 0.32;
+	// Mostly mid-scale: at a heavier low-frequency weight the cover breaks into
+	// continent-sized blobs and the plain reads as camouflage rather than snow.
+	float sn = fbm3(t * 0.92 + vec2(211.0, 17.0)) * 0.60
+		+ fbm2(t * 2.60 + vec2(43.0, 5.0)) * 0.22
+		+ fbm2(t * 0.16 + vec2(9.0)) * 0.18;
 	float thr = 1.0 - depth * 1.22;
 	float cover = smoothstep(thr - 0.22, thr + 0.20, sn + 0.06);
 	cover *= smoothstep(0.0, 0.06, depth);
@@ -137,6 +142,10 @@ void fragment() {
 	vec3 snow_col = mix(snow_mid, snow_lit, crest);
 	snow_col = mix(mix(snow_shadow, snow_mid, 0.55), snow_col, clamp(depth * 1.9, 0.35, 1.0));
 	albedo = mix(albedo, snow_col, cover);
+	// Frost dusting on whatever the drifts did NOT bury. Without it deep snow
+	// over dark rock resolves as hard white-on-black patches, which is the
+	// camouflage look, not a snowfield with the ground showing through.
+	albedo = mix(albedo, snow_col, (1.0 - cover) * depth * 0.52);
 
 	// A rim of packed drift right at the edge of the cover reads as a real lip.
 	float lip = cover * (1.0 - cover) * 4.0;
@@ -160,7 +169,11 @@ void fragment() {
 	float hy = fbm2((t + vec2(0.0, e)) * 0.62) - fbm2((t - vec2(0.0, e)) * 0.62);
 	float amp = 2.6 * relief * (0.55 + 0.45 * detail);
 	vec3 N = normalize(vec3(-hx * amp, -hy * amp, 1.0));
-	vec3 L = normalize(vec3(sun_dir, 0.68));
+	// The key's elevation. A dusk sun sits at 0.16 and therefore only reaches
+	// faces turned toward it; a noon sun at 0.95 reaches everything. This one
+	// number is the difference between light falling on drifts and an orange
+	// filter over the frame.
+	vec3 L = normalize(vec3(sun_dir * (1.0 - sun_height * 0.55), max(sun_height, 0.06)));
 
 	float ndl = clamp(dot(N, L) * 0.5 + 0.5, 0.0, 1.0);
 	ndl = ndl * ndl * (3.0 - 2.0 * ndl);

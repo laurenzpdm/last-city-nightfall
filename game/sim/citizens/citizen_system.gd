@@ -197,7 +197,7 @@ func _found_population() -> void:
 		var ring: int = 2 + (i % 4)
 		var ang: int = (i * 7) % 8
 		var off: Vector2i = Grid.DIRS8[ang] * ring
-		pool.set_position(slot, origin + off)
+		pool.set_position(slot, _walkable_near(origin + off))
 	_roster_version += 1
 
 
@@ -661,7 +661,7 @@ func _consider_arrivals(tick: int) -> void:
 		if r.randf() < 0.2:
 			years = 6 + int(r.randi_range(0, 8))
 		var slot: int = _spawn(years, r)
-		pool.set_position(slot, gate + Vector2i(i % 3, i / 3))
+		pool.set_position(slot, _walkable_near(gate + Vector2i(i % 3, i / 3)))
 		# They arrive cold and hungry. That is the point of them.
 		pool.warmth[slot] = 34.0
 		pool.hunger[slot] = 64.0
@@ -675,16 +675,37 @@ func _consider_arrivals(tick: int) -> void:
 
 
 ## Where newcomers appear: the mouth of an approach lane when [P01] knows one,
-## otherwise a few tiles north of the core.
+## otherwise a few tiles north of the core — and always on ground somebody can
+## actually stand on. A survivor who arrives inside a wall can never path
+## anywhere again, and the only symptom is a crowd that never goes to work.
 func _gate_cell() -> Vector2i:
+	var candidate: Vector2i = _core_cell() + Vector2i(0, -8)
 	if _grid != null and _grid.has_method("approach_lanes"):
 		var lanes: Array = _grid.call("approach_lanes")
 		if not lanes.is_empty():
 			var first: Dictionary = lanes[0]
 			var v: Variant = first.get("entry", first.get("cell", null))
 			if typeof(v) == TYPE_VECTOR2I:
-				return v
-	return _core_cell() + Vector2i(0, -8)
+				candidate = v
+	return _walkable_near(candidate)
+
+
+## The nearest tile to `cell` a person can stand on, searched in a fixed ring
+## order so two runs put the same people in the same place.
+func _walkable_near(cell: Vector2i, radius: int = 6) -> Vector2i:
+	if _grid == null or not _grid.has_method("is_walkable"):
+		return cell
+	if bool(_grid.call("is_walkable", cell)):
+		return cell
+	for r: int in range(1, radius + 1):
+		for dy: int in range(-r, r + 1):
+			for dx: int in range(-r, r + 1):
+				if maxi(absi(dx), absi(dy)) != r:
+					continue
+				var c: Vector2i = cell + Vector2i(dx, dy)
+				if bool(_grid.call("is_walkable", c)):
+					return c
+	return cell
 
 
 # =========================================================================
@@ -962,7 +983,7 @@ func add_citizens(count: int, years: int = -1) -> PackedInt32Array:
 	for i: int in mini(maxi(0, count), maxi(0, room)):
 		var age_years: int = years if years > 0 else 18 + int(r.randi_range(0, 40))
 		var slot: int = _spawn(age_years, r)
-		pool.set_position(slot, gate + Vector2i(i % 5, (i / 5) % 5))
+		pool.set_position(slot, _walkable_near(gate + Vector2i(i % 5, (i / 5) % 5)))
 		out.append(pool.ids[slot])
 	if not out.is_empty():
 		_roster_version += 1
