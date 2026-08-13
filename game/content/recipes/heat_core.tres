@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/production/recipe_def.gd" id="1_wvp2x"]
+
+[resource]
+resource_name = "Heat Core"
+script = ExtResource("1_wvp2x")
+id = &"heat_core"
+display_name = "Heat Core"
+description = "A sealed exchanger block. Drop one into a pipe run and the far end of the district stops freezing."
+category = &"components"
+tier = 4
+sort_order = 10
+inputs = Dictionary[StringName, int]({
+&"circuit": 1,
+&"insulation": 2,
+&"pipe_segment": 2
+})
+outputs = Dictionary[StringName, int]({
+&"heat_core": 1
+})
+time_ticks = 200
+machine_tags = Array[StringName]([&"assembler"])
+machines = Array[StringName]([&"assembly_hall"])
+heat_cost = 180.0
+waste_heat = 12.0
+min_temperature_c = -5.0
+unlock_id = &"thermal_assembly"
+tint = Color(1, 0.66, 0.34, 1)

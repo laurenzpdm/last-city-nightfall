@@ -78,14 +78,22 @@ func _ready() -> void:
 	_vignette.draw.connect(_draw_vignette)
 	_root.add_child(_vignette)
 
-	clock_panel = _add_widget(LcnHudClock.new(), "Clock")
-	heat_panel = _add_widget(LcnHudHeat.new(), "Heat")
-	alert_panel = _add_widget(LcnHudAlertStack.new(), "Alerts")
+	clock_panel = LcnHudClock.new()
+	heat_panel = LcnHudHeat.new()
+	alert_panel = LcnHudAlertStack.new()
+	vitals_panel = LcnHudVitals.new()
+	wave_panel = LcnHudWave.new()
+	resource_panel = LcnHudResources.new()
+	selection_panel = LcnHudSelection.new()
 	alert_panel.bind_alerts(alerts)
-	vitals_panel = _add_widget(LcnHudVitals.new(), "Vitals")
-	wave_panel = _add_widget(LcnHudWave.new(), "Wave")
-	resource_panel = _add_widget(LcnHudResources.new(), "Resources")
-	selection_panel = _add_widget(LcnHudSelection.new(), "Selection")
+	# Tree order is the keyboard's Tab order, so it runs worst-news-first.
+	_install(alert_panel, "Alerts")
+	_install(clock_panel, "Clock")
+	_install(heat_panel, "Heat")
+	_install(vitals_panel, "Vitals")
+	_install(wave_panel, "Wave")
+	_install(selection_panel, "Selection")
+	_install(resource_panel, "Resources")
 
 	_footer = Control.new()
 	_footer.name = "Footer"
@@ -107,13 +115,12 @@ func _ready() -> void:
 	Log.info("hud", "installed (%d panels)" % _widgets.size())
 
 
-func _add_widget(w: LcnHudWidget, node_name: String) -> Variant:
+func _install(w: LcnHudWidget, node_name: String) -> void:
 	w.name = node_name
 	_root.add_child(w)
 	w.setup(self, style, probe)
 	w.visible = false
 	_widgets.append(w)
-	return w
 
 
 func _exit_tree() -> void:
@@ -462,10 +469,9 @@ func _bind_camera() -> void:
 	var tree: SceneTree = get_tree()
 	if tree == null:
 		return
-	var cam: Node = tree.get_first_node_in_group(&"lcn_camera")
-	if cam == null:
-		var root: Window = tree.root
-		cam = _find_camera(root, 0)
+	var cam: Node = get_viewport().get_camera_2d()
+	if cam == null or not cam.has_signal(&"selection_changed"):
+		cam = _find_camera(tree.root, 0)
 	if cam == null or not cam.has_signal(&"selection_changed"):
 		return
 	_camera = cam

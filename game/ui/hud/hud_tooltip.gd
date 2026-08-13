@@ -10,7 +10,7 @@ extends Control
 ## It never covers the thing it explains: the card flips to whichever side of the
 ## anchor has room, and it is clamped inside the viewport.
 
-const S := LcnHudStyle
+const S := preload("res://game/ui/hud/hud_style.gd")
 
 const PAD: float = 12.0
 const MAX_WIDTH: float = 340.0
@@ -113,15 +113,16 @@ func _relayout() -> void:
 func _draw() -> void:
 	if style == null or _alpha <= 0.01 or not _shown:
 		return
-	var was: float = style.plate_alpha()
-	# The card is opaque on purpose: it is text over a busy map.
+	# The card is near-opaque on purpose: it is text over a busy map, and the
+	# rest of the HUD's transparency rules do not apply to something you are
+	# actively reading.
 	var pts: PackedVector2Array = LcnHudStyle.plate_points(_box, 6.0)
 	var body_col: Color = LcnHudStyle.P.COLD_DEEP
 	var cols := PackedColorArray()
 	for p: Vector2 in pts:
 		var f: float = clampf((p.y - _box.position.y) / maxf(1.0, _box.size.y), 0.0, 1.0)
 		var c: Color = LcnHudStyle.P.COLD_MID.lerp(body_col, f)
-		cols.append(Color(c.r, c.g, c.b, (0.93 if was > 0.0 else 0.93) * _alpha))
+		cols.append(Color(c.r, c.g, c.b, 0.94 * _alpha))
 	draw_polygon(pts, cols)
 	var closed: PackedVector2Array = pts.duplicate()
 	closed.append(pts[0])

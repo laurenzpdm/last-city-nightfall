@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/production/recipe_def.gd" id="1_wjrhg"]
+
+[resource]
+resource_name = "Iron Plate"
+script = ExtResource("1_wjrhg")
+id = &"iron_plate"
+display_name = "Iron Plate"
+description = "Ore in, plate out, and a slag heap that will not stop growing. The bar every other thing in the city is cut from."
+category = &"smelting"
+sort_order = 10
+inputs = Dictionary[StringName, int]({
+&"iron_ore": 2
+})
+outputs = Dictionary[StringName, int]({
+&"iron_plate": 1
+})
+byproducts = Dictionary[StringName, int]({
+&"slag": 1
+})
+time_ticks = 50
+machine_tags = Array[StringName]([&"smelter"])
+machines = Array[StringName]([&"smelter"])
+heat_cost = 30.0
+waste_heat = 6.0
+tint = Color(0.78, 0.8, 0.84, 1)

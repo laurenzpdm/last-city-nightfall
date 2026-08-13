@@ -3,7 +3,7 @@ extends Node2D
 ## The renderer. [P13] Reads the simulation, never writes it.
 ##
 ## Structure:
-##   LcnTerrainRenderer   chunk-streamed ground (TileMapLayer, batched)
+##   LcnTerrainRenderer   the ground: one shaded quad over a data plane
 ##   LcnEntityRenderer    shadow / additive-warmth / sprite passes
 ##   LcnLightRig          night CanvasModulate + pooled warm Light2Ds
 ##   LcnPostProcess       grade, bloom, vignette, grain, cold chromatic split
@@ -37,10 +37,12 @@ var _camera: Camera2D = null
 var _owns_camera: bool = false
 var _frames: int = 0
 var _first_frame: bool = true
-var _last_chunk: Vector2i = Vector2i(-9999, -9999)
 var _camera_check: float = 0.0
 var _bench_done: bool = false
 var _frame_us_avg: float = 0.0
+var _zoom: float = 1.0
+var _ground_us: int = 0
+var _light_us: int = 0
 
 
 func _ready() -> void:
@@ -54,7 +56,7 @@ func _ready() -> void:
 	# cache makes this free on every launch after the first.
 	for arch: StringName in LcnSpriteFactory.archetypes():
 		sprites.building(arch)
-	for kind: StringName in [&"citizen", &"worker", &"soldier", &"swarm", &"brute"]:
+	for kind: StringName in LcnSpriteFactory.AGENT_KINDS:
 		sprites.agent(kind)
 	sprites.turret_barrel()
 
@@ -69,6 +71,7 @@ func _ready() -> void:
 	entities.name = "Entities"
 	add_child(entities)
 	entities.setup(model, sprites)
+	entities.bind_field(terrain.field)
 
 	lights = LcnLightRig.new()
 	lights.name = "Lights"
@@ -101,7 +104,6 @@ func _ready() -> void:
 func _on_world_created(_seed_value: int) -> void:
 	if terrain != null:
 		terrain.clear_all()
-	_last_chunk = Vector2i(-9999, -9999)
 	_first_frame = true
 
 
@@ -110,6 +112,8 @@ func _on_world_ready() -> void:
 	if model.building_count() == 0:
 		model.ensure_preview_settlement(_core_cell())
 	terrain.clear_all()
+	terrain.bind_world()
+	entities.bind_field(terrain.field)
 	_first_frame = true
 	_ensure_camera()
 	if _owns_camera and _camera != null:
@@ -159,14 +163,9 @@ func _on_enemy_killed(id: int, _pos: Vector2) -> void:
 
 
 ## New construction changes snow melt and soot, so the ground under and around
-## it has to be rebaked rather than left stale.
+## it has to catch up this frame rather than on the next round-robin sweep.
 func _invalidate_ground_near(cell: Vector2i) -> void:
-	var chunk := Vector2i(
-		int(floor(float(cell.x) / float(LcnTerrainRenderer.CHUNK))),
-		int(floor(float(cell.y) / float(LcnTerrainRenderer.CHUNK))))
-	for dy: int in range(-1, 2):
-		for dx: int in range(-1, 2):
-			terrain._loaded.erase(chunk + Vector2i(dx, dy))
+	terrain.invalidate_near(cell)
 
 
 # --------------------------------------------------------------------- frame --
@@ -185,22 +184,21 @@ func _process(delta: float) -> void:
 		_drive_tour_camera()
 
 	_view = _compute_view()
+	_zoom = _camera.zoom.x if _camera != null else _viewport_zoom()
 
 	var day: float = model.day_fraction()
 	_grade = LcnPalette.grade_at(day)
 
-	var budget: int = 4
-	var chunk := Vector2i(
-		int(floor(_view.get_center().x / float(LcnTerrainRenderer.CHUNK * TILE))),
-		int(floor(_view.get_center().y / float(LcnTerrainRenderer.CHUNK * TILE))))
-	if _first_frame or chunk != _last_chunk or Harness.visual:
-		budget = -1
-	_last_chunk = chunk
-	terrain.stream(_view, budget)
+	var t_ground: int = Time.get_ticks_usec()
+	terrain.render(_view, _grade, _zoom, _first_frame)
+	_ground_us = Time.get_ticks_usec() - t_ground
 
+	var t_light: int = Time.get_ticks_usec()
 	lights.update(_grade, _view, model, bool(Settings.graphics.get("lights", true)))
-	entities.refresh(_grade, _view, SimClock.alpha)
-	post.apply(_grade, model.ambient_temperature(), get_viewport().get_visible_rect().size)
+	_light_us = Time.get_ticks_usec() - t_light
+
+	entities.refresh(_grade, _view, SimClock.alpha, _zoom)
+	post.apply(_grade, model.ambient_temperature(), get_viewport().get_visible_rect().size, _view)
 
 	if _first_frame:
 		_first_frame = false
@@ -215,6 +213,13 @@ func _process(delta: float) -> void:
 	_frame_us_avg = _frame_us_avg * 0.92 + us * 0.08 if _frames > 1 else us
 	if _frames % 120 == 0 or (Harness.visual and _frames % 4 == 0):
 		_log_frame_cost()
+
+
+## Camera scale, whichever camera is current. [P16] owns the real one, so this
+## reads it out of the canvas transform rather than reaching into its node.
+func _viewport_zoom() -> float:
+	var xf: Transform2D = get_viewport().get_canvas_transform()
+	return maxf(0.01, xf.get_scale().x)
 
 
 func _compute_view() -> Rect2:
@@ -345,10 +350,12 @@ func _drive_tour_camera() -> void:
 func _log_frame_cost() -> void:
 	var ts: Dictionary = terrain.stats()
 	var es: Dictionary = entities.stats()
-	Log.info("render", "frame %.2f ms | terrain %d chunks / %d cells (load %.2f ms) | draw %.2f ms | %d bld %d agents %d lights | %d draw calls" % [
+	Log.info("render", "frame %.2f ms | ground %.2f (field %d KB, detail %.2f) | collect %.2f | draw %.2f | lights %.2f | %d bld %d agents %d lights | %d draw calls" % [
 		_frame_us_avg / 1000.0,
-		int(ts["resident_chunks"]), int(ts["resident_cells"]), float(ts["last_load_ms"]),
+		float(_ground_us) / 1000.0, int(ts["field_kb"]), float(ts["detail"]),
+		float(es["collect_us"]) / 1000.0,
 		float(es["draw_us"]) / 1000.0,
+		float(_light_us) / 1000.0,
 		int(es["visible_buildings"]), int(es["visible_agents"]), lights.active_lights(),
 		int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
 	])
@@ -359,10 +366,7 @@ func _log_frame_cost() -> void:
 ## not a promise in a comment.
 func _run_perf_proof() -> void:
 	var r: Dictionary = terrain.benchmark_full_map(_view)
-	Log.info("render", "PERF full-map stream %s: %d chunks / %d cells in %.1f ms (%.2f ms/chunk, %.3f us/cell)" % [
-		r["world"], int(r["chunks"]), int(r["cells"]),
-		float(r["total_ms"]), float(r["ms_per_chunk"]), float(r["us_per_cell"]),
+	Log.info("render", "PERF full-map ground rebuild %s: %d cells in %.1f ms (%.3f us/cell), %d KB resident" % [
+		r["world"], int(r["cells"]), float(r["total_ms"]), float(r["us_per_cell"]), int(r["field_kb"]),
 	])
-	Log.info("render", "PERF steady state: %d chunks / %d cells resident for a 1920x1080 view" % [
-		int(r["resident_chunks_after"]), int(r["resident_cells_after"]),
-	])
+	Log.info("render", "PERF ground is one draw call for the whole world at any zoom")

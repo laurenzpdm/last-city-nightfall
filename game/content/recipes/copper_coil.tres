@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/production/recipe_def.gd" id="1_huyxj"]
+
+[resource]
+resource_name = "Copper Coil"
+script = ExtResource("1_huyxj")
+id = &"copper_coil"
+display_name = "Copper Coil"
+description = "Drawn hot and wound while it is still soft. Every radiator and every circuit in the city is mostly this."
+category = &"smelting"
+sort_order = 20
+inputs = Dictionary[StringName, int]({
+&"copper_ore": 1
+})
+outputs = Dictionary[StringName, int]({
+&"copper_coil": 2
+})
+time_ticks = 25
+machine_tags = Array[StringName]([&"smelter"])
+machines = Array[StringName]([&"smelter"])
+heat_cost = 12.0
+waste_heat = 2.5
+tint = Color(0.85, 0.55, 0.32, 1)

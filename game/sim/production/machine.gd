@@ -38,6 +38,9 @@ var world_pos: Vector2 = Vector2.ZERO
 # --- what it is doing -----------------------------------------------------
 var recipe_id: StringName = &""
 var recipe: RecipeDef = null
+## Total units one craft emits, primary plus byproducts. Cached: the "will it
+## fit" test runs for every machine every tick.
+var output_size: int = 0
 var state: int = State.IDLE
 var reason: StringName = REASON_NONE
 ## The specific item a REASON_MISSING_INPUT is about. Empty otherwise.

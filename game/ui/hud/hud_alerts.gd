@@ -20,7 +20,7 @@ extends RefCounted
 ## (dusk, a blueprint stamped, a research finished) that must never be allowed
 ## to push a freezing district off the list.
 
-const S := LcnHudStyle
+const S := preload("res://game/ui/hud/hud_style.gd")
 
 const MAX_VISIBLE: int = 5
 const BUS_TTL_SECONDS: float = 12.0

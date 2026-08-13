@@ -11,7 +11,11 @@
   "sample_every": 20,
   "expects": {
     "min_ticks_per_second": 300,
-    "max_errors": 0
+    "max_errors": 0,
+    "balance_days": [
+      1
+    ],
+    "max_heat_networks": 3
   },
   "script": [
     {
@@ -252,7 +256,7 @@
         "op": "place",
         "kind": "storage_yard",
         "cell": [
-          138,
+          137,
           132
         ]
       }
@@ -544,7 +548,7 @@
           95
         ],
         "to": [
-          140,
+          141,
           95
         ]
       }
@@ -670,14 +674,46 @@
       }
     },
     {
+      "tick": 8800,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          128,
+          143
+        ],
+        "to": [
+          128,
+          146
+        ]
+      }
+    },
+    {
       "tick": 9000,
       "cmd": {
         "system": "build",
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          132,
+          129,
           145
+        ]
+      }
+    },
+    {
+      "tick": 10100,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          125,
+          126
+        ],
+        "to": [
+          118,
+          126
         ]
       }
     },

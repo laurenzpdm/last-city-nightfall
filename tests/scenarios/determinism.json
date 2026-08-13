@@ -84,14 +84,30 @@
       }
     },
     {
+      "tick": 180,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          128,
+          131
+        ],
+        "to": [
+          122,
+          131
+        ]
+      }
+    },
+    {
       "tick": 200,
       "cmd": {
         "system": "build",
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          121,
-          134
+          120,
+          132
         ]
       }
     },
@@ -147,8 +163,8 @@
         "system": "build",
         "op": "rotate",
         "cell": [
-          121,
-          134
+          120,
+          132
         ]
       }
     },

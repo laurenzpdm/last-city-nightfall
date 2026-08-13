@@ -42,6 +42,8 @@ var segments: Dictionary[int, LogiSegment] = {}
 var occ: Dictionary[Vector2i, int] = {}
 ## Cell -> the id of whatever owns a store there (a chest, or a [P11] building).
 var store_cells: Dictionary[Vector2i, int] = {}
+## Store owner -> the tile the haul layer measures distances to.
+var store_origin: Dictionary[int, Vector2i] = {}
 ## Cell -> [P11] building id of a burner that takes fuel, with the item it burns.
 var fuel_cells: Dictionary[Vector2i, int] = {}
 var fuel_item_of: Dictionary[int, StringName] = {}
@@ -131,9 +133,7 @@ func add_entity(e: LogiEntity) -> void:
 		LogiTypes.Role.INSERTER:
 			_insert_sorted(inserter_ids, e.id)
 		LogiTypes.Role.CHEST:
-			stores[e.id] = e.store
-			for c: Vector2i in e.cells:
-				store_cells[c] = e.id
+			register_store(e.id, e.store, e.cells, e.cell)
 	if e.is_underground():
 		_pair_underground(e)
 	if e.is_transport() or e.role() == LogiTypes.Role.SPLITTER:
@@ -154,6 +154,7 @@ func remove_entity(id: int) -> LogiEntity:
 	splitter_ids.erase(id)
 	inserter_ids.erase(id)
 	stores.erase(id)
+	store_origin.erase(id)
 	if e.pair_id >= 0:
 		var other: LogiEntity = entities.get(e.pair_id)
 		if other != null:
@@ -162,6 +163,52 @@ func remove_entity(id: int) -> LogiEntity:
 	if e.is_transport() or e.role() == LogiTypes.Role.SPLITTER:
 		topo_dirty = true
 	return e
+
+
+## Puts a store on the map. Chests own theirs; [P11] buildings lend theirs, and
+## that is the seam [P04] pushes production into and pulls ingredients out of.
+func register_store(owner: int, store: LogiStore, cells: Array[Vector2i], origin: Vector2i) -> void:
+	stores[owner] = store
+	store_origin[owner] = origin
+	for c: Vector2i in cells:
+		store_cells[c] = owner
+
+
+func unregister_store(owner: int) -> void:
+	var keys: Array = store_cells.keys()
+	keys.sort()
+	for c: Vector2i in keys:
+		if int(store_cells[c]) == owner:
+			store_cells.erase(c)
+	stores.erase(owner)
+	store_origin.erase(owner)
+
+
+## Registers a [P11] burner's bunker so an arm can shovel coal into it.
+func register_burner(owner: int, fuel: StringName, cells: Array[Vector2i]) -> void:
+	fuel_item_of[owner] = fuel
+	for c: Vector2i in cells:
+		fuel_cells[c] = owner
+
+
+func unregister_burner(owner: int) -> void:
+	if not fuel_item_of.has(owner):
+		return
+	fuel_item_of.erase(owner)
+	var keys: Array = fuel_cells.keys()
+	keys.sort()
+	for c: Vector2i in keys:
+		if int(fuel_cells[c]) == owner:
+			fuel_cells.erase(c)
+
+
+func burner_ids() -> Array[int]:
+	var keys: Array = fuel_item_of.keys()
+	keys.sort()
+	var out: Array[int] = []
+	for k: int in keys:
+		out.append(k)
+	return out
 
 
 ## An underground looks back along its own direction for the nearest unpaired
@@ -272,7 +319,9 @@ func _build_tunnel(e: LogiEntity) -> void:
 	var mouth: LogiEntity = e
 	if not e.is_entrance and e.pair_id >= 0:
 		var other: LogiEntity = entities.get(e.pair_id)
-		if other != null and other.seg_id < 0:
+		if other != null:
+			if other.seg_id >= 0:
+				return  # its entrance already built the tunnel this pass
 			mouth = other
 	var d: Vector2i = mouth.direction()
 	var exit_e: LogiEntity = entities.get(mouth.pair_id) if mouth.pair_id >= 0 else null
@@ -378,6 +427,7 @@ func step(tick: int) -> void:
 		rebuild_topology()
 	_move_belts()
 	_run_splitters()
+	_settle_lines()
 	_run_inserters()
 
 
@@ -387,12 +437,8 @@ func _move_belts() -> void:
 	for sid: int in segment_ids:
 		var seg: LogiSegment = segments[sid]
 		if seg.lanes[0].is_empty() and seg.lanes[1].is_empty():
-			if seg.blocked_ticks != 0:
-				seg.blocked_ticks = 0
-			seg.settle_rate()
 			continue
 		var slack: float = seg.slack()
-		var blocked: bool = false
 		for lane: int in LogiTypes.LANES:
 			var l: LogiLane = seg.lanes[lane]
 			l.advance(slack)
@@ -402,13 +448,21 @@ func _move_belts() -> void:
 			var handed: int = 0
 			while l.front_ready() and handed < MAX_HANDOFF:
 				if not _push_out(seg, lane, l.front_kind()):
-					blocked = true
 					break
 				l.take_front()
 				handed += 1
 				seg.moved += 1
 				items_moved += 1
-		seg.blocked_ticks = seg.blocked_ticks + 1 if blocked else 0
+
+
+## An item still sitting on the exit when everything else has run is the one
+## honest definition of "this belt is backed up", and it is the same test for a
+## line that feeds a belt, a chest or a splitter.
+func _settle_lines() -> void:
+	for sid: int in segment_ids:
+		var seg: LogiSegment = segments[sid]
+		var stuck: bool = seg.lanes[0].front_ready() or seg.lanes[1].front_ready()
+		seg.blocked_ticks = seg.blocked_ticks + 1 if stuck else 0
 		seg.settle_rate()
 
 
@@ -454,7 +508,7 @@ func _run_splitters() -> void:
 			while sp.credit[side] >= 1.0 and guard < MAX_HANDOFF:
 				guard += 1
 				_splitter_fill(sp, side)
-				if sp.buffers[side].is_empty():
+				if (sp.buf[side] as Array).is_empty():
 					break
 				if not _splitter_emit(sp, side):
 					break
@@ -466,7 +520,8 @@ func _run_splitters() -> void:
 
 ## Draws from the two lines feeding this splitter, honouring input priority.
 func _splitter_fill(sp: LogiSplitter, side: int) -> void:
-	while sp.buffers[side].size() < LogiSplitter.BUFFER:
+	var buffer: Array = sp.buf[side]
+	while buffer.size() < LogiSplitter.BUFFER:
 		var order: Array[int] = _side_order(sp.input_priority, sp.next_in[side])
 		var took: bool = false
 		for which: int in order:
@@ -476,7 +531,7 @@ func _splitter_fill(sp: LogiSplitter, side: int) -> void:
 			var l: LogiLane = seg.lanes[side]
 			if not l.front_ready():
 				continue
-			sp.buffers[side].append(l.take_front())
+			buffer.append(l.take_front())
 			seg.moved += 1
 			if sp.input_priority == LogiSplitter.Side.NONE:
 				sp.next_in[side] = 1 - which
@@ -489,14 +544,15 @@ func _splitter_fill(sp: LogiSplitter, side: int) -> void:
 ## Pushes the front of the buffer out, honouring filters then output priority
 ## then the alternation that makes an even split even.
 func _splitter_emit(sp: LogiSplitter, side: int) -> bool:
-	var kind: int = sp.buffers[side][0]
+	var buffer: Array = sp.buf[side]
+	var kind: int = int(buffer[0])
 	var forced: int = sp.forced_side(kind_name(kind))
 	var order: Array[int] = [forced] if forced != LogiSplitter.Side.NONE \
 		else _side_order(sp.output_priority, sp.next_out[side])
 	for which: int in order:
 		if not _splitter_push(sp, which, side, kind):
 			continue
-		sp.buffers[side].remove_at(0)
+		buffer.remove_at(0)
 		if forced == LogiSplitter.Side.NONE and sp.output_priority == LogiSplitter.Side.NONE:
 			sp.next_out[side] = 1 - which
 		return true
@@ -641,7 +697,7 @@ func _grab_from_belt(arm: LogiInserter, e: LogiEntity, cell: Vector2i, want: int
 func _arm_drop(arm: LogiInserter) -> bool:
 	if arm.held <= 0:
 		return true
-	var moved: int = give_to_cell(arm.target_cell(), arm.held_kind, arm.held)
+	var moved: int = give_to_cell(arm.target_cell(), arm.held_kind, arm.held, arm.cell)
 	if moved <= 0:
 		return false
 	arm.held -= moved
@@ -659,13 +715,15 @@ func _arm_drop(arm: LogiInserter) -> bool:
 
 ## Puts up to `amount` of `kind` into whatever stands on `cell`: a belt, a
 ## chest, a burner's bunker or a machine's buffer. Returns how many landed.
-func give_to_cell(cell: Vector2i, kind: StringName, amount: int) -> int:
+## `from_cell` is where the delivery comes from, which decides which lane of a
+## belt it lands on; passing `cell` itself means "no side to come from".
+func give_to_cell(cell: Vector2i, kind: StringName, amount: int, from_cell: Vector2i = Vector2i.MAX) -> int:
 	if amount <= 0:
 		return 0
 	var e: LogiEntity = entity_at(cell)
 	if e != null:
 		if e.is_transport():
-			return _give_to_belt(e, cell, kind, amount)
+			return _give_to_belt(e, cell, kind, amount, from_cell)
 		if e.role() == LogiTypes.Role.CHEST:
 			var st: LogiStore = stores.get(e.id)
 			if st == null:
@@ -688,16 +746,19 @@ func give_to_cell(cell: Vector2i, kind: StringName, amount: int) -> int:
 	return 0
 
 
-func _give_to_belt(e: LogiEntity, cell: Vector2i, kind: StringName, amount: int) -> int:
+func _give_to_belt(e: LogiEntity, cell: Vector2i, kind: StringName, amount: int,
+		from_cell: Vector2i) -> int:
 	var seg: LogiSegment = segments.get(e.seg_id)
 	if seg == null:
 		return 0
 	var centre: float = _tile_pos_in(seg, cell)
 	if centre < 0.0:
 		return 0
-	var near: int = LogiTypes.lane_for_side(seg.dir, Vector2i.ZERO)
-	# Arms put things down on the far lane; without a side to be near, the left
-	# lane is the far one by convention and the right lane is the fallback.
+	# Arms put things down on the far lane, so that one arm can feed one lane and
+	# a second arm the other. With no side to come from, the left lane is first.
+	var near: int = LogiTypes.LANE_RIGHT
+	if from_cell != Vector2i.MAX:
+		near = LogiTypes.lane_for_side(seg.dir, from_cell - cell)
 	var idx: int = intern(kind)
 	var placed: int = 0
 	for lane: int in [1 - near, near]:

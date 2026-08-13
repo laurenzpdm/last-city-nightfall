@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/production/recipe_def.gd" id="1_7krav"]
+
+[resource]
+resource_name = "Gear"
+script = ExtResource("1_7krav")
+id = &"gear"
+display_name = "Gear"
+description = "Cut, hardened and stacked in crates of twelve. Nothing in the city turns without them."
+tier = 2
+sort_order = 10
+inputs = Dictionary[StringName, int]({
+&"iron_plate": 2
+})
+outputs = Dictionary[StringName, int]({
+&"gear": 1
+})
+machine_tags = Array[StringName]([&"crafter"])
+machines = Array[StringName]([&"workshop", &"assembly_hall"])
+heat_cost = 40.0
+waste_heat = 5.0
+min_temperature_c = -25.0
+tint = Color(0.72, 0.74, 0.78, 1)

@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/production/recipe_def.gd" id="1_inqj5"]
+
+[resource]
+resource_name = "Ammunition Shell"
+script = ExtResource("1_inqj5")
+id = &"ammo_shell"
+display_name = "Ammunition Shell"
+description = "Steel case, sulfur charge, and a gear-cut fuse. Four to a crate, and the crates go out to the wall before dusk."
+category = &"munitions"
+tier = 3
+sort_order = 50
+inputs = Dictionary[StringName, int]({
+&"gear": 1,
+&"steel_plate": 1,
+&"sulfur": 2
+})
+outputs = Dictionary[StringName, int]({
+&"ammo_shell": 4
+})
+time_ticks = 200
+machine_tags = Array[StringName]([&"crafter"])
+machines = Array[StringName]([&"workshop", &"assembly_hall"])
+heat_cost = 80.0
+waste_heat = 10.0
+min_temperature_c = -20.0
+tint = Color(0.86, 0.62, 0.3, 1)

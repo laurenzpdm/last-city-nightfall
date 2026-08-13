@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/production/recipe_def.gd" id="1_s73ir"]
+
+[resource]
+resource_name = "Salvaged Stores"
+script = ExtResource("1_s73ir")
+id = &"salvaged_stores"
+display_name = "Salvaged Stores"
+description = "Sealed crates pulled out of collapsed cellars. Grain that has been frozen for a decade still counts as grain."
+category = &"salvage"
+sort_order = 20
+inputs = Dictionary[StringName, int]({
+&"scrap": 6
+})
+outputs = Dictionary[StringName, int]({
+&"grain": 2
+})
+byproducts = Dictionary[StringName, int]({
+&"timber": 1
+})
+time_ticks = 200
+machine_tags = Array[StringName]([&"sorter"])
+machines = Array[StringName]([&"rubble_sorter"])
+heat_cost = 30.0
+waste_heat = 2.0
+tint = Color(0.8, 0.74, 0.5, 1)

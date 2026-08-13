@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/production/recipe_def.gd" id="1_ogb5f"]
+
+[resource]
+resource_name = "Ration"
+script = ExtResource("1_ogb5f")
+id = &"ration"
+display_name = "Ration"
+description = "Grain, meltwater and whatever fat the kitchen has left, boiled until it is hot enough to eat standing up."
+category = &"food"
+tier = 2
+sort_order = 10
+inputs = Dictionary[StringName, int]({
+&"grain": 2
+})
+outputs = Dictionary[StringName, int]({
+&"ration": 3
+})
+machine_tags = Array[StringName]([&"kitchen"])
+machines = Array[StringName]([&"field_kitchen"])
+heat_cost = 20.0
+waste_heat = 2.0
+min_temperature_c = -20.0
+tint = Color(0.9, 0.78, 0.5, 1)

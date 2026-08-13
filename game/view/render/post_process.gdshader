@@ -27,12 +27,40 @@ uniform float fog_amount = 0.25;
 uniform float time_s = 0.0;
 uniform vec2 screen_px = vec2(1920.0, 1080.0);
 
+// Heat shimmer. The ground's heat field, mapped through the visible world rect,
+// so hot air over a hearth or a radiator bends what is behind it. Bound to a 1x1
+// black texture until the world exists — an unbound sampler reads white and
+// would shimmer the whole frame.
+uniform sampler2D heat_tex : repeat_disable, filter_linear;
+uniform vec2 view_origin = vec2(0.0);
+uniform vec2 view_size = vec2(1920.0, 1080.0);
+uniform vec2 map_px = vec2(8192.0, 8192.0);
+uniform float shimmer_amount = 0.0;
+
 const int RING_TAPS = 8;
 
 void fragment() {
 	vec2 uv = SCREEN_UV;
 	vec2 c = uv - vec2(0.5);
 	float r2 = dot(c, c);
+
+	// --- heat shimmer -------------------------------------------------------
+	float haze = 0.0;
+	if (shimmer_amount > 0.001) {
+		vec2 wp = view_origin + uv * view_size;
+		haze = texture(heat_tex, wp / map_px).r;
+		if (haze > 0.01) {
+			// Rising air: the horizontal wobble is the loud one, and both terms
+			// climb as the air leaves the source, which is what makes it read as
+			// convection rather than as a wet lens.
+			float rise = time_s * 2.6;
+			float w1 = sin(wp.y * 0.085 - rise * 1.7 + wp.x * 0.021);
+			float w2 = sin(wp.x * 0.130 + rise * 1.1);
+			float w3 = sin(wp.y * 0.240 - rise * 2.9);
+			vec2 push = vec2(w1 * 0.66 + w3 * 0.24, w2 * 0.28 - 0.35);
+			uv += push * haze * haze * shimmer_amount / screen_px * 3.4;
+		}
+	}
 
 	// Cold split: at low temperature the blue channel is pushed outward, which
 	// gives the frame a faint ache without touching the colour grade itself.
@@ -41,6 +69,8 @@ void fragment() {
 	col.r = texture(screen_tex, uv - off).r;
 	col.g = texture(screen_tex, uv).g;
 	col.b = texture(screen_tex, uv + off).b;
+	// The air over a fire is warmer than the air beside it, and warm air scatters.
+	col += vec3(0.055, 0.028, 0.010) * haze * haze * min(shimmer_amount, 1.6);
 
 	if (bloom_strength > 0.001) {
 		vec2 px = vec2(1.0) / screen_px;

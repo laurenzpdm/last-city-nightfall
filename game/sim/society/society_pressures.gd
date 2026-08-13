@@ -58,7 +58,10 @@ func compute(reading: SocietyReading, pop: SocietyPopulace, book: LawBook,
 	var sick_share: float = clampf(pop.sick / people, 0.0, 1.0)
 	var cold_share: float = 1.0 - reading.warm_share
 	if reading.homes_total == 0:
-		cold_share = 1.0
+		# No houses yet is not automatically the worst case. A camp pitched
+		# around a lit hearth is cold; a camp with nothing lit is fatal, and the
+		# difference has to show up as a different number.
+		cold_share = clampf((SocietyDefs.COMFORT_C - pop.camp_temp_c) / 24.0, 0.0, 1.0)
 	var work_hours: float = book.policy_value(&"work_hours")
 	var strain: float = clampf((work_hours - 10.0) / 8.0, 0.0, 1.0)
 	var corpse_share: float = clampf(pop.corpses / maxf(people * 0.05, 2.0), 0.0, 1.0)
@@ -106,13 +109,19 @@ func _baselines() -> void:
 
 
 func _cold(reading: SocietyReading, pop: SocietyPopulace, cold_share: float) -> void:
+	if pop.tented > 0.5:
+		var lit: String = "nothing is lit" if reading.hearths_lit == 0 \
+			else "%s heat sources are lit" % SocietyDefs.spell(reading.hearths_lit)
+		var text: String = "%s are under canvas at %.0f degrees, and %s." % [
+			SocietyDefs.people(int(round(pop.tented))).capitalize(), pop.camp_temp_c, lit]
+		var share: float = clampf(pop.tented / maxf(pop.population, 1.0), 0.0, 1.0)
+		_push(DISCONTENT, &"tents", "Sleeping under canvas", text, 3.4 * share * maxf(cold_share, 0.25))
+		_push(HOPE, &"tents", "Sleeping under canvas", text, -1.6 * share * maxf(cold_share, 0.25))
+		if pop.tent_capacity < SocietyPopulace.TENT_CAPACITY * 0.34:
+			_push(HOPE, &"canvas_failing", "The canvas is going",
+				"Half the tents have been cut up for wrappings and the rest are stiff with ice.",
+				-1.3)
 	if reading.homes_total == 0:
-		if pop.population > 0.0:
-			_push(DISCONTENT, &"no_homes", "There are no houses",
-				"%s are living in the open beside an unfinished city." % SocietyDefs.people(int(round(pop.population))),
-				6.0)
-			_push(HOPE, &"no_homes", "There are no houses",
-				"Nobody has anywhere to be that is not outside.", -2.4)
 		return
 	if cold_share > 0.02:
 		var n: int = reading.homes_cold
@@ -133,7 +142,7 @@ func _cold(reading: SocietyReading, pop: SocietyPopulace, cold_share: float) -> 
 
 func _shelter(reading: SocietyReading, pop: SocietyPopulace, homeless_share: float) -> void:
 	if homeless_share <= 0.005:
-		if reading.homes_total > 0:
+		if reading.homes_total > 0 and pop.tented <= 0.5:
 			_push(HOPE, &"housed", "Everyone has a bunk",
 				"There is a roof over every head in the city tonight.", 0.7)
 		return
@@ -310,8 +319,11 @@ func _grievances(reading: SocietyReading, pop: SocietyPopulace, book: LawBook,
 		"The shift is %.0f hours long." % book.policy_value(&"work_hours"))
 	_grievance(&"sickness", clampf(sick_share * 3.5, 0.0, 1.0),
 		"%s are ill." % SocietyDefs.people(int(round(pop.sick))).capitalize())
-	_grievance(&"homeless", clampf(homeless_share * 2.5, 0.0, 1.0),
-		"%s have no bunk." % SocietyDefs.people(int(round(pop.homeless))).capitalize())
+	var tent_share: float = clampf(pop.tented / maxf(pop.population, 1.0), 0.0, 1.0)
+	_grievance(&"homeless", clampf(maxf(homeless_share * 2.5, tent_share * 0.55), 0.0, 1.0),
+		"%s have no bunk. %s are under canvas." % [
+			SocietyDefs.people(int(round(pop.homeless))).capitalize(),
+			SocietyDefs.people(int(round(pop.tented))).capitalize()])
 
 	var child: float = 0.9 if book.policy_flag(SocietyDefs.FLAG_CHILD_LABOUR) else 0.0
 	if book.policy_value(&"child_risk") > 0.0 and child < 0.5:

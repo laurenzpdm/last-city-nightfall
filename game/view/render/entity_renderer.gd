@@ -1,47 +1,77 @@
 class_name LcnEntityRenderer
 extends Node2D
-## Buildings, props and people, drawn in three batched passes. [P13]
+## Buildings, props and people, in three batched passes. [P13], second pass.
 ##
 ## Pass order is the whole trick:
-##   1. SHADOW  long cast shadows on the ground, direction and length driven by
-##              the sun's position in the day cycle (or by the nearest fire at
-##              night, which is when a city like this actually has shadows).
+##   1. SHADOW  soft directional shadows, sheared by the sun's position in the
+##              day cycle (or by the nearest fire after dark, which is when a
+##              city like this actually has shadows).
 ##   2. GLOW    additive. Warm ground pools plus a rim pass — the sprite redrawn
-##              offset toward its light source, so the lit edge burns and the
-##              far edge stays cold. This is where the temperature reads.
-##   3. MAIN    the sprites themselves, y-sorted with the agents so people walk
-##              in front of and behind buildings correctly.
+##              offset toward its light source, so the lit edge burns and the far
+##              edge stays cold. This is where the temperature reads.
+##   3. MAIN    the sprites, y-sorted with the agents so people walk in front of
+##              and behind buildings correctly, and each one tinted by the light
+##              actually landing on it.
 ##
-## Every pass is one CanvasItem with one _draw(), not a node per entity.
+## PERFORMANCE. The first pass cost 37 ms of CPU and 797 draw calls for one frame
+## of a 206-building city — a 27 fps ceiling before the simulation had run a
+## single tick, and roughly 300 ms projected at the 1717-building stress city.
+## Three things caused it and all three are fixed here:
+##
+##   * every sprite had its own texture, so every draw was a state change.
+##     Everything now comes out of ONE atlas (LcnSpriteFactory.atlas), so a pass
+##     is a handful of draw calls no matter how many buildings are in it.
+##   * the visible set was rebuilt as an Array[Dictionary] every frame and sorted
+##     with a GDScript lambda. It is now parallel packed arrays, sorted natively
+##     on a packed key, and the sort only reruns when the set changes.
+##   * shadows were three draws per building including two polygons. One
+##     textured quad now does the whole job, in the same batch as everything else.
+##
+## LOD: below `LOD_ZOOM` the rim pass and the barrel are dropped and shadows
+## collapse to a contact blob, because at that distance none of it is legible
+## anyway. `stats()` reports what was actually drawn.
 
 const TILE: int = 32
+## Camera zoom under which detail passes are dropped.
+const LOD_ZOOM: float = 0.42
+const RIM_ZOOM: float = 0.30
 
 var model: LcnWorldModel = null
 var sprites: LcnSpriteFactory = null
+var field: LcnTerrainField = null
 
 var grade: Dictionary = {}
 var view_rect: Rect2 = Rect2()
 var alpha: float = 0.0
+var zoom: float = 1.0
 var draw_agents: bool = true
 
 var _shadow: Node2D = null
 var _glow: Node2D = null
 var _main: Node2D = null
-var _glow_tex: ImageTexture = null
+
+var _atlas: ImageTexture = null
+var _regions: Dictionary[StringName, Rect2] = {}
+var _glow_r: Rect2 = Rect2()
+var _shadow_r: Rect2 = Rect2()
+var _smear_r: Rect2 = Rect2()
+var _barrel_r: Rect2 = Rect2()
 
 var _visible_buildings: int = 0
 var _visible_agents: int = 0
 var _draw_us: int = 0
+var _collect_us: int = 0
 var _frozen: Dictionary[int, bool] = {}
 
-## Per-frame scratch, built once in refresh() and read by all three passes.
-## Rebuilding it per pass was ~0.18 ms of CPU per visible building per frame,
-## which is a hard ceiling at a few hundred entities — not a tuning knob.
+## Per-frame scratch. Parallel arrays, reused between frames — the first pass
+## allocated one Dictionary per visible building per frame and it showed.
 var _vis: Array[Dictionary] = []
+var _vis_rect: PackedVector2Array = PackedVector2Array()
 var _srcs: Array[Dictionary] = []
 var _src_buckets: Dictionary[int, PackedInt32Array] = {}
+var _atlas_stamp: int = -1
 ## Source lookup grid cell, in world px. One bucket is a comfortable superset of
-## the largest light radius, so _nearest_source only ever scans nine buckets.
+## the largest light radius, so _nearest_source only ever scans one bucket.
 const BUCKET_PX: float = 256.0
 
 
@@ -58,11 +88,31 @@ class Pass extends Node2D:
 func setup(world_model: LcnWorldModel, sprite_factory: LcnSpriteFactory) -> void:
 	model = world_model
 	sprites = sprite_factory
-	_glow_tex = LcnSpriteFactory.glow_texture(256)
+	_rebuild_atlas()
 
 	_shadow = _make_pass("ShadowPass", 0, -40, false)
 	_glow = _make_pass("GlowPass", 1, -20, true)
 	_main = _make_pass("MainPass", 2, 0, false)
+
+
+## Binds the ground's data fields so entities can be lit by the same numbers the
+## ground is lit by. Optional: without it they fall back to the grade alone.
+func bind_field(f: LcnTerrainField) -> void:
+	field = f
+
+
+func _rebuild_atlas() -> void:
+	var requests: Array = model.sprite_requests() if model != null else []
+	var a: Dictionary = sprites.atlas(requests)
+	_atlas = a["texture"]
+	_regions = a["regions"]
+	_glow_r = _regions.get(&"glow", Rect2())
+	_shadow_r = _regions.get(&"shadow", Rect2())
+	_smear_r = _regions.get(&"smear", Rect2())
+	_barrel_r = _regions.get(&"barrel", Rect2())
+	_atlas_stamp = model.building_stamp() if model != null else 0
+	Log.info("render", "draw atlas: %s px, %d sprites — one texture for every entity pass" % [
+		str(a["size"]), _regions.size()])
 
 
 func _make_pass(pass_name: String, which: int, z: int, additive: bool) -> Node2D:
@@ -85,10 +135,11 @@ func _make_pass(pass_name: String, which: int, z: int, additive: bool) -> Node2D
 
 
 ## Called once per frame by WorldRenderer before the passes redraw.
-func refresh(day_grade: Dictionary, view: Rect2, interp: float) -> void:
+func refresh(day_grade: Dictionary, view: Rect2, interp: float, camera_zoom: float = 1.0) -> void:
 	grade = day_grade
 	view_rect = view
 	alpha = interp
+	zoom = camera_zoom
 	_collect()
 	_shadow.queue_redraw()
 	_glow.queue_redraw()
@@ -96,25 +147,31 @@ func refresh(day_grade: Dictionary, view: Rect2, interp: float) -> void:
 
 
 ## One walk over the world per frame instead of three, with the sprite rect and
-## the sprite record resolved once each.
+## the atlas region resolved once each.
 func _collect() -> void:
-	_vis = []
+	var t0: int = Time.get_ticks_usec()
+	_vis.clear()
 	if model == null:
 		return
+	if model.building_stamp() != _atlas_stamp:
+		_rebuild_atlas()
+
+	var pad: Rect2 = view_rect.grow(8.0)
 	for b: Dictionary in model.buildings():
-		var sp: Dictionary = sprites.building(b["arch"])
-		var tex: ImageTexture = sp["texture"]
-		var cell: Vector2i = b["cell"]
-		var scale: float = float(b.get("scale", 1.0))
-		var origin := Vector2(float(cell.x), float(cell.y)) * float(TILE) + (sp["offset"] as Vector2) * scale
-		var rect := Rect2(origin, Vector2(tex.get_size()) * scale)
-		if not view_rect.intersects(rect):
+		var region: Rect2 = _regions.get(b["sprite"], Rect2())
+		if region.size.x <= 0.0:
 			continue
-		_vis.append({"b": b, "rect": rect, "sp": sp})
+		var cell: Vector2i = b["cell"]
+		var origin := Vector2(float(cell.x), float(cell.y)) * float(TILE) \
+			+ Vector2(-LcnSpriteFactory.PAD, -LcnSpriteFactory.PAD - float(b["lift"]))
+		var rect := Rect2(origin, region.size)
+		if not pad.intersects(rect):
+			continue
+		_vis.append({"b": b, "rect": rect, "src": region})
 	_visible_buildings = _vis.size()
 
 	_srcs = model.heat_sources()
-	_src_buckets = {}
+	_src_buckets.clear()
 	for i: int in _srcs.size():
 		var s: Dictionary = _srcs[i]
 		var p: Vector2 = s["pos"]
@@ -129,6 +186,7 @@ func _collect() -> void:
 				var arr: PackedInt32Array = _src_buckets.get(key, PackedInt32Array())
 				arr.append(i)
 				_src_buckets[key] = arr
+	_collect_us = Time.get_ticks_usec() - t0
 
 
 func mark_frozen(id: int, is_frozen: bool) -> void:
@@ -143,13 +201,15 @@ func stats() -> Dictionary:
 		"visible_buildings": _visible_buildings,
 		"visible_agents": _visible_agents,
 		"draw_us": _draw_us,
+		"collect_us": _collect_us,
+		"atlas_sprites": _regions.size(),
 	}
 
 
 # -------------------------------------------------------------------- draw ---
 
 func draw_pass(ci: CanvasItem, which: int) -> void:
-	if model == null or grade.is_empty():
+	if model == null or grade.is_empty() or _atlas == null:
 		return
 	var t0: int = Time.get_ticks_usec()
 	match which:
@@ -161,17 +221,25 @@ func draw_pass(ci: CanvasItem, which: int) -> void:
 	_draw_us += Time.get_ticks_usec() - t0
 
 
-## Where a building's sprite lands on screen. The archetype sprite is scaled so
-## its baked footprint covers the building's real footprint, which is how one
-## generator drawing serves both a 3x2 coal plant and a 5x5 hearth.
+## Where a building's sprite lands on screen.
 ## Public so [P18]'s build cursor and [P19]'s overlays hit-test the same shape.
 func sprite_rect(b: Dictionary) -> Rect2:
-	var sp: Dictionary = sprites.building(b["arch"])
-	var tex: ImageTexture = sp["texture"]
+	var region: Rect2 = _regions.get(b.get("sprite", &""), Rect2())
 	var cell: Vector2i = b["cell"]
-	var scale: float = float(b.get("scale", 1.0))
-	var origin := Vector2(float(cell.x), float(cell.y)) * float(TILE) + (sp["offset"] as Vector2) * scale
-	return Rect2(origin, Vector2(tex.get_size()) * scale)
+	var origin := Vector2(float(cell.x), float(cell.y)) * float(TILE) \
+		+ Vector2(-LcnSpriteFactory.PAD, -LcnSpriteFactory.PAD - float(b.get("lift", 0.0)))
+	return Rect2(origin, region.size)
+
+
+## The light landing on a building, from the same rig the ground shader uses.
+func _light_for(centre: Vector2, warm: float) -> Color:
+	var cell := Vector2i(int(centre.x / float(TILE)), int(centre.y / float(TILE)))
+	var city: float = 1.0
+	var heat: float = warm
+	if field != null:
+		city = field.city_at(cell)
+		heat = maxf(heat, field.heat_at(cell))
+	return LcnPalette.light_at(grade, city, heat, 0.85)
 
 
 # --- pass 1: shadows ---------------------------------------------------------
@@ -181,67 +249,73 @@ func _draw_shadows(ci: CanvasItem) -> void:
 	var len_mul: float = grade["shadow_len"]
 	var col: Color = grade["shadow"]
 	var a: float = grade["shadow_alpha"]
-	var srcs: Array[Dictionary] = _srcs
-	var night: float = clampf((float(grade["light_energy"]) - 0.7) / 0.9, 0.0, 1.0)
+	var night: float = clampf(float(grade["bounce"]), 0.0, 1.0)
+	var detailed: bool = zoom >= LOD_ZOOM and _smear_r.size.x > 0.0
 
 	for entry: Dictionary in _vis:
 		var b: Dictionary = entry["b"]
 		var state: int = int(b.get("state", LcnWorldModel.BUILD_OPERATIONAL))
 		if state == LcnWorldModel.BUILD_GHOST:
 			continue
-		var sp: Dictionary = entry["sp"]
-		var lift: float = float(sp["lift"]) * float(b.get("scale", 1.0))
-		if lift < 8.0:
-			continue
+		var lift: float = float(b["lift"])
 		var tiles: Vector2i = b["tiles"]
 		var cell: Vector2i = b["cell"]
 		var foot := Rect2(
 			Vector2(float(cell.x), float(cell.y)) * float(TILE),
 			Vector2(float(tiles.x), float(tiles.y)) * float(TILE))
 
+		# Contact darkening keeps the building anchored to the ground. One draw,
+		# from the same atlas as everything else, so it batches.
+		ci.draw_texture_rect_region(_atlas,
+			Rect2(foot.position - Vector2(6.0, 4.0), foot.size + Vector2(12.0, 10.0)),
+			_shadow_r, Color(col.r, col.g, col.b, a * 0.85))
+
+		if not detailed or lift < 8.0:
+			continue
+
 		# After dark the dominant light is the nearest fire, not the sun.
 		var use_dir: Vector2 = dir
 		if night > 0.05:
-			var nearest: Dictionary = _nearest_source(srcs, foot.get_center())
+			var nearest: Dictionary = _nearest_source(foot.get_center())
 			if not nearest.is_empty():
-				var away: Vector2 = (foot.get_center() - (nearest["pos"] as Vector2))
+				var away: Vector2 = foot.get_center() - (nearest["pos"] as Vector2)
 				if away.length() > 4.0:
 					use_dir = dir.lerp(away.normalized(), night * 0.85).normalized()
 
-		var length: float = lift * len_mul
-		ci.draw_colored_polygon(_shadow_hull(foot, use_dir * length), Color(col.r, col.g, col.b, a * 0.55))
-		ci.draw_colored_polygon(_shadow_hull(foot, use_dir * length * 0.45), Color(col.r, col.g, col.b, a * 0.62))
-		# Contact darkening keeps the building anchored to the ground.
-		ci.draw_texture_rect(LcnSpriteFactory.shadow_texture(96),
-			Rect2(foot.position - Vector2(6.0, 4.0), foot.size + Vector2(12.0, 10.0)),
-			false, Color(col.r, col.g, col.b, a * 0.9))
+		# One sheared, textured quad: bright at the foot of the building, gone at
+		# the tip. draw_polygon keeps the atlas bound, so this stays batched.
+		var o: Vector2 = use_dir * (lift * len_mul)
+		var side: Vector2 = Vector2(-use_dir.y, use_dir.x) * (foot.size.x * 0.42)
+		var p0: Vector2 = foot.get_center() - side + Vector2(0.0, foot.size.y * 0.34)
+		var p1: Vector2 = foot.get_center() + side + Vector2(0.0, foot.size.y * 0.34)
+		ci.draw_polygon(
+			PackedVector2Array([p0, p1, p1 + o + side * 0.35, p0 + o - side * 0.35]),
+			PackedColorArray([
+				Color(col.r, col.g, col.b, a * 0.70), Color(col.r, col.g, col.b, a * 0.70),
+				Color(col.r, col.g, col.b, a * 0.70), Color(col.r, col.g, col.b, a * 0.70)]),
+			PackedVector2Array([
+				_uv(_smear_r, 0.0, 0.0), _uv(_smear_r, 1.0, 0.0),
+				_uv(_smear_r, 1.0, 1.0), _uv(_smear_r, 0.0, 1.0)]),
+			_atlas)
 
-	if not draw_agents:
+	if not draw_agents or not detailed:
 		return
 	for ag: Dictionary in model.agents(alpha):
 		var p: Vector2 = ag["pos"]
 		if not view_rect.grow(24.0).has_point(p):
 			continue
-		ci.draw_texture_rect(LcnSpriteFactory.shadow_texture(96),
-			Rect2(p - Vector2(7.0, 4.0), Vector2(14.0, 8.0)), false,
+		ci.draw_texture_rect_region(_atlas,
+			Rect2(p - Vector2(7.0, 4.0), Vector2(14.0, 8.0)), _shadow_r,
 			Color(col.r, col.g, col.b, a * 0.8))
 
 
-static func _shadow_hull(r: Rect2, o: Vector2) -> PackedVector2Array:
-	var a := r.position
-	var b := Vector2(r.end.x, r.position.y)
-	var c := r.end
-	var d := Vector2(r.position.x, r.end.y)
-	if o.x >= 0.0:
-		if o.y >= 0.0:
-			return PackedVector2Array([a, b, b + o, c + o, d + o, d])
-		return PackedVector2Array([a, a + o, b + o, c + o, c, d])
-	if o.y >= 0.0:
-		return PackedVector2Array([a, b, c, c + o, d + o, a + o])
-	return PackedVector2Array([a + o, b + o, b, c, d, d + o])
+## Atlas pixel coordinates for a normalised point in a region. draw_polygon takes
+## UVs in TEXTURE PIXELS, not 0..1.
+static func _uv(region: Rect2, u: float, v: float) -> Vector2:
+	return region.position + Vector2(region.size.x * u, region.size.y * v)
 
 
-func _nearest_source(_srcs_unused: Array[Dictionary], p: Vector2) -> Dictionary:
+func _nearest_source(p: Vector2) -> Dictionary:
 	var key: int = int(floor(p.x / BUCKET_PX)) * 73856093 ^ int(floor(p.y / BUCKET_PX)) * 19349663
 	var candidates: PackedInt32Array = _src_buckets.get(key, PackedInt32Array())
 	var best: Dictionary = {}
@@ -263,11 +337,10 @@ func _nearest_source(_srcs_unused: Array[Dictionary], p: Vector2) -> Dictionary:
 
 func _draw_glow(ci: CanvasItem) -> void:
 	var energy: float = grade["light_energy"]
-	var srcs: Array[Dictionary] = _srcs
 
 	# Warm pools on the ground. Light2D does the physical lighting; this pass
 	# adds the bloomy core that makes a fire feel hot rather than merely bright.
-	for s: Dictionary in srcs:
+	for s: Dictionary in _srcs:
 		var pos: Vector2 = s["pos"]
 		var radius: float = float(s["radius"]) * 0.8
 		if not view_rect.grow(radius).has_point(pos):
@@ -275,10 +348,16 @@ func _draw_glow(ci: CanvasItem) -> void:
 		var intensity: float = float(s["intensity"])
 		var flicker: float = 1.0 + sin(SimClock.seconds() * 3.1 + float(s.get("seed", 0)) * 0.37) * 0.055
 		var col: Color = LcnPalette.heat_light_color(intensity)
-		var strength: float = clampf(0.16 * intensity * energy * flicker, 0.0, 0.85)
-		ci.draw_texture_rect(_glow_tex,
+		# 0.11, not 0.16: with the light rig no longer crushing the whole frame,
+		# the additive pass no longer has to shout to be seen, and a radiator
+		# stops resolving as a blown-out white disc.
+		var strength: float = clampf(0.11 * intensity * energy * flicker, 0.0, 0.62)
+		ci.draw_texture_rect_region(_atlas,
 			Rect2(pos - Vector2(radius, radius), Vector2(radius * 2.0, radius * 2.0)),
-			false, Color(col.r, col.g, col.b, strength))
+			_glow_r, Color(col.r, col.g, col.b, strength))
+
+	if zoom < RIM_ZOOM:
+		return
 
 	# Rim light: the sprite redrawn offset toward its light. The main pass then
 	# covers everything but the lit crescent.
@@ -286,9 +365,8 @@ func _draw_glow(ci: CanvasItem) -> void:
 		var b: Dictionary = entry["b"]
 		if _frozen.has(int(b["id"])):
 			continue
-		var sp: Dictionary = entry["sp"]
 		var centre: Vector2 = b["centre"]
-		var src: Dictionary = _nearest_source(srcs, centre)
+		var src: Dictionary = _nearest_source(centre)
 		var warm: float = float(b["warm"])
 		var rim: float = warm * 0.30
 		var toward := Vector2(-0.55, -0.85)
@@ -303,76 +381,87 @@ func _draw_glow(ci: CanvasItem) -> void:
 			continue
 		var rect: Rect2 = entry["rect"]
 		var col2: Color = LcnPalette.WARM_MID
-		ci.draw_texture_rect(sp["texture"],
-			Rect2(rect.position + toward * 2.0 - Vector2(0.0, 1.0), rect.size), false,
-			Color(col2.r, col2.g, col2.b, clampf(rim * energy * 0.55, 0.0, 0.7)))
+		ci.draw_texture_rect_region(_atlas,
+			Rect2(rect.position + toward * 2.0 - Vector2(0.0, 1.0), rect.size), entry["src"],
+			Color(col2.r, col2.g, col2.b, clampf(rim * energy * 0.48, 0.0, 0.62)))
 
 
 # --- pass 3: sprites ---------------------------------------------------------
 
 func _draw_main(ci: CanvasItem) -> void:
-	var entries: Array[Dictionary] = []
-	for entry: Dictionary in _vis:
-		var b: Dictionary = entry["b"]
-		var cell: Vector2i = b["cell"]
-		var tiles: Vector2i = b["tiles"]
-		entries.append({"y": float(cell.y + tiles.y) * float(TILE), "b": b,
-			"rect": entry["rect"], "sp": entry["sp"]})
-
-	_visible_agents = 0
-	if draw_agents:
-		for ag: Dictionary in model.agents(alpha):
-			var p: Vector2 = ag["pos"]
-			if not view_rect.grow(32.0).has_point(p):
-				continue
-			_visible_agents += 1
-			entries.append({"y": p.y, "a": ag})
-
-	entries.sort_custom(func(x: Dictionary, y: Dictionary) -> bool:
-		return float(x["y"]) < float(y["y"]))
+	# model.buildings() is already ordered back-to-front; agents are merged into
+	# it linearly instead of re-sorting the whole world with a script lambda.
+	var ags: Array[Dictionary] = model.agents(alpha) if draw_agents else ([] as Array[Dictionary])
+	var vis_ag: Array[Dictionary] = []
+	var pad: Rect2 = view_rect.grow(32.0)
+	for ag: Dictionary in ags:
+		if pad.has_point(ag["pos"] as Vector2):
+			vis_ag.append(ag)
+	vis_ag.sort_custom(_agent_before)
+	_visible_agents = vis_ag.size()
 
 	var frost: Color = LcnPalette.ICE_BLUE
-	for e: Dictionary in entries:
-		if e.has("b"):
-			var b2: Dictionary = e["b"]
-			var sp: Dictionary = e["sp"]
-			var rect: Rect2 = e["rect"]
-			var state2: int = int(b2.get("state", LcnWorldModel.BUILD_OPERATIONAL))
-			var tint := Color(1, 1, 1, 1)
-			if _frozen.has(int(b2["id"])) or state2 == LcnWorldModel.BUILD_FROZEN:
-				tint = Color(frost.r * 0.85 + 0.15, frost.g * 0.85 + 0.15, frost.b * 0.9 + 0.1, 1.0)
-			elif state2 == LcnWorldModel.BUILD_DISABLED:
-				tint = Color(0.62, 0.66, 0.74, 1.0)
-			elif state2 == LcnWorldModel.BUILD_DECONSTRUCTING:
-				tint = Color(1.0, 0.72, 0.62, 0.75)
-			if state2 == LcnWorldModel.BUILD_GHOST or state2 == LcnWorldModel.BUILD_CONSTRUCTING:
-				_draw_site(ci, b2, rect, state2)
-			else:
-				ci.draw_texture_rect(sp["texture"], rect, false, tint)
-				if b2["arch"] == &"turret":
-					_draw_barrel(ci, b2, rect)
+	var ai: int = 0
+	var barrels: bool = zoom >= LOD_ZOOM and _barrel_r.size.x > 0.0
+	for e: Dictionary in _vis:
+		var b2: Dictionary = e["b"]
+		var cell: Vector2i = b2["cell"]
+		var tiles: Vector2i = b2["tiles"]
+		var y: float = float(cell.y + tiles.y) * float(TILE)
+		while ai < vis_ag.size() and float((vis_ag[ai]["pos"] as Vector2).y) < y:
+			_draw_agent(ci, vis_ag[ai])
+			ai += 1
+
+		var rect: Rect2 = e["rect"]
+		var state2: int = int(b2.get("state", LcnWorldModel.BUILD_OPERATIONAL))
+		var lit: Color = _light_for(b2["centre"], float(b2["warm"]))
+		var tint := Color(lit.r, lit.g, lit.b, 1.0)
+		if _frozen.has(int(b2["id"])) or state2 == LcnWorldModel.BUILD_FROZEN:
+			tint = Color(tint.r * (frost.r * 0.85 + 0.15), tint.g * (frost.g * 0.85 + 0.15),
+				tint.b * (frost.b * 0.9 + 0.1), 1.0)
+		elif state2 == LcnWorldModel.BUILD_DISABLED:
+			tint = Color(tint.r * 0.62, tint.g * 0.66, tint.b * 0.74, 1.0)
+		elif state2 == LcnWorldModel.BUILD_DECONSTRUCTING:
+			tint = Color(tint.r, tint.g * 0.72, tint.b * 0.62, 0.75)
+		if state2 == LcnWorldModel.BUILD_GHOST or state2 == LcnWorldModel.BUILD_CONSTRUCTING:
+			_draw_site(ci, b2, rect, e["src"], state2)
 		else:
-			var ag2: Dictionary = e["a"]
-			var s: Dictionary = sprites.agent(ag2["kind"])
-			var tex: ImageTexture = s["texture"]
-			var pos: Vector2 = (ag2["pos"] as Vector2) + (s["offset"] as Vector2)
-			# Sub-pixel snapping keeps 14px figures from shimmering as they walk.
-			pos = Vector2(round(pos.x), round(pos.y))
-			ci.draw_texture_rect(tex, Rect2(pos, tex.get_size()), false)
+			ci.draw_texture_rect_region(_atlas, rect, e["src"], tint)
+			if barrels and b2["arch"] == &"turret":
+				_draw_barrel(ci, b2, rect, tint)
+
+	while ai < vis_ag.size():
+		_draw_agent(ci, vis_ag[ai])
+		ai += 1
+
+
+static func _agent_before(x: Dictionary, y: Dictionary) -> bool:
+	return float((x["pos"] as Vector2).y) < float((y["pos"] as Vector2).y)
+
+
+func _draw_agent(ci: CanvasItem, ag: Dictionary) -> void:
+	var region: Rect2 = _regions.get(LcnSpriteFactory.agent_key(ag["kind"]), Rect2())
+	if region.size.x <= 0.0:
+		return
+	var pos: Vector2 = (ag["pos"] as Vector2) + Vector2(-region.size.x * 0.5, -region.size.y + 5.0)
+	# Sub-pixel snapping keeps 14px figures from shimmering as they walk.
+	pos = Vector2(round(pos.x), round(pos.y))
+	var lit: Color = _light_for(ag["pos"], 0.0)
+	ci.draw_texture_rect_region(_atlas, Rect2(pos, region.size), region,
+		Color(lit.r, lit.g, lit.b, 1.0))
 
 
 ## A planned or half-built structure: surveyed footprint, scaffold uprights and
 ## a ghost of the finished silhouette. The player should always be able to read
 ## what is coming and how far along it is.
-func _draw_site(ci: CanvasItem, b: Dictionary, rect: Rect2, state: int) -> void:
+func _draw_site(ci: CanvasItem, b: Dictionary, rect: Rect2, src: Rect2, state: int) -> void:
 	var tiles: Vector2i = b["tiles"]
 	var cell: Vector2i = b["cell"]
 	var foot := Rect2(
 		Vector2(float(cell.x), float(cell.y)) * float(TILE),
 		Vector2(float(tiles.x), float(tiles.y)) * float(TILE))
 	var accent: Color = LcnPalette.CAUTION if state == LcnWorldModel.BUILD_CONSTRUCTING else LcnPalette.STEEL_LIGHT
-	var sp: Dictionary = sprites.building(b["arch"])
-	ci.draw_texture_rect(sp["texture"], rect, false,
+	ci.draw_texture_rect_region(_atlas, rect, src,
 		Color(accent.r, accent.g, accent.b, 0.24 if state == LcnWorldModel.BUILD_GHOST else 0.40))
 	ci.draw_rect(foot, Color(accent.r, accent.g, accent.b, 0.10), true)
 	ci.draw_rect(foot, Color(accent.r, accent.g, accent.b, 0.85), false, 1.5)
@@ -388,18 +477,15 @@ func _draw_site(ci: CanvasItem, b: Dictionary, rect: Rect2, state: int) -> void:
 			LcnPalette.WARM_MID, true)
 
 
-func _draw_barrel(ci: CanvasItem, b: Dictionary, rect: Rect2) -> void:
-	var bar: Dictionary = sprites.turret_barrel()
-	var tex: ImageTexture = bar["texture"]
-	var pivot: Vector2 = bar["pivot"]
+func _draw_barrel(ci: CanvasItem, b: Dictionary, rect: Rect2, tint: Color) -> void:
+	var pivot := Vector2(8.0, 9.0)
 	# Guns face away from the city centre; a defensive line should look aimed.
 	var centre: Vector2 = b["centre"]
 	var world_mid := Vector2(model.world_size()) * float(TILE) * 0.5
 	var away: Vector2 = centre - world_mid
 	var ang: float = away.angle() if away.length() > 1.0 else 0.0
 	ang += sin(SimClock.seconds() * 0.4 + float(b["seed"]) * 0.11) * 0.22
-	var mount: Vector2 = rect.position + Vector2(rect.size.x * 0.5, rect.size.y - 46.0 * float(b.get("scale", 1.0)))
-	var bscale: float = float(b.get("scale", 1.0))
-	ci.draw_set_transform(mount, ang, Vector2(bscale, bscale))
-	ci.draw_texture_rect(tex, Rect2(-pivot, tex.get_size()), false)
+	var mount: Vector2 = rect.position + Vector2(rect.size.x * 0.5, rect.size.y - 46.0)
+	ci.draw_set_transform(mount, ang, Vector2.ONE)
+	ci.draw_texture_rect_region(_atlas, Rect2(-pivot, _barrel_r.size), _barrel_r, tint)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

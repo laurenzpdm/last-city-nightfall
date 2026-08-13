@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_en57a"]
+
+[resource]
+resource_name = "Rubble Sorter"
+script = ExtResource("1_en57a")
+id = &"rubble_sorter"
+display_name = "Rubble Sorter"
+description = "Trommels and picking belts under a canvas roof. Everything the old city left behind comes back through here as something usable."
+category = &"production"
+sort_order = 85
+tags = Array[StringName]([&"crafter", &"machine", &"sorter", &"salvage"])
+size = Vector2i(3, 2)
+cost = Dictionary[StringName, int]({
+&"iron_plate": 10,
+&"scrap": 25,
+&"timber": 30
+})
+build_time_ticks = 700
+demolish_time_ticks = 90
+build_priority = 60
+workers_required = 2
+staff_capacity = 4
+heat_consumed = 6.0
+hp = 420.0
+recipes = Array[StringName]([&"sorted_rubble", &"salvaged_stores"])
+storage_capacity = 180
+tint = Color(0.68, 0.66, 0.6, 1)

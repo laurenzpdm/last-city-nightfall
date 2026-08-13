@@ -222,7 +222,7 @@
         "op": "place",
         "kind": "storage_yard",
         "cell": [
-          138,
+          137,
           132
         ],
         "free": true,
@@ -233,10 +233,14 @@
       "tick": 15,
       "cmd": {
         "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          142,
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          140,
+          127
+        ],
+        "to": [
+          140,
           119
         ],
         "free": true,
@@ -247,10 +251,42 @@
       "tick": 16,
       "cmd": {
         "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          140,
+          131
+        ],
+        "to": [
+          140,
+          137
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 17,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          141,
+          119
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 18,
+      "cmd": {
+        "system": "build",
         "op": "place",
         "kind": "turret_mount",
         "cell": [
-          142,
+          141,
           137
         ],
         "free": true,

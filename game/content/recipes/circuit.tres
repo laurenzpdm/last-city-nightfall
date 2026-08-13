@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/production/recipe_def.gd" id="1_biiah"]
+
+[resource]
+resource_name = "Circuit"
+script = ExtResource("1_biiah")
+id = &"circuit"
+display_name = "Circuit"
+description = "Etched board, hand-wound coils, and a soldering iron that will not stay hot below minus eight. Precision hates the cold."
+tier = 3
+sort_order = 40
+inputs = Dictionary[StringName, int]({
+&"copper_coil": 3,
+&"iron_plate": 1
+})
+outputs = Dictionary[StringName, int]({
+&"circuit": 2
+})
+time_ticks = 200
+machine_tags = Array[StringName]([&"crafter"])
+machines = Array[StringName]([&"workshop", &"assembly_hall"])
+heat_cost = 60.0
+waste_heat = 4.0
+min_temperature_c = -8.0
+unlock_id = &"electrotechnics"
+tint = Color(0.55, 0.78, 0.66, 1)

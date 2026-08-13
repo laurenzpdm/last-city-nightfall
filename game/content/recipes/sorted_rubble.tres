@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/production/recipe_def.gd" id="1_fotaq"]
+
+[resource]
+resource_name = "Sorted Rubble"
+script = ExtResource("1_fotaq")
+id = &"sorted_rubble"
+display_name = "Sorted Rubble"
+description = "Trommels and picking belts. What the old city left behind, sorted back into things that can be built with."
+category = &"salvage"
+sort_order = 10
+inputs = Dictionary[StringName, int]({
+&"scrap": 4
+})
+outputs = Dictionary[StringName, int]({
+&"stone": 2,
+&"timber": 1
+})
+byproducts = Dictionary[StringName, int]({
+&"iron_ore": 1
+})
+machine_tags = Array[StringName]([&"sorter"])
+machines = Array[StringName]([&"rubble_sorter"])
+heat_cost = 20.0
+waste_heat = 3.0
+tint = Color(0.66, 0.64, 0.6, 1)

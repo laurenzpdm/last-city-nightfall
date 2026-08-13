@@ -21,8 +21,28 @@ var _active: int = 0
 var _cookie: ImageTexture = null
 
 
+## A falloff cookie, not a glow sprite. The glow texture has a deliberate hot
+## core so a fire reads as hot; used as a LIGHT cookie that core is a flat
+## saturated disc, which is exactly what made every radiator in the night frames
+## resolve as a white blob. This one falls off smoothly from the first pixel.
+static func _bake_cookie(size: int) -> Image:
+	var img: Image = Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var r: float = float(size) * 0.5
+	for y: int in size:
+		for x: int in size:
+			var dx: float = (float(x) + 0.5 - r) / r
+			var dy: float = (float(y) + 0.5 - r) / r
+			var d: float = sqrt(dx * dx + dy * dy)
+			# Physically-flavoured: 1/(1+kd^2) shaped, windowed to zero at the rim
+			# so lights do not end in a visible circle.
+			var a: float = clampf(1.0 / (1.0 + 7.5 * d * d), 0.0, 1.0)
+			a *= clampf(1.0 - smoothstep(0.72, 1.0, d), 0.0, 1.0)
+			img.set_pixel(x, y, Color(1, 1, 1, a))
+	return img
+
+
 func setup() -> void:
-	_cookie = LcnSpriteFactory.glow_texture(256)
+	_cookie = LcnArtCache.get_texture("light_cookie_256", func() -> Image: return _bake_cookie(256))
 	tint = CanvasModulate.new()
 	tint.name = "NightTint"
 	tint.color = Color(1, 1, 1)
@@ -81,10 +101,11 @@ func update(grade: Dictionary, view: Rect2, model: LcnWorldModel, lights_on: boo
 		l2.position = s2["pos"]
 		l2.texture_scale = (radius2 * 2.0) / 256.0
 		l2.color = LcnPalette.heat_light_color(intensity)
-		# 0.55, not 0.85: with the heat system finally feeding real intensities the
-		# old coefficient blew every radiator out to a white disc and took the
-		# building underneath it with it. Warm light has to stay warm.
-		l2.energy = clampf(0.55 * intensity * energy * flicker, 0.0, 1.8)
+		# 0.34 with a falloff cookie, down from 0.55 with a hot-cored glow sprite.
+		# A critic looking at the deep-night frame saw two blown-out white blobs
+		# and 206 invisible buildings; the readability now comes from the light
+		# rig's bounce term, not from cranking the point lights until they clip.
+		l2.energy = clampf(0.34 * intensity * energy * flicker, 0.0, 1.25)
 		l2.enabled = true
 	_active = n
 

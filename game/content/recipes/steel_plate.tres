@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/production/recipe_def.gd" id="1_uh8eg"]
+
+[resource]
+resource_name = "Steel Plate"
+script = ExtResource("1_uh8eg")
+id = &"steel_plate"
+display_name = "Steel Plate"
+description = "Iron, coal and a great deal of patience held at temperature. Twice the plate for four times the heat."
+category = &"smelting"
+tier = 2
+sort_order = 30
+inputs = Dictionary[StringName, int]({
+&"coal": 1,
+&"iron_plate": 2
+})
+outputs = Dictionary[StringName, int]({
+&"steel_plate": 1
+})
+machine_tags = Array[StringName]([&"smelter"])
+machines = Array[StringName]([&"smelter"])
+heat_cost = 70.0
+waste_heat = 18.0
+min_temperature_c = -12.0
+tint = Color(0.62, 0.68, 0.76, 1)

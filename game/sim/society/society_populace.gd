@@ -146,19 +146,28 @@ func _model(reading: SocietyReading, book: LawBook, hours: float) -> Array[Dicti
 		return events
 
 	# --- shelter -----------------------------------------------------------
+	# Three tiers, and the difference between them is who is alive at dawn:
+	# a heated room, a sheet of canvas near the fire, and the open ice.
 	var seats: float = reading.housing_capacity * maxf(0.1, book.policy_value(&"shelter_capacity"))
+	var canvas: float = tent_capacity * maxf(0.1, book.policy_value(&"shelter_capacity"))
 	sheltered = minf(pop, seats)
-	homeless = maxf(0.0, pop - sheltered)
+	tented = minf(pop - sheltered, canvas)
+	homeless = maxf(0.0, pop - sheltered - tented)
 	crowding = maxf(0.0, book.policy_value(&"crowding"))
 	if seats > 0.0:
 		crowding += clampf(sheltered / seats - 0.85, 0.0, 1.0)
+	if tented > 0.0:
+		crowding += 0.25 * clampf(tented / maxf(pop, 1.0), 0.0, 1.0)
 
 	# --- cold --------------------------------------------------------------
+	camp_temp_c = reading.outdoor_c + TENT_BONUS_C \
+		+ minf(float(reading.hearths_lit) * TENT_HEARTH_C, TENT_HEARTH_MAX_C)
 	var indoor: float = _stress(reading.home_temp_avg, SocietyDefs.LETHAL_C)
+	var camp: float = _stress(camp_temp_c, SocietyDefs.LETHAL_C)
 	var outdoor: float = _stress(reading.outdoor_c, SocietyDefs.OUTDOOR_FLOOR_C)
 	if reading.homes_total == 0:
-		indoor = outdoor
-	exposure = ((sheltered * indoor) + (homeless * outdoor)) / maxf(pop, 1.0)
+		indoor = camp
+	exposure = ((sheltered * indoor) + (tented * camp) + (homeless * outdoor)) / maxf(pop, 1.0)
 
 	# --- food --------------------------------------------------------------
 	var ration: float = maxf(0.15, book.policy_value(&"ration"))
@@ -185,7 +194,8 @@ func _model(reading: SocietyReading, book: LawBook, hours: float) -> Array[Dicti
 	# --- death -------------------------------------------------------------
 	var from_sick: float = sick * SocietyDefs.MORTALITY_PER_HOUR / care * hours
 	var from_cold: float = homeless * outdoor * SocietyDefs.EXPOSURE_MORTALITY_PER_HOUR * hours
-	from_cold += sheltered * maxf(0.0, indoor - INDOOR_LETHAL_FRACTION) \
+	from_cold += (sheltered * maxf(0.0, indoor - INDOOR_LETHAL_FRACTION)
+		+ tented * maxf(0.0, camp - INDOOR_LETHAL_FRACTION)) \
 		* INDOOR_LETHAL_GAIN * SocietyDefs.EXPOSURE_MORTALITY_PER_HOUR * hours
 	var from_hunger: float = 0.0
 	if _famine_hours > FAMINE_ONSET_HOURS:
@@ -199,6 +209,10 @@ func _model(reading: SocietyReading, book: LawBook, hours: float) -> Array[Dicti
 	# --- the dead ----------------------------------------------------------
 	var handled: float = maxf(0.0, book.policy_value(&"corpse_capacity")) * hours / SocietyDefs.HOURS_PER_DAY
 	corpses = maxf(0.0, corpses - handled)
+
+	# --- the canvas runs out -----------------------------------------------
+	tent_capacity = maxf(0.0, tent_capacity
+		- TENT_CAPACITY / (TENT_LIFE_DAYS * SocietyDefs.HOURS_PER_DAY) * hours)
 
 	population = maxf(0.0, population)
 	return events
@@ -239,8 +253,10 @@ func _death_sentence(cause: StringName, n: int, reading: SocietyReading) -> Stri
 	match cause:
 		&"cold":
 			if homeless > 0.5:
-				return "%s froze. They had no bunk and the night was %.0f below." % [
+				return "%s froze. They had no bunk and no canvas, and the night was %.0f below." % [
 					who, absf(reading.outdoor_c)]
+			if reading.homes_total == 0 or tented > sheltered:
+				return "%s froze under canvas. The camp was at %.0f degrees." % [who, camp_temp_c]
 			return "%s froze in their beds. The rooms were at %.0f degrees." % [
 				who, reading.home_temp_avg]
 		&"sickness":
@@ -298,6 +314,9 @@ func serialize() -> Dictionary:
 		"authoritative": authoritative,
 		"population": snappedf(population, 0.01),
 		"sheltered": snappedf(sheltered, 0.01),
+		"tented": snappedf(tented, 0.01),
+		"tent_capacity": snappedf(tent_capacity, 0.01),
+		"camp_temp_c": snappedf(camp_temp_c, 0.01),
 		"homeless": snappedf(homeless, 0.01),
 		"sick": snappedf(sick, 0.01),
 		"hunger_share": snappedf(hunger_share, 0.001),
@@ -317,6 +336,9 @@ func deserialize(data: Dictionary) -> void:
 	authoritative = bool(data.get("authoritative", true))
 	population = float(data.get("population", SocietyDefs.START_POPULATION))
 	sheltered = float(data.get("sheltered", 0.0))
+	tented = float(data.get("tented", 0.0))
+	tent_capacity = float(data.get("tent_capacity", TENT_CAPACITY))
+	camp_temp_c = float(data.get("camp_temp_c", 0.0))
 	homeless = float(data.get("homeless", 0.0))
 	sick = float(data.get("sick", 0.0))
 	hunger_share = float(data.get("hunger_share", 0.0))

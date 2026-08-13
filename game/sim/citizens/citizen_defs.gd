@@ -368,16 +368,16 @@ const FIRST_NAMES: Array[String] = [
 	"Ewa", "Piotr", "Ruth", "Aksel", "Danuta", "Stefan", "Ingrid", "Lukas",
 	"Bogna", "Viktor", "Hedda", "Tomas", "Wanda", "Erik", "Alina", "Josef",
 	"Malin", "Radek", "Sigrid", "Pavel", "Bertha", "Nils", "Irina", "Casper",
-])
+]
 
-const LAST_NAMES: PackedStringArray = PackedStringArray([
+const LAST_NAMES: Array[String] = [
 	"Kessler", "Novak", "Vinter", "Brandt", "Sokol", "Halvorsen", "Kowal",
 	"Grim", "Bauer", "Lindqvist", "Marek", "Frost", "Sandvik", "Duda",
 	"Aalto", "Weiss", "Petrov", "Norrland", "Kaminski", "Holm", "Voss",
 	"Ilmari", "Radek", "Steen", "Wojcik", "Berg", "Malik", "Ostrom",
 	"Czerny", "Lund", "Havel", "Torvik", "Rausch", "Zima", "Sorensen",
 	"Klemm", "Bielik", "Nyholm", "Draska", "Ekman", "Rothe", "Salo",
-])
+]
 
 
 # ==========================================================================

@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/production/recipe_def.gd" id="1_020or"]
+
+[resource]
+resource_name = "Insulation"
+script = ExtResource("1_020or")
+id = &"insulation"
+display_name = "Insulation"
+description = "Slag wool pressed into batts between timber laths. Ugly, itchy, and the difference between a warm district and a dead one."
+tier = 2
+sort_order = 20
+inputs = Dictionary[StringName, int]({
+&"slag": 2,
+&"timber": 1
+})
+outputs = Dictionary[StringName, int]({
+&"insulation": 2
+})
+machine_tags = Array[StringName]([&"crafter"])
+machines = Array[StringName]([&"workshop", &"assembly_hall"])
+heat_cost = 30.0
+waste_heat = 4.0
+min_temperature_c = -25.0
+tint = Color(0.78, 0.72, 0.55, 1)

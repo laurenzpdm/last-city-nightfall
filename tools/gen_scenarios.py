@@ -280,9 +280,14 @@ def smoke():
     L.place(11, "housing_block", -9, 3, free=True, instant=True)
     L.place(12, "coal_generator", -3, 11, free=True, instant=True)
     L.place(13, "workshop", 1, 11, free=True, instant=True)
-    L.place(14, "storage_yard", 10, 4, free=True, instant=True)
-    L.place(15, "watchtower", 14, -9, free=True, instant=True)
-    L.place(16, "turret_mount", 14, 9, free=True, instant=True)
+    L.place(14, "storage_yard", 9, 4, free=True, instant=True)
+    # The perimeter is on the city's grid, not beside it. A watchtower draws 1
+    # heat and a turret draws 6; off the network they are one-node islands that
+    # freeze by deep night, which is the opposite of what these shots are for.
+    L.line(15, "heat_pipe", (12, -1), (12, -9), free=True, instant=True)
+    L.line(16, "heat_pipe", (12, 3), (12, 9), free=True, instant=True)
+    L.place(17, "watchtower", 13, -9, free=True, instant=True)
+    L.place(18, "turret_mount", 13, 9, free=True, instant=True)
     for tick, phase in [(100, "morning"), (200, "afternoon"), (350, "dusk"),
                         (460, "night"), (550, "deep_night")]:
         L.cmd(tick, {"system": "climate", "op": "skip_to_phase", "phase": phase})
@@ -329,7 +334,7 @@ def first_night():
     L.line(500, "heat_pipe", (0, 14), (-1, 14))
     L.place(600, "coal_generator", -4, 14)
     L.place(900, "workshop", 1, 14)
-    L.place(1200, "storage_yard", 10, 4)
+    L.place(1200, "storage_yard", 9, 4)
     L.line(1500, "heat_pipe", (-1, 8), (-8, 8))
     L.place(1800, "warmth_radiator", -10, 7)
     L.place(2100, "housing_block", -9, 9)
@@ -350,7 +355,7 @@ def first_night():
     # The wall goes up before dusk.
     for i, dx in enumerate([-18, -9, 0, 9, 18]):
         L.line(5000 + i * 40, "wall", (dx - 4, -35), (dx + 4, -35))
-    L.line(5250, "heat_pipe", (1, -33), (12, -33))
+    L.line(5250, "heat_pipe", (1, -33), (13, -33))
     L.line(5280, "heat_pipe", (1, -33), (-19, -33))
     L.place(5300, "watchtower", -20, -32)
     L.place(5400, "watchtower", 13, -32)
@@ -362,7 +367,13 @@ def first_night():
     L.cmd(7400, {"system": "heat", "op": "dump"})
     L.cmd(7800, {"system": "grid", "op": "melt", "cell": [CORE[0], CORE[1]], "radius": 6, "amount": 90})
     L.cmd(8600, {"system": "build", "op": "set_enabled", "cell": [CORE[0] + 1, CORE[1] + 14], "on": True})
-    L.place(9000, "coal_generator", 4, 17)
+    # The second generator and the last housing block both need a spur before
+    # they are worth anything: a producer or a home that touches no conduit is
+    # its own one-node network, and this run is what the whole project
+    # screenshots against.
+    L.line(8800, "heat_pipe", (0, 15), (0, 18))
+    L.place(9000, "coal_generator", 1, 17)
+    L.line(10100, "heat_pipe", (-3, -2), (-10, -2))
     L.place(10200, "housing_block", -9, -6)
     return {
         "name": "first_night",
@@ -438,6 +449,13 @@ def determinism():
         "seed": 1337, "ticks": 4000, "sample_every": 10,
         "expects": {"min_ticks_per_second": 300, "max_errors": 0},
         "script": L.script,
+        "_layout": L,
+        # Islands are the POINT here. A house dropped in the snow, a watchtower
+        # on the far ridge and a stamped blueprint 24 tiles out are what make
+        # HeatGraph split and re-merge components, which is the cache this
+        # scenario exists to prove deterministic. Everything that has to carry
+        # flow is on the grid; everything else is deliberately not.
+        "_allow_islands": 5,
         "shots": [],
     }
 
@@ -449,13 +467,21 @@ def stress():
                                    "scrap", "gear", "copper_coil", "coal"]})
     L.place(3, "the_hearth", -2, -2, free=True, instant=True)
     t = 10
-    # One connected grid: east-west trunks crossed by north-south spurs.
+    # One connected grid: east-west trunks crossed by north-south spurs. The
+    # spurs run the FULL height of the trunk block (-30..30 inclusive) so every
+    # crossing exists; a spur that stopped one row short left the outer trunks
+    # hanging as their own little networks.
     for dy in range(-30, 31, 6):
         L.line(t, "heat_pipe", (-40, dy), (40, dy), free=True, instant=True)
         t += 3
     for dx in range(-40, 41, 8):
         L.line(t, "heat_pipe", (dx, -30), (dx, 30), free=True, instant=True)
         t += 3
+    # The hearth sits inside the block but its 5x5 footprint spans dx -2..2,
+    # which no trunk or spur passes through. One stub joins it to the spur at
+    # dx = 8, and without it the biggest producer on the map feeds nothing.
+    L.line(t, "heat_pipe", (3, 0), (8, 0), free=True, instant=True)
+    t += 3
     # Every plot sits in the pocket between one trunk and the next, one tile in
     # from both, so it is orthogonally adjacent to the grid on two sides.
     n = 0
@@ -468,7 +494,11 @@ def stress():
             kind = order[n % len(order)]
             n += 1
             origin = (CORE[0] + col + 1, CORE[1] + row + 1)
-            if not (L.free(kind, origin) and L.touches_heat(kind, origin)):
+            # A plot must be free AND reach a CONDUIT, not merely "reach a heat
+            # tag". Two generators used to pass the old test by touching a
+            # housing block, which links nothing: HeatGraph needs a conductor on
+            # at least one side of every edge.
+            if not (L.free(kind, origin) and _reaches_conduit(L, kind, origin)):
                 skipped += 1
                 continue
             L.place(t, kind, col + 1, row + 1, free=True, instant=True)
@@ -486,81 +516,194 @@ def stress():
     return {
         "name": "stress_1000",
         "description": ("The performance gate. Builds a city of well over a thousand "
-                        "structures on one connected heat grid - trunks, spurs, radiators, "
+                        "structures on ONE connected heat grid - trunks, spurs, radiators, "
                         "housing, generators and a full perimeter wall - then runs it "
-                        "through nightfall. The floor is 35 ticks/s: measured, not aspirational. "
-                        "HeatFlow's progressive fill over a 1400-node network is the "
-                        "ceiling and it is the next thing to optimise; the 400 target "
-                        "stands as the bar it has to reach."),
+                        "through nightfall under load. Every heat entity on the map is in "
+                        "the same network, which is the expensive case: HeatFlow's "
+                        "progressive fill over a single 1400-node component is the ceiling "
+                        "on the whole tick budget, and it is measured here rather than "
+                        "hidden behind three dozen private one-node networks. The floor is "
+                        "35 ticks/s, measured; the 400 target stands as the bar it has to "
+                        "reach. There are no hostiles in it because [P07]/[P08] have not "
+                        "landed - a scenario may not address a system this build does not "
+                        "have (see tests/p00/test_scenarios.gd), so the combat half of the "
+                        "stress test is owed, not forgotten."),
         "tags": ["perf", "gate"],
         "seed": 4242, "ticks": 3000, "sample_every": 50,
         "expects": {"min_ticks_per_second": 35, "target_ticks_per_second": 400,
-                    "max_errors": 0, "min_buildings": 1000},
+                    "max_errors": 0, "min_buildings": 1000, "max_heat_networks": 1},
         "script": L.script,
+        "_layout": L,
         "shots": [],
     }
 
 
 # ------------------------------------------------------------ economy_60min
+#
+# THE BALANCE INSTRUMENT. Everything about this scenario exists to be measured:
+# tools/analyze_balance.py grades its metrics.csv against
+# game/content/economy/difficulty_curve.tres, day by day. Read that curve and
+# game/content/economy/BALANCE.md before changing a number here — the shape of
+# this run IS the designed difficulty curve, and moving a generator moves it.
+#
+# Layout: a vertical spine at dx = +3 hanging off the Hearth's east face, with
+# horizontal rungs every ten rows. Plots hug a rung on one side or the other,
+# which is what puts every building on the same network as the Hearth.
+
+ECON_SPINE_DX = 3
+ECON_RUNGS = (-20, -10, 10, 20)
+ECON_ARM = 20               # rung reach either side of the spine
+
+
+class Row:
+    """A cursor walking outward along one rung, packing plots that touch it."""
+
+    def __init__(self, layout, dy, side, above=False):
+        self.L = layout
+        self.dy = dy
+        self.side = side                       # -1 west of the spine, +1 east
+        self.above = above
+        self.cursor = ECON_SPINE_DX + (2 * side)
+
+    def add(self, tick, kind, gap=1, **kw):
+        w, h = DEFS[kind][0], DEFS[kind][1]
+        # Origin row: the building's near edge has to share a border with the
+        # rung, never merely a corner.
+        dy = self.dy - h if self.above else self.dy + 1
+        if self.side > 0:
+            dx = self.cursor
+            self.cursor = dx + w + gap
+        else:
+            dx = self.cursor - w
+            self.cursor = dx - gap
+        assert abs(dx) <= ECON_ARM + ECON_SPINE_DX + 8, \
+            "%s at dx=%d has walked off the rung at dy=%d" % (kind, dx, self.dy)
+        self.L.place(tick, kind, dx, dy, **kw)
+        return dx
+
+
 def economy():
     L = Layout()
-    L.stock(1, {k: 60000 for k in ["iron_plate", "steel_plate", "stone", "timber",
+    # Generous but not infinite: the point of this run is the HEAT curve, so a
+    # material shortfall must never be what stalls it. Materials are read off
+    # build.materials in the report as a sanity line, not as the constraint.
+    L.stock(1, {k: 40000 for k in ["iron_plate", "steel_plate", "stone", "timber",
                                    "scrap", "gear", "copper_coil", "coal"]})
     L.unlock(2, "thermal_storage", "pressurised_mains")
+
+    # --- the city that already stands at dawn on day one ---------------------
     L.place(3, "the_hearth", -2, -2, free=True, instant=True)
-    for a, b in [((3, 0), (34, 0)), ((-3, 0), (-34, 0)),
-                 ((0, 3), (0, 34)), ((0, -3), (0, -34))]:
-        L.line(5, "heat_pipe", a, b, free=True, instant=True)
-    for dy in [-24, -12, 12, 24]:
-        L.line(6, "heat_pipe", (-34, dy), (34, dy), free=True, instant=True)
-    t = 200
-    plots = []
-    for dy in [-24, -12, 12, 24]:
-        for dx in [-30, -18, 18, 30]:
-            plots.append((dx, dy))
-    for i, (dx, dy) in enumerate(plots):
-        # Radiators hug the trunk, housing and generators sit one row clear of it.
-        L.place(t, "warmth_radiator", dx, dy + 1)
-        t += 700
-        L.place(t, "housing_block", dx + 3, dy + 1)
-        t += 700
-        L.place(t, "coal_generator", dx, dy + 4)
-        t += 700
-    for i in range(6):
-        L.place(t, "workshop", -30 + i * 11, -34)
-        t += 600
-        L.place(t, "storage_yard", -30 + i * 11, -30)
-        t += 600
-    L.place(t, "heat_accumulator", 1, 20)
-    t += 700
-    L.place(t, "heat_booster_pump", -1, 20)
-    t += 700
-    L.place(t, "granary", 6, 29)
-    t += 700
-    L.place(t, "field_kitchen", 12, 29)
-    t += 700
-    L.cmd(t, {"system": "climate", "op": "skip_to_phase", "phase": "night"})
-    t += 60
-    L.cmd(t, {"system": "heat", "op": "dump"})
-    t += 60
-    L.cmd(t, {"system": "grid", "op": "snowfall", "rate": 0.5})
-    t += 600
-    for i in range(6):
-        L.place(t, "housing_block", -30 + i * 11, 34)
-        t += 700
-    L.cmd(t, {"system": "heat", "op": "dump"})
+    L.line(4, "heat_pipe", (ECON_SPINE_DX, -24), (ECON_SPINE_DX, 24),
+           free=True, instant=True)
+    for dy in ECON_RUNGS:
+        L.line(5, "heat_pipe", (ECON_SPINE_DX, dy), (ECON_SPINE_DX - ECON_ARM, dy),
+               free=True, instant=True)
+        L.line(5, "heat_pipe", (ECON_SPINE_DX, dy), (ECON_SPINE_DX + ECON_ARM, dy),
+               free=True, instant=True)
+
+    # Rungs are consumed in this order, so the city grows outward from the
+    # hearth rather than teleporting a district to the map edge on day six.
+    below = {dy: {s: Row(L, dy, s, above=False) for s in (1, -1)} for dy in ECON_RUNGS}
+    above = {dy: {s: Row(L, dy, s, above=True) for s in (1, -1)} for dy in ECON_RUNGS}
+
+    # Two radiators and two housing blocks are the starting settlement.
+    below[-10][1].add(8, "warmth_radiator", free=True, instant=True)
+    below[10][-1].add(9, "warmth_radiator", free=True, instant=True)
+    above[10][1].add(10, "housing_block", free=True, instant=True)
+    above[-10][-1].add(11, "housing_block", free=True, instant=True)
+
+    # --- the campaign --------------------------------------------------------
+    # One entry per day: what the player gets built during the light half.
+    # (generators, radiators, housing, extras) — sequenced so the answer to a
+    # night is always visible in the morning that preceded it.
+    plan = [
+        # day 1: two generators before the first dusk. This is the beginner's
+        #        line: build them and survive, skip them and do not.
+        (1, ["coal_generator", "coal_generator", "storage_yard",
+             "warmth_radiator", "housing_block"]),
+        # day 2: the squeeze. More homes than the grid comfortably carries.
+        (2, ["coal_generator", "coal_generator", "housing_block",
+             "housing_block", "workshop"]),
+        # day 3: FIRST FROST at dusk. Thermal storage is the answer and it is
+        #        available; a player who spends the day on housing instead loses
+        #        the district.
+        (3, ["coal_generator", "coal_generator", "heat_accumulator",
+             "housing_block"]),
+        (4, ["coal_generator", "coal_generator", "warmth_radiator",
+             "housing_block", "housing_block", "granary"]),
+        (5, ["coal_generator", "coal_generator", "warmth_radiator",
+             "housing_block", "housing_block", "field_kitchen"]),
+        (6, ["coal_generator", "coal_generator", "housing_block",
+             "housing_block", "workshop", "warmth_radiator"]),
+        # day 7: SECOND FROST, and the last day the run covers in full.
+        (7, ["coal_generator", "coal_generator", "heat_booster_pump",
+             "housing_block", "housing_block"]),
+    ]
+
+    # Rung/side rotation. Radiators and generators go below the rung, housing
+    # above it, so a district reads as street-then-homes rather than as noise.
+    slots = [(dy, s) for dy in (-10, 10, -20, 20) for s in (1, -1)]
+    slot_i = 0
+    day_ticks = 9600
+    for day, kinds in plan:
+        # Spread the day's work across morning and afternoon: the harness
+        # applies a command on the tick it names, and construction takes real
+        # time, so the last building of a day must finish before dusk (5376).
+        start = (day - 1) * day_ticks + 400
+        span = 4200
+        step = span // max(1, len(kinds))
+        for i, kind in enumerate(kinds):
+            t = start + i * step
+            dy, side = slots[slot_i % len(slots)]
+            slot_i += 1
+            rows = above if kind == "housing_block" else below
+            rows[dy][side].add(t, kind)
+
+    # Weather the player cannot dodge, on the ticks the report reads.
+    L.cmd(1200, {"system": "grid", "op": "snowfall", "rate": 0.35})
+    L.cmd(2 * day_ticks + 1000, {"system": "grid", "op": "snowfall", "rate": 0.55})
+    # A grid dump at the end of the first night and again after the second
+    # storm: state.json then carries the bottleneck list from both, which is the
+    # per-consumer attribution a critic should be able to read off a balance run.
+    L.cmd(8800, {"system": "heat", "op": "dump"})
+    L.cmd(6 * day_ticks + 8000, {"system": "heat", "op": "dump"})
     return {
         "name": "economy_60min",
-        "description": ("One hour of simulated city growth on one heat grid, sampled every "
-                        "ten seconds. The balance read: does supply keep up with a city that "
-                        "keeps adding housing, does the deficit curve bend on the right day, "
-                        "and how many nights does the grid survive as the campaign cools."),
+        "description": ("THE BALANCE RUN. Seven and a half campaign days of a city that "
+                        "actually grows: a Hearth, a spine, four rungs, and a district "
+                        "added every morning - two generators, homes and a radiator - all "
+                        "on one heat network. Sampled every ten seconds, it is the input to "
+                        "tools/analyze_balance.py, which grades every night against "
+                        "game/content/economy/difficulty_curve.tres. The First Frost lands "
+                        "at dusk on day 3 and the Second on day 7, both from the fixed "
+                        "calendar in [P09], so the two hardest nights in the run are the "
+                        "two the player could see coming from minute one. Read it with "
+                        "game/content/economy/BALANCE.md open."),
         "tags": ["balance", "long"],
         "seed": 11, "ticks": 72000, "sample_every": 200,
-        "expects": {"min_ticks_per_second": 400, "max_errors": 0},
+        "expects": {"min_ticks_per_second": 250, "max_errors": 0,
+                    "balance_days": [1, 2, 3, 4, 5, 6, 7], "max_heat_networks": 1},
         "script": L.script,
+        "_layout": L,
         "shots": [],
     }
+
+
+def _reaches_conduit(layout, kind, origin):
+    """True when this footprint would share a border with a conducting cell.
+
+    The rule HeatGraph actually applies. A conduit trivially reaches itself once
+    placed, so it only has to reach the grid if it is meant to extend it.
+    """
+    own = set(layout.cells(kind, origin))
+    for (cx, cy) in own:
+        for dx, dy in NEIGHBOURS:
+            n = (cx + dx, cy + dy)
+            if n in own:
+                continue
+            if layout.occ.get(n) in CONDUCTS:
+                return True
+    return kind in CONDUCTS
 
 
 if __name__ == "__main__":

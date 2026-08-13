@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/production/recipe_def.gd" id="1_h1pmf"]
+
+[resource]
+resource_name = "Pipe Segment"
+script = ExtResource("1_h1pmf")
+id = &"pipe_segment"
+display_name = "Pipe Segment"
+description = "Rolled steel with a copper liner, flanged at both ends. The heat grid is made of nothing else."
+tier = 3
+sort_order = 30
+inputs = Dictionary[StringName, int]({
+&"copper_coil": 1,
+&"steel_plate": 1
+})
+outputs = Dictionary[StringName, int]({
+&"pipe_segment": 2
+})
+machine_tags = Array[StringName]([&"crafter"])
+machines = Array[StringName]([&"workshop", &"assembly_hall"])
+heat_cost = 50.0
+waste_heat = 6.0
+min_temperature_c = -18.0
+tint = Color(0.66, 0.72, 0.8, 1)

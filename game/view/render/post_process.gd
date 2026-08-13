@@ -19,6 +19,7 @@ var enabled: bool = true
 
 var _copy: BackBufferCopy = null
 var _compiled: bool = false
+var _heat_bound: bool = false
 
 
 func setup() -> void:
@@ -44,14 +45,42 @@ func setup() -> void:
 	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	rect.color = Color(0, 0, 0, 1)
 	add_child(rect)
+	# An unbound sampler in a canvas shader reads as white, which would put a
+	# heat shimmer over the entire frame. Bind black until the ground says
+	# otherwise.
+	var black: Image = Image.create(1, 1, false, Image.FORMAT_RGBA8)
+	black.fill(Color(0, 0, 0, 1))
+	material.set_shader_parameter("heat_tex", ImageTexture.create_from_image(black))
+	material.set_shader_parameter("shimmer_amount", 0.0)
 	_compiled = true
+
+
+## Binds the ground's heat field so the post stack can put a shimmer over hot
+## air. Without it `shimmer_amount` stays at zero and the pass is a no-op.
+func bind_heat_field(tex: Texture2D, map_px: Vector2) -> void:
+	if material == null:
+		return
+	_heat_bound = tex != null
+	material.set_shader_parameter("heat_tex", tex)
+	material.set_shader_parameter("map_px", map_px)
 
 
 ## Pushes the hour's grade into the shader. `temperature` shifts the cold
 ## chromatic split, so a freezing frame literally looks colder than a warm one.
-func apply(grade: Dictionary, temperature: float, viewport_size: Vector2) -> void:
+## `view` is the visible world rect, which is how the shimmer knows where the
+## hot air is on screen.
+func apply(grade: Dictionary, temperature: float, viewport_size: Vector2,
+		view: Rect2 = Rect2()) -> void:
 	if not _compiled or material == null:
 		return
+	material.set_shader_parameter("view_origin", view.position)
+	material.set_shader_parameter("view_size", view.size)
+	# Hot air over snow at -30 C shimmers hard; over a mild afternoon it barely
+	# does. Scaling by cold is both true and a free readability cue.
+	var shimmer_on: float = 1.0 if bool(Settings.graphics.get("shimmer", true)) else 0.0
+	material.set_shader_parameter("shimmer_amount",
+		(1.6 if _heat_bound else 0.0) * shimmer_on
+		* clampf(inverse_lerp(-5.0, -35.0, temperature), 0.25, 1.0))
 	var g: Dictionary = Settings.graphics
 	var on: bool = bool(g.get("post_process", true))
 	visible = on and enabled

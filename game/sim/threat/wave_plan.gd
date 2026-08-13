@@ -209,4 +209,16 @@ static func from_dict(d: Dictionary) -> WavePlan:
 	p.warnings_fired = int(d.get("warnings_fired", 0))
 	p.precision = int(d.get("precision", -1))
 	p.notice_fired = bool(d.get("notice_fired", false))
+	p.locked = bool(d.get("locked", false))
+	for g: WaveGroup in p.groups:
+		var seen: bool = false
+		for c: Dictionary in p.composition:
+			if StringName(String(c.get("enemy", ""))) == g.enemy:
+				c["count"] = int(c.get("count", 0)) + g.count
+				c["cost"] = float(c.get("cost", 0.0)) + g.cost
+				seen = true
+				break
+		if not seen:
+			p.composition.append({"enemy": g.enemy, "count": g.count, "cost": g.cost,
+				"def": Registry.get_item("enemies", g.enemy) as EnemyDef})
 	return p

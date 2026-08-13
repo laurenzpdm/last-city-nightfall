@@ -273,6 +273,10 @@ func step(tick: int) -> void:
 func request_fuel(building_id: int, item: StringName, amount: float) -> float:
 	if amount <= 0.0 or String(item) == "":
 		return 0.0
+	if item == &"waste_heat":
+		# Not an item and never in the stores: recovered heat only ever arrives
+		# by push from the recovery loop, so a recuperator asking is answered no.
+		return 0.0
 	var want: int = int(floor(amount))
 	if want <= 0:
 		return 0.0
@@ -478,7 +482,6 @@ func handle_command(cmd: Dictionary) -> void:
 ## enough, is the grid feeding it — and only then, does it move.
 func _advance(m: ProdMachine, tick: int) -> void:
 	m.rate = 0.0
-	m.waste_given = 0.0
 
 	if not m.enabled:
 		_park(m, ProdMachine.State.IDLE, ProdMachine.REASON_DISABLED, &"", tick)
@@ -490,14 +493,18 @@ func _advance(m: ProdMachine, tick: int) -> void:
 	_read_environment(m)
 
 	if m.def.is_recuperator() and not m.def.is_crafter() and not m.def.is_extractor():
-		# A recuperator does no work of its own; [ProdWasteHeat] drives it.
-		m.state = ProdMachine.State.RUNNING if m.waste_taken > 0.0 else ProdMachine.State.IDLE
-		m.reason = ProdMachine.REASON_NONE if m.waste_taken > 0.0 else ProdMachine.REASON_MISSING_INPUT
-		m.reason_item = &"" if m.waste_taken > 0.0 else &"waste_heat"
-		if m.state == ProdMachine.State.RUNNING:
+		# A recuperator does no work of its own; [ProdWasteHeat] drives it below,
+		# which is why what it reports here is last tick's intake. One tick of lag
+		# on a status light is invisible; reordering the tick to remove it would
+		# cost a second pass over every machine.
+		if m.waste_taken > 0.0:
+			m.state = ProdMachine.State.RUNNING
+			m.reason = ProdMachine.REASON_NONE
+			m.reason_item = &""
+			m.rate = 1.0
 			_active += 1
 		else:
-			_idle += 1
+			_park(m, ProdMachine.State.STALLED, ProdMachine.REASON_MISSING_INPUT, &"waste_heat", tick)
 		return
 
 	if m.staffing <= 0.0:
@@ -526,9 +533,7 @@ func _craft(m: ProdMachine, tick: int) -> void:
 		# Nothing is consumed until a whole craft can start AND its result will
 		# fit. That is what makes "output_full" a real, recoverable state rather
 		# than a machine that ate its inputs and threw them away.
-		var out_size: int = 0
-		for k: StringName in r.all_outputs().keys():
-			out_size += r.all_outputs()[k]
+		var out_size: int = m.output_size
 		if m.output_room() < out_size:
 			_flush_outputs(m)
 			if m.output_room() < out_size:
@@ -607,10 +612,12 @@ func _extract(m: ProdMachine, tick: int) -> void:
 	if whole <= 0:
 		return
 	var taken: int = _harvest(m.seam, whole)
-	m.extract_acc -= float(maxi(taken, whole)) if taken <= 0 else float(taken)
 	if taken <= 0:
+		# The seam ran out between ticks. Drop the fraction rather than banking a
+		# unit that was never dug, and go looking for a new one next tick.
 		m.extract_acc = 0.0
 		return
+	m.extract_acc -= float(taken)
 	m.crafts_done += 1
 	_produce(m, m.seam_item, taken)
 	_flush_outputs(m)
@@ -777,6 +784,14 @@ func _assign(m: ProdMachine, rid: StringName) -> void:
 	m.recipe = book.get_recipe(rid)
 	m.progress = 0.0
 	m.committed = false
+	m.output_size = 0
+	if m.recipe != null:
+		# Cached because the "will the result fit" test runs every tick for every
+		# machine, and building the merged output table there was two dictionary
+		# allocations per machine per tick.
+		var all: Dictionary[StringName, int] = m.recipe.all_outputs()
+		for k: StringName in all:
+			m.output_size += all[k]
 	_write_meta_recipe(m.id, rid)
 
 
@@ -1163,6 +1178,11 @@ func deserialize(data: Dictionary) -> void:
 		m.setup(int(snap.get("id", 0)), kind, cell, def, 0)
 		m.from_json(snap)
 		m.recipe = book.get_recipe(m.recipe_id)
+		m.output_size = 0
+		if m.recipe != null:
+			var all: Dictionary[StringName, int] = m.recipe.all_outputs()
+			for k: StringName in all:
+				m.output_size += all[k]
 		machines[m.id] = m
 
 	_produced_total.clear()
