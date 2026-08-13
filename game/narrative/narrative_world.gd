@@ -270,16 +270,28 @@ func tokens() -> Dictionary:
 ## Replaces every {token} the world knows about. An unknown token is left
 ## standing on purpose: it shows up in the card, a human sees it, and a test
 ## catches it — which beats it silently becoming an empty gap in a sentence.
+##
+## Scans the string ONCE for braces rather than running eighty String.replace
+## passes over it. The old version was the single most expensive line in this
+## part's tick: a chapter's prose is seven hundred characters and there are
+## eighty-one tokens, so opening a beat walked the text eighty-one times.
 func fill(s: String) -> String:
-	if s.find("{") < 0:
+	var start: int = s.find("{")
+	if start < 0:
 		return s
-	var out: String = s
 	var t: Dictionary = tokens()
-	var keys: Array = t.keys()
-	keys.sort()
-	for k: String in keys:
-		out = out.replace("{" + k + "}", String(t[k]))
-	return out
+	var out: String = ""
+	var cursor: int = 0
+	while start >= 0:
+		var close: int = s.find("}", start + 1)
+		if close < 0:
+			break
+		var key: String = s.substr(start + 1, close - start - 1)
+		if t.has(key):
+			out += s.substr(cursor, start - cursor) + String(t[key])
+			cursor = close + 1
+		start = s.find("{", close + 1)
+	return out + s.substr(cursor)
 
 
 ## Every unknown {token} in a string. Used by the content test so a typo in a

@@ -99,3 +99,12 @@ func categories() -> Array[String]:
 	for k: String in keys:
 		out.append(k)
 	return out
+
+
+## Autoloads are freed at shutdown, but a Dictionary of 187 Resources that is
+## still populated when the engine clears its resource cache is 187 lines of
+## "resources still in use at exit" — the noise that made the whole team's
+## `grep ^ERROR` useless. Drop the references while there is still a tree.
+func _exit_tree() -> void:
+	_items.clear()
+	loaded = false
