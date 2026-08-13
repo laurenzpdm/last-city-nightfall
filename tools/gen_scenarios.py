@@ -49,7 +49,9 @@ DEFS = {
     "heat_trunk_main": (1, 1, False, True, True),
     "housing_block": (4, 4, False, False, True),
     "ore_drill": (3, 3, False, False, True),
+    "recuperator": (2, 2, False, False, True),
     "rubble_road": (1, 1, False, False, False),
+    "rubble_sorter": (3, 2, False, False, True),
     "scrap_collector": (2, 2, False, False, True),
     "smelter": (3, 3, False, False, True),
     "storage_yard": (3, 3, False, False, False),
@@ -340,8 +342,13 @@ def first_night():
     L.place(2100, "housing_block", -9, 9)
     L.line(2400, "heat_pipe", (5, 3), (5, 8))
     L.place(2600, "granary", 6, 8)
-    L.line(2800, "heat_pipe", (-3, 2), (-3, -8))
+    # The west column runs past the kitchen to the sorting yard. Without the
+    # sorter nothing in the shipped content turns scrap into grain, the kitchen
+    # reports missing_input for the whole run, and the city eats its founders'
+    # larder and starves on day four. This is the food chain, closed.
+    L.line(2800, "heat_pipe", (-3, 2), (-3, -11))
     L.place(3000, "field_kitchen", -6, -8)
+    L.place(3200, "rubble_sorter", -6, -11)
     L.line(3400, "heat_pipe", (12, 1), (12, 8))
     L.place(3800, "heat_accumulator", 13, 8)
     # Industry reaches out to the coal seam north of the basin. One trunk runs
@@ -352,6 +359,22 @@ def first_night():
     L.line(4150, "heat_pipe", (1, -30), (-1, -30))
     L.place(4200, "ore_drill", -4, -31)
     L.place(4600, "smelter", 2, -21)
+    # THE INNER RING. The wall and its two mounts sit 35 tiles north of the
+    # hearth on one lane; [P08] picks the cheapest lane and in the reference run
+    # it picked another one, walked past all of it, and ate the Hearth at t=6336
+    # while both turrets read no_target. Four short spurs off the hearth carry
+    # four mounts at 5-7 tiles, which is inside a burner cannon's 11-tile reach
+    # of the core from every direction. They cost 24 u/s of heat to stand there,
+    # which is the trade the whole game is about.
+    L.line(4700, "heat_pipe", (2, -3), (6, -3))
+    L.line(4740, "heat_pipe", (2, 3), (4, 3))
+    L.line(4760, "heat_pipe", (-2, 3), (-4, 3))
+    L.place(4780, "turret_mount", 5, -5)
+    # The north-west mount hangs straight off the kitchen column; a spur here
+    # would sit where the last housing block goes at t=10200.
+    L.place(4820, "turret_mount", -5, -5)
+    L.place(4860, "turret_mount", 3, 4)
+    L.place(4900, "turret_mount", -4, 4)
     # The wall goes up before dusk.
     for i, dx in enumerate([-18, -9, 0, 9, 18]):
         L.line(5000 + i * 40, "wall", (dx - 4, -35), (dx + 4, -35))

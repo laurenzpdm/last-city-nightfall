@@ -341,7 +341,7 @@
         ],
         "to": [
           125,
-          120
+          117
         ]
       }
     },
@@ -354,6 +354,18 @@
         "cell": [
           122,
           120
+        ]
+      }
+    },
+    {
+      "tick": 3200,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "rubble_sorter",
+        "cell": [
+          122,
+          117
         ]
       }
     },
@@ -454,6 +466,102 @@
         "cell": [
           130,
           107
+        ]
+      }
+    },
+    {
+      "tick": 4700,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          130,
+          125
+        ],
+        "to": [
+          134,
+          125
+        ]
+      }
+    },
+    {
+      "tick": 4740,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          130,
+          131
+        ],
+        "to": [
+          132,
+          131
+        ]
+      }
+    },
+    {
+      "tick": 4760,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          126,
+          131
+        ],
+        "to": [
+          124,
+          131
+        ]
+      }
+    },
+    {
+      "tick": 4780,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          133,
+          123
+        ]
+      }
+    },
+    {
+      "tick": 4820,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          123,
+          123
+        ]
+      }
+    },
+    {
+      "tick": 4860,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          131,
+          132
+        ]
+      }
+    },
+    {
+      "tick": 4900,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          124,
+          132
         ]
       }
     },
