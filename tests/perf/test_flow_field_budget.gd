@@ -71,22 +71,34 @@ func test_a_budgeted_flood_converges_on_the_unbudgeted_answer() -> void:
 		"a flood paid over %d ticks must reach the same integration field" % slices)
 	assert_eq(f.get("direction"), want_direction,
 		"...and the same directions, or the game has two pathfinders")
+	_assert_directions_descend(f)
 
 
-func test_a_budgeted_repair_converges_too() -> void:
+## A repair whose shadow is bigger than the map is worth is DELIBERATELY turned
+## into a full rebuild (FlowField.RAISE_LIMIT), because invalidating a shadow is
+## the one phase that cannot be suspended safely: half an invalidation leaves
+## stale-low integrations that the following flood refuses to improve, which is
+## wrong rather than merely slow.
+##
+## So the claim here is not "same bytes as the repair". A rebuild and a repair
+## settle equal-cost ties in different orders, and which of two equally good
+## neighbours a tile steps toward is a free choice. The claims that matter are
+## that the COST SURFACE is identical — that is what every path length, every
+## reachability test and every chokepoint is derived from — and that the
+## directions still form a valid descent to the goal.
+func test_a_big_budgeted_repair_falls_back_and_still_agrees_on_cost() -> void:
 	var f: Object = _core_field()
 	if f == null:
 		return
 	var cost: PackedByteArray = _cost()
 	f.call("rebuild", cost, 0)
 
-	# Wall off a patch well away from the border and repair both ways.
+	# Wall off a column close to the core: the shadow it casts is most of the map.
 	var w: int = int((grid_sys.get("grid") as Object).get("width"))
-	var changed: PackedInt32Array = PackedInt32Array()
 	var core: Vector2i = grid_sys.get("core")
+	var changed: PackedInt32Array = PackedInt32Array()
 	for dy: int in range(-6, 7):
-		var idx: int = (core.y + dy) * w + core.x + 12
-		changed.append(idx)
+		changed.append((core.y + dy) * w + core.x + 12)
 	var saved: PackedByteArray = PackedByteArray()
 	for idx: int in changed:
 		saved.append(cost[idx])
@@ -94,28 +106,63 @@ func test_a_budgeted_repair_converges_too() -> void:
 
 	f.call("update", cost, changed, 0)
 	var want_integration: PackedInt32Array = (f.get("integration") as PackedInt32Array).duplicate()
-	var want_direction: PackedByteArray = (f.get("direction") as PackedByteArray).duplicate()
 
-	# Put the wall back, re-flood clean, then knock it through again in slices.
 	for i: int in changed.size():
 		cost[changed[i]] = saved[i]
 	f.call("rebuild", cost, 0)
+	var full_before: int = int(f.get("rebuilds_full"))
 	for idx: int in changed:
 		cost[idx] = 255
 	f.call("update", cost, changed, 500)
 	var slices: int = 1
-	while bool(f.get("unfinished")) and slices < 400:
+	while bool(f.get("unfinished")) and slices < 500:
 		f.call("resume", cost, 500)
 		slices += 1
 	assert_false(bool(f.get("unfinished")), "the repair has to finish")
+	assert_eq(int(f.get("rebuilds_full")) - full_before, 1,
+		"a shadow this big must give up on repairing and re-flood instead")
+	assert_gt(slices, 5, "and the re-flood must have been spread over ticks (%d)" % slices)
 
 	assert_eq(f.get("integration"), want_integration,
-		"a repair split over %d slices must equal the repair done in one" % slices)
-	assert_eq(f.get("direction"), want_direction,
-		"...directions included")
+		"the cost surface after %d budgeted slices must equal the unbudgeted repair" % slices)
+	_assert_directions_descend(f)
 
 	for i: int in changed.size():
 		cost[changed[i]] = saved[i]
+
+
+## Every reachable non-goal tile must step to a neighbour that is strictly closer
+## to the goal. A field can have the right costs and still be unwalkable if a
+## direction was left pointing at a wall or into a cycle.
+func _assert_directions_descend(f: Object) -> void:
+	var integ: PackedInt32Array = f.get("integration")
+	var dirs: PackedByteArray = f.get("direction")
+	var w: int = int(f.get("width"))
+	var h: int = int(f.get("height"))
+	var unreachable: int = 0x3FFFFFFF
+	var offs: PackedInt32Array = PackedInt32Array([1, 1 + w, w, -1 + w, -1, -1 - w, -w, 1 - w])
+	var bad: int = 0
+	var checked: int = 0
+	var first: String = ""
+	for y: int in range(1, h - 1):
+		for x: int in range(1, w - 1):
+			var i: int = y * w + x
+			if integ[i] == unreachable or integ[i] == 0:
+				continue
+			checked += 1
+			var d: int = dirs[i]
+			if d >= 8:
+				bad += 1
+				if first == "":
+					first = "(%d,%d) cost %d has no step" % [x, y, integ[i]]
+				continue
+			var n: int = i + offs[d]
+			if integ[n] >= integ[i]:
+				bad += 1
+				if first == "":
+					first = "(%d,%d) cost %d steps to cost %d" % [x, y, integ[i], integ[n]]
+	assert_gt(checked, 10000, "the descent check has to actually cover the map")
+	assert_eq(bad, 0, "every routed tile must step downhill — %d did not, e.g. %s" % [bad, first])
 
 
 ## The budget is a performance knob, not a correctness one: with it at zero
