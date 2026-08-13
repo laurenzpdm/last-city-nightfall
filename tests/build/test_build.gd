@@ -65,12 +65,20 @@ func _ready() -> void:
 ## cases are about placement logic, and they must not turn red because [P01]
 ## changed a noise octave and put a chasm where the test wanted a wall.
 ## _test_world_binding is the one case that runs against the real terrain.
+##
+## Isolated also means every OTHER system stops ticking. These cases assert on
+## absolute stock counts, and [P10] research now pays for its nodes out of the
+## same BuildStock — ten timber went missing mid-demolition and read as a salvage
+## rounding bug for a whole phase. A unit test of placement rules must not be
+## racing the tech tree, the wave director or the labour market.
 func _fresh(world_seed: int = 11, isolated: bool = true) -> BuildSystem:
 	Sim.create_world(world_seed)
 	_sys = Sim.get_system(&"build") as BuildSystem
 	_ok(_sys != null, "build system exists")
 	if isolated:
 		_sys.world.bind(null)
+		for s: SimSystem in Sim.systems:
+			s.enabled = s.system_name() == &"build"
 	return _sys
 
 
