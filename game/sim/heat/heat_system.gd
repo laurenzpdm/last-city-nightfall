@@ -146,7 +146,9 @@ func post_setup() -> void:
 
 
 func step(tick: int) -> void:
+	var _t0: int = Time.get_ticks_usec()
 	_sync_from_build()
+	HeatFlow._pk("z_sync", _t0)
 	var changed: PackedInt32Array = _graph.settle()
 	for nid: int in changed:
 		if not _graph.members.has(nid):
@@ -167,6 +169,7 @@ func step(tick: int) -> void:
 	_total_buffer = 0.0
 	_brownouts = 0
 
+	var _ts: int = Time.get_ticks_usec()
 	for nid: int in _graph.network_ids():
 		var net: HeatNetwork = _network(nid)
 		_flow.solve(net, _graph.members[nid], nodes, _graph.neigh,
@@ -179,10 +182,15 @@ func step(tick: int) -> void:
 		_total_buffer += net.buffer
 		_brownouts += net.brownouts
 		_report(net, tick)
+	HeatFlow._pk("y_solveall", _ts)
 
+	var _t: int = Time.get_ticks_usec()
 	_burn_fuel()
+	_t = HeatFlow._pk("h_burn", _t)
 	_thermal()
+	_t = HeatFlow._pk("i_thermal", _t)
 	_radiate(tick)
+	_t = HeatFlow._pk("j_radiate", _t)
 	if tick % FUEL_PULL_EVERY == 0:
 		_pull_fuel()
 
