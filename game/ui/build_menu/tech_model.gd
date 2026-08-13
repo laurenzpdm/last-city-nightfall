@@ -146,12 +146,18 @@ func _from_research(research: Object) -> bool:
 		n.id = StringName(String(d.get("id", "")))
 		if String(n.id) == "":
 			continue
-		n.display_name = String(d.get("display_name", d.get("name", LcnUiFormat.item_name(n.id))))
-		n.description = String(d.get("description", ""))
-		n.cost_points = float(d.get("cost", d.get("points", 0.0)))
-		var raw_cost: Variant = d.get("cost_items", null)
-		if typeof(raw_cost) == TYPE_DICTIONARY:
-			n.cost = raw_cost
+		n.display_name = LcnUiFormat.as_text(d.get("display_name", d.get("name", "")))
+		if n.display_name == "":
+			n.display_name = LcnUiFormat.item_name(n.id)
+		n.description = LcnUiFormat.as_text(d.get("description", ""))
+		# A published cost may be a scalar or a bill of materials, and [P10] is
+		# free to change its mind: read whichever shape actually arrived.
+		for source: Variant in [d.get("cost_items", null), d.get("cost", null), d.get("points", null)]:
+			if typeof(source) == TYPE_DICTIONARY and not (source as Dictionary).is_empty():
+				n.cost = source
+			elif typeof(source) == TYPE_FLOAT or typeof(source) == TYPE_INT:
+				if n.cost_points <= 0.0:
+					n.cost_points = float(source)
 		n.prereqs = _string_names(d.get("prereqs", d.get("requires", [])))
 		n.unlocks = _string_names(d.get("unlocks", d.get("buildings", [])))
 		n.grants = _string_names(d.get("grants", []))
@@ -172,17 +178,17 @@ func _from_registry(registry: Object) -> bool:
 		if res == null:
 			continue
 		var n := TechNode.new()
-		n.id = StringName(String(res.get(&"id")))
+		n.id = LcnUiFormat.as_name(res.get(&"id"))
 		if String(n.id) == "":
 			n.id = StringName(res.resource_path.get_file().get_basename())
 		if String(n.id) == "":
 			continue
-		n.display_name = String(res.get(&"display_name"))
+		n.display_name = LcnUiFormat.as_text(res.get(&"display_name"))
 		if n.display_name == "":
-			n.display_name = String(res.get(&"name"))
+			n.display_name = LcnUiFormat.as_text(res.get(&"name"))
 		if n.display_name == "":
 			n.display_name = LcnUiFormat.item_name(n.id)
-		n.description = String(res.get(&"description"))
+		n.description = LcnUiFormat.as_text(res.get(&"description"))
 		for field: StringName in [&"cost", &"cost_items", &"science"]:
 			var c: Variant = res.get(field)
 			if typeof(c) == TYPE_DICTIONARY and not (c as Dictionary).is_empty():
@@ -191,7 +197,7 @@ func _from_registry(registry: Object) -> bool:
 			if typeof(c) == TYPE_FLOAT or typeof(c) == TYPE_INT:
 				n.cost_points = float(c)
 		if n.cost_points <= 0.0:
-			n.cost_points = float(res.get(&"points"))
+			n.cost_points = LcnUiFormat.as_number(res.get(&"points"))
 		n.prereqs = _first_names(res, [&"prereqs", &"requires", &"parents", &"depends_on"])
 		n.unlocks = _first_names(res, [&"unlocks", &"buildings", &"unlock_buildings"])
 		n.grants = _first_names(res, [&"grants", &"effects"])
@@ -210,11 +216,11 @@ func _from_buildings(build_system: Object) -> bool:
 		var def: Resource = raw as Resource
 		if def == null:
 			continue
-		var unlock := StringName(String(def.get(&"unlock_id")))
+		var unlock := LcnUiFormat.as_name(def.get(&"unlock_id"))
 		if String(unlock) == "":
 			continue
 		var bucket: Array = by_unlock.get(unlock, [])
-		bucket.append(StringName(String(def.get(&"id"))))
+		bucket.append(LcnUiFormat.as_name(def.get(&"id")))
 		by_unlock[unlock] = bucket
 	var keys: Array = by_unlock.keys()
 	keys = LcnUiFormat.sorted_names(keys)
@@ -242,13 +248,13 @@ func _attach_unlocked_buildings(build_system: Object) -> void:
 		var def: Resource = raw as Resource
 		if def == null:
 			continue
-		var unlock := StringName(String(def.get(&"unlock_id")))
+		var unlock := LcnUiFormat.as_name(def.get(&"unlock_id"))
 		if String(unlock) == "":
 			continue
 		var n: TechNode = _by_id.get(unlock)
 		if n == null:
 			continue
-		var kind := StringName(String(def.get(&"id")))
+		var kind := LcnUiFormat.as_name(def.get(&"id"))
 		if not n.unlocks.has(kind):
 			n.unlocks.append(kind)
 			n.unlocks.sort_custom(func(a: StringName, b: StringName) -> bool: return String(a) < String(b))
@@ -388,36 +394,36 @@ func refresh_relevance(ctx: LcnBuildFacts.Ctx) -> void:
 			var def: Resource = _def_of(ctx, kind)
 			if def == null:
 				continue
-			var heat_out: float = float(def.get(&"heat_produced"))
-			var conduit: float = float(def.get(&"conduit_throughput"))
-			var residents: int = int(def.get(&"residents"))
-			var weapon := StringName(String(def.get(&"weapon_id")))
+			var heat_out: float = LcnUiFormat.as_number(def.get(&"heat_produced"))
+			var conduit: float = LcnUiFormat.as_number(def.get(&"conduit_throughput"))
+			var residents: int = LcnUiFormat.as_int(def.get(&"residents"))
+			var weapon := LcnUiFormat.as_name(def.get(&"weapon_id"))
 			if deficit > 0.01 and heat_out > 0.0:
 				best = "The city is %s short of heat; this opens %s at %s." % [
-					LcnUiFormat.rate(deficit), String(def.get(&"display_name")),
+					LcnUiFormat.rate(deficit), LcnUiFormat.as_text(def.get(&"display_name")),
 					LcnUiFormat.rate(heat_out)]
 				tone = LcnUiStyle.Tone.ACCENT
 				break
 			if frozen > 0 and conduit > 0.0:
 				best = "%d building%s frozen; this opens %s, which carries %s." % [
-					frozen, "" if frozen == 1 else "s", String(def.get(&"display_name")),
+					frozen, "" if frozen == 1 else "s", LcnUiFormat.as_text(def.get(&"display_name")),
 					LcnUiFormat.rate(conduit)]
 				tone = LcnUiStyle.Tone.ACCENT
 				break
 			if wave >= 0.0 and wave < 120.0 and String(weapon) != "":
 				best = "Night falls in %s; this opens %s." % [
-					LcnUiFormat.duration(wave), String(def.get(&"display_name"))]
+					LcnUiFormat.duration(wave), LcnUiFormat.as_text(def.get(&"display_name"))]
 				tone = LcnUiStyle.Tone.WARN
 				break
 			if best == "" and residents > 0:
 				best = "Housing: %s takes %d more citizens." % [
-					String(def.get(&"display_name")), residents]
+					LcnUiFormat.as_text(def.get(&"display_name")), residents]
 				tone = LcnUiStyle.Tone.NEUTRAL
 		if best == "" and not n.unlocks.is_empty():
 			var names: PackedStringArray = PackedStringArray()
 			for kind2: StringName in n.unlocks:
 				var d2: Resource = _def_of(ctx, kind2)
-				names.append(String(d2.get(&"display_name")) if d2 != null else LcnUiFormat.item_name(kind2))
+				names.append(LcnUiFormat.as_text(d2.get(&"display_name")) if d2 != null else LcnUiFormat.item_name(kind2))
 			best = "Opens %s." % LcnUiFormat.prose_list(names)
 		n.relevance = best
 		n.relevance_tone = tone

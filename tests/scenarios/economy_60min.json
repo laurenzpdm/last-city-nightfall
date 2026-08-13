@@ -235,6 +235,14 @@
       }
     },
     {
+      "tick": 6,
+      "cmd": {
+        "system": "threat",
+        "op": "peace",
+        "on": true
+      }
+    },
+    {
       "tick": 8,
       "cmd": {
         "system": "build",
@@ -305,6 +313,15 @@
     {
       "tick": 1200,
       "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 1200,
+      "cmd": {
         "system": "grid",
         "op": "snowfall",
         "rate": 0.35
@@ -323,6 +340,15 @@
       }
     },
     {
+      "tick": 2400,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
       "tick": 3200,
       "cmd": {
         "system": "build",
@@ -335,10 +361,64 @@
       }
     },
     {
+      "tick": 3600,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 4800,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 6000,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 7200,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 8400,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
       "tick": 8800,
       "cmd": {
         "system": "heat",
         "op": "dump"
+      }
+    },
+    {
+      "tick": 9600,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
       }
     },
     {
@@ -354,6 +434,15 @@
       }
     },
     {
+      "tick": 10800,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
       "tick": 11050,
       "cmd": {
         "system": "build",
@@ -363,6 +452,15 @@
           133,
           108
         ]
+      }
+    },
+    {
+      "tick": 12000,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
       }
     },
     {
@@ -390,6 +488,60 @@
       }
     },
     {
+      "tick": 13200,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 14400,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 15600,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 16800,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 18000,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 19200,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
       "tick": 19600,
       "cmd": {
         "system": "build",
@@ -410,6 +562,15 @@
       }
     },
     {
+      "tick": 20400,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
       "tick": 20650,
       "cmd": {
         "system": "build",
@@ -419,6 +580,15 @@
           140,
           121
         ]
+      }
+    },
+    {
+      "tick": 21600,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
       }
     },
     {
@@ -446,6 +616,60 @@
       }
     },
     {
+      "tick": 22800,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 24000,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 25200,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 26400,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 27600,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 28800,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
       "tick": 29200,
       "cmd": {
         "system": "build",
@@ -455,6 +679,15 @@
           119,
           137
         ]
+      }
+    },
+    {
+      "tick": 30000,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
       }
     },
     {
@@ -482,6 +715,15 @@
       }
     },
     {
+      "tick": 31200,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
       "tick": 31720,
       "cmd": {
         "system": "build",
@@ -491,6 +733,15 @@
           133,
           140
         ]
+      }
+    },
+    {
+      "tick": 32400,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
       }
     },
     {
@@ -506,6 +757,51 @@
       }
     },
     {
+      "tick": 33600,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 34800,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 36000,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 37200,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 38400,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
       "tick": 38800,
       "cmd": {
         "system": "build",
@@ -515,6 +811,15 @@
           144,
           121
         ]
+      }
+    },
+    {
+      "tick": 39600,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
       }
     },
     {
@@ -542,6 +847,15 @@
       }
     },
     {
+      "tick": 40800,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
       "tick": 41320,
       "cmd": {
         "system": "build",
@@ -551,6 +865,15 @@
           125,
           132
         ]
+      }
+    },
+    {
+      "tick": 42000,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
       }
     },
     {
@@ -566,6 +889,51 @@
       }
     },
     {
+      "tick": 43200,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 44400,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 45600,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 46800,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 48000,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
       "tick": 48400,
       "cmd": {
         "system": "build",
@@ -575,6 +943,15 @@
           126,
           113
         ]
+      }
+    },
+    {
+      "tick": 49200,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
       }
     },
     {
@@ -602,6 +979,15 @@
       }
     },
     {
+      "tick": 50400,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
       "tick": 50920,
       "cmd": {
         "system": "build",
@@ -611,6 +997,15 @@
           133,
           116
         ]
+      }
+    },
+    {
+      "tick": 51600,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
       }
     },
     {
@@ -626,6 +1021,51 @@
       }
     },
     {
+      "tick": 52800,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 54000,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 55200,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 56400,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 57600,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
       "tick": 58000,
       "cmd": {
         "system": "build",
@@ -635,6 +1075,15 @@
           139,
           137
         ]
+      }
+    },
+    {
+      "tick": 58800,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
       }
     },
     {
@@ -662,6 +1111,15 @@
       }
     },
     {
+      "tick": 60000,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
       "tick": 60520,
       "cmd": {
         "system": "build",
@@ -671,6 +1129,15 @@
           124,
           113
         ]
+      }
+    },
+    {
+      "tick": 61200,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
       }
     },
     {
@@ -686,10 +1153,82 @@
       }
     },
     {
+      "tick": 62400,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 63600,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 64800,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
       "tick": 65600,
       "cmd": {
         "system": "heat",
         "op": "dump"
+      }
+    },
+    {
+      "tick": 66000,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 67200,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 68400,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 69600,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
+      }
+    },
+    {
+      "tick": 70800,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 400
       }
     }
   ],

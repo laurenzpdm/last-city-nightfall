@@ -720,30 +720,68 @@ func _draw_greenhouse(c: LcnVectorCanvas, g: Rect2) -> void:
 
 
 ## Depot: long low shed, three bay doors, cantilever canopy.
+## Depot: an OPEN storage yard, not another shed. A low perimeter kerb with
+## crate stacks of uneven height inside it, so the outline is a ragged low
+## skyline rather than one more roofed block. The critic's frames were full of
+## roofed blocks and a player could not tell a warehouse from a boiler house at
+## far zoom; this is the one that had to stop being a box.
 func _draw_depot(c: LcnVectorCanvas, g: Rect2) -> void:
-	var body := Rect2(g.position.x + 1.0, g.position.y + 6.0, g.size.x - 2.0, g.size.y - 8.0)
-	_mass(c, body, 22.0, Color(0.212, 0.247, 0.318), Color(0.153, 0.184, 0.247), Color(0.063, 0.078, 0.118))
-	_snow_roof(c, body, 22.0, 0.58, 44, Color(0.212, 0.247, 0.318))
-	var roof_y: float = body.end.y - 22.0
-	c.fill_polygon(PackedVector2Array([
-		Vector2(body.position.x - 3.0, roof_y + 2.0), Vector2(body.end.x + 3.0, roof_y + 2.0),
-		Vector2(body.end.x + 1.0, roof_y + 6.0), Vector2(body.position.x - 1.0, roof_y + 6.0),
-	]), Color(0.267, 0.310, 0.396))
-	c.stroke_polyline(PackedVector2Array([
-		Vector2(body.position.x - 3.0, roof_y + 2.0), Vector2(body.end.x + 3.0, roof_y + 2.0),
-	]), OUTLINE, 1.5)
-	for i: int in 3:
-		var f: float = (float(i) + 0.5) / 3.0
-		var dx: float = lerpf(body.position.x + 4.0, body.end.x - 4.0, f)
-		var door := Rect2(dx - 9.0, roof_y + 7.0, 18.0, 14.0)
-		c.fill_round_rect(door, 1.0, Color(0.086, 0.106, 0.153))
-		for j: int in 4:
+	var yard := Rect2(g.position.x + 1.0, g.position.y + 4.0, g.size.x - 2.0, g.size.y - 6.0)
+	# Hard standing.
+	c.fill_rect_gradient(yard, Color(0.145, 0.165, 0.212), Color(0.098, 0.118, 0.157))
+	c.stroke_rect(yard, Color(0.055, 0.071, 0.110, 0.85), 1.6)
+	for i: int in 4:
+		var ly: float = lerpf(yard.position.y + 4.0, yard.end.y - 4.0, (float(i) + 0.5) / 4.0)
+		c.stroke_polyline(PackedVector2Array([
+			Vector2(yard.position.x + 3.0, ly), Vector2(yard.end.x - 3.0, ly),
+		]), Color(0.196, 0.220, 0.271, 0.55), 1.0)
+
+	# Crate stacks. Heights deliberately uneven and staggered in depth, which is
+	# what makes the silhouette a skyline instead of a rectangle.
+	var cols: int = maxi(3, int(yard.size.x / 22.0))
+	for i2: int in cols:
+		var f: float = (float(i2) + 0.5) / float(cols)
+		var cx: float = lerpf(yard.position.x + 9.0, yard.end.x - 9.0, f)
+		var stacks: int = 1 + int(LcnNoise.hash3(i2, 5, 601) * 2.99)
+		var base_y: float = lerpf(yard.end.y - 3.0, yard.position.y + 12.0,
+			LcnNoise.hash3(i2, 11, 733) * 0.55)
+		var cw: float = 8.0 + LcnNoise.hash3(i2, 3, 811) * 4.0
+		var top: float = base_y
+		for j: int in stacks:
+			var ch: float = 9.0 + LcnNoise.hash3(i2, j, 907) * 7.0
+			var box := Rect2(cx - cw, top - ch, cw * 2.0, ch)
+			var tone: Color = RUST_TOP.lerp(METAL_TOP, LcnNoise.hash3(i2, j, 1013))
+			c.fill_rect_gradient(box, tone, tone.darkened(0.34))
+			c.stroke_rect(box, OUTLINE, 1.4)
+			# Banding straps: reads as cargo even at two pixels tall.
 			c.stroke_polyline(PackedVector2Array([
-				Vector2(door.position.x + 1.0, door.position.y + 2.6 + float(j) * 3.2),
-				Vector2(door.end.x - 1.0, door.position.y + 2.6 + float(j) * 3.2),
-			]), Color(0.153, 0.184, 0.243, 0.9), 1.0)
-		c.stroke_rect(door, OUTLINE, 1.3)
-		c.fill_round_rect(Rect2(dx - 6.0, roof_y + 4.0, 12.0, 2.0), 0.8, LcnPalette.CAUTION * Color(1, 1, 1, 0.85))
+				Vector2(box.position.x, box.get_center().y), Vector2(box.end.x, box.get_center().y),
+			]), Color(0.078, 0.090, 0.125, 0.75), 1.2)
+			c.fill_polygon(PackedVector2Array([
+				Vector2(box.position.x - 0.8, box.position.y),
+				Vector2(box.end.x + 0.8, box.position.y),
+				Vector2(box.end.x - 0.4, box.position.y - 2.4),
+				Vector2(box.position.x + 0.4, box.position.y - 2.4),
+			]), Color(0.878, 0.910, 0.957, 0.9))
+			top -= ch + 1.0
+
+	# One tall gantry crane on the near edge: the yard's identifying feature.
+	var gx: float = yard.position.x + 5.0
+	var gy: float = yard.end.y - 2.0
+	c.stroke_polyline(PackedVector2Array([Vector2(gx, gy), Vector2(gx, gy - 40.0)]),
+		Color(0.243, 0.275, 0.341), 3.2)
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(gx, gy - 40.0), Vector2(gx + yard.size.x * 0.55, gy - 34.0),
+	]), Color(0.290, 0.322, 0.388), 2.8)
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(gx, gy - 30.0), Vector2(gx + yard.size.x * 0.30, gy - 36.5),
+	]), Color(0.196, 0.224, 0.286), 1.8)
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(gx + yard.size.x * 0.42, gy - 35.5), Vector2(gx + yard.size.x * 0.42, gy - 22.0),
+	]), Color(0.180, 0.204, 0.259), 1.6)
+	c.fill_round_rect(Rect2(gx + yard.size.x * 0.42 - 3.5, gy - 22.0, 7.0, 5.0), 1.2,
+		Color(0.322, 0.290, 0.216))
+	c.fill_circle(Vector2(gx, gy - 41.5), 2.0, LcnPalette.CAUTION, 10)
 
 
 ## Mine: A-frame headgear with a winding wheel. Unmistakable diagonal bracing.

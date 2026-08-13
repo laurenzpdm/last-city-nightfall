@@ -102,6 +102,14 @@ var _heat_signature: float = 0.0
 var _night_samples: int = 0
 var _night_heat_ok: int = 0
 var _buildings_at_dusk: int = 0
+## Snapshots of [P07]'s monotonic counters taken at nightfall. Every number in
+## the post-mortem is a delta against these rather than a reading of combat's
+## own per-wave record, so a bookkeeping bug in another part can slow the
+## director down but can never end a night early or invent a clean sweep.
+var _alive_at_dusk: int = 0
+var _kills_at_dusk: int = 0
+var _lost_at_dusk: int = 0
+var _breaches_at_dusk: int = 0
 
 # --- profiling. Never reaches serialize() or metrics(); see step(). ----------
 var _perf_us: int = 0
@@ -582,6 +590,10 @@ func _begin_wave() -> void:
 	_night_samples = 0
 	_night_heat_ok = 0
 	_buildings_at_dusk = _building_count()
+	_alive_at_dusk = _enemies_alive()
+	_kills_at_dusk = _combat_counter("kills")
+	_lost_at_dusk = _combat_counter("structures_lost")
+	_breaches_at_dusk = _combat_counter("breaches")
 	_siege.begin(_plan)
 
 	var line: String = _format(_profile.wave_started_line, 3, 0.0)
@@ -670,9 +682,9 @@ func _spawn_through_combat(g: WaveGroup, v: ThreatVector) -> int:
 
 
 func _check_breach() -> void:
-	if _combat_resolves() or not _siege.breached:
-		return
-	if _breach_reported == _plan.wave:
+	var through: bool = _siege.breached if not _combat_resolves() \
+		else _combat_counter("breaches") > _breaches_at_dusk
+	if not through or _breach_reported == _plan.wave:
 		return
 	_breach_reported = _plan.wave
 	var line: String = _profile.wave_breached_line.replace("{dirs}", _plan.direction_phrase(1))
@@ -685,8 +697,12 @@ func _check_breach() -> void:
 ## multiplier inside its declared band.
 func _resolve_wave(at_dawn: bool) -> void:
 	var withdrew: int = 0
-	if at_dawn and not _combat_resolves():
-		withdrew = _siege.withdraw()
+	if at_dawn:
+		# The siege model sends survivors back onto the plain, because a wave has
+		# to end. When [P07] owns the bodies they simply stay where they are and
+		# become the day's problem — either way they are survivors, and the night
+		# is not counted as cleared.
+		withdrew = _siege.withdraw() if not _combat_resolves() else maxi(0, _live_units())
 	var night_ticks: int = maxi(1, _tick - _night_start_tick)
 	var heat_ok: int = night_ticks if _night_samples <= 0 else int(
 		round(float(night_ticks) * float(_night_heat_ok) / float(_night_samples)))
@@ -736,7 +752,9 @@ func _resolve_wave(at_dawn: bool) -> void:
 	if withdrew > 0:
 		Bus.narrative_event.emit(ThreatDefs.KEY_WITHDRAW, {
 			"wave": _plan.wave, "survivors": withdrew,
-			"text": "%d of them went back out onto the plain with the light." % withdrew})
+			"text": ("%d of them are still on the ground when the sun comes up." % withdrew)
+				if _combat_resolves()
+				else ("%d of them went back out onto the plain with the light." % withdrew)})
 	Log.info(TAG, "wave %d resolved: %s | comfort %.2f, pressure %.3f -> %.3f (band %s)" % [
 		_plan.wave, detail, float(record.get("comfort", 0.0)),
 		float(record.get("pressure_before", 1.0)), float(record.get("pressure_after", 1.0)),
@@ -752,25 +770,34 @@ func _outcome(night_ticks: int, heat_ok: int, withdrew: int) -> Dictionary:
 		o["withdrew"] = withdrew
 		return o
 	var spawned: int = _plan.unit_count()
-	var out: Dictionary = {
+	var breaches: int = maxi(0, _combat_counter("breaches") - _breaches_at_dusk)
+	var lost: int = maxi(0, _combat_counter("structures_lost") - _lost_at_dusk)
+	if lost == 0:
+		# Nothing published a count, so fall back to the only universally
+		# available signal: the city is smaller than it was at dusk.
+		lost = maxi(0, _buildings_at_dusk - _building_count())
+	# Of what was put on the field, whatever is not still standing is down. This
+	# is deliberately computed from survivors rather than read from combat's
+	# `killed`, which is derived from the same broken per-wave record as `live`
+	# and would report a clean sweep for a night that was never fought.
+	var killed: int = clampi(spawned - maxi(0, withdrew), 0, spawned)
+	killed = maxi(killed, mini(_derived_killed(), spawned))
+	# Combat does not publish how close anything got, only whether the line was
+	# broken. A breach is treated as contact at the breach radius, no breach as
+	# a wave that never reached it — coarse, but never a flattering guess.
+	var closest: int = _profile.breach_radius if breaches > 0 else _profile.breach_radius * 3
+	return {
 		"spawned": spawned,
-		"killed": spawned,
-		"structures_lost": maxi(0, _buildings_at_dusk - _building_count()),
-		"closest_cells": _profile.breach_radius * 3,
+		"killed": clampi(killed, 0, spawned),
+		"structures_lost": lost,
+		"closest_cells": closest,
 		"night_ticks": night_ticks,
 		"heat_ok_ticks": heat_ok,
-		"breached": false,
+		"breached": breaches > 0,
+		"breaches": breaches,
 		"withdrew": withdrew,
 		"resolved_by": "combat",
 	}
-	if _combat.has_method("wave_status"):
-		var raw: Variant = _combat.call("wave_status", _plan.wave)
-		if typeof(raw) == TYPE_DICTIONARY:
-			var st: Dictionary = raw
-			for key: String in ["killed", "structures_lost", "closest_cells", "breached"]:
-				if st.has(key):
-					out[key] = st[key]
-	return out
 
 
 # ==========================================================================
@@ -903,16 +930,59 @@ func _combat_resolves() -> bool:
 	return _combat != null
 
 
+## Bodies on the field right now, whoever owns them.
+func _enemies_alive() -> int:
+	if _combat == null:
+		return 0
+	if _combat.has_method("live_enemy_count"):
+		return int(_combat.call("live_enemy_count"))
+	if _combat.has_method("enemies_alive"):
+		return int(_combat.call("enemies_alive"))
+	return 0
+
+
+## A monotonic counter [P07] publishes, or 0.
+func _combat_counter(name: String) -> int:
+	if _combat == null or not (name in _combat):
+		return 0
+	return int(_combat.get(name))
+
+
+## How much of TONIGHT'S wave is still standing.
+##
+## Two sources, and the larger wins. [P07] keeps a per-wave record and answers
+## wave_status(); when that record is healthy it is the better number, because
+## it can tell this wave's bodies from anything left over from last night. When
+## it is not — and at the time of writing it reports zero live for a wave that
+## demonstrably has six hounds walking down the road — the derived count below
+## carries the night instead. Taking the maximum means a bookkeeping bug in
+## either direction delays the end of a night rather than faking one.
 func _live_units() -> int:
 	if not _combat_resolves():
 		return _siege.live_units()
-	if _combat.has_method("wave_status"):
+	var reported: int = 0
+	if _combat.has_method("wave_status") and _plan != null:
 		var raw: Variant = _combat.call("wave_status", _plan.wave)
 		if typeof(raw) == TYPE_DICTIONARY:
-			return int((raw as Dictionary).get("live", 0))
-	if _combat.has_method("live_enemy_count"):
-		return int(_combat.call("live_enemy_count"))
-	return 0
+			reported = int((raw as Dictionary).get("live", 0))
+	return maxi(reported, _derived_live())
+
+
+## Bodies on the field minus whatever was already there at dusk. Leftovers can
+## only shrink, and kills are attributed to them first, which bounds the error
+## in both directions.
+func _derived_live() -> int:
+	var killed_since: int = maxi(0, _combat_counter("kills") - _kills_at_dusk)
+	var leftovers: int = maxi(0, _alive_at_dusk - killed_since)
+	return maxi(0, _enemies_alive() - leftovers)
+
+
+## Of tonight's wave, how many are down.
+func _derived_killed() -> int:
+	var killed_since: int = maxi(0, _combat_counter("kills") - _kills_at_dusk)
+	var leftovers_killed: int = mini(killed_since, _alive_at_dusk)
+	var spawned: int = _plan.unit_count() if _plan != null else 0
+	return clampi(killed_since - leftovers_killed, 0, spawned)
 
 
 func _live_fraction() -> float:

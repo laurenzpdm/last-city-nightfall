@@ -38,8 +38,11 @@ extends RefCounted
 const DIG_COST: int = 34
 ## What a structure below CombatTypes.BREACH_HEALTH costs instead.
 const WEAK_COST: int = 15
-## Cells compared against the live grid per tick while a sweep is running.
-const SCAN_SLICE: int = 4096
+## Cells compared against the live grid per tick while a sweep is running. A
+## 256x256 map is eight ticks end to end, so a wall the PLAYER takes down is in
+## the field within half a second; a wall COMBAT takes down is in it immediately,
+## through note_cells.
+const SCAN_SLICE: int = 8192
 
 var ready: bool = false
 var field: FlowField = null

@@ -568,6 +568,16 @@ func _is_rest_phase() -> bool:
 
 
 func _retarget(s: int, building: int, tick: int) -> void:
+	# Snap the origin of the walk to the door they are leaving. Every worker in
+	# one bunkhouse then asks for the SAME (from, to) pair, which is the whole
+	# reason a thousand people cost a handful of path searches.
+	var origin: Vector2i = pool.cell_of(s)
+	if pool.inside[s] == 1 and pool.dest[s] >= 0:
+		var previous: Vector2i = board.door_of(pool.dest[s])
+		if previous.x >= 0:
+			origin = previous
+	pool.from_x[s] = origin.x
+	pool.from_y[s] = origin.y
 	pool.dest[s] = building
 	pool.inside[s] = 0
 	pool.shelter[s] = 0.0
@@ -594,12 +604,15 @@ func _retarget(s: int, building: int, tick: int) -> void:
 ## back to a straight line and the request is retried on the next decision.
 func _try_route(s: int, tick: int) -> void:
 	var target := Vector2i(pool.dest_x[s], pool.dest_y[s])
-	var from: Vector2i = pool.cell_of(s)
+	var from := Vector2i(pool.from_x[s], pool.from_y[s])
+	if from.x < 0:
+		from = pool.cell_of(s)
 	var r: int = router.request(from, target, tick)
 	if r >= 0:
 		pool.route[s] = r
-		pool.route_step[s] = 1
-		var wp: Vector2i = router.waypoint(r, 1)
+		var step: int = router.entry_index(r, pool.px[s], pool.py[s]) + 1
+		pool.route_step[s] = step
+		var wp: Vector2i = router.waypoint(r, step)
 		if wp.x >= 0:
 			pool.wx[s] = float(wp.x) + 0.5
 			pool.wy[s] = float(wp.y) + 0.5

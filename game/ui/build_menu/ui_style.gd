@@ -175,7 +175,7 @@ static func draw_building_glyph(canvas: CanvasItem, rect: Rect2, def: Resource, 
 	var size := Vector2i.ONE
 	var tags: Array = []
 	if def != null:
-		category = StringName(String(def.get(&"category")))
+		category = LcnUiFormat.as_name(def.get(&"category"))
 		var s: Variant = def.get(&"size")
 		if typeof(s) == TYPE_VECTOR2I:
 			size = s

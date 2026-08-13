@@ -54,6 +54,11 @@ var inside: PackedByteArray = PackedByteArray()         ## standing at a door
 var dest: PackedInt32Array = PackedInt32Array()         ## building id or -1
 var dest_x: PackedInt32Array = PackedInt32Array()
 var dest_y: PackedInt32Array = PackedInt32Array()
+## Where this walk STARTED, snapped to a door when there was one. Routes are
+## cached by (from, to); if the key drifted with the walker's own footsteps,
+## every citizen would pay for their own copy of the same path.
+var from_x: PackedInt32Array = PackedInt32Array()
+var from_y: PackedInt32Array = PackedInt32Array()
 var px: PackedFloat32Array = PackedFloat32Array()       ## position, cell units
 var py: PackedFloat32Array = PackedFloat32Array()
 var wx: PackedFloat32Array = PackedFloat32Array()       ## current waypoint
@@ -144,6 +149,8 @@ func clear() -> void:
 	dest = PackedInt32Array()
 	dest_x = PackedInt32Array()
 	dest_y = PackedInt32Array()
+	from_x = PackedInt32Array()
+	from_y = PackedInt32Array()
 	px = PackedFloat32Array()
 	py = PackedFloat32Array()
 	wx = PackedFloat32Array()
@@ -209,6 +216,8 @@ func spawn(id: int, first_idx: int, last_idx: int, years: int, trait_id: int, ti
 	dest[s] = -1
 	dest_x[s] = -1
 	dest_y[s] = -1
+	from_x[s] = -1
+	from_y[s] = -1
 	route[s] = -1
 	route_step[s] = 0
 	death_cause[s] = 0
@@ -267,6 +276,8 @@ func _grow(n: int) -> void:
 	dest.resize(n)
 	dest_x.resize(n)
 	dest_y.resize(n)
+	from_x.resize(n)
+	from_y.resize(n)
 	px.resize(n)
 	py.resize(n)
 	wx.resize(n)

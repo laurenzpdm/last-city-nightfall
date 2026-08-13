@@ -70,12 +70,12 @@ static func sheet(def: Resource, ctx: Ctx) -> Dictionary:
 	if def == null:
 		return {"id": "", "title": "—", "sections": [], "warnings": []}
 
-	var kind := StringName(String(def.get(&"id")))
+	var kind := LcnUiFormat.as_name(def.get(&"id"))
 	var out: Dictionary = {
 		"id": String(kind),
-		"title": String(def.get(&"display_name")),
+		"title": LcnUiFormat.as_text(def.get(&"display_name")),
 		"subtitle": _subtitle(def),
-		"description": String(def.get(&"description")),
+		"description": LcnUiFormat.as_text(def.get(&"description")),
 		"tint": def.get(&"tint"),
 		"sections": [],
 		"warnings": [],
@@ -93,7 +93,7 @@ static func sheet(def: Resource, ctx: Ctx) -> Dictionary:
 	var link_buildings: Array = out["links_buildings"]
 
 	# --- locked ---------------------------------------------------------------
-	var unlock := StringName(String(def.get(&"unlock_id")))
+	var unlock := LcnUiFormat.as_name(def.get(&"unlock_id"))
 	if String(unlock) != "" and ctx.build != null and ctx.build.has_method(&"is_unlocked"):
 		if not bool(ctx.build.call(&"is_unlocked", unlock)):
 			out["locked"] = true
@@ -139,8 +139,8 @@ static func sheet(def: Resource, ctx: Ctx) -> Dictionary:
 
 static func _subtitle(def: Resource) -> String:
 	var parts: PackedStringArray = PackedStringArray()
-	parts.append(LcnUiFormat.category_name(StringName(String(def.get(&"category")))))
-	var tier: int = int(def.get(&"tier"))
+	parts.append(LcnUiFormat.category_name(LcnUiFormat.as_name(def.get(&"category"))))
+	var tier: int = LcnUiFormat.as_int(def.get(&"tier"))
 	if tier > 1:
 		parts.append("tier %d" % tier)
 	var tags: Variant = def.get(&"tags")
@@ -192,7 +192,7 @@ static func _cost_block(def: Resource, ctx: Ctx, warnings: Array, link_items: Ar
 			text += " Nothing in the city makes %s yet." % LcnUiFormat.prose_list(orphan)
 		_warn(warnings, Sev.BLOCKING, &"materials", text)
 
-	var ticks: int = int(def.get(&"build_time_ticks"))
+	var ticks: int = LcnUiFormat.as_int(def.get(&"build_time_ticks"))
 	var power: float = 1.0
 	if ctx.build != null and ctx.build.has_method(&"build_power"):
 		power = maxf(0.05, float(ctx.build.call(&"build_power")))
@@ -235,7 +235,7 @@ static func _unproduced(missing: Dictionary, ctx: Ctx) -> PackedStringArray:
 		var d: Resource = b.get(&"def") as Resource
 		if d == null:
 			continue
-		var ore := StringName(String(d.get(&"extracts")))
+		var ore := LcnUiFormat.as_name(d.get(&"extracts"))
 		if String(ore) != "":
 			made[ore] = true
 		var recipes: Variant = d.get(&"recipes")
@@ -278,31 +278,31 @@ static func _structure_section(def: Resource) -> Dictionary:
 	var rows: Array = []
 	var size: Vector2i = def.get(&"size") if typeof(def.get(&"size")) == TYPE_VECTOR2I else Vector2i.ONE
 	_row(rows, "Footprint", LcnUiFormat.footprint(size))
-	var drag: int = int(def.get(&"drag_mode"))
+	var drag: int = LcnUiFormat.as_int(def.get(&"drag_mode"))
 	if drag == 1:
 		_row(rows, "Placement", "drag a line", LcnUiStyle.Tone.DIM)
 	elif drag == 2:
 		_row(rows, "Placement", "drag an area", LcnUiStyle.Tone.DIM)
-	if bool(def.get(&"rotatable")):
-		_row(rows, "Rotation", "%d facings  (R)" % maxi(1, int(def.get(&"rotation_symmetry"))), LcnUiStyle.Tone.DIM)
-	_row(rows, "Hit points", LcnUiFormat.num(float(def.get(&"hp"))))
-	var armor: float = float(def.get(&"armor"))
+	if LcnUiFormat.as_flag(def.get(&"rotatable")):
+		_row(rows, "Rotation", "%d facings  (R)" % maxi(1, LcnUiFormat.as_int(def.get(&"rotation_symmetry"))), LcnUiStyle.Tone.DIM)
+	_row(rows, "Hit points", LcnUiFormat.num(LcnUiFormat.as_number(def.get(&"hp"))))
+	var armor: float = LcnUiFormat.as_number(def.get(&"armor"))
 	if armor > 0.0:
 		_row(rows, "Armour", "%s per hit" % LcnUiFormat.num(armor))
-	if bool(def.get(&"walkable")):
+	if LcnUiFormat.as_flag(def.get(&"walkable")):
 		_row(rows, "Traffic", "walkable", LcnUiStyle.Tone.DIM)
-	elif not bool(def.get(&"blocks_movement")):
+	elif not LcnUiFormat.as_flag(def.get(&"blocks_movement")):
 		_row(rows, "Traffic", "does not block movement", LcnUiStyle.Tone.DIM)
-	var spacing: int = int(def.get(&"min_spacing"))
+	var spacing: int = LcnUiFormat.as_int(def.get(&"min_spacing"))
 	if spacing > 0:
 		_row(rows, "Spacing", "%d tiles from another one" % spacing, LcnUiStyle.Tone.WARN)
-	var cap: int = int(def.get(&"max_count"))
+	var cap: int = LcnUiFormat.as_int(def.get(&"max_count"))
 	if cap > 0:
 		_row(rows, "Limit", "%d in the city" % cap, LcnUiStyle.Tone.WARN)
-	var vision: float = float(def.get(&"vision_radius"))
+	var vision: float = LcnUiFormat.as_number(def.get(&"vision_radius"))
 	if vision > 0.0:
 		_row(rows, "Vision", "%s tiles" % LcnUiFormat.num(vision))
-	var weapon := StringName(String(def.get(&"weapon_id")))
+	var weapon := LcnUiFormat.as_name(def.get(&"weapon_id"))
 	if String(weapon) != "":
 		_row(rows, "Weapon", LcnUiFormat.item_name(weapon), LcnUiStyle.Tone.ACCENT)
 	return {"heading": "Structure", "rows": rows}
@@ -316,48 +316,48 @@ static func _heat_section(def: Resource, kind: StringName) -> Dictionary:
 	var hd: Object = _heat_def(kind, def)
 	if hd == null:
 		# No heat part in this build: fall back to the raw schema fields.
-		var produced: float = float(def.get(&"heat_produced"))
-		var consumed: float = float(def.get(&"heat_consumed"))
+		var produced: float = LcnUiFormat.as_number(def.get(&"heat_produced"))
+		var consumed: float = LcnUiFormat.as_number(def.get(&"heat_consumed"))
 		if produced > 0.0:
 			_row(rows, "Produces", LcnUiFormat.rate(produced), LcnUiStyle.Tone.ACCENT)
 		if consumed > 0.0:
 			_row(rows, "Draws", LcnUiFormat.rate(consumed), LcnUiStyle.Tone.WARN)
 		return {"heading": "Heat", "rows": rows}
 
-	if float(hd.get(&"output")) > 0.0:
-		_row(rows, "Produces", LcnUiFormat.rate(float(hd.get(&"output"))), LcnUiStyle.Tone.ACCENT)
-		var ramp: float = float(hd.get(&"ramp"))
+	if LcnUiFormat.as_number(hd.get(&"output")) > 0.0:
+		_row(rows, "Produces", LcnUiFormat.rate(LcnUiFormat.as_number(hd.get(&"output"))), LcnUiStyle.Tone.ACCENT)
+		var ramp: float = LcnUiFormat.as_number(hd.get(&"ramp"))
 		if ramp > 0.0:
-			_row(rows, "Spin-up", LcnUiFormat.duration(float(hd.get(&"output")) / maxf(0.001, ramp)),
+			_row(rows, "Spin-up", LcnUiFormat.duration(LcnUiFormat.as_number(hd.get(&"output")) / maxf(0.001, ramp)),
 				LcnUiStyle.Tone.DIM)
-	if float(hd.get(&"demand")) > 0.0:
-		_row(rows, "Draws", LcnUiFormat.rate(float(hd.get(&"demand"))), LcnUiStyle.Tone.WARN)
+	if LcnUiFormat.as_number(hd.get(&"demand")) > 0.0:
+		_row(rows, "Draws", LcnUiFormat.rate(LcnUiFormat.as_number(hd.get(&"demand"))), LcnUiStyle.Tone.WARN)
 		_row(rows, "Shed priority", "%d  (%s)" % [
-			int(hd.get(&"priority")), _priority_words(int(hd.get(&"priority")))],
+			LcnUiFormat.as_int(hd.get(&"priority")), _priority_words(LcnUiFormat.as_int(hd.get(&"priority")))],
 			LcnUiStyle.Tone.DIM)
-	if float(hd.get(&"capacity")) > 0.0:
-		_row(rows, "Carries", LcnUiFormat.rate(float(hd.get(&"capacity"))), LcnUiStyle.Tone.ACCENT)
-		_row(rows, "Loss per tile", LcnUiFormat.rate(float(hd.get(&"loss_per_tile")), "u/s"),
+	if LcnUiFormat.as_number(hd.get(&"capacity")) > 0.0:
+		_row(rows, "Carries", LcnUiFormat.rate(LcnUiFormat.as_number(hd.get(&"capacity"))), LcnUiStyle.Tone.ACCENT)
+		_row(rows, "Loss per tile", LcnUiFormat.rate(LcnUiFormat.as_number(hd.get(&"loss_per_tile")), "u/s"),
 			LcnUiStyle.Tone.DIM)
-		if bool(hd.get(&"repeater")):
+		if LcnUiFormat.as_flag(hd.get(&"repeater")):
 			_row(rows, "Repeater", "restores pressure downstream", LcnUiStyle.Tone.GOOD)
-	if float(hd.get(&"storage")) > 0.0:
-		_row(rows, "Stores", "%s u" % LcnUiFormat.num(float(hd.get(&"storage"))))
-		_row(rows, "Discharges", LcnUiFormat.rate(float(hd.get(&"discharge_rate"))))
-	if float(hd.get(&"local_buffer")) > 0.0:
-		_row(rows, "Rides out", "%s u of brownout" % LcnUiFormat.num(float(hd.get(&"local_buffer"))),
+	if LcnUiFormat.as_number(hd.get(&"storage")) > 0.0:
+		_row(rows, "Stores", "%s u" % LcnUiFormat.num(LcnUiFormat.as_number(hd.get(&"storage"))))
+		_row(rows, "Discharges", LcnUiFormat.rate(LcnUiFormat.as_number(hd.get(&"discharge_rate"))))
+	if LcnUiFormat.as_number(hd.get(&"local_buffer")) > 0.0:
+		_row(rows, "Rides out", "%s u of brownout" % LcnUiFormat.num(LcnUiFormat.as_number(hd.get(&"local_buffer"))),
 			LcnUiStyle.Tone.DIM)
-	if float(hd.get(&"radius")) > 0.0 and float(hd.get(&"radiance")) > 0.0:
+	if LcnUiFormat.as_number(hd.get(&"radius")) > 0.0 and LcnUiFormat.as_number(hd.get(&"radiance")) > 0.0:
 		_row(rows, "Warms", "%s tiles, up to +%s C" % [
-			LcnUiFormat.num(float(hd.get(&"radius"))), LcnUiFormat.num(float(hd.get(&"radiance")))],
+			LcnUiFormat.num(LcnUiFormat.as_number(hd.get(&"radius"))), LcnUiFormat.num(LcnUiFormat.as_number(hd.get(&"radiance")))],
 			LcnUiStyle.Tone.ACCENT)
-	_row(rows, "Insulation", LcnUiFormat.percent(float(hd.get(&"insulation"))), LcnUiStyle.Tone.DIM)
-	var fuel := StringName(String(hd.get(&"fuel")))
+	_row(rows, "Insulation", LcnUiFormat.percent(LcnUiFormat.as_number(hd.get(&"insulation"))), LcnUiStyle.Tone.DIM)
+	var fuel := LcnUiFormat.as_name(hd.get(&"fuel"))
 	if String(fuel) != "":
-		var per_unit: float = float(hd.get(&"fuel_per_unit"))
+		var per_unit: float = LcnUiFormat.as_number(hd.get(&"fuel_per_unit"))
 		_row(rows, "Burns", "%s at %s" % [
 			LcnUiFormat.item_name(fuel),
-			LcnUiFormat.rate(per_unit * maxf(0.0, float(hd.get(&"output"))), "%s/s" % LcnUiFormat.item_name(fuel))],
+			LcnUiFormat.rate(per_unit * maxf(0.0, LcnUiFormat.as_number(hd.get(&"output"))), "%s/s" % LcnUiFormat.item_name(fuel))],
 			LcnUiStyle.Tone.WARN)
 	return {"heading": "Heat", "rows": rows}
 
@@ -374,7 +374,7 @@ static func _priority_words(priority: int) -> String:
 
 static func _work_section(def: Resource, ctx: Ctx, link_items: Array) -> Dictionary:
 	var rows: Array = []
-	var workers: int = int(def.get(&"workers_required"))
+	var workers: int = LcnUiFormat.as_int(def.get(&"workers_required"))
 	if workers > 0:
 		var idle: int = _idle_workers(ctx)
 		var tone: int = LcnUiStyle.Tone.NEUTRAL
@@ -383,10 +383,10 @@ static func _work_section(def: Resource, ctx: Ctx, link_items: Array) -> Diction
 			tone = LcnUiStyle.Tone.GOOD if idle >= workers else LcnUiStyle.Tone.BAD
 			suffix = "   (%d idle)" % idle
 		_row(rows, "Crew", "%d%s" % [workers, suffix], tone)
-		var cap: int = int(def.get(&"staff_capacity"))
+		var cap: int = LcnUiFormat.as_int(def.get(&"staff_capacity"))
 		if cap > workers:
 			_row(rows, "Room for", "%d" % cap, LcnUiStyle.Tone.DIM)
-	var residents: int = int(def.get(&"residents"))
+	var residents: int = LcnUiFormat.as_int(def.get(&"residents"))
 	if residents > 0:
 		_row(rows, "Houses", "%d citizens" % residents, LcnUiStyle.Tone.GOOD)
 	var upkeep: Variant = def.get(&"upkeep")
@@ -401,9 +401,9 @@ static func _work_section(def: Resource, ctx: Ctx, link_items: Array) -> Diction
 
 static func _output_section(def: Resource, ctx: Ctx, link_items: Array) -> Dictionary:
 	var rows: Array = []
-	var ore := StringName(String(def.get(&"extracts")))
+	var ore := LcnUiFormat.as_name(def.get(&"extracts"))
 	if String(ore) != "":
-		var rate: float = float(def.get(&"extract_rate"))
+		var rate: float = LcnUiFormat.as_number(def.get(&"extract_rate"))
 		_row(rows, "Extracts", "%s  (%s)" % [
 			LcnUiFormat.item_name(ore), LcnUiFormat.per_minute(rate, " %s/min" % LcnUiFormat.item_name(ore))],
 			LcnUiStyle.Tone.ACCENT)
@@ -414,10 +414,10 @@ static func _output_section(def: Resource, ctx: Ctx, link_items: Array) -> Dicti
 		for r: Variant in recipes:
 			names.append(LcnUiFormat.item_name(StringName(String(r))))
 		_row(rows, "Recipes", ", ".join(names), LcnUiStyle.Tone.LINK)
-		var speed: float = float(def.get(&"craft_speed"))
+		var speed: float = LcnUiFormat.as_number(def.get(&"craft_speed"))
 		if not is_equal_approx(speed, 1.0):
 			_row(rows, "Craft speed", "x%s" % LcnUiFormat.num(speed))
-	var storage: int = int(def.get(&"storage_capacity"))
+	var storage: int = LcnUiFormat.as_int(def.get(&"storage_capacity"))
 	if storage > 0:
 		var filter: Variant = def.get(&"storage_filter")
 		var what: String = "anything"
@@ -429,7 +429,7 @@ static func _output_section(def: Resource, ctx: Ctx, link_items: Array) -> Dicti
 			what = LcnUiFormat.prose_list(fnames, "or")
 		_row(rows, "Stores", "%d slots of %s" % [storage, what])
 	if ctx.production != null and ctx.production.has_method(&"describe_kind"):
-		var extra: String = String(ctx.production.call(&"describe_kind", StringName(String(def.get(&"id")))))
+		var extra: String = LcnUiFormat.as_text(ctx.production.call(&"describe_kind", LcnUiFormat.as_name(def.get(&"id"))))
 		if extra != "":
 			_row(rows, "Production", extra, LcnUiStyle.Tone.DIM)
 	return {"heading": "Makes", "rows": rows}
@@ -461,14 +461,14 @@ static func _enables_section(def: Resource, ctx: Ctx, link_buildings: Array) -> 
 				continue
 			for n2: Variant in other_needs:
 				if offered.has(StringName(String(n2))):
-					enabled.append(String(other.get(&"display_name")))
-					link_buildings.append(String(other.get(&"id")))
+					enabled.append(LcnUiFormat.as_text(other.get(&"display_name")))
+					link_buildings.append(LcnUiFormat.as_text(other.get(&"id")))
 					break
 		if not enabled.is_empty():
 			_row(rows, "Lets you place", LcnUiFormat.prose_list(enabled), LcnUiStyle.Tone.GOOD)
-	var ore := StringName(String(def.get(&"needs_ore")))
+	var ore := LcnUiFormat.as_name(def.get(&"needs_ore"))
 	if String(ore) != "":
-		var coverage: int = maxi(1, int(def.get(&"ore_coverage")))
+		var coverage: int = maxi(1, LcnUiFormat.as_int(def.get(&"ore_coverage")))
 		var what: String = "any deposit" if String(ore) == "*" else LcnUiFormat.item_name(ore)
 		_row(rows, "Sits on", "%s  (%d tile%s)" % [what, coverage, "" if coverage == 1 else "s"],
 			LcnUiStyle.Tone.WARN)
@@ -480,12 +480,12 @@ static func _enables_section(def: Resource, ctx: Ctx, link_buildings: Array) -> 
 static func _placement_warnings(def: Resource, kind: StringName, ctx: Ctx, warnings: Array) -> void:
 	if ctx.build == null:
 		return
-	if int(def.get(&"max_count")) > 0 and ctx.build.has_method(&"count_of"):
+	if LcnUiFormat.as_int(def.get(&"max_count")) > 0 and ctx.build.has_method(&"count_of"):
 		var have: int = int(ctx.build.call(&"count_of", kind))
-		var cap: int = int(def.get(&"max_count"))
+		var cap: int = LcnUiFormat.as_int(def.get(&"max_count"))
 		if have >= cap:
 			_warn(warnings, Sev.BLOCKING, &"max_count",
-				"The city already has its %d %s." % [cap, String(def.get(&"display_name"))])
+				"The city already has its %d %s." % [cap, LcnUiFormat.as_text(def.get(&"display_name"))])
 	if not ctx.has_cell or not ctx.build.has_method(&"can_place"):
 		return
 	var check: Dictionary = ctx.build.call(&"can_place", kind, ctx.cell, ctx.rot, true, -1)
@@ -507,7 +507,7 @@ static func _placement_warnings(def: Resource, kind: StringName, ctx: Ctx, warni
 static func _nearest_ore_hint(def: Resource, ctx: Ctx) -> String:
 	if ctx.grid == null or not ctx.grid.has_method(&"nearest_resource"):
 		return ""
-	var want := StringName(String(def.get(&"needs_ore")))
+	var want := LcnUiFormat.as_name(def.get(&"needs_ore"))
 	if String(want) == "" or String(want) == "*":
 		return ""
 	var kind_index: int = _resource_index(ctx.grid, want)
@@ -542,13 +542,13 @@ static func _heat_warnings(def: Resource, kind: StringName, ctx: Ctx, warnings: 
 	var output: float = 0.0
 	var capacity: float = 0.0
 	if hd != null:
-		demand = float(hd.get(&"demand"))
-		output = float(hd.get(&"output"))
-		capacity = float(hd.get(&"capacity"))
+		demand = LcnUiFormat.as_number(hd.get(&"demand"))
+		output = LcnUiFormat.as_number(hd.get(&"output"))
+		capacity = LcnUiFormat.as_number(hd.get(&"capacity"))
 	else:
-		demand = float(def.get(&"heat_consumed"))
-		output = float(def.get(&"heat_produced"))
-		capacity = float(def.get(&"conduit_throughput"))
+		demand = LcnUiFormat.as_number(def.get(&"heat_consumed"))
+		output = LcnUiFormat.as_number(def.get(&"heat_produced"))
+		capacity = LcnUiFormat.as_number(def.get(&"conduit_throughput"))
 
 	var totals: Dictionary = {}
 	if ctx.heat.has_method(&"totals"):
@@ -578,7 +578,7 @@ static func _heat_warnings(def: Resource, kind: StringName, ctx: Ctx, warnings: 
 
 	# Does heat actually REACH this tile? A consumer with no conduit next to it
 	# is the single most common way a player loses a building to the cold.
-	if demand > 0.0 or float(def.get(&"heat_radius")) > 0.0:
+	if demand > 0.0 or LcnUiFormat.as_number(def.get(&"heat_radius")) > 0.0:
 		var join: Dictionary = _network_next_to(def, ctx)
 		if int(join.get("network", -1)) < 0:
 			var hint: String = _nearest_conduit_hint(ctx)
@@ -631,7 +631,7 @@ static func _network_next_to(def: Resource, ctx: Ctx) -> Dictionary:
 			var b: Object = ctx.build.call(&"building_at", n)
 			if b == null:
 				continue
-			var id: int = int(b.get(&"id"))
+			var id: int = LcnUiFormat.as_int(b.get(&"id"))
 			if not ctx.heat.has_method(&"network_of"):
 				continue
 			var nid: int = int(ctx.heat.call(&"network_of", id))
@@ -661,7 +661,7 @@ static func _nearest_conduit_hint(ctx: Ctx) -> String:
 			break
 		var b: Object = raw
 		var d: Resource = b.get(&"def") as Resource
-		if d == null or not bool(d.get(&"is_heat_conduit")):
+		if d == null or not LcnUiFormat.as_flag(d.get(&"is_heat_conduit")):
 			continue
 		var cell: Vector2i = b.get(&"cell")
 		var dist: int = absi(cell.x - ctx.cell.x) + absi(cell.y - ctx.cell.y)
@@ -678,7 +678,7 @@ static func _nearest_conduit_hint(ctx: Ctx) -> String:
 
 static func _fuel_warnings(def: Resource, ctx: Ctx, warnings: Array, link_items: Array) -> void:
 	var fuels: Variant = def.get(&"fuel_items")
-	var burn: float = float(def.get(&"fuel_burn_rate"))
+	var burn: float = LcnUiFormat.as_number(def.get(&"fuel_burn_rate"))
 	if typeof(fuels) != TYPE_ARRAY or (fuels as Array).is_empty() or burn <= 0.0:
 		return
 	var stock: Object = _stock(ctx)
@@ -698,7 +698,7 @@ static func _fuel_warnings(def: Resource, ctx: Ctx, warnings: Array, link_items:
 
 
 static func _staffing_warnings(def: Resource, ctx: Ctx, warnings: Array) -> void:
-	var need: int = int(def.get(&"workers_required"))
+	var need: int = LcnUiFormat.as_int(def.get(&"workers_required"))
 	if need <= 0:
 		return
 	var idle: int = _idle_workers(ctx)
@@ -721,7 +721,7 @@ static func _time_warnings(def: Resource, ctx: Ctx, warnings: Array) -> void:
 	var power: float = 1.0
 	if ctx.build != null and ctx.build.has_method(&"build_power"):
 		power = maxf(0.05, float(ctx.build.call(&"build_power")))
-	var seconds: float = float(int(def.get(&"build_time_ticks"))) / power * LcnUiFormat.SECONDS_PER_TICK
+	var seconds: float = LcnUiFormat.as_number(LcnUiFormat.as_int(def.get(&"build_time_ticks"))) / power * LcnUiFormat.SECONDS_PER_TICK
 	if seconds > to_night:
 		_warn(warnings, Sev.TIGHT, &"too_slow",
 			"Takes %s to raise; nightfall is in %s." % [
@@ -738,13 +738,13 @@ static func instance_sheet(instance: Object, ctx: Ctx) -> Dictionary:
 	if instance == null:
 		return {"title": "—", "sections": [], "warnings": []}
 	var def: Resource = instance.get(&"def") as Resource
-	var id: int = int(instance.get(&"id"))
+	var id: int = LcnUiFormat.as_int(instance.get(&"id"))
 	var out: Dictionary = {
-		"id": String(instance.get(&"kind")),
+		"id": LcnUiFormat.as_text(instance.get(&"kind")),
 		"instance_id": id,
-		"title": String(def.get(&"display_name")) if def != null else String(instance.get(&"kind")),
-		"subtitle": "#%d  ·  %s" % [id, _state_name(int(instance.get(&"state")))],
-		"description": String(def.get(&"description")) if def != null else "",
+		"title": LcnUiFormat.as_text(def.get(&"display_name")) if def != null else LcnUiFormat.as_text(instance.get(&"kind")),
+		"subtitle": "#%d  ·  %s" % [id, _state_name(LcnUiFormat.as_int(instance.get(&"state")))],
+		"description": LcnUiFormat.as_text(def.get(&"description")) if def != null else "",
 		"tint": def.get(&"tint") if def != null else Color.WHITE,
 		"sections": [],
 		"warnings": [],
@@ -757,16 +757,16 @@ static func instance_sheet(instance: Object, ctx: Ctx) -> Dictionary:
 	var warnings: Array = out["warnings"]
 
 	var status: Array = []
-	var hp: float = float(instance.get(&"hp"))
-	var max_hp: float = maxf(1.0, float(instance.get(&"max_hp")))
+	var hp: float = LcnUiFormat.as_number(instance.get(&"hp"))
+	var max_hp: float = maxf(1.0, LcnUiFormat.as_number(instance.get(&"max_hp")))
 	_row(status, "Condition", "%s / %s  (%s)" % [
 		LcnUiFormat.num(hp), LcnUiFormat.num(max_hp), LcnUiFormat.percent(hp / max_hp)],
 		LcnUiStyle.Tone.GOOD if hp >= max_hp * 0.99 else (
 			LcnUiStyle.Tone.BAD if hp < max_hp * 0.35 else LcnUiStyle.Tone.WARN))
-	var state: int = int(instance.get(&"state"))
+	var state: int = LcnUiFormat.as_int(instance.get(&"state"))
 	if state == 0 or state == 1:
-		var progress: float = float(instance.get(&"progress"))
-		var total: float = maxf(1.0, float(def.get(&"build_time_ticks"))) if def != null else 1.0
+		var progress: float = LcnUiFormat.as_number(instance.get(&"progress"))
+		var total: float = maxf(1.0, LcnUiFormat.as_number(def.get(&"build_time_ticks"))) if def != null else 1.0
 		_row(status, "Built", LcnUiFormat.percent(clampf(progress / total, 0.0, 1.0)), LcnUiStyle.Tone.ACCENT)
 		if instance.has_method(&"missing_items"):
 			var missing: Dictionary = instance.call(&"missing_items")
@@ -774,7 +774,7 @@ static func instance_sheet(instance: Object, ctx: Ctx) -> Dictionary:
 				_row(status, "Waiting on", LcnUiFormat.items(missing), LcnUiStyle.Tone.BAD)
 				_warn(warnings, Sev.TIGHT, &"site_waiting",
 					"This site is waiting for %s." % LcnUiFormat.items(missing))
-	if not bool(instance.get(&"enabled")):
+	if not LcnUiFormat.as_flag(instance.get(&"enabled")):
 		_warn(warnings, Sev.INFO, &"switched_off", "Switched off by hand.")
 	sections.append({"heading": "Status", "rows": status})
 

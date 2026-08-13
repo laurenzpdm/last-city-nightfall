@@ -171,7 +171,9 @@ func install(building: Object, weapon_id: StringName, centre: Vector2, cell: Vec
 		t.charge = 0.0
 		t.ammo = 0
 		t.burst_left = 0
-		t.reload_left = w.reload
+		# A gun that has just been built (or refitted) is loaded. Starting it on a
+		# full reload would silently cost the player the first shot of every night.
+		t.reload_left = 0.0
 	t.weapon = w
 	t.capacity = maxf(buffer, w.heat_per_shot * MIN_MAGAZINE_SHOTS)
 	t.charge_rate = draw_rate

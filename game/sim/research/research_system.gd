@@ -64,6 +64,13 @@ const COLD_SPAN_C: float = 25.0
 const STALL_PARK_TICKS: int = 900
 ## Ticks between repeats of the "your engineers are idle" nudge.
 const IDLE_NUDGE_TICKS: int = 1200
+## Ticks between attempts to find something to start once a search has failed.
+## Without this, a city that has finished everything the engineers may start on
+## their own would re-score every candidate on every one of twenty ticks a
+## second, forever, for an answer that cannot change until the world does.
+const IDLE_RETRY_TICKS: int = 20
+## Ticks between attempts to buy an instalment the yard could not cover.
+const STALL_RETRY_TICKS: int = 20
 ## Share of materials handed back when a project is abandoned outright.
 const CANCEL_REFUND: float = 0.5
 
@@ -99,6 +106,8 @@ var _insight_total: float = 0.0
 var _completed_total: int = 0
 var _stall_events: int = 0
 var _last_idle_nudge: int = -100000
+## Earliest tick a failed search for something to start may be retried.
+var _next_pick_tick: int = 0
 
 ## Cached availability, invalidated whenever the done-set changes.
 var _available: Array[StringName] = []
@@ -141,6 +150,7 @@ func setup() -> void:
 	_completed_total = 0
 	_stall_events = 0
 	_last_idle_nudge = -100000
+	_next_pick_tick = 0
 	_suggestion = {}
 	_effects.clear()
 	_available_dirty = true
@@ -195,8 +205,11 @@ func step(tick: int) -> void:
 		_recompute_rate()
 
 	if String(_active) == "":
+		if tick < _next_pick_tick:
+			return
 		_pull_next()
 		if String(_active) == "":
+			_next_pick_tick = tick + IDLE_RETRY_TICKS
 			_nudge_if_idle()
 			return
 
@@ -448,6 +461,8 @@ func handle_command(cmd: Dictionary) -> void:
 ##   add_insight {points} debug: pour insight into the active project
 func execute(cmd: Dictionary) -> Dictionary:
 	var op: String = String(cmd.get("op", ""))
+	# Any order from outside is a reason to look again on the next tick.
+	_next_pick_tick = 0
 	match op:
 		"start":
 			return _op_start(_id_of(cmd))
@@ -598,11 +613,18 @@ func _advance_active() -> void:
 	if n == null or p == null:
 		_active = &""
 		return
-	_apply_points(n, p, _rate * SimClock.DT)
 	if p.is_stalled():
 		p.stalled_ticks += 1
+		# Work is pinned at the instalment it could not pay for, so retrying
+		# twenty times a second only allocates the same shortfall dictionary
+		# twenty times a second. Once a second is as responsive as a player
+		# can perceive and twenty times cheaper.
+		if _tick % STALL_RETRY_TICKS != 0:
+			return
 		if _auto and p.stalled_ticks >= STALL_PARK_TICKS and _has_affordable_alternative():
 			_park_active("no %s to be had" % _first_missing(p))
+			return
+	_apply_points(n, p, _rate * SimClock.DT)
 
 
 ## Shared by the tick and by the debug insight command.
@@ -681,6 +703,7 @@ func _finish(id: StringName, forced: bool) -> void:
 		p.points = float(n.work)
 		p.clear_stall()
 	_available_dirty = true
+	_next_pick_tick = 0
 
 	Bus.research_completed.emit(id)
 	_alert(1, ResearchDefs.KEY_COMPLETED, "%s completed. %s" % [n.title, _payoff_text(n)])

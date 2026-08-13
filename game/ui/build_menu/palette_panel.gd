@@ -92,6 +92,12 @@ func query() -> String:
 func set_query(text: String) -> void:
 	if _search != null and _search.text != text:
 		_search.text = text
+	# LineEdit.text_changed only fires for a human typing, so the store has to be
+	# updated here too or a restored query would never be remembered again.
+	if store != null and store.last_query != text:
+		store.last_query = text
+		store.mark_dirty()
+	cursor = 0
 	_rebuild_view()
 
 

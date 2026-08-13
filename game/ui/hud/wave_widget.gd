@@ -28,10 +28,11 @@ func desired_height() -> float:
 func signature() -> String:
 	if probe == null:
 		return ""
-	return "%d|%d|%.2f|%s|%d|%d" % [
+	return "%d|%d|%.2f|%s|%d|%d|%d|%s" % [
 		int(probe.wave_seconds), probe.wave_number, snappedf(probe.wave_strength, 0.05),
 		LcnHudFormat.compass_short(probe.wave_direction),
-		int(probe.wave_active), probe.enemies_alive,
+		int(probe.wave_active), probe.enemies_alive, int(probe.wave_known),
+		probe.wave_phrase,
 	]
 
 
@@ -82,12 +83,13 @@ func _draw() -> void:
 	else:
 		style.draw_text_right(self, right_x, 74.0, LcnHudFormat.clock(maxf(0.0, _seconds)),
 			style.fs(30), col)
-	style.draw_text_right(self, right_x, 94.0,
-		"wave %d from the %s" % [maxi(1, probe.wave_number),
-			LcnHudFormat.compass(probe.wave_direction)],
-		style.fs(12), style.ink_faint())
+	style.draw_text_right(self, right_x, 94.0, _where_line(), style.fs(12),
+		style.ink_faint())
 
-	if probe.wave_strength > 0.0:
+	if probe.wave_band != "":
+		style.draw_caps(self, Vector2(14.0, size.y - 28.0), probe.wave_band,
+			style.fs(9), style.sev_colour(S.Sev.WARN), 1.6)
+	if probe.wave_strength > 0.0 and probe.wave_known:
 		var strength01: float = clampf(probe.wave_strength / 10.0, 0.0, 1.0) \
 			if probe.wave_strength > 1.0 else clampf(probe.wave_strength, 0.0, 1.0)
 		style.draw_segments(self, Rect2(size.x - 128.0, 104.0, 114.0, 7.0), strength01, 10,
@@ -98,6 +100,18 @@ func _draw() -> void:
 		style.draw_text(self, Vector2(14.0, size.y - 10.0), probe.wave_note,
 			style.fs(11), style.ink_faint())
 	draw_marks()
+
+
+## [P08] redacts its own preview by how much the player has scouted, and the HUD
+## says exactly as much as it is allowed to. Guessing a direction the game
+## deliberately withheld would be worse than saying "no word yet".
+func _where_line() -> String:
+	if not probe.wave_known:
+		return "wave %d · no word from the plain yet" % maxi(1, probe.wave_number)
+	if probe.wave_phrase != "":
+		return "wave %d %s" % [maxi(1, probe.wave_number), probe.wave_phrase]
+	return "wave %d from the %s" % [maxi(1, probe.wave_number),
+		LcnHudFormat.compass(probe.wave_direction)]
 
 
 ## A compass with the approach lit. The rose is drawn every time because it is
@@ -115,7 +129,7 @@ func _draw_dial() -> void:
 			Color(rim.r, rim.g, rim.b, 0.9 if long else 0.5), 1.0)
 
 	var dir: Vector2 = probe.wave_direction
-	if dir.length_squared() < 0.0001:
+	if not probe.wave_known or dir.length_squared() < 0.0001:
 		style.draw_text_centered(self, centre.x, centre.y + 4.0, "?", style.fs(16),
 			style.ink_faint())
 		return

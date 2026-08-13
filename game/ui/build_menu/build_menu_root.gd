@@ -366,7 +366,8 @@ func _quickbar_key(key: InputEventKey) -> bool:
 # ----------------------------------------------------------------- panels ----
 
 func _toggle(id: StringName) -> void:
-	if store.is_open(id):
+	var p: LcnUiPanel = panel(id)
+	if p != null and p.is_open():
 		_close(id)
 	else:
 		_open(id)
@@ -669,7 +670,7 @@ func _hover_over_something() -> void:
 	for raw: Variant in all:
 		var b: Object = raw
 		var def: Resource = b.get(&"def") as Resource
-		if def != null and float(def.get(&"heat_consumed")) + float(def.get(&"heat_radius")) > 0.0:
+		if def != null and LcnUiFormat.as_number(def.get(&"heat_consumed")) + LcnUiFormat.as_number(def.get(&"heat_radius")) > 0.0:
 			_hover_cell = b.get(&"cell")
 			_tooltip_kind = &""
 			_sheet_cache_key = ""

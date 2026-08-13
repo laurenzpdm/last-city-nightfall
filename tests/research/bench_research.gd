@@ -39,35 +39,50 @@ func _run() -> void:
 		printerr("research system is not in this build")
 		return
 	res.call("execute", {"op": "set_auto", "on": true})
+	var build: SimSystem = sim.call("get_system", &"build") as SimSystem
+	if build != null:
+		build.call("execute", {"op": &"set_stock", "items": {
+			"iron_plate": 9000, "steel_plate": 9000, "stone": 9000, "timber": 9000,
+			"scrap": 9000, "gear": 9000, "copper_coil": 9000, "coal": 9000,
+			"pipe_segment": 9000, "insulation_wool": 9000,
+		}})
 	clock.call("advance", WARMUP)
 
-	# Every tick here is ≡ 1 mod 100, so it triggers neither cadence; ≡ 20 mod
-	# 100 recomputes the rate only; ≡ 0 mod 100 does both. Stepping by 100 keeps
-	# each regime pure instead of averaging them together.
-	var plain: float = _time(res, RUNS, 1000001)
-	var rate: float = _time(res, RUNS / 10, 1000020)
-	var pace: float = _time(res, RUNS / 100, 1000000)
+	# Consecutive ticks on purpose: the 1-in-20 rate recompute and the 1-in-100
+	# pacing sample then occur at exactly the frequency they occur in play, so
+	# the average IS the per-tick cost rather than a weighted guess.
+	var early: float = _time(res, RUNS, 1000000)
+	var m1: Dictionary = res.call("metrics")
+
+	# Empty the yard and measure again: every tick is now a project that cannot
+	# buy its next instalment, which is the pathological case for this system.
+	if build != null:
+		build.call("execute", {"op": &"set_stock", "items": {
+			"iron_plate": 0, "steel_plate": 0, "stone": 0, "timber": 0, "scrap": 0,
+			"gear": 0, "copper_coil": 0, "coal": 0, "pipe_segment": 0,
+		}})
+	var starved: float = _time(res, RUNS, 3000000)
+	var m2: Dictionary = res.call("metrics")
 
 	print("")
-	print("research.step() cost, %d nodes in the tree" % (res.call("graph") as ResearchGraph).size())
-	print("  ordinary tick        %8.3f us" % plain)
-	print("  rate tick   (1 in 20)%8.3f us" % rate)
-	print("  pacing tick (1 in 100)%7.3f us" % pace)
-	var blended: float = (plain * 94.0 + rate * 5.0 + pace * 1.0) / 100.0
-	print("  blended per tick     %8.3f us   (%.4f %% of the 50 ms budget)"
-		% [blended, blended / 500.0])
+	print("research.step() cost, %d nodes in the tree, %d consecutive ticks per sample"
+		% [(res.call("graph") as ResearchGraph).size(), RUNS])
+	print("  mid-campaign %8.3f us/tick   (%.4f %% of the 50 ms budget)"
+		% [early, early / 500.0])
+	print("  empty yard   %8.3f us/tick   (%.4f %% of the 50 ms budget)"
+		% [starved, starved / 500.0])
 	print("")
-	var m: Dictionary = res.call("metrics")
-	print("after %d ticks: %d researched, active '%s', %d available, %.2f insight/s" % [
-		WARMUP, int(m["researched_count"]), String(m["active"]),
-		int(m["unlocks_pending"]), float(m["rate"])])
+	print("  mid-campaign: %d researched, active '%s', %d available, %.2f insight/s" % [
+		int(m1["researched_count"]), String(m1["active"]),
+		int(m1["unlocks_pending"]), float(m1["rate"])])
+	print("  empty yard:   %d researched, stalled=%d" % [
+		int(m2["researched_count"]), int(m2["stalled"])])
 
 
-## Average microseconds per step() call, always 100 ticks apart so every call in
-## one measurement lands in the same cadence class.
+## Average microseconds per step() call over consecutive ticks.
 func _time(res: SimSystem, runs: int, first_tick: int) -> float:
 	var n: int = maxi(1, runs)
 	var t0: int = Time.get_ticks_usec()
 	for i: int in n:
-		res.call("step", first_tick + i * 100)
+		res.call("step", first_tick + i)
 	return float(Time.get_ticks_usec() - t0) / float(n)

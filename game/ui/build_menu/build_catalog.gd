@@ -91,18 +91,18 @@ func rebuild(build_system: Object) -> void:
 			continue
 		var e := Entry.new()
 		e.def = def
-		e.id = StringName(String(def.get(&"id")))
+		e.id = LcnUiFormat.as_name(def.get(&"id"))
 		if String(e.id) == "":
 			continue
-		e.display_name = String(def.get(&"display_name"))
+		e.display_name = LcnUiFormat.as_text(def.get(&"display_name"))
 		if e.display_name == "":
 			e.display_name = LcnUiFormat.item_name(e.id)
-		e.category = StringName(String(def.get(&"category")))
+		e.category = LcnUiFormat.as_name(def.get(&"category"))
 		if String(e.category) == "":
 			e.category = &"infrastructure"
-		e.tier = int(def.get(&"tier"))
-		e.sort_order = int(def.get(&"sort_order"))
-		e.unlock_id = StringName(String(def.get(&"unlock_id")))
+		e.tier = LcnUiFormat.as_int(def.get(&"tier"))
+		e.sort_order = LcnUiFormat.as_int(def.get(&"sort_order"))
+		e.unlock_id = LcnUiFormat.as_name(def.get(&"unlock_id"))
 		var tags: Variant = def.get(&"tags")
 		if typeof(tags) == TYPE_ARRAY:
 			for t: Variant in tags:

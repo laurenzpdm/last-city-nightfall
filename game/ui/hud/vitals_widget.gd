@@ -11,7 +11,9 @@ extends LcnHudWidget
 ## confidently reporting a population of zero because nobody has written the
 ## population system yet is worse than no panel at all.
 
-const PANEL := Vector2(322.0, 176.0)
+const PANEL_WIDTH: float = 322.0
+
+var _content_height: float = 176.0
 
 
 func should_show() -> bool:
@@ -19,22 +21,22 @@ func should_show() -> bool:
 
 
 func desired_height() -> float:
-	return PANEL.y
+	return _content_height
 
 
 func signature() -> String:
 	if probe == null:
 		return ""
-	return "%d|%d|%d|%d|%d|%d|%.3f|%.3f" % [
-		probe.population, probe.sick, probe.dead, probe.homeless, probe.freezing,
-		probe.hungry, snappedf(probe.hope, 0.01), snappedf(probe.discontent, 0.01),
+	return "%d|%d|%d|%d|%d|%.2f|%.1f|%.3f|%.3f" % [
+		probe.population, probe.sick, probe.injured, probe.dead, probe.homeless,
+		snappedf(probe.warmth01, 0.02), snappedf(probe.food_days, 0.1),
+		snappedf(probe.hope, 0.01), snappedf(probe.discontent, 0.01),
 	]
 
 
 func layout() -> void:
-	custom_minimum_size = PANEL
-	size = PANEL
 	clear_hot()
+	var y: float = 112.0
 	if probe.has_population:
 		add_hot(Rect2(14.0, 40.0, 150.0, 40.0), "Citizens",
 			"Everyone alive in the city right now. They work your buildings, and "
@@ -42,14 +44,45 @@ func layout() -> void:
 		add_hot(Rect2(14.0, 86.0, size.x - 28.0, 20.0), "Condition",
 			"Cold citizens fall sick, sick citizens stop working, and citizens "
 			+ "who stay sick in the cold die. The dead never come back.")
+		add_hot(Rect2(14.0, y - 16.0, size.x - 28.0, 22.0), "Body warmth",
+			"How warm the average citizen actually is, not how warm the air is. "
+			+ "Below 40% they start falling ill; below 12% the cold begins taking "
+			+ "their health. Radiators, insulated homes and shorter walks raise it.")
+		y += 28.0
+		if probe.food_days >= 0.0:
+			add_hot(Rect2(14.0, y - 16.0, size.x - 28.0, 22.0), "Food",
+				"Days the city can keep eating at this population and this ration. "
+				+ "Kitchens turn stores into meals; a long haul to the table wastes "
+				+ "both.")
+			y += 28.0
 	if probe.has_society:
-		add_hot(Rect2(14.0, 112.0, size.x - 28.0, 22.0), "Hope",
+		add_hot(Rect2(14.0, y - 16.0, size.x - 28.0, 22.0), "Hope",
 			"Whether the city believes it will survive the winter. It rises when "
-			+ "people are warm, fed and see the place growing, and falls with "
-			+ "every death, every cold night and every promise you break.")
-		add_hot(Rect2(14.0, 140.0, size.x - 28.0, 22.0), "Discontent",
+			+ "people are warm, fed and see the place growing, and falls with every "
+			+ "death and every cold night. " + _reason_line())
+		y += 28.0
+		add_hot(Rect2(14.0, y - 16.0, size.x - 28.0, 22.0), "Discontent",
 			"How angry they are with you. Harsh laws and hard shifts raise it. "
 			+ "Let it fill and the city stops doing what you tell it.")
+	_content_height = y + 12.0
+	custom_minimum_size = Vector2(PANEL_WIDTH, _content_height)
+	size = custom_minimum_size
+
+
+## [P06] already writes a sentence for every pressure on the meters. Showing its
+## words instead of inventing new ones keeps the HUD and the sim telling the
+## player the same story.
+func _reason_line() -> String:
+	if probe.hope_reasons.is_empty():
+		return ""
+	var parts: PackedStringArray = PackedStringArray()
+	for r: Dictionary in probe.hope_reasons:
+		var label: String = String(r.get("label", ""))
+		if label != "":
+			parts.append(label)
+	if parts.is_empty():
+		return ""
+	return "Right now: %s." % ", ".join(parts)
 
 
 func _draw() -> void:
@@ -76,6 +109,12 @@ func _draw() -> void:
 		var parts: Array[Dictionary] = []
 		if probe.freezing > 0:
 			parts.append({"t": "%d freezing" % probe.freezing, "c": style.sev_colour(S.Sev.DANGER)})
+		elif probe.city_is_freezing():
+			parts.append({"t": "freezing", "c": style.sev_colour(S.Sev.DANGER)})
+		elif probe.city_is_cold():
+			parts.append({"t": "cold", "c": style.sev_colour(S.Sev.WARN)})
+		if probe.injured > 0:
+			parts.append({"t": "%d hurt" % probe.injured, "c": style.sev_colour(S.Sev.WARN)})
 		if probe.sick > 0:
 			parts.append({"t": "%d sick" % probe.sick, "c": style.sev_colour(S.Sev.WARN)})
 		if probe.hungry > 0:
@@ -95,12 +134,34 @@ func _draw() -> void:
 				px += style.draw_text(self, Vector2(px + 5.0, 102.0), "·",
 					style.fs(12), style.ink_faint()) + 10.0
 
+	var y: float = 112.0
+	if probe.has_population:
+		var warm_col: Color = style.health_colour(
+			clampf(inverse_lerp(0.15, 0.55, probe.warmth01), 0.0, 1.0))
+		_meter(y, "body warmth", probe.warmth01, warm_col)
+		y += 28.0
+		if probe.food_days >= 0.0:
+			_food_row(y)
+			y += 28.0
 	if probe.has_society:
-		_meter(128.0, "hope", probe.hope, style.health_colour(probe.hope))
-		_meter(156.0, "discontent", probe.discontent,
+		_meter(y, "hope", probe.hope, style.health_colour(probe.hope))
+		y += 28.0
+		_meter(y, "discontent", probe.discontent,
 			style.sev_colour(S.Sev.DANGER) if probe.discontent > 0.6
 			else style.sev_colour(S.Sev.WARN))
 	draw_marks()
+
+
+## Days of food, which is a countdown wearing a number's clothes.
+func _food_row(baseline: float) -> void:
+	style.draw_caps(self, Vector2(14.0, baseline), "food", style.fs(9),
+		style.ink_faint(), 1.8)
+	var days: float = probe.food_days
+	var col: Color = style.health_colour(clampf(days / 3.0, 0.0, 1.0))
+	var text: String = "%.1f days" % days if days < 100.0 else "plenty"
+	if days < 0.05:
+		text = "none left"
+	style.draw_text(self, Vector2(14.0 + 78.0, baseline), text, style.fs(13), col)
 
 
 func _meter(baseline: float, label: String, value01: float, colour: Color) -> void:

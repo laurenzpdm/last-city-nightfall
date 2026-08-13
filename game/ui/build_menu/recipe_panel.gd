@@ -299,9 +299,9 @@ func _detail_building() -> void:
 	if def == null:
 		_detail.add_child(_note("That building is gone."))
 		return
-	_detail.add_child(LcnUiStyle.label(String(def.get(&"display_name")),
+	_detail.add_child(LcnUiStyle.label(LcnUiFormat.as_text(def.get(&"display_name")),
 		LcnUiStyle.FS_TITLE, LcnUiStyle.TEXT_BRIGHT))
-	var desc: Label = LcnUiStyle.label(String(def.get(&"description")),
+	var desc: Label = LcnUiStyle.label(LcnUiFormat.as_text(def.get(&"description")),
 		LcnUiStyle.FS_SMALL, LcnUiStyle.TEXT_DIM)
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc.custom_minimum_size = Vector2(420.0, 0.0)
@@ -339,11 +339,11 @@ func _detail_building() -> void:
 				r.summary() if r != null else "recipe not authored yet",
 				"recipe", id, LcnUiStyle.Tone.ACCENT))
 
-	var ore := StringName(String(def.get(&"extracts")))
+	var ore := LcnUiFormat.as_name(def.get(&"extracts"))
 	if String(ore) != "":
 		_detail.add_child(_heading("Digs"))
 		_detail.add_child(_link_row(LcnUiFormat.item_name(ore),
-			LcnUiFormat.per_minute(float(def.get(&"extract_rate"))), "item", ore, LcnUiStyle.Tone.GOOD))
+			LcnUiFormat.per_minute(LcnUiFormat.as_number(def.get(&"extract_rate"))), "item", ore, LcnUiStyle.Tone.GOOD))
 
 	var fuels: Variant = def.get(&"fuel_items")
 	if typeof(fuels) == TYPE_ARRAY and not (fuels as Array).is_empty():
@@ -351,7 +351,7 @@ func _detail_building() -> void:
 		for f: Variant in (fuels as Array):
 			var fid := StringName(String(f))
 			_detail.add_child(_link_row(LcnUiFormat.item_name(fid),
-				LcnUiFormat.rate(float(def.get(&"fuel_burn_rate")), "per second"),
+				LcnUiFormat.rate(LcnUiFormat.as_number(def.get(&"fuel_burn_rate")), "per second"),
 				"item", fid, LcnUiStyle.Tone.WARN))
 
 
@@ -359,7 +359,7 @@ func _building_name(kind: StringName) -> String:
 	if build_system != null and build_system.has_method(&"def_of"):
 		var def: Resource = build_system.call(&"def_of", kind) as Resource
 		if def != null:
-			return String(def.get(&"display_name"))
+			return LcnUiFormat.as_text(def.get(&"display_name"))
 	return LcnUiFormat.item_name(kind)
 
 

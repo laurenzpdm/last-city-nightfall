@@ -23,16 +23,45 @@ func _build() -> SimSystem:
 
 # --------------------------------------------- derived from content today ----
 
-func test_it_derives_a_tree_from_building_unlocks() -> void:
+func test_a_tree_exists_with_or_without_a_research_part() -> void:
 	var model := LcnTechModel.new()
 	model.rebuild(null, _build(), TestEnv.registry())
 	if model.is_empty():
 		skip("no gated content and no research content in this build")
 		return
-	assert_eq(String(model.source()), "buildings",
-		"with no research part, the tree comes from BuildingDef.unlock_id")
-	for n: LcnTechModel.TechNode in model.nodes:
-		assert_not_empty(n.unlocks, "%s opens at least one building" % String(n.id))
+	var source: String = String(model.source())
+	assert_true(source == "content" or source == "buildings",
+		"the tree is read from authored research when there is any, and derived from "
+		+ "BuildingDef.unlock_id when there is not (got '%s')" % source)
+	if source == "buildings":
+		for n: LcnTechModel.TechNode in model.nodes:
+			assert_not_empty(n.unlocks, "%s opens at least one building" % String(n.id))
+
+
+func test_authored_nodes_are_matched_to_the_buildings_they_open() -> void:
+	var model := LcnTechModel.new()
+	model.rebuild(null, _build(), TestEnv.registry())
+	if model.is_empty():
+		skip("no research content in this build")
+		return
+	# Whatever the tree's source, a building gated behind an unlock id must find
+	# that node and hang itself off it — otherwise the screen cannot answer
+	# "what does this research give me".
+	var gated: int = 0
+	var matched: int = 0
+	for raw: Variant in _build().call(&"all_defs"):
+		var def: Resource = raw as Resource
+		var unlock: StringName = LcnUiFormat.as_name(def.get(&"unlock_id"))
+		if String(unlock) == "":
+			continue
+		gated += 1
+		var n: LcnTechModel.TechNode = model.node(unlock)
+		if n != null and n.unlocks.has(LcnUiFormat.as_name(def.get(&"id"))):
+			matched += 1
+	if gated == 0:
+		skip("nothing in content is gated behind research")
+		return
+	assert_eq(matched, gated, "every gated building is listed under the node that opens it")
 
 
 func test_granting_an_unlock_marks_the_node_done() -> void:

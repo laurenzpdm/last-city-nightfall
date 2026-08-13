@@ -167,6 +167,32 @@ func _derive_people(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 				+ "sick, and sick people die.",
 			"Get a radiator to where they live, or move them onto the grid.",
 			Vector2.ZERO, probe.freezing))
+	elif probe.city_is_freezing():
+		out.append(_entry(&"freezing", "freezing", S.Sev.CRITICAL,
+			"The city is freezing",
+			"The average citizen is down to %s body warmth. Below this the cold "
+				% LcnHudFormat.percent(probe.warmth01)
+				+ "starts taking their health, and then it takes them.",
+			"Heat where they live and where they walk, now.",
+			Vector2.ZERO, maxi(1, probe.population)))
+	elif probe.city_is_cold():
+		out.append(_entry(&"cold", "freezing", S.Sev.DANGER,
+			"The city is running cold",
+			"Average body warmth is %s. Under 40%% people start falling ill, and "
+				% LcnHudFormat.percent(probe.warmth01)
+				+ "an ill citizen who stays cold does not get better.",
+			"More radiators, or shorter walks between warm buildings.",
+			Vector2.ZERO, maxi(1, probe.population)))
+	if probe.food_days >= 0.0 and probe.food_days < 2.0 and probe.population > 0:
+		out.append(_entry(&"food", "sick",
+			S.Sev.CRITICAL if probe.food_days < 0.5 else S.Sev.DANGER,
+			"Food runs out in %.1f days" % probe.food_days if probe.food_days >= 0.05
+				else "There is no food left",
+			"At this population and this ration, the kitchens have %s of meals left."
+				% ("nothing" if probe.food_days < 0.05
+					else "%.1f days" % probe.food_days),
+			"Raise the harvest, cut the ration, or fewer mouths by morning.",
+			Vector2.ZERO, 1))
 	if probe.sick > 0:
 		out.append(_entry(&"sick", "sick", S.Sev.WARN,
 			"%d sick" % probe.sick,

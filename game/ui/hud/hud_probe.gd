@@ -93,6 +93,9 @@ var unrest01: float = 0.0
 var has_society: bool = false
 var hope: float = 0.5
 var discontent: float = 0.0
+## What is moving the meters, strongest first: {key, label, text, rate, today}.
+## [P06] writes the sentences; the HUD only has to show them.
+var hope_reasons: Array[Dictionary] = []
 
 # --- threat / combat ---------------------------------------------------------
 var has_threat: bool = false
@@ -474,6 +477,11 @@ func _read_society() -> void:
 	var m: Dictionary = _metrics(_society)
 	hope = _normal01(_ask(_society, [&"hope"], m, ["hope"], 0.5))
 	discontent = _normal01(_ask(_society, [&"discontent"], m, ["discontent"], 0.0))
+	hope_reasons.clear()
+	if _society.has_method("reasons"):
+		var raw: Array = _society.call("reasons", 3)
+		for r: Dictionary in raw:
+			hope_reasons.append(r)
 
 
 ## Society may express hope as 0..1 or as 0..100. Both are common; guess once,
@@ -583,10 +591,14 @@ func _read_combat() -> void:
 		return
 	var m: Dictionary = _metrics(_combat)
 	enemies_alive = int(_ask(_combat, [&"enemy_count", &"enemies_alive"], m,
-		["enemies", "enemies_alive", "alive"], 0.0))
+		["enemies_alive", "enemies", "alive"], 0.0))
 	turrets_total = int(_ask(_combat, [&"turret_count"], m, ["turrets"], 0.0))
+	turret_uptime = clampf(_ask(_combat, [&"turret_uptime"], m, ["turret_uptime"], 1.0),
+		0.0, 1.0)
 	turrets_online = int(_ask(_combat, [&"turrets_online"], m, ["turrets_online"],
-		float(turrets_total)))
+		roundf(float(turrets_total) * turret_uptime)))
+	if enemies_alive > 0:
+		wave_active = true
 
 
 # ======================================================================  build =
@@ -760,39 +772,93 @@ func _describe_heat(id: int, out: Dictionary) -> void:
 
 ## Whatever [P04] production and [P05] citizens can say about this building.
 ## Both are optional; the panel simply gets shorter without them.
+##
+## [P04] publishes `stall_of(id)` — {reason, item, recipe, rate, staffing,
+## heat_factor, progress} — as its overlay contract, and it answers the selection
+## panel's question exactly: what is it making, how fast, and what is stopping it.
 func _describe_work(id: int, out: Dictionary) -> void:
 	var lines: Array[Dictionary] = out["lines"]
 	var problems: Array[String] = out["problems"]
-	if _production != null and _production.has_method("building_info"):
-		var info: Dictionary = _production.call("building_info", id)
-		if not info.is_empty():
-			var recipe: String = String(info.get("recipe", ""))
-			if recipe != "":
-				lines.append({
-					"label": "Making", "value": LcnHudFormat.titleize(recipe),
-					"good": 1.0, "tip": "The recipe this machine is set to.",
-				})
-			if info.has("progress"):
-				lines.append({
-					"label": "Progress",
-					"value": LcnHudFormat.percent(float(info["progress"])),
-					"good": 1.0, "tip": "How far along the current craft is.",
-				})
-			var stall: String = String(info.get("stall_reason", info.get("reason", "")))
-			if stall != "":
-				problems.append("It is stalled: %s." % LcnHudFormat.titleize(stall).to_lower())
-	if _citizens != null and _citizens.has_method("workplace_info"):
+	var info: Dictionary = {}
+	if _production != null and _production.has_method("stall_of"):
+		info = _production.call("stall_of", id)
+	elif _production != null and _production.has_method("building_info"):
+		info = _production.call("building_info", id)
+	if not info.is_empty():
+		var recipe: String = String(info.get("recipe", ""))
+		if recipe != "":
+			lines.append({
+				"label": "Making", "value": LcnHudFormat.item_title(StringName(recipe)),
+				"good": 1.0,
+				"tip": "The recipe this machine is set to. Its speed is the slowest "
+					+ "of its heat, its crew and its supply of inputs.",
+			})
+		if info.has("rate"):
+			var rate: float = float(info["rate"])
+			lines.append({
+				"label": "Speed", "value": LcnHudFormat.percent(rate),
+				"good": clampf(rate, 0.0, 1.0),
+				"tip": "How fast it is actually running against its rated speed. "
+					+ "Heat, crew and cold each cap it independently.",
+			})
+		if info.has("progress") and float(info["progress"]) > 0.0:
+			lines.append({
+				"label": "Progress",
+				"value": LcnHudFormat.percent(float(info["progress"])),
+				"good": 1.0, "tip": "How far along the current craft is.",
+			})
+		var stall: String = String(info.get("reason", info.get("stall_reason", "")))
+		if stall != "":
+			problems.append(_stall_sentence(stall, String(info.get("item", ""))))
+	_describe_crew(id, out)
+
+
+## [P04] names its stalls in machine language. This is the translation.
+func _stall_sentence(reason: String, item: String) -> String:
+	var what: String = LcnHudFormat.item_title(StringName(item)).to_lower()
+	match reason:
+		"no_input", "starved", "missing_input":
+			return "It has run out of %s." % (what if item != "" else "inputs")
+		"output_full", "blocked", "backed_up":
+			return "Its output is full — nothing is taking the %s away." % (
+				what if item != "" else "product")
+		"no_recipe", "idle":
+			return "No recipe is set, so it is doing nothing."
+		"no_heat", "cold", "frozen":
+			return "It is too cold to work."
+		"no_staff", "understaffed", "no_workers":
+			return "Nobody is working here."
+		"no_power":
+			return "It is not getting the heat it needs to run."
+	return "It is stalled: %s." % LcnHudFormat.titleize(reason).to_lower()
+
+
+## Crew, from whichever accessor [P05] ships.
+func _describe_crew(id: int, out: Dictionary) -> void:
+	if _citizens == null:
+		return
+	var lines: Array[Dictionary] = out["lines"]
+	var problems: Array[String] = out["problems"]
+	var required: int = int(out.get("workers_required", 0))
+	var workers: int = -1
+	if _citizens.has_method("workers_at"):
+		workers = int(_citizens.call("workers_at", id))
+	elif _citizens.has_method("workplace_info"):
 		var w: Dictionary = _citizens.call("workplace_info", id)
 		if not w.is_empty():
-			lines.append({
-				"label": "Crew",
-				"value": "%d / %d" % [int(w.get("workers", 0)), int(w.get("required", 0))],
-				"good": 1.0 if int(w.get("workers", 0)) >= int(w.get("required", 0)) else 0.3,
-				"tip": "Citizens assigned here against the number it needs to run "
-					+ "at full speed.",
-			})
-			if int(w.get("workers", 0)) < int(w.get("required", 0)):
-				problems.append("It is short of workers.")
+			workers = int(w.get("workers", 0))
+			required = maxi(required, int(w.get("required", 0)))
+	if workers < 0 or (required <= 0 and workers <= 0):
+		return
+	lines.append({
+		"label": "Crew",
+		"value": "%d / %d" % [workers, required] if required > 0 else str(workers),
+		"good": 1.0 if required <= 0 or workers >= required else float(workers) / float(required),
+		"tip": "Citizens working here against the number it needs to run at full "
+			+ "speed. A half-staffed building works at half pace.",
+	})
+	if required > 0 and workers < required:
+		problems.append("It is short of crew: %d of the %d it needs." % [workers, required])
 
 
 ## [P05]'s citizen_info if it exists. Empty otherwise, and the panel says so
@@ -828,6 +894,12 @@ func stress() -> float:
 		worst = maxf(worst, clampf(0.45 + float(heat_frozen) * 0.08, 0.0, 1.0))
 	if has_population and population > 0:
 		worst = maxf(worst, clampf(float(freezing + sick) / float(population) * 2.0, 0.0, 1.0))
+		# Warmth is the killer, and [P05] reports it as a need rather than a
+		# headcount: 0.40 is where citizens start falling sick, 0.12 is where
+		# the cold starts taking their health.
+		worst = maxf(worst, clampf(inverse_lerp(0.45, 0.10, warmth01), 0.0, 1.0))
+		if food_days >= 0.0:
+			worst = maxf(worst, clampf(inverse_lerp(1.5, 0.0, food_days), 0.0, 1.0) * 0.9)
 	if has_society:
 		worst = maxf(worst, clampf((0.35 - hope) * 2.5, 0.0, 1.0))
 		worst = maxf(worst, clampf((discontent - 0.55) * 2.2, 0.0, 1.0))

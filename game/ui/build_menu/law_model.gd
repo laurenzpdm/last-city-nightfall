@@ -147,7 +147,7 @@ func _ingest(registry: Object) -> void:
 			continue
 		var l := LawRecord.new()
 		l.res = res
-		l.id = StringName(String(res.get(&"id")))
+		l.id = LcnUiFormat.as_name(res.get(&"id"))
 		if String(l.id) == "":
 			l.id = StringName(res.resource_path.get_file().get_basename())
 		if String(l.id) == "":
@@ -162,7 +162,7 @@ func _ingest(registry: Object) -> void:
 			l.chapter = StringName(chapter)
 			l.chapter_title = LcnUiFormat.item_name(l.chapter)
 		l.slot = StringName(_first_string(res, [&"slot", &"exclusive_group", &"group", &"pair"]))
-		l.sort_order = int(res.get(&"sort_order"))
+		l.sort_order = LcnUiFormat.as_int(res.get(&"sort_order"))
 		for field: StringName in [&"cost", &"cost_items", &"price"]:
 			var c: Variant = res.get(field)
 			if typeof(c) == TYPE_DICTIONARY and not (c as Dictionary).is_empty():
@@ -198,11 +198,11 @@ func _ingest_from_system(society: Object) -> void:
 			elif entry is Resource:
 				var l := LawRecord.new()
 				l.res = entry
-				l.id = StringName(String((entry as Resource).get(&"id")))
-				l.title = String((entry as Resource).get(&"title"))
+				l.id = LcnUiFormat.as_name((entry as Resource).get(&"id"))
+				l.title = LcnUiFormat.as_text((entry as Resource).get(&"title"))
 				if l.title == "":
 					l.title = LcnUiFormat.item_name(l.id)
-				l.prose = String((entry as Resource).get(&"prose"))
+				l.prose = LcnUiFormat.as_text((entry as Resource).get(&"prose"))
 				_add(l)
 		if not laws.is_empty():
 			return

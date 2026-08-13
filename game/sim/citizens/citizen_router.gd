@@ -22,8 +22,13 @@ extends RefCounted
 ## Determinism: requests are queued in slot order, served FIFO, and route ids
 ## come from a counter. Nothing here iterates an unordered container.
 
-const MAX_ROUTES: int = 192
-const MAX_NODES: int = 1400
+const MAX_ROUTES: int = 512
+## Hard ceiling on one A* search. The real cap is scaled by how far the walk is
+## (see _node_budget): an open thirty-tile trip expands a few hundred nodes, and
+## letting a blocked one expand thousands is how a 50 ms tick becomes a stutter.
+const MAX_NODES: int = 900
+const NODES_PER_CELL: int = 16
+const MIN_NODES: int = 260
 const REQUESTS_PER_TICK: int = 1
 ## Ticks a cached route is trusted for. One in-world minute.
 const ROUTE_TTL: int = 1200
@@ -106,6 +111,27 @@ func route_length(route_id: int) -> int:
 	return (_routes.get(route_id, PackedInt32Array()) as PackedInt32Array).size()
 
 
+## Index of the waypoint nearest a position, so a walker who picks up a shared
+## path halfway along joins it where they are standing instead of walking back
+## to somebody else's front door.
+func entry_index(route_id: int, x: float, y: float) -> int:
+	var cells: PackedInt32Array = _routes.get(route_id, PackedInt32Array())
+	var n: int = cells.size()
+	if n == 0:
+		return 0
+	var best: int = 0
+	var best_d: float = 1.0e20
+	for i: int in n:
+		var packed: int = cells[i]
+		var dx: float = float(packed & 0xFFFF) + 0.5 - x
+		var dy: float = float((packed >> 16) & 0xFFFF) + 0.5 - y
+		var d: float = dx * dx + dy * dy
+		if d < best_d:
+			best_d = d
+			best = i
+	return best
+
+
 ## Throws away every cached route. Called when the walkable world changes —
 ## a wall, a demolition, a new road — because a stale path walks into a wall.
 func invalidate() -> void:
@@ -144,7 +170,7 @@ func _solve(key: int, tick: int) -> void:
 	var from := Vector2i(key & 0xFFFF, (key >> 16) & 0xFFFF)
 	var to := Vector2i((key >> 32) & 0xFFFF, (key >> 48) & 0xFFFF)
 	searches += 1
-	var path: Array = _grid.call("find_path", from, to, MAX_NODES)
+	var path: Array = _grid.call("find_path", from, to, _node_budget(from, to))
 	if path.size() < 2:
 		failures += 1
 		_failed[key] = tick
@@ -187,6 +213,14 @@ func _drop(route_id: int) -> void:
 	_key_of.erase(route_id)
 	_routes.erase(route_id)
 	_used.erase(route_id)
+
+
+## Node ceiling for one walk, scaled by how far it is. A short trip that cannot
+## find its way is a trip through a wall, and expanding eight hundred nodes to
+## prove it costs more than the walk is worth.
+static func _node_budget(from: Vector2i, to: Vector2i) -> int:
+	var d: int = maxi(absi(to.x - from.x), absi(to.y - from.y))
+	return clampi(d * NODES_PER_CELL, MIN_NODES, MAX_NODES)
 
 
 ## Two cells packed into one int. The map is 256x256 (see [P01] WorldGrid), so

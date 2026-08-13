@@ -141,7 +141,9 @@ func test_breaking_a_wall_reroutes_the_flow_field() -> void:
 
 	var walled: int = combat.assault.distance_at(gap)
 	build.execute({"op": &"remove", "id": panel.id, "instant": true})
-	world.run(3)
+	# A wall the PLAYER takes down reaches the siege surface on the next sweep,
+	# not instantly; only a wall combat breaks is pushed through immediately.
+	world.run(20)
 	var opened: int = combat.assault.distance_at(gap)
 	assert_lt(float(opened), float(walled),
 		"with the panel gone the same tile is genuinely cheaper to stand on")
@@ -185,7 +187,7 @@ func test_destroying_a_landmark_ends_the_run() -> void:
 			combat.swarm.e_target[0] = hearth.id
 			combat.swarm.e_tx[0] = hearth.world_center().x
 			combat.swarm.e_ty[0] = hearth.world_center().y
-			build.apply_damage(hearth.id, hearth.hp - 1.0, &"test")
+			hearth.hp = 1.0
 			combat.enemy_attack(0, hearth.id, hearth.world_center())
 			assert_eq(combat.swarm.e_id[0], id, "the slot did not move under us"))
 	assert_ge(float(fired["game_over"]), 1.0, "the hearth going out is a game over")
@@ -202,11 +204,11 @@ func test_a_turret_with_no_heat_is_a_decoration() -> void:
 	assert_not_null(t, "the mount registered as a turret")
 	if t == null:
 		return
-	t.charge = 0.0
 	combat.spawn(HOUND, mount.cell + Vector2i(4, 0), 4)
-	# One tick is not enough charge for a shot at 6 units/s and 3 per shot.
-	world.run(2)
-	assert_lt(t.charge, t.weapon.heat_per_shot, "the magazine is still empty")
+	world.run(10)          # long enough to find a target and swing onto it
+	t.charge = 0.0         # ... and then the city takes the warmth back
+	world.run(1)
+	assert_lt(t.charge, t.weapon.heat_per_shot, "the magazine is empty")
 	assert_eq(CombatTypes.idle_name(t.idle), &"no_heat",
 		"and the gun says exactly why it is quiet")
 	assert_eq(t.shots, 0, "nothing was fired")

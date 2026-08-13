@@ -164,8 +164,8 @@ func _rebuild_detail() -> void:
 			if build_system != null and build_system.has_method(&"def_of"):
 				var def: Resource = build_system.call(&"def_of", kind) as Resource
 				if def != null:
-					label = String(def.get(&"display_name"))
-					detail = LcnUiFormat.category_name(StringName(String(def.get(&"category"))))
+					label = LcnUiFormat.as_text(def.get(&"display_name"))
+					detail = LcnUiFormat.category_name(LcnUiFormat.as_name(def.get(&"category")))
 			var b := Button.new()
 			b.text = label if detail == "" else "%s   ·   %s" % [label, detail]
 			b.alignment = HORIZONTAL_ALIGNMENT_LEFT

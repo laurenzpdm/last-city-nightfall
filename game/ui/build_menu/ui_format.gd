@@ -95,6 +95,47 @@ static func title_case(text: String) -> String:
 	return " ".join(out)
 
 
+## Safe conversions for duck-typed reads.
+##
+## `Object.get()` returns null for a property that does not exist, and
+## `String(null)`, `int(null)` and `float(null)` are RUNTIME ERRORS in GDScript.
+## A part whose entire job is reading eleven other parts' resources cannot have
+## that failure mode: one research .tres without a `points` field would abort a
+## whole tree rebuild mid-function and silently produce an empty screen. Every
+## foreign read in this folder goes through these five functions.
+static func as_text(value: Variant) -> String:
+	if value == null:
+		return ""
+	var t: int = typeof(value)
+	if t == TYPE_STRING or t == TYPE_STRING_NAME:
+		return String(value)
+	if t == TYPE_INT or t == TYPE_FLOAT or t == TYPE_BOOL:
+		return str(value)
+	return ""
+
+
+static func as_name(value: Variant) -> StringName:
+	return StringName(as_text(value))
+
+
+static func as_number(value: Variant) -> float:
+	var t: int = typeof(value)
+	if t == TYPE_FLOAT or t == TYPE_INT or t == TYPE_BOOL:
+		return float(value)
+	return 0.0
+
+
+static func as_int(value: Variant) -> int:
+	return int(as_number(value))
+
+
+static func as_flag(value: Variant) -> bool:
+	var t: int = typeof(value)
+	if t == TYPE_BOOL or t == TYPE_INT or t == TYPE_FLOAT:
+		return bool(value)
+	return false
+
+
 ## Alphabetical order for a set of ids.
 ##
 ## THIS IS NOT PEDANTRY: Godot compares StringName by internal POINTER, not by

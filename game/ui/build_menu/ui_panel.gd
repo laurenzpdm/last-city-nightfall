@@ -26,6 +26,11 @@ var store: LcnUiStore = null
 
 var body: VBoxContainer = null
 
+## Open state is tracked explicitly rather than read back off `visible`.
+## A Control's visibility is also driven by its parents and by the engine, and
+## a panel that disagreed with the store about whether it was open turned every
+## hotkey into an "open" and never an "close".
+var _is_open: bool = false
 var _title_label: Label = null
 var _hint_label: Label = null
 var _header: HBoxContainer = null
@@ -52,6 +57,7 @@ func _ensure_built() -> void:
 	if _built:
 		return
 	_built = true
+	visible = _is_open
 	add_theme_stylebox_override(&"panel", LcnUiStyle.panel_box())
 
 	var column := VBoxContainer.new()
@@ -123,13 +129,14 @@ func set_hint(text: String) -> void:
 
 
 func is_open() -> bool:
-	return visible
+	return _is_open
 
 
 func set_open(value: bool) -> void:
-	if visible == value:
+	if _is_open == value:
 		return
 	_ensure_built()
+	_is_open = value
 	visible = value
 	if store != null:
 		store.set_open(panel_id, value)

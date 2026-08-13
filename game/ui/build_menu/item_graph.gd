@@ -141,14 +141,14 @@ func _ingest_recipes(registry: Object) -> void:
 func _read_recipe(res: Resource) -> Recipe:
 	var r := Recipe.new()
 	r.res = res
-	r.id = StringName(String(res.get(&"id")))
+	r.id = LcnUiFormat.as_name(res.get(&"id"))
 	if String(r.id) == "":
 		r.id = StringName(res.resource_path.get_file().get_basename())
 	if String(r.id) == "":
 		return null
-	r.display_name = String(res.get(&"display_name"))
+	r.display_name = LcnUiFormat.as_text(res.get(&"display_name"))
 	if r.display_name == "":
-		r.display_name = String(res.get(&"name"))
+		r.display_name = LcnUiFormat.as_text(res.get(&"name"))
 	if r.display_name == "":
 		r.display_name = LcnUiFormat.item_name(r.id)
 	r.inputs = _amounts(res, [&"inputs", &"ingredients", &"in_items", &"consumes"])
@@ -167,8 +167,8 @@ func _ingest_buildings(build_system: Object) -> void:
 		var def: Resource = raw as Resource
 		if def == null:
 			continue
-		var kind := StringName(String(def.get(&"id")))
-		var title: String = String(def.get(&"display_name"))
+		var kind := LcnUiFormat.as_name(def.get(&"id"))
+		var title: String = LcnUiFormat.as_text(def.get(&"display_name"))
 		if title == "":
 			title = LcnUiFormat.item_name(kind)
 
@@ -200,7 +200,7 @@ func _ingest_buildings(build_system: Object) -> void:
 				})
 
 		var fuels: Variant = def.get(&"fuel_items")
-		var burn: float = float(def.get(&"fuel_burn_rate"))
+		var burn: float = LcnUiFormat.as_number(def.get(&"fuel_burn_rate"))
 		if typeof(fuels) == TYPE_ARRAY:
 			for f: Variant in fuels:
 				var item3 := StringName(String(f))
@@ -212,9 +212,9 @@ func _ingest_buildings(build_system: Object) -> void:
 						LcnUiFormat.rate(burn, "%s/s" % LcnUiFormat.item_name(item3))],
 				})
 
-		var ore := StringName(String(def.get(&"extracts")))
+		var ore := LcnUiFormat.as_name(def.get(&"extracts"))
 		if String(ore) != "":
-			var rate: float = float(def.get(&"extract_rate"))
+			var rate: float = LcnUiFormat.as_number(def.get(&"extract_rate"))
 			_node(ore).made_by.append({
 				"how": String(HOW_EXTRACT), "recipe": "", "building": String(kind),
 				"amount": 0, "rate": rate,
@@ -227,7 +227,7 @@ func _ingest_buildings(build_system: Object) -> void:
 			for s: Variant in filter:
 				_node(StringName(String(s))).used_by.append({
 					"how": String(HOW_STORED), "recipe": "", "building": String(kind),
-					"amount": int(def.get(&"storage_capacity")), "rate": 0.0,
+					"amount": LcnUiFormat.as_int(def.get(&"storage_capacity")), "rate": 0.0,
 					"text": "%s stores it" % title,
 				})
 
@@ -376,12 +376,12 @@ func search(query: String, build_system: Object = null, limit: int = 40) -> Arra
 			var def: Resource = raw as Resource
 			if def == null:
 				continue
-			var name: String = String(def.get(&"display_name"))
-			var bid: String = String(def.get(&"id"))
+			var name: String = LcnUiFormat.as_text(def.get(&"display_name"))
+			var bid: String = LcnUiFormat.as_text(def.get(&"id"))
 			var bs: int = LcnBuildCatalog.match_score(name, bid, bid.replace("_", " "), q)
 			if bs > 0:
 				out.append({"kind": "building", "id": bid, "label": name,
-					"detail": LcnUiFormat.category_name(StringName(String(def.get(&"category")))),
+					"detail": LcnUiFormat.category_name(LcnUiFormat.as_name(def.get(&"category"))),
 					"score": bs})
 	out.sort_custom(_row_less)
 	return out.slice(0, limit)

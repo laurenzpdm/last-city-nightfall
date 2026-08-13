@@ -81,16 +81,16 @@ func rebuild(build_system: Object, overrides: Dictionary = {}) -> void:
 			continue
 		var c := Card.new()
 		c.bp = bp
-		c.id = StringName(String(bp.get(&"id")))
-		c.title = String(bp.get(&"title"))
+		c.id = LcnUiFormat.as_name(bp.get(&"id"))
+		c.title = LcnUiFormat.as_text(bp.get(&"title"))
 		if overrides.has(String(c.id)):
 			c.title = String(overrides[String(c.id)])
 			c.renamed = true
 		if c.title == "":
 			c.title = "Untitled stamp"
-		c.description = String(bp.get(&"description"))
+		c.description = LcnUiFormat.as_text(bp.get(&"description"))
 		c.size = bp.get(&"size") if typeof(bp.get(&"size")) == TYPE_VECTOR2I else Vector2i.ONE
-		c.created_tick = int(bp.get(&"created_tick"))
+		c.created_tick = LcnUiFormat.as_int(bp.get(&"created_tick"))
 		if bp.has_method(&"entry_count"):
 			c.entry_count = int(bp.call(&"entry_count"))
 		if bp.has_method(&"kind_counts"):
@@ -163,7 +163,7 @@ static func thumbnail_of(bp: Object, build_system: Object) -> Array[Dictionary]:
 		var e: Object = raw
 		if e == null:
 			continue
-		var kind := StringName(String(e.get(&"kind")))
+		var kind := LcnUiFormat.as_name(e.get(&"kind"))
 		var offset: Vector2i = e.get(&"offset") if typeof(e.get(&"offset")) == TYPE_VECTOR2I else Vector2i.ZERO
 		var span: Vector2i = e.get(&"span") if typeof(e.get(&"span")) == TYPE_VECTOR2I else Vector2i.ONE
 		var colour: Color = LcnPalette.STEEL_LIGHT

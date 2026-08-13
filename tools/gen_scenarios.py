@@ -681,6 +681,25 @@ def economy():
             rows = above if kind == "housing_block" else below
             rows[dy][side].add(t, kind)
 
+    # --- what this instrument deliberately holds still -----------------------
+    # An instrument measures one variable. These two lines are what keep the
+    # heat curve above from being a reading of something else entirely, and both
+    # use an op the owning system provides for exactly this purpose:
+    #
+    #  * PEACE. [P08]'s director is live and it works: without this the city
+    #    loses 143 structures by day 8 and the "heat margin" is really a graph of
+    #    how fast the wave director eats a base with no turrets on it. Combat
+    #    balance is measured in first_night, which keeps its walls and its guns.
+    #  * FUEL. [P03] hauls coal to burners with citizens, so an unfuelled Hearth
+    #    is a reading of the hauling chain, not of the grid. Topping the bunkers
+    #    up every sixty seconds isolates the heat network, which is what this run
+    #    is for. The measured consequence of NOT doing it is in BALANCE.md, and
+    #    it is the sharpest finding in this whole part.
+    L.cmd(6, {"system": "threat", "op": "peace", "on": True})
+    for refuel in range(1, 60):
+        L.cmd(refuel * 1200, {"system": "heat", "op": "fuel_all",
+                              "item": "coal", "amount": 400})
+
     # Weather the player cannot dodge, on the ticks the report reads.
     L.cmd(1200, {"system": "grid", "op": "snowfall", "rate": 0.35})
     L.cmd(2 * day_ticks + 1000, {"system": "grid", "op": "snowfall", "rate": 0.55})

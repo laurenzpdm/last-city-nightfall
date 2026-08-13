@@ -252,26 +252,49 @@ func _draw_shadows(ci: CanvasItem) -> void:
 	var night: float = clampf(float(grade["bounce"]), 0.0, 1.0)
 	var detailed: bool = zoom >= LOD_ZOOM and _smear_r.size.x > 0.0
 
+	# TWO loops on purpose. draw_texture_rect_region and draw_polygon are different
+	# canvas primitives, and alternating them per building ends the batch every
+	# time — 2N draw calls instead of 2. Every blob first, then every smear.
+	var contact := Color(col.r, col.g, col.b, a * 0.85)
 	for entry: Dictionary in _vis:
 		var b: Dictionary = entry["b"]
-		var state: int = int(b.get("state", LcnWorldModel.BUILD_OPERATIONAL))
-		if state == LcnWorldModel.BUILD_GHOST:
+		if int(b.get("state", LcnWorldModel.BUILD_OPERATIONAL)) == LcnWorldModel.BUILD_GHOST:
 			continue
-		var lift: float = float(b["lift"])
 		var tiles: Vector2i = b["tiles"]
 		var cell: Vector2i = b["cell"]
-		var foot := Rect2(
-			Vector2(float(cell.x), float(cell.y)) * float(TILE),
-			Vector2(float(tiles.x), float(tiles.y)) * float(TILE))
-
-		# Contact darkening keeps the building anchored to the ground. One draw,
-		# from the same atlas as everything else, so it batches.
 		ci.draw_texture_rect_region(_atlas,
-			Rect2(foot.position - Vector2(6.0, 4.0), foot.size + Vector2(12.0, 10.0)),
-			_shadow_r, Color(col.r, col.g, col.b, a * 0.85))
+			Rect2(Vector2(float(cell.x), float(cell.y)) * float(TILE) - Vector2(6.0, 4.0),
+				Vector2(float(tiles.x), float(tiles.y)) * float(TILE) + Vector2(12.0, 10.0)),
+			_shadow_r, contact)
 
-		if not detailed or lift < 8.0:
+	if draw_agents and detailed:
+		for ag: Dictionary in model.agents(alpha):
+			var p: Vector2 = ag["pos"]
+			if not view_rect.grow(24.0).has_point(p):
+				continue
+			ci.draw_texture_rect_region(_atlas,
+				Rect2(p - Vector2(7.0, 4.0), Vector2(14.0, 8.0)), _shadow_r,
+				Color(col.r, col.g, col.b, a * 0.8))
+
+	if not detailed:
+		return
+	var smear := Color(col.r, col.g, col.b, a * 0.70)
+	var smear_cols := PackedColorArray([smear, smear, smear, smear])
+	var smear_uvs := PackedVector2Array([
+		_uv(_smear_r, 0.0, 0.0), _uv(_smear_r, 1.0, 0.0),
+		_uv(_smear_r, 1.0, 1.0), _uv(_smear_r, 0.0, 1.0)])
+	for entry2: Dictionary in _vis:
+		var b2: Dictionary = entry2["b"]
+		if int(b2.get("state", LcnWorldModel.BUILD_OPERATIONAL)) == LcnWorldModel.BUILD_GHOST:
 			continue
+		var lift: float = float(b2["lift"])
+		if lift < 8.0:
+			continue
+		var tiles2: Vector2i = b2["tiles"]
+		var cell2: Vector2i = b2["cell"]
+		var foot := Rect2(
+			Vector2(float(cell2.x), float(cell2.y)) * float(TILE),
+			Vector2(float(tiles2.x), float(tiles2.y)) * float(TILE))
 
 		# After dark the dominant light is the nearest fire, not the sun.
 		var use_dir: Vector2 = dir
@@ -283,30 +306,14 @@ func _draw_shadows(ci: CanvasItem) -> void:
 					use_dir = dir.lerp(away.normalized(), night * 0.85).normalized()
 
 		# One sheared, textured quad: bright at the foot of the building, gone at
-		# the tip. draw_polygon keeps the atlas bound, so this stays batched.
+		# the tip. Same texture as everything else, so this stays batched.
 		var o: Vector2 = use_dir * (lift * len_mul)
 		var side: Vector2 = Vector2(-use_dir.y, use_dir.x) * (foot.size.x * 0.42)
 		var p0: Vector2 = foot.get_center() - side + Vector2(0.0, foot.size.y * 0.34)
 		var p1: Vector2 = foot.get_center() + side + Vector2(0.0, foot.size.y * 0.34)
 		ci.draw_polygon(
 			PackedVector2Array([p0, p1, p1 + o + side * 0.35, p0 + o - side * 0.35]),
-			PackedColorArray([
-				Color(col.r, col.g, col.b, a * 0.70), Color(col.r, col.g, col.b, a * 0.70),
-				Color(col.r, col.g, col.b, a * 0.70), Color(col.r, col.g, col.b, a * 0.70)]),
-			PackedVector2Array([
-				_uv(_smear_r, 0.0, 0.0), _uv(_smear_r, 1.0, 0.0),
-				_uv(_smear_r, 1.0, 1.0), _uv(_smear_r, 0.0, 1.0)]),
-			_atlas)
-
-	if not draw_agents or not detailed:
-		return
-	for ag: Dictionary in model.agents(alpha):
-		var p: Vector2 = ag["pos"]
-		if not view_rect.grow(24.0).has_point(p):
-			continue
-		ci.draw_texture_rect_region(_atlas,
-			Rect2(p - Vector2(7.0, 4.0), Vector2(14.0, 8.0)), _shadow_r,
-			Color(col.r, col.g, col.b, a * 0.8))
+			smear_cols, smear_uvs, _atlas)
 
 
 ## Atlas pixel coordinates for a normalised point in a region. draw_polygon takes

@@ -233,16 +233,19 @@ func test_a_starved_building_shows_the_bottleneck_the_solver_found() -> void:
 	if not need_system(&"heat"):
 		return
 	var c: Vector2i = _core()
-	# A radiator on its own network with no generator: guaranteed starvation.
+	# A radiator on a stub of pipe with no generator anywhere on it: the network
+	# exists, produces nothing, and the solver has to attribute the starvation.
+	world.cmd_now({"system": &"build", "op": "place_line", "kind": "heat_pipe",
+		"from": [c.x + 39, c.y + 40], "to": [c.x + 44, c.y + 40], "free": true, "instant": true})
 	world.cmd_now({"system": &"build", "op": "place", "kind": "warmth_radiator",
-		"cell": [c.x + 40, c.y + 40], "free": true, "instant": true})
+		"cell": [c.x + 40, c.y + 41], "free": true, "instant": true})
 	world.run(40)
 	var build: SimSystem = world.system(&"build")
-	var instance: Object = build.call(&"building_at", c + Vector2i(40, 40))
+	var instance: Object = build.call(&"building_at", c + Vector2i(40, 41))
 	if instance == null:
 		skip("the radiator could not be placed on this seed")
 		return
-	var sheet: Dictionary = LcnBuildFacts.instance_sheet(instance, _ctx(c + Vector2i(40, 40), true))
+	var sheet: Dictionary = LcnBuildFacts.instance_sheet(instance, _ctx(c + Vector2i(40, 41), true))
 	var text: String = LcnBuildFacts.to_text(sheet)
 	assert_has(text, "Heat served", "a heat entity reports how much it actually gets")
 	var heat: SimSystem = world.system(&"heat")

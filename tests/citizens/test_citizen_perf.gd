@@ -48,10 +48,10 @@ func _found_a_real_city() -> void:
 	_place(&"the_hearth", core)
 	for j: int in 9:
 		for i: int in 10:
-			_place(&"housing_block", core + Vector2i(-28 + i * 5, -20 + j * 5))
+			_place(&"housing_block", core + Vector2i(-34 + i * 6, -24 + j * 6))
 	for j2: int in 5:
 		for i2: int in 4:
-			_place(&"workshop", core + Vector2i(24 + i2 * 5, -20 + j2 * 5))
+			_place(&"workshop", core + Vector2i(30 + i2 * 6, -24 + j2 * 6))
 	world.run(40)
 
 
@@ -140,15 +140,15 @@ func test_pathing_work_is_shared_not_repeated() -> void:
 	var stats: Dictionary = router.stats()
 	var searches: float = float(stats["searches"])
 	var hits: float = float(stats["hits"])
-	print("    [P05] routes cached %d, A* searches %d, cache hits %d" % [
-		int(stats["routes"]), int(searches), int(hits)])
-	assert_lt(searches, float(POPULATION),
-		"a thousand people did not each pay for their own path search")
+	print("    [P05] routes cached %d, A* searches %d, cache hits %d, failed %d" % [
+		int(stats["routes"]), int(searches), int(hits), int(stats["failures"])])
 	assert_le(float(stats["routes"]), float(CitizenRouter.MAX_ROUTES),
 		"the route cache stays inside its cap")
 	if buildings_placed > 4:
 		assert_gt(hits + searches, 0.0,
 			"a city with beds and benches actually makes people walk somewhere")
+		assert_gt(hits, searches,
+			"most walks reuse a path somebody else already paid for")
 
 
 func test_the_population_is_still_coherent_at_scale() -> void:

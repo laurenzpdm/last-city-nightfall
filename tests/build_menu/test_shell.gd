@@ -212,10 +212,19 @@ func test_arming_a_blueprint_takes_the_map_click() -> void:
 
 # ------------------------------------------------------------- robustness ----
 
-func test_it_installs_and_stands_down_idempotently() -> void:
+func test_the_bootstrap_stands_down_when_a_menu_exists() -> void:
 	LcnBuildMenuBootstrap.reset()
-	var first: LcnBuildMenu = LcnBuildMenuBootstrap.install()
-	assert_null(first, "headless runs install no UI at all — the sim gate pays nothing")
+	var again: LcnBuildMenu = LcnBuildMenuBootstrap.install()
+	assert_eq(again, menu, "installing twice returns the menu already in the tree")
+	assert_size(TestEnv.tree().get_nodes_in_group(LcnBuildMenu.GROUP), 1, "never two of them")
+
+
+func test_it_installs_nothing_headless() -> void:
+	TestEnv.tree().root.remove_child(menu)
+	LcnBuildMenuBootstrap.reset()
+	var fresh: LcnBuildMenu = LcnBuildMenuBootstrap.install()
+	TestEnv.tree().root.add_child(menu)
+	assert_null(fresh, "headless runs install no UI at all — the sim gate pays nothing")
 
 
 func test_models_rebuild_without_the_optional_systems() -> void:

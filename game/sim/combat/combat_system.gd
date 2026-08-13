@@ -48,7 +48,8 @@ const SEEK_RING_MAX: int = 24
 const WEAK_AT: float = CombatTypes.BREACH_HEALTH
 ## Seconds between repeated alerts of the same kind.
 const ALERT_EVERY_TICKS: int = 100
-## Tags a seeker may be pointed at. Anything else falls back to the ring search.
+## Tags always indexed, plus whatever the loaded roster actually asks for — see
+## _indexed_tags. An unlisted preference would otherwise be a silent no-op.
 const INDEXED_TAGS: Array[StringName] = [
 	&"conduit", &"turret", &"housing", &"heat_source", &"wall", &"defense",
 ]
@@ -72,6 +73,9 @@ var _climate: SimSystem = null
 var _society: SimSystem = null
 var _ammo_source: SimSystem = null
 var _ammo_method: String = ""
+var _has_withdraw: bool = false
+var _has_request: bool = false
+var _ammo_known: Dictionary[StringName, bool] = {}
 var _society_method: String = ""
 var _has_heat: bool = false
 var _has_night: bool = false
@@ -101,6 +105,7 @@ var _external_tick: int = -1
 var _handover_logged: bool = false
 ## wave number -> {spawned, first_id, last_id, groups}
 var _waves: Dictionary[int, Dictionary] = {}
+var _tags_cache: Array[StringName] = []
 
 
 func _init() -> void:
@@ -130,6 +135,7 @@ func setup() -> void:
 	_next_id = ENEMY_ID_BASE
 	_weakened.clear()
 	_target_index.clear()
+	_tags_cache.clear()
 	_last_alert_tick.clear()
 	_waves.clear()
 	_discontent_carry = 0.0
@@ -169,6 +175,7 @@ func post_setup() -> void:
 
 	_resolve_ammo_source()
 	_resolve_society()
+	_rebuild_target_index()
 
 	# The fallback director is armed by default and stands down the moment anything
 	# else actually drives a spawn through this system (see _note_external_spawn).
@@ -489,18 +496,46 @@ func turret_supply(building_id: int) -> Dictionary:
 	return {"running": true, "served": float(_heat.call("served_of", building_id))}
 
 
-## Rounds handed to a mount. Unlimited (and logged as such at setup) until a
-## logistics or production system exposes a withdrawal.
+## Rounds handed to a mount.
+##
+## Two documented hooks on [P03], used the way [P03] documents them: `withdraw`
+## empties whatever a belt already delivered into this building, and `request_items`
+## asks the haulers to bring more. Neither exists, or the economy has never heard
+## of this round, and the weapon needs no ammunition at all — a defence must not be
+## disarmed by a supply chain that has not been invented yet, and the log says so
+## once at setup.
 func pull_ammo(building_id: int, item: StringName, amount: int) -> int:
 	if amount <= 0:
 		return 0
-	if _ammo_source == null or _ammo_method == "":
+	if _ammo_source == null:
 		return amount
-	var got: Variant = _ammo_source.call(_ammo_method, building_id, item, amount)
-	match typeof(got):
-		TYPE_INT: return int(got)
-		TYPE_FLOAT: return int(got)
-	return 0
+	if not _ammo_item_exists(item):
+		return amount
+	var got: int = 0
+	if _has_withdraw:
+		got = int(_ammo_source.call("withdraw", building_id, item, amount))
+	if got < amount and _has_request:
+		_ammo_source.call("request_items", building_id, item, amount - got)
+		if _has_withdraw:
+			got += int(_ammo_source.call("withdraw", building_id, item, amount - got))
+	return got
+
+
+## Does the economy know this round at all? Cached per item id: the answer only
+## changes when content changes, and content does not change mid-run.
+func _ammo_item_exists(item: StringName) -> bool:
+	if _ammo_known.has(item):
+		return _ammo_known[item]
+	var known: bool = false
+	if _ammo_source != null and _ammo_source.has_method("item"):
+		known = _ammo_source.call("item", item) != null
+	elif _ammo_source != null and _ammo_source.has_method("item_ids"):
+		known = (_ammo_source.call("item_ids") as Array).has(item)
+	_ammo_known[item] = known
+	if not known:
+		_warn_once(StringName("ammo_%s" % item),
+			"no '%s' in the economy — the weapons that use it run unlimited for now" % item)
+	return known
 
 
 ## Building standing on a tile, biased toward whichever adjacent structure is
@@ -576,7 +611,15 @@ func note_hit(_turret_id: int, _pos: Vector2, _amount: float) -> void:
 func find_enemy_target(from: Vector2, pref: StringName, radius_px: float) -> Dictionary:
 	if _build == null or radius_px <= 0.0:
 		return {}
-	if pref != CombatTypes.PREF_ANY and _target_index.has(pref):
+	if pref != CombatTypes.PREF_ANY:
+		# Never fall through to the untagged search here. A leech that cannot find
+		# a conduit must find NOTHING and keep walking, because "nearest structure"
+		# would quietly turn every specialist in the roster into a generic biter —
+		# which is exactly how a burrower ends up chewing on the first wall it meets.
+		if not _target_index.has(pref):
+			_rebuild_target_index()
+		if not _target_index.has(pref):
+			return {}
 		var idx: Dictionary = _target_index[pref]
 		var ids: PackedInt32Array = idx["id"]
 		var xs: PackedFloat32Array = idx["x"]
@@ -851,7 +894,7 @@ func _rebuild_target_index() -> void:
 	if _build == null:
 		return
 	_target_index.clear()
-	for tag: StringName in INDEXED_TAGS:
+	for tag: StringName in _indexed_tags():
 		var ids: PackedInt32Array = PackedInt32Array()
 		var xs: PackedFloat32Array = PackedFloat32Array()
 		var ys: PackedFloat32Array = PackedFloat32Array()
@@ -864,6 +907,19 @@ func _rebuild_target_index() -> void:
 			xs.append(c.x)
 			ys.append(c.y)
 		_target_index[tag] = {"id": ids, "x": xs, "y": ys}
+
+
+## The tags worth maintaining a list for: the standard set plus every preference
+## the roster in this build actually names.
+func _indexed_tags() -> Array[StringName]:
+	if not _tags_cache.is_empty():
+		return _tags_cache
+	_tags_cache = INDEXED_TAGS.duplicate()
+	for i: int in range(swarm.def_count):
+		var pref: StringName = swarm.d_pref[i]
+		if pref != CombatTypes.PREF_ANY and not _tags_cache.has(pref):
+			_tags_cache.append(pref)
+	return _tags_cache
 
 
 func _flush_discontent() -> void:
@@ -1082,15 +1138,22 @@ static func _to_cell(v: Variant) -> Vector2i:
 func _resolve_ammo_source() -> void:
 	_ammo_source = null
 	_ammo_method = ""
+	_has_withdraw = false
+	_has_request = false
+	_ammo_known.clear()
 	for name: StringName in [&"logistics", &"production"] as Array[StringName]:
 		var s: SimSystem = Sim.get_system(name)
 		if s == null:
 			continue
-		for m: String in ["take_item", "withdraw_item", "withdraw", "request_item", "consume_item"]:
-			if s.has_method(m):
-				_ammo_source = s
-				_ammo_method = m
-				return
+		var w: bool = s.has_method("withdraw")
+		var r: bool = s.has_method("request_items")
+		if not (w or r):
+			continue
+		_ammo_source = s
+		_has_withdraw = w
+		_has_request = r
+		_ammo_method = ("withdraw+request_items" if w and r else ("withdraw" if w else "request_items"))
+		return
 
 
 func _resolve_society() -> void:
