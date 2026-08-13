@@ -215,6 +215,10 @@ static func compact(v: float) -> String:
 	var sign_s: String = "-" if v < 0.0 else ""
 	if a < 0.0005:
 		return "0"
+	# Items are counted, not measured. "3.0 gear made" reads as a rounding error
+	# where "3 gear" reads as three gears, so a whole number stays whole.
+	if a < 1000.0 and is_equal_approx(a, roundf(a)):
+		return "%s%.0f" % [sign_s, a]
 	if a < 1.0:
 		return "%s%.2f" % [sign_s, a]
 	if a < 10.0:

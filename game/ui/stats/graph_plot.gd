@@ -331,8 +331,11 @@ func _draw_marks(t: LcnStatsTheme, r: Rect2) -> void:
 	if marks.is_empty():
 		return
 	var small: int = t.fs(t.FS_TINY)
-	var lane: int = 0
-	var last_x: float = -1000.0
+	# Three lanes, packed by right edge rather than by distance to the previous
+	# mark. A run signs eleven technologies in sixteen minutes and a naive
+	# round-robin overprints "Splitters And Balancers" onto "Radiant Focusing";
+	# this puts each label in the first lane it actually fits in.
+	var lane_right: PackedFloat32Array = PackedFloat32Array([-1e9, -1e9, -1e9])
 	for m: Dictionary in marks:
 		var x: float = _x_of_tick(r, int(m["tick"]))
 		if x < r.position.x or x > r.position.x + r.size.x:
@@ -341,16 +344,22 @@ func _draw_marks(t: LcnStatsTheme, r: Rect2) -> void:
 		t.dashed_v(self, x, r.position.y, r.position.y + r.size.y,
 			Color(colour.r, colour.g, colour.b, 0.55), 4.0, 1.0)
 		draw_circle(Vector2(x, r.position.y + r.size.y), 2.5, colour)
-		# Labels stack into three lanes so two events a second apart do not
-		# overprint each other into an unreadable smear.
-		if x - last_x < 90.0:
-			lane = (lane + 1) % 3
-		else:
-			lane = 0
-		last_x = x
 		var text: String = String(m["text"])
 		var w: float = t.text_width(text, small)
 		var tx: float = clampf(x + 4.0, r.position.x, r.position.x + r.size.x - w - 4.0)
+		var lane: int = 0
+		var best_lane: int = 0
+		var found: bool = false
+		for l: int in lane_right.size():
+			if lane_right[l] < tx - 4.0:
+				lane = l
+				found = true
+				break
+			if lane_right[l] < lane_right[best_lane]:
+				best_lane = l
+		if not found:
+			lane = best_lane
+		lane_right[lane] = tx + w + 8.0
 		var ty: float = r.position.y + 12.0 + float(lane) * (float(small) + 4.0)
 		t.pill(self, Rect2(Vector2(tx - 3.0, ty - float(small)),
 			Vector2(w + 6.0, float(small) + 5.0)),

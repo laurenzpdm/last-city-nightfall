@@ -17,13 +17,18 @@ extends Node2D
 ##   24  industrial smoke                 25 damage smoke
 ##   26  transient debris and ash (mixed) 28 sparks and fire (additive)
 ##   30  tracers, muzzles, flame cones
-##   52/54/57  the three snow layers
+##   52/54  the far and mid snow layers
 ##   58  the whiteout veil
+##   59  the near snow layer — in FRONT of the veil, because snow a metre from
+##       the camera is in front of the fog and not dissolved into it
 ##
-## Above that the canvas layers take over and none of them are ours: 60 is
-## [P13]'s post stack, 65 [P17]'s HUD, 70/72 [P19]'s lenses, 74 [P18]'s menus.
-## So a blizzard can white out the world without ever whiting out an instrument,
-## and the effects layer never covers a panel the player opened.
+## Above that the canvas layers take over and NONE of them are ours. This part
+## allocates no CanvasLayer at all: it lives entirely inside [P13]'s world
+## canvas (layer 0), under every entry in [LcnLayers] — 60 post, 61 feel, 62
+## world lenses, 65 HUD, 72 legend, 74 build menu, 76 stats, 78 narrative. So a
+## Great Frost can white out the world without ever whiting out an instrument,
+## the effects layer can never cover a panel the player opened, and there is one
+## fewer part in the queue for a layer number.
 ##
 ## WHAT IT NEVER DOES. It never writes simulation state, never connects a sim
 ## signal to anything that mutates, and never draws from [Rng] — that stream is

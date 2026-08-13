@@ -141,6 +141,21 @@ func forget(id: int) -> void:
 	_noted.erase(id)
 
 
+## Drops everything [P11] no longer has. A belt cancelled while it was still a
+## ghost is never adopted and never released, so without this the two tables
+## would grow by one entry per piece ever placed for the length of a session.
+func prune(alive: Dictionary[int, bool]) -> int:
+	var dropped: int = 0
+	var known: Array = _noted.keys()
+	known.sort()
+	for id: int in known:
+		if not alive.has(id):
+			facing.erase(id)
+			_noted.erase(id)
+			dropped += 1
+	return dropped
+
+
 func clear() -> void:
 	facing.clear()
 	_noted.clear()

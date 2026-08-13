@@ -53,6 +53,8 @@ const BURNER_RESCAN_MIN: int = 20
 ## NOT a rotation, and a rotated belt has to turn. So the unconditional sweep
 ## stays, at the cadence it always had; the roster counter only makes it faster.
 const SYNC_EVERY: int = 20
+## Ticks between sweeping the drag tables for pieces [P11] no longer has.
+const PRUNE_EVERY: int = 600
 ## Fastest a sweep may happen while the roster IS moving. A player dragging a
 ## belt wants it carrying coal a fifth of a second later, not a second later,
 ## and a mass build must still not walk seventeen hundred buildings every tick.
@@ -108,6 +110,7 @@ var _placed_total: int = 0
 var _removed_total: int = 0
 var _fuel_short: int = 0
 var _roster_v: int = -1
+var _prune_tick: int = -100000
 var _adopted_transport: Array[int] = []
 ## Burner id -> true while an arm is loading it. Recomputed on a slow timer.
 var _line_fed: Dictionary[int, bool] = {}
@@ -154,6 +157,7 @@ func setup() -> void:
 	_burner_scan_tick = -100000
 	_bootstrap_logged = false
 	_roster_v = -1
+	_prune_tick = -100000
 	_adopted_transport = []
 	_line_fed = {}
 	_line_fed_tick = -100000
@@ -568,6 +572,11 @@ func _sync_from_build() -> void:
 		return
 	var list: Array = raw
 	var seen: Dictionary[int, bool] = {}
+	# Every id [P11] still has, gathered only on the slow prune tick. A piece
+	# cancelled while it was a ghost is noted and never adopted, so the drag
+	# tables need somebody to tell them it is gone.
+	var pruning: bool = _tick - _prune_tick >= PRUNE_EVERY
+	var roster: Dictionary[int, bool] = {}
 	# Only what actually needs work is carried out of the walk. A city with
 	# fourteen hundred finished buildings must not allocate a fourteen-hundred
 	# element array to notice that one crate finished.
@@ -577,6 +586,8 @@ func _sync_from_build() -> void:
 		if b == null or not b.has_method("is_complete"):
 			continue
 		var id: int = int(b.get("id"))
+		if pruning:
+			roster[id] = true
 		var mine: LogiDef = _defs.get(StringName(String(b.get("kind"))))
 		if mine != null:
 			# Recorded the moment the site exists, finished or not: the facing of
@@ -612,6 +623,9 @@ func _sync_from_build() -> void:
 			if not seen.has(id4):
 				_not_ours.erase(id4)
 				_seen_build.erase(id4)
+	if pruning:
+		_prune_tick = _tick
+		link.prune(roster)
 
 
 ## Turns each dragged run into a line of belts that faces the way the cursor

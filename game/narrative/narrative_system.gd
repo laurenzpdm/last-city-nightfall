@@ -691,14 +691,35 @@ func _check_ending() -> void:
 	elif _citizens != null and int(world.fact(&"population")) <= 0 \
 			and int(world.fact(&"deaths")) > 0:
 		outcome = &"lost"
-		reason = "there was nobody left"
+		reason = "extinct"
 	if outcome == &"":
 		return
 	ended = true
 	epilogue = _build_reckoning(outcome, reason)
-	journal.record(_tick, _day(), NarrativeDefs.CAT_BEAT, &"epilogue",
-		String(epilogue.get("title", "")), String(epilogue.get("text", "")),
-		PackedStringArray([reason]))
+	var row: Dictionary = journal.record(_tick, _day(), NarrativeDefs.CAT_BEAT,
+		&"epilogue", String(epilogue.get("title", "")),
+		String(epilogue.get("text", "")), PackedStringArray([reason]))
+	# The account goes ON THE PILE, not only into a log. An ending nobody is
+	# shown is a text file, and the whole argument of this part is that the
+	# player has to be made to read what it cost.
+	pending.clear()
+	_push({
+		"seq": int(row["seq"]),
+		"id": "epilogue",
+		"category": String(NarrativeDefs.CAT_BEAT),
+		"title": String(epilogue.get("title", "")),
+		"lede": "Day %d. The account, from this run and nothing else."
+			% int(epilogue.get("day", _day())),
+		"body": String(epilogue.get("text", "")),
+		"cause_prose": "",
+		"causes": row["causes"],
+		"options": [],
+		"raised_tick": _tick,
+		"day": _day(),
+		"deadline_tick": 0,
+		"priority": 1000,
+		"focus": [],
+	})
 	Log.info(TAG, "epilogue: %s" % String(epilogue.get("title", "")))
 	Bus.narrative_event.emit(NarrativeDefs.EV_EPILOGUE, epilogue.duplicate(true))
 

@@ -230,6 +230,10 @@ func test_numbers_stay_human() -> void:
 	assert_eq(LcnStatsTheme.compact(4200.0), "4.2 k", "thousands read as k")
 	assert_eq(LcnStatsTheme.compact(4200000.0), "4.20 M", "millions read as M")
 	assert_eq(LcnStatsTheme.compact(-4200.0), "-4.2 k", "and the sign survives")
+	# Items are counted, not measured: "3.0 gear made" reads as a rounding error.
+	assert_eq(LcnStatsTheme.compact(3.0), "3", "a whole number stays whole")
+	assert_eq(LcnStatsTheme.compact(27.0), "27", "at any size under a thousand")
+	assert_eq(LcnStatsTheme.compact(-6.0), "-6", "including a negative one")
 
 
 func test_axis_steps_land_on_numbers_a_human_would_choose() -> void:

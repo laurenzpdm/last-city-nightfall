@@ -142,34 +142,67 @@ func _init(recipe_key: StringName, spec: Dictionary) -> void:
 
 # ================================================================== driving ==
 
-## Renders up to `budget` samples of work. Returns true when the stream is
-## finished and `stream` is safe to read.
+## Work units per step of the deadline-driven path. Small enough that one
+## uninterruptible step of the SLOWEST phase — five detuned partials, about 0.4
+## samples per microsecond — still lands under a millisecond.
+const STEP_UNITS: int = 256
+
+## Renders up to `budget` units of work. Used by the tests and by the offline
+## baker, where a wall clock is not the right unit.
 func advance(budget: int) -> bool:
 	if done:
 		return true
 	var t0: int = Time.get_ticks_usec()
 	var left: int = maxi(1, budget)
 	while left > 0 and not done:
-		match _phase:
-			Phase.CONTINUOUS:
-				left -= _do_continuous(left)
-			Phase.SEAM:
-				LcnDsp.crossfade_loop(_buf, _body, _xfade, _pre)
-				left -= mini(left, _xfade)
-				_phase = Phase.EVENTS
-			Phase.EVENTS:
-				left -= _do_events(left)
-			Phase.SCRUB:
-				left -= _do_scrub(left)
-			Phase.ENCODE:
-				left -= _do_encode(left)
-			_:
-				done = true
-	var took: int = Time.get_ticks_usec() - t0
-	if took > 1500:
-		print("ADVDEBUG key=%s phase=%d budget=%d took=%d cursor=%d/%d ev=%d/%d tail=%d" % [key, _phase, budget, took, _cursor, _render_len, _event_index, _events.size(), _tail_cursor])
-	build_usec += took
+		left -= _step(left)
+	build_usec += Time.get_ticks_usec() - t0
 	return done
+
+
+## Renders until the wall clock passes `deadline_usec`, then stops. This is what
+## the bank uses every frame.
+##
+## Two earlier versions tried to PREDICT how many samples fit in a millisecond —
+## first from a benchmark constant, then from a measured, self-tuning rate — and
+## both produced a dropped frame. The reason is the same both times: the phases
+## of a job differ in cost by more than an order of magnitude, so any single
+## figure learned from the fast ones is catastrophically wrong for the slow ones.
+## The estimate reached 16 384 units while encoding and then handed that to a
+## partial bank, which is how a 4 ms budget became a 40 ms frame.
+##
+## Nothing is predicted any more. Take a small step, look at the clock, decide
+## again. It cannot be wrong on a slow machine, a fast one, or a phase nobody
+## has written yet.
+func advance_until(deadline_usec: int) -> bool:
+	if done:
+		return true
+	var t0: int = Time.get_ticks_usec()
+	while not done:
+		_step(STEP_UNITS)
+		if Time.get_ticks_usec() >= deadline_usec:
+			break
+	build_usec += Time.get_ticks_usec() - t0
+	return done
+
+
+## One step of whatever phase the job is in. Returns the units it consumed.
+func _step(units: int) -> int:
+	match _phase:
+		Phase.CONTINUOUS:
+			return _do_continuous(units)
+		Phase.SEAM:
+			LcnDsp.crossfade_loop(_buf, _body, _xfade, _pre)
+			_phase = Phase.EVENTS
+			return maxi(1, _xfade)
+		Phase.EVENTS:
+			return _do_events(units)
+		Phase.SCRUB:
+			return _do_scrub(units)
+		Phase.ENCODE:
+			return _do_encode(units)
+	done = true
+	return 1
 
 
 func progress() -> float:

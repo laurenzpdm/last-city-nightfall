@@ -25,22 +25,7 @@ const DEFAULT_BUDGET_USEC: int = 2000
 ## jumps the queue through `promote()`, so the wait is never audible.
 const EAGER_FRAMES: int = 600
 
-## Work units handed to a job between two checks of the clock.
-##
-## This replaced two failed attempts at predicting how long a slice would take,
-## and the reason both failed is worth writing down: the phases of a job differ
-## in cost by more than an order of magnitude. Rendering five detuned partials
-## runs at about 0.7 samples per microsecond; scrubbing and encoding the finished
-## buffer runs at about sixteen. A single "samples per microsecond" figure
-## learned from the fast phases sized a slice of the slow one at 25 000 samples,
-## and one uninterruptible slice became a 64 ms frame — a worse dropped frame
-## than the one the chunking was added to prevent.
-##
-## So the bank stops predicting and starts measuring: hand over a small fixed
-## quantum, look at the clock, decide again. The worst overshoot is one quantum
-## of the slowest phase, about 1.5 ms, and it does not depend on knowing anything
-## about the machine.
-const SLICE_QUANTUM: int = 1024
+
 
 var budget_usec: int = DEFAULT_BUDGET_USEC
 var eager_budget_usec: int = EAGER_BUDGET_USEC
@@ -63,7 +48,15 @@ var _misses: Dictionary[StringName, int] = {}
 var _non_finite: int = 0
 
 
-## Bakes the sounds the opening seconds need and queues the rest.
+## Bakes what must exist before the first frame and queues everything else.
+##
+## Deliberately almost nothing. An earlier version baked the hearth bed here for
+## the good reason that the fire is the emotional floor of the whole mix and
+## should be there from the first instant — and it cost 94 ms on the frame the
+## audio root entered the tree. The bed now arrives on the eager pump instead,
+## about a third of a second later, which no one can perceive and which nobody
+## has to pay a stutter for.
+##
 ## Returns microseconds spent doing it.
 func warm_up() -> int:
 	var t0: int = Time.get_ticks_usec()
@@ -119,11 +112,8 @@ func pump(usec: int = -1) -> int:
 	var finished_now: int = 0
 	var last_key: StringName = _active.key if _active != null else &""
 	var t0: int = Time.get_ticks_usec()
-	while true:
-		var elapsed: int = Time.get_ticks_usec() - t0
-		var remaining: int = allowance - elapsed
-		if remaining <= 0:
-			break
+	var deadline: int = t0 + allowance
+	while Time.get_ticks_usec() < deadline:
 		if _active == null:
 			if _queue.is_empty():
 				break
@@ -133,7 +123,8 @@ func pump(usec: int = -1) -> int:
 				continue
 			_active = LcnSynthJob.new(key, LcnSynthRecipes.spec(key))
 			last_key = key
-		if _active.advance(SLICE_QUANTUM):
+		# The job stops itself at the deadline. The bank does not guess.
+		if _active.advance_until(deadline):
 			_adopt(_active)
 			_active = null
 			finished_now += 1

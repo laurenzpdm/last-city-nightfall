@@ -298,6 +298,24 @@ func test_an_empty_city_gets_an_epilogue() -> void:
 	assert_has(String(n.epilogue["title"]), "Did Not Stand")
 
 
+## An ending nobody is shown is a text file. It goes on the pile, at the top,
+## with nothing else in front of it.
+func test_the_epilogue_is_put_in_front_of_the_player() -> void:
+	world.run(NarrativeDefs.SAMPLE_EVERY + 1)
+	var n: NarrativeSystem = narrative()
+	assert_ge(float(n.pending.size()), 1.0, "this test needs something on the pile")
+	n.world.facts[&"population"] = 0.0
+	n.world.facts[&"deaths"] = 9.0
+	n.world.facts[&"deaths_cold"] = 9.0
+	n._check_ending()
+	var top: Dictionary = n.top_card()
+	assert_eq(String(top["id"]), "epilogue", "the ending is not the thing on screen")
+	assert_size(n.pending, 1, "something is still queued in front of the ending")
+	assert_gt(float(String(top["body"]).length()), 400.0)
+	assert_eq(int(top["deadline_tick"]), 0, "the ending must not scroll away")
+	assert_has(String(top["body"]), "9", "the ending does not quote this run")
+
+
 func test_the_epilogue_reaches_the_chronicle_and_the_bus() -> void:
 	world.run(60)
 	var n: NarrativeSystem = narrative()

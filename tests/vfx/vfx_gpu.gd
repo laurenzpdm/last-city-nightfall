@@ -509,9 +509,12 @@ func _verdict() -> void:
 	# frame the weather covers instead.
 	var s_cover: int = int(snowfall.get("cool_added", 0))
 	var b_cover: int = int(_measure.get("blizzard", {}).get("cool_added", 0))
-	_expect(b_snow >= s_snow,
-		"a blizzard (%d flakes) had fewer discrete flakes than snowfall (%d)"
-		% [b_snow, s_snow])
+	# The flake counter SATURATES: once flakes land next to each other the local
+	# peak test stops separating them, so a blizzard and a snowfall read alike
+	# here. Both must be far above the still-frame floor; the escalation claim is
+	# made on coverage and on the emitters' own particle counts instead.
+	_expect(b_snow > maxi(250, c_snow * 4),
+		"a blizzard drew %d discrete flakes (clear: %d)" % [b_snow, c_snow])
 	_expect(b_cover > int(float(s_cover) * 1.4),
 		"a blizzard covered %d px of the frame against snowfall's %d — no escalation"
 		% [b_cover, s_cover])
@@ -545,7 +548,7 @@ func _verdict() -> void:
 
 	# `battle` and `snowfall` are the same weather, so the extra warm pixels are
 	# the guns and nothing else.
-	_expect(int(battle.get("warm_focus", 0)) > int(snowfall.get("warm_focus", 0)) + 250,
+	_expect(int(battle.get("warm_focus", 0)) > int(snowfall.get("warm_focus", 0)) * 3 + 50,
 		"a fire-fight drew %d warm pixels where the guns are against %d in the same weather without them" % [
 			int(battle.get("warm_focus", -1)), int(snowfall.get("warm_focus", -1))])
 	_expect(int(battle.get("changed_focus", 0)) > int(snowfall.get("changed_focus", 0)),

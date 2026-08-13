@@ -63,13 +63,15 @@ static func spec(key: StringName) -> Dictionary:
 	return all().get(key, {})
 
 
-## Baked synchronously, before the first frame. Deliberately just two: the whole
-## catalogue is about two seconds of arithmetic and the fire is the only thing
-## that must be there from the first instant. Everything else arrives inside the
-## next second on the bank's frame budget, which is imperceptible and — unlike a
-## 400 ms freeze on the frame the game opens — not a bug.
+## Baked synchronously, before the first frame. Deliberately just one, and the
+## cheapest one in the catalogue: a click is what the very first keypress needs,
+## and everything else can afford to arrive a few frames later on the bank's
+## budget. The hearth bed used to be in here for the good reason that the fire is
+## the floor of the whole mix — and it cost 94 ms on the frame the audio root
+## entered the tree, which is a stutter traded for a third of a second nobody
+## could have noticed.
 static func essential() -> Array[StringName]:
-	return [&"hearth_bed", &"click"]
+	return [&"click"]
 
 
 static func _build() -> void:

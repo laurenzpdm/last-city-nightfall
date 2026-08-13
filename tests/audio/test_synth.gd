@@ -120,6 +120,20 @@ func test_a_recipe_renders_identically_however_it_is_sliced() -> void:
 			"%s is byte-identical whether rendered whole or in %d-sample slices" % [key, CHUNK])
 
 
+func test_the_deadline_driven_path_renders_the_same_bytes() -> void:
+	# The bank does not use `advance(units)` — it uses `advance_until(clock)`, so
+	# the sliced-render guarantee has to hold for THAT path or it guarantees
+	# nothing about the shipping game. A 60 us deadline forces dozens of steps.
+	for key: StringName in [&"hearth_bed", &"mus_hope", &"mach_press", &"sting_critical"]:
+		var job := LcnSynthJob.new(key, LcnSynthRecipes.spec(key))
+		var guard: int = 0
+		while not job.advance_until(Time.get_ticks_usec() + 60) and guard < 200000:
+			guard += 1
+		assert_lt(float(guard), 200000.0, "%s finished" % key)
+		assert_eq(job.stream.data, _built[key].stream.data,
+			"%s is byte-identical when rendered against a wall clock" % key)
+
+
 func test_two_renders_of_the_same_recipe_are_identical() -> void:
 	# Nothing in the synth may reach for Rng or the global random state.
 	for key: StringName in [&"hearth_bed", &"mach_press", &"shot_light", &"mus_perc"]:
@@ -257,5 +271,5 @@ func test_the_essentials_are_cheap_enough_to_bake_before_the_first_frame() -> vo
 		while not job.advance(1 << 22):
 			pass
 		usec += job.build_usec
-	assert_lt(float(usec) / 1000.0, 250.0,
+	assert_lt(float(usec) / 1000.0, 20.0,
 		"the synchronous part of the bake must not be a visible freeze")

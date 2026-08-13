@@ -233,6 +233,14 @@ func _process(delta: float) -> void:
 		_ready_logged = true
 		Log.info("audio", "bake complete: %s" % JSON.stringify(bank.report()))
 
+	# One dense line every twenty seconds of play. A silent subsystem is very
+	# easy to ship — this is how a session log answers "was there any sound"
+	# without anyone having to be in the room.
+	_since_summary += delta
+	if _since_summary >= SUMMARY_SECONDS:
+		_since_summary = 0.0
+		Log.info("audio", summary())
+
 	last_update_usec = Time.get_ticks_usec() - t0
 	if last_update_usec > peak_update_usec:
 		peak_update_usec = last_update_usec
