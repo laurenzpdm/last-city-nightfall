@@ -877,11 +877,15 @@ func _activity_phrase(s: int, dest_site: CitizenJobBoard.Site) -> String:
 			return "sleeping rough"
 		CitizenDefs.State.EATING:
 			return "taking a meal"
+		CitizenDefs.State.IDLE:
+			if dest_site != null:
+				return "waiting out the hours at %s" % dest_site.label
+			return "standing about in the open"
 		CitizenDefs.State.SICK:
 			return "laid up sick"
 		CitizenDefs.State.INJURED:
 			return "recovering from an injury"
-	return "standing about"
+	return "standing about in the open"
 
 
 ## Citizen id standing on a tile, or -1. For click-to-inspect.
@@ -1294,6 +1298,13 @@ func serialize() -> Dictionary:
 			"illness": snappedf(pool.illness[s], 0.01),
 			"injury": snappedf(pool.injury[s], 0.01),
 			"inside": pool.inside[s] == 1,
+			# The whole point of this part, in one string, in the artifact a
+			# critic actually reads: "Mara Kessler, 34, tinsmith — cold and
+			# hungry, walking to Workshop 2".
+			"summary": "%s, %d, %s — %s, %s" % [_name_of(s), pool.age[s], _trade_label(s),
+				CitizenDefs.condition_phrase(pool.warmth[s], pool.hunger[s], pool.fatigue[s],
+					pool.illness[s], pool.injury[s], pool.morale[s]),
+				_activity_phrase(s, board.site_of(pool.dest[s]))],
 		})
 	var staffing: Array = []
 	for i: int in board.job_ids.size():

@@ -29,10 +29,6 @@ func should_show() -> bool:
 	return probe != null and (probe.has_population or probe.has_society)
 
 
-func desired_height() -> float:
-	return _height
-
-
 func signature() -> String:
 	if probe == null:
 		return ""

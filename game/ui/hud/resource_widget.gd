@@ -26,10 +26,6 @@ func should_show() -> bool:
 	return probe != null and probe.has_build and not probe.stock_order.is_empty()
 
 
-func desired_height() -> float:
-	return _height
-
-
 func signature() -> String:
 	if probe == null:
 		return ""

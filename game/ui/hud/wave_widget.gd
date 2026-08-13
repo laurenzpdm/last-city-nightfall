@@ -30,10 +30,6 @@ func should_show() -> bool:
 	return probe != null and (probe.wave_active or probe.wave_seconds >= 0.0)
 
 
-func desired_height() -> float:
-	return _height
-
-
 func signature() -> String:
 	if probe == null:
 		return ""

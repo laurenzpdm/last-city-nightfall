@@ -42,10 +42,6 @@ func should_show() -> bool:
 	return not _info.is_empty()
 
 
-func desired_height() -> float:
-	return _height
-
-
 func signature() -> String:
 	if _info.is_empty():
 		return ""

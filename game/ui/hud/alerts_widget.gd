@@ -27,10 +27,6 @@ func should_show() -> bool:
 	return alerts != null and not alerts.entries.is_empty()
 
 
-func desired_height() -> float:
-	return _height
-
-
 func signature() -> String:
 	if alerts == null:
 		return ""

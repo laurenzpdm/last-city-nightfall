@@ -50,10 +50,6 @@ func setup(hud_root: Node, hud_style: LcnHudStyle, hud_probe: LcnHudProbe) -> vo
 	mouse_exited.connect(_on_mouse_exited)
 
 
-func panel_seed() -> int:
-	return _panel_seed
-
-
 # ====================================================================  refresh =
 
 ## Called by LcnHud after every probe refresh. Widgets override `signature()`
@@ -90,11 +86,6 @@ func signature() -> String:
 ## moved, never per frame.
 func layout() -> void:
 	pass
-
-
-## Override: how tall this panel wants to be at its current content.
-func desired_height() -> float:
-	return size.y
 
 
 ## Forces the next refresh to redraw even if nothing changed (scale, palette).
