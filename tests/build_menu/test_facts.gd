@@ -273,9 +273,12 @@ func test_a_starved_building_shows_the_bottleneck_the_solver_found() -> void:
 
 
 func test_bottleneck_kinds_become_sentences() -> void:
+	# The keys are [P02]'s own vocabulary (HeatNode.bottleneck_kind). Every one of
+	# them has to come out as a sentence a player can act on.
 	var cases: Dictionary = {
-		"throughput": "pipe", "supply": "does not make enough",
-		"priority": "higher priority", "distance": "too far", "disconnected": "not connected",
+		"capacity": "pipe", "throughput": "pipe", "supply": "makes enough",
+		"unreachable": "no generator", "priority": "higher priority",
+		"distance": "too far", "disconnected": "not connected",
 	}
 	var keys: Array = cases.keys()
 	keys.sort()

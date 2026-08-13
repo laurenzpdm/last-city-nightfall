@@ -81,8 +81,8 @@ const DEFAULT_AMBIENT_C: float = -18.0
 
 # --- pacing ---------------------------------------------------------------
 ## Ticks between rescans of [P11]'s building list. A machine coming online half
-## a second late is imperceptible; scanning a thousand buildings every tick is
-## not. A change in building count rescans immediately regardless.
+## a second late is imperceptible; walking a thousand buildings every tick is
+## not — that walk is the single largest cost this system has on a big base.
 const SYNC_EVERY: int = 10
 ## Ticks between attempts to find a fresh seam for an extractor that lost one.
 ## A ring search is the most expensive thing this system can do; it happens at
@@ -96,6 +96,10 @@ const UNLOCK_RECHECK_TICKS: int = 200
 ## A stalled machine re-announces its reason this often, so a UI that connected
 ## late still learns why the smelter is dark.
 const STALL_REANNOUNCE_TICKS: int = 100
+## Ticks between prunes of the "this building is not a machine" cache. It only
+## ever grows by one entry per building the city has ever finished, so once a
+## minute is generous.
+const NOT_OURS_PRUNE_TICKS: int = 1200
 ## Below this the machine is treated as stopped rather than crawling.
 const MIN_RATE: float = 0.01
 ## Cap on the per-item rate columns in metrics.csv.
@@ -148,6 +152,7 @@ var _staff_autarky: bool = true
 var _heat_autarky: bool = true
 
 var _last_sync_tick: int = -1000
+var _not_ours_pruned: int = 0
 var _unlock_cache: Dictionary[StringName, bool] = {}
 var _unlock_checked: int = -1000
 
@@ -978,7 +983,7 @@ func _deliver_waste(recuperator_id: int, units: float) -> float:
 ## Pulls the finished buildings out of [P11]. Throttled: a full rescan every
 ## half second, or immediately when the building count moves. A machine coming
 ## online 10 ticks late is invisible; rescanning a thousand walls every tick is
-## 20 ms of a 50 ms budget.
+## not affordable at any base size.
 func _sync_from_build(tick: int) -> void:
 	if _build == null or not _build.has_method("all_buildings"):
 		return
@@ -993,32 +998,50 @@ func _sync_from_build(tick: int) -> void:
 	var raw: Variant = _build.call("all_buildings")
 	if typeof(raw) != TYPE_ARRAY:
 		return
-	var seen: Dictionary[int, bool] = {}
+	# One reflective read per entry in the common case. A wall the city already
+	# knows is not a machine costs an `id` read and a dictionary hit — everything
+	# else (is_complete, kind, cell, rot) is only touched for candidates. On a
+	# thousand-building base that difference is the whole cost of this system.
 	for entry: Variant in (raw as Array):
 		var b: Object = entry
-		if b == null or not b.has_method("is_complete") or not bool(b.call("is_complete")):
+		if b == null:
 			continue
 		var id: int = int(b.get("id"))
-		seen[id] = true
 		if _not_ours.has(id):
 			continue
 		var m: ProdMachine = machines.get(id)
 		if m == null:
+			if not bool(b.call("is_complete")):
+				continue
 			if not _register(id, StringName(String(b.get("kind"))), b.get("cell"), int(b.get("rot"))):
 				_not_ours[id] = true
 				continue
 			m = machines[id]
 		m.enabled = bool(b.get("enabled"))
 
+	# Removals are found from OUR side, which is tens of ids rather than
+	# thousands, so a demolition costs nothing to notice.
 	for id2: int in _sorted_ids().duplicate():
-		if not seen.has(id2):
+		var still: Object = _build.call("get_building", id2)
+		if still == null or not bool(still.call("is_complete")):
 			_unregister(id2)
-	if _not_ours.size() > seen.size():
-		var stale: Array = _not_ours.keys()
-		stale.sort()
-		for id3: int in stale:
-			if not seen.has(id3):
-				_not_ours.erase(id3)
+
+	# The negative cache would otherwise remember every id the city ever built.
+	# Pruning it is a full pass, so it happens once a minute, not once a tick.
+	if tick - _not_ours_pruned >= NOT_OURS_PRUNE_TICKS:
+		_not_ours_pruned = tick
+		_prune_not_ours()
+
+
+## Forgets ids [P11] no longer has, so the negative cache cannot grow forever.
+func _prune_not_ours() -> void:
+	if _not_ours.is_empty() or _build == null:
+		return
+	var keys: Array = _not_ours.keys()
+	keys.sort()
+	for id: int in keys:
+		if _build.call("get_building", id) == null:
+			_not_ours.erase(id)
 
 
 func _register(building_id: int, kind: StringName, cell_value: Variant, rot: int) -> bool:

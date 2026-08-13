@@ -108,14 +108,14 @@ class TechNode extends RefCounted:
 			var label: String = String(k)
 			if label.ends_with("_mult"):
 				out.append("%s %s" % [
-					LcnUiFormat.item_name(StringName(label.substr(0, label.length() - 5))),
+					LcnUiFormat.item_name(StringName(label.substr(0, label.length() - 5).replace(".", " "))),
 					LcnUiFormat.signed(v * 100.0) + "%"])
 			elif label.ends_with("_add"):
 				out.append("%s %s" % [
-					LcnUiFormat.item_name(StringName(label.substr(0, label.length() - 4))),
+					LcnUiFormat.item_name(StringName(label.substr(0, label.length() - 4).replace(".", " "))),
 					LcnUiFormat.signed(v)])
 			else:
-				out.append("%s %s" % [LcnUiFormat.item_name(k), LcnUiFormat.signed(v)])
+				out.append("%s %s" % [LcnUiFormat.item_name(StringName(label.replace(".", " "))), LcnUiFormat.signed(v)])
 		return out
 
 

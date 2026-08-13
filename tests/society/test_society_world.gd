@@ -111,6 +111,43 @@ func test_a_refused_command_warns_and_does_not_break_the_run() -> void:
 	assert_false(bool(soc.call("has_law", &"new_order")), "and it is not signed")
 
 
+## The claim this part lives or dies on: a law is not a number on a panel.
+## [P05] exposes set_shift_law / set_child_labour so society can enact and it
+## can obey, and the shift row it looks up carries real fatigue, output and
+## morale coefficients. These two tests are the proof that the wire is live.
+func test_a_labour_law_reaches_the_people() -> void:
+	if not need_system(&"society"):
+		return
+	var cit: SimSystem = world.system(&"citizens")
+	if cit == null or not cit.has_method("law_flags"):
+		skip("[P05] citizens has no law surface in this build")
+		return
+	assert_eq(String((cit.call("law_flags") as Dictionary)["shift_law"]), "standard",
+		"the city starts on standard shifts")
+	world.cmd_now({"system": &"society", "op": "sign", "law": "emergency_shift"})
+	world.run(int(4.0 * float(soc.call("hour_ticks"))) + 6)
+	assert_true(bool(soc.call("has_law", &"emergency_shift")), "the law is in force")
+	assert_near(float(soc.call("work_hours")), 14.0, 0.001, "society says fourteen hours")
+	assert_eq(String((cit.call("law_flags") as Dictionary)["shift_law"]), "extended",
+		"and [P05] is running longer shifts because of it, with real fatigue and morale costs")
+
+
+func test_child_labour_reaches_the_people() -> void:
+	if not need_system(&"society"):
+		return
+	var cit: SimSystem = world.system(&"citizens")
+	if cit == null or not cit.has_method("law_flags"):
+		skip("[P05] citizens has no law surface in this build")
+		return
+	assert_false(bool((cit.call("law_flags") as Dictionary)["child_labour"]), "not at first")
+	world.cmd_now({"system": &"society", "op": "sign", "law": "child_labour"})
+	world.run(int(4.0 * float(soc.call("hour_ticks"))) + 6)
+	assert_true(bool((cit.call("law_flags") as Dictionary)["child_labour"]),
+		"and then the children are on the roster, in [P05], for real")
+	assert_lt(soc.call("approval_of", SocietyDefs.FACTION_FAMILIES), -20.0,
+		"and their parents have noticed")
+
+
 func test_serialize_lands_in_the_state_dump() -> void:
 	if not need_system(&"society"):
 		return

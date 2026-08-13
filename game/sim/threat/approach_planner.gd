@@ -53,6 +53,11 @@ var _kind_cache: Dictionary[StringName, Dictionary] = {}
 var _disc: Array[Vector2i] = []
 
 var _built: bool = false
+## Microseconds the last rescore took, and the worst one so far. Profiling only:
+## never serialized, never in a metric, only ever in a DEBUG log line.
+var last_us: int = 0
+var worst_us: int = 0
+var scans: int = 0
 
 
 func bind(profile: ThreatProfile, grid: SimSystem, build: SimSystem, heat: SimSystem) -> void:
@@ -108,6 +113,14 @@ func build_vectors() -> void:
 ## homogeneous array of BuildingInstance, and 1700 reflection calls a scan is
 ## the difference between 3 ms and 0.4 ms at stress scale.
 func rescore() -> void:
+	var t0: int = Time.get_ticks_usec()  # lint:allow profiling only; never serialized
+	_rescore()
+	last_us = Time.get_ticks_usec() - t0  # lint:allow profiling only
+	worst_us = maxi(worst_us, last_us)
+	scans += 1
+
+
+func _rescore() -> void:
 	var n: int = _candidates.size()
 	for v: ThreatVector in _candidates:
 		v.defence_dps = 0.0

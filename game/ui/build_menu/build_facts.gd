@@ -814,7 +814,8 @@ static func instance_sheet(instance: Object, ctx: Ctx) -> Dictionary:
 			var why: Dictionary = ctx.heat.call(&"bottleneck_of", id)
 			if not why.is_empty():
 				var text: String = _bottleneck_sentence(why)
-				_row(rows, "Limited by", String(why.get("kind", "?")), LcnUiStyle.Tone.BAD)
+				_row(rows, "Limited by", _bottleneck_word(LcnUiFormat.as_text(why.get("kind", ""))),
+					LcnUiStyle.Tone.BAD)
 				_warn(warnings, Sev.TIGHT, &"bottleneck", text)
 		sections.append({"heading": "Heat", "rows": rows})
 
@@ -823,6 +824,18 @@ static func instance_sheet(instance: Object, ctx: Ctx) -> Dictionary:
 		sections.append(st)
 	warnings.sort_custom(_warning_less)
 	return out
+
+
+## Two words for the row; the sentence underneath does the explaining.
+static func _bottleneck_word(kind: String) -> String:
+	match kind:
+		"capacity", "throughput": return "pipe capacity"
+		"supply": return "no generation"
+		"unreachable": return "nothing reaches it"
+		"priority": return "load shedding"
+		"distance": return "distance loss"
+		"disconnected": return "no network"
+	return kind if kind != "" else "unattributed"
 
 
 ## Turns [P02]'s bottleneck record into a sentence with a place in it, because
@@ -835,11 +848,15 @@ static func _bottleneck_sentence(why: Dictionary) -> String:
 		where = " at %d, %d" % [int((cell_raw as Array)[0]), int((cell_raw as Array)[1])]
 	var what: String = String(why.get("building", ""))
 	var who: String = "" if what == "" else " (%s)" % LcnUiFormat.item_name(StringName(what))
+	# The vocabulary is [P02]'s: HeatFlow attributes every browned-out consumer to
+	# the tile that bound the solve. These are the words for those kinds.
 	match kind:
-		"throughput":
-			return "Starved: the pipe%s%s cannot pass any more heat." % [where, who]
+		"capacity", "throughput":
+			return "Starved: the pipe%s%s is already carrying all it can." % [where, who]
 		"supply":
-			return "Starved: the network simply does not make enough heat."
+			return "Starved: nothing on this network makes enough heat."
+		"unreachable":
+			return "Starved: no generator on this network can reach it — the run is broken or unpowered."
 		"priority":
 			return "Shed on purpose: something with a higher priority took the heat first."
 		"distance":

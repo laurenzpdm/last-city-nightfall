@@ -52,6 +52,8 @@ const ALERT_EVERY_TICKS: int = 100
 const DEFENCE_CHECK_TICKS: int = 200
 ## Ticks between the self-profiling log line. Log only — see step().
 const PROFILE_TICKS: int = 1000
+## Ticks between "is there a perimeter yet" sweeps, until the answer is yes.
+const DEFENDED_RECHECK_TICKS: int = 200
 ## Tags always indexed, plus whatever the loaded roster actually asks for — see
 ## _indexed_tags. An unlisted preference would otherwise be a silent no-op.
 const INDEXED_TAGS: Array[StringName] = [
@@ -99,7 +101,8 @@ var _agents_tick: int = -1
 var _discontent_carry: float = 0.0
 var _last_alert_tick: Dictionary[StringName, int] = {}
 var _defended: bool = false
-var _defended_tick: int = -1
+var _defended_tick: int = -100000
+var _index_tick: int = -100000
 var _step_us: int = 0
 var _prof_total: int = 0
 var _prof_max: int = 0
@@ -141,6 +144,9 @@ func setup() -> void:
 	_next_id = ENEMY_ID_BASE
 	_weakened.clear()
 	_target_index.clear()
+	_index_tick = -100000
+	_defended = false
+	_defended_tick = -100000
 	_tags_cache.clear()
 	_pending_gates.clear()
 	_last_alert_tick.clear()
@@ -214,7 +220,9 @@ func step(tick: int) -> void:
 	var t0: int = Time.get_ticks_usec()   # lint:allow log + metrics-free profiling only
 	if tick % TURRET_SYNC_TICKS == 0:
 		_sync_turrets()
-	if tick % TARGET_INDEX_TICKS == 0:
+	# Nothing on the field means nothing is seeking, and the index is rebuilt on
+	# demand the moment something is (see find_enemy_target).
+	if swarm.count > 0 and tick - _index_tick >= TARGET_INDEX_TICKS:
 		_rebuild_target_index()
 
 	_run_director(tick)
@@ -742,6 +750,7 @@ func find_enemy_target(from: Vector2, pref: StringName, radius_px: float) -> Dic
 			_rebuild_target_index()
 		if not _target_index.has(pref):
 			return {}
+
 		var idx: Dictionary = _target_index[pref]
 		var ids: PackedInt32Array = idx["id"]
 		var xs: PackedFloat32Array = idx["x"]
@@ -1048,23 +1057,38 @@ func _sync_turrets() -> void:
 			battery.remove(id2)
 
 
+## Rebuilds the per-tag lists a seeker searches, in ONE pass over the building
+## list rather than one pass per tag. With seventeen hundred buildings on the map
+## the difference between one sweep and eight is the difference between a
+## rounding error and a visible spike, and this runs on a timer.
 func _rebuild_target_index() -> void:
 	if _build == null:
 		return
+	var tags: Array[StringName] = _indexed_tags()
 	_target_index.clear()
-	for tag: StringName in _indexed_tags():
-		var ids: PackedInt32Array = PackedInt32Array()
-		var xs: PackedFloat32Array = PackedFloat32Array()
-		var ys: PackedFloat32Array = PackedFloat32Array()
-		for entry: Variant in (_build.call("buildings_with_tag", tag) as Array):
-			var b: Object = entry
-			if b == null or not bool(b.call("is_complete")):
+	for tag: StringName in tags:
+		_target_index[tag] = {"id": PackedInt32Array(), "x": PackedFloat32Array(),
+			"y": PackedFloat32Array()}
+	for entry: Variant in (_build.call("all_buildings") as Array):
+		var b: Object = entry
+		if b == null or not bool(b.call("is_complete")):
+			continue
+		var def: Object = b.get("def")
+		if def == null:
+			continue
+		var c: Vector2 = Vector2.ZERO
+		var have_centre: bool = false
+		for tag2: StringName in tags:
+			if not bool(def.call("has_tag", tag2)):
 				continue
-			var c: Vector2 = b.call("world_center")
-			ids.append(int(b.get("id")))
-			xs.append(c.x)
-			ys.append(c.y)
-		_target_index[tag] = {"id": ids, "x": xs, "y": ys}
+			if not have_centre:
+				c = b.call("world_center")
+				have_centre = true
+			var bucket: Dictionary = _target_index[tag2]
+			(bucket["id"] as PackedInt32Array).append(int(b.get("id")))
+			(bucket["x"] as PackedFloat32Array).append(c.x)
+			(bucket["y"] as PackedFloat32Array).append(c.y)
+	_index_tick = SimClock.tick
 
 
 ## The tags worth maintaining a list for: the standard set plus every preference
@@ -1247,11 +1271,15 @@ func _lane_point(seed_value: int) -> Vector2:
 	return Grid.cell_to_world(_world.call("cell_of", idx))
 
 
+## Has the player put up a perimeter at all? Cached hard, and never re-asked once
+## the answer is yes: a city that has built a wall does not un-build it, and the
+## question costs a full sweep of the building list to answer.
 func _is_defended(tick: int) -> bool:
-	if tick == _defended_tick:
-		return _defended
+	if _defended:
+		return true
+	if tick - _defended_tick < DEFENDED_RECHECK_TICKS:
+		return false
 	_defended_tick = tick
-	_defended = false
 	if _build == null:
 		return false
 	if battery.count() > 0:

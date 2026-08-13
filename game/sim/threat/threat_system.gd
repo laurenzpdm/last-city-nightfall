@@ -223,10 +223,11 @@ func step(tick: int) -> void:
 	_perf_own_max_us = maxi(_perf_own_max_us, us - _extern_us)
 	_perf_steps += 1
 	if _perf_steps >= LOG_PERF_EVERY:
-		Log.debug(TAG, "step avg %.1f us (own %.1f), max %d us (own %d) over %d ticks" % [
+		Log.debug(TAG, "step avg %.1f us (own %.1f), max %d us (own %d) over %d ticks; %d lane scan(s), worst %d us" % [
 			float(_perf_us) / float(_perf_steps),
 			float(_perf_us - _perf_extern_us) / float(_perf_steps),
-			_perf_max_us, _perf_own_max_us, _perf_steps])
+			_perf_max_us, _perf_own_max_us, _perf_steps,
+			_planner.scans, _planner.worst_us])
 		_perf_us = 0
 		_perf_extern_us = 0
 		_perf_max_us = 0

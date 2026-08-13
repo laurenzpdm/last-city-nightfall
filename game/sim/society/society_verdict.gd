@@ -82,7 +82,11 @@ func step(hope: float, discontent: float, tick: int, hour_ticks: int,
 
 func _unrest(d: float, tick: int, hour_ticks: int, ctx: Dictionary) -> Array[Dictionary]:
 	var events: Array[Dictionary] = []
-	var stage: int = _stage_up(d)
+	# At most one rung per sample, whatever the meter did. A single catastrophic
+	# impulse must not be able to jump the player straight from calm to the gate:
+	# "telegraphed, never sudden" has to hold against the worst case, not only
+	# against the gradual one.
+	var stage: int = mini(_stage_up(d), unrest_stage + 1)
 
 	if ultimatum_until >= 0:
 		if d < SocietyDefs.UNREST_RELIEF:
@@ -171,7 +175,7 @@ func _rearm_line(stage: int) -> float:
 
 func _despair(h: float, tick: int, hour_ticks: int, ctx: Dictionary) -> Array[Dictionary]:
 	var events: Array[Dictionary] = []
-	var stage: int = _stage_down(h)
+	var stage: int = mini(_stage_down(h), despair_stage + 1)
 
 	if vigil_until >= 0:
 		if h > SocietyDefs.DESPAIR_RELIEF:

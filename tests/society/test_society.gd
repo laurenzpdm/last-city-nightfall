@@ -490,6 +490,26 @@ func test_despair_ends_a_run_too_and_warns_first() -> void:
 	assert_eq(soc.end_reason(), SocietyDefs.REASON_DESPAIR, "for the right reason")
 
 
+func test_no_single_shock_can_skip_the_warnings() -> void:
+	# The nastiest case the design has to survive: something takes discontent
+	# from nothing to a hundred in one tick. The player must still get told.
+	soc.handle_command({"op": "nudge", "meter": "discontent", "amount": 100.0,
+		"reason": "A scripted catastrophe."})
+	var seen: Array[int] = []
+	for _i: int in HOUR * 20:
+		_run(1)
+		var stage: int = int(soc.warning_state()["unrest_stage"])
+		if seen.is_empty() or seen[seen.size() - 1] != stage:
+			seen.append(stage)
+		if bool(soc.warning_state()["ultimatum"]):
+			break
+	assert_has(seen, 1, "the murmur still came")
+	assert_has(seen, 2, "and the delegation")
+	assert_has(seen, 3, "and the crowd in the square")
+	assert_true(bool(soc.warning_state()["ultimatum"]), "before the ultimatum")
+	assert_false(soc.is_over(), "and the run is still winnable at that point")
+
+
 func test_a_finished_run_stops_escalating() -> void:
 	soc.handle_command({"op": "set_meter", "meter": "discontent", "value": 100.0})
 	var t: int = _run(HOUR * 14)

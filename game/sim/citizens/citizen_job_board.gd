@@ -70,6 +70,9 @@ var care_ids: PackedInt32Array = PackedInt32Array()
 var food_ids: PackedInt32Array = PackedInt32Array()
 var shelter_cell: Vector2i = Vector2i(-1, -1)
 var shelter_building: int = -1
+## Cells whose walkability changed during the last refresh(). [P05]'s router
+## drops exactly the cached paths that crossed them, instead of the whole cache.
+var blocked_cells: Array[Vector2i] = []
 
 var total_required: int = 0
 var total_capacity: int = 0
@@ -153,11 +156,6 @@ func door_of(building_id: int) -> Vector2i:
 ## the contracts pointing at them. A building that merely stopped running keeps
 ## its crew: they walk to the dark workshop, find it dead and go home, which is
 ## how a heat failure should read — not as a mass layoff and a mass rehire.
-## Cells whose walkability changed during the last refresh(). [P05]'s router
-## drops exactly the cached paths that crossed them.
-var blocked_cells: Array[Vector2i] = []
-
-
 func refresh(_tick: int) -> PackedInt32Array:
 	var gone := PackedInt32Array()
 	blocked_cells.clear()
