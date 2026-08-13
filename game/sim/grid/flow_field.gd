@@ -57,6 +57,17 @@ var _qkey: PackedInt32Array = PackedInt32Array()
 var _pending: int = 0
 var _cur: int = 0
 var _seeds: PackedInt64Array = PackedInt64Array()
+## How far into _seeds lazy admission got. Non-zero only while a budgeted flood
+## is suspended between ticks.
+var _seed_at: int = 0
+var _resuming: bool = false
+
+## True when the last flood hit its cell budget and left a wavefront on the
+## queue. The field is USABLE in this state: correct everywhere the wave has
+## already passed, stale behind it, and it converges to the exact unbudgeted
+## answer once resume() finishes. That is what lets a 75 ms reflood be paid over
+## several ticks instead of as one dropped frame.
+var unfinished: bool = false
 
 
 func setup(w: int, h: int, name: StringName = &"default") -> bool:
@@ -145,7 +156,10 @@ func steer(world_pos: Vector2) -> Vector2:
 # ---------------------------------------------------------------- building
 
 ## Full flood from the goals. O(width*height) — world creation, load, goal change.
-func rebuild(cost: PackedByteArray) -> void:
+## `budget` caps the cells settled in this call; 0 means "finish it now". When a
+## budget is hit the call returns with `unfinished` true and the caller resumes
+## it on a later tick.
+func rebuild(cost: PackedByteArray, budget: int = 0) -> void:
 	if _size == 0:
 		return
 	integration.fill(UNREACHABLE)
@@ -159,13 +173,13 @@ func rebuild(cost: PackedByteArray) -> void:
 		_seeds.append(g)
 	last_was_full = true
 	rebuilds_full += 1
-	_run(cost)
+	_run(cost, budget)
 
 
 ## Repairs the field after `changed` cells took a new cost. Touches only the
 ## affected shadow, so a building placement is orders of magnitude cheaper than
 ## a full rebuild.
-func update(cost: PackedByteArray, changed: PackedInt32Array) -> void:
+func update(cost: PackedByteArray, changed: PackedInt32Array, budget: int = 0) -> void:
 	if _size == 0 or changed.is_empty():
 		return
 	var lower: PackedInt32Array = PackedInt32Array()
@@ -231,7 +245,17 @@ func update(cost: PackedByteArray, changed: PackedInt32Array) -> void:
 
 	last_was_full = false
 	rebuilds_partial += 1
-	_run(cost)
+	_run(cost, budget)
+
+
+## Continues a flood that ran out of budget. Returns true while there is still
+## work left, so a caller can keep asking once a tick until it is done.
+func resume(cost: PackedByteArray, budget: int = 0) -> bool:
+	if not unfinished:
+		return false
+	_resuming = true
+	_run(cost, budget)
+	return unfinished
 
 
 # ---------------------------------------------------------------- internals
@@ -248,23 +272,32 @@ func _reset_queue() -> void:
 	_qkey.fill(-1)
 	_pending = 0
 	_cur = 0
+	_seed_at = 0
+	_resuming = false
+	unfinished = false
 
 
 ## Dijkstra over the bucket queue. Seeds are admitted lazily in cost order so the
 ## 512-bucket window is never violated, no matter how far apart the seeds are.
-func _run(cost: PackedByteArray) -> void:
-	if _pending != 0:
-		# A previous run was cut short; the intrusive lists are unusable.
+func _run(cost: PackedByteArray, budget: int = 0) -> void:
+	if _pending != 0 and not _resuming:
+		# A previous run was cut short and nobody resumed it; the intrusive lists
+		# describe a wavefront that is not going to be finished.
 		_reset_queue()
+	var resuming: bool = _resuming
+	_resuming = false
 	var n_seeds: int = _seeds.size()
-	if n_seeds == 0:
+	if n_seeds == 0 and _pending == 0:
 		last_visited = 0
+		unfinished = false
 		return
-	if n_seeds > 1:
+	if n_seeds > 1 and not resuming:
 		_seeds.sort()
-	var sp: int = 0
-	_cur = _seeds[0] >> IDX_BITS
+	var sp: int = _seed_at if resuming else 0
+	if not resuming:
+		_cur = _seeds[0] >> IDX_BITS if n_seeds > 0 else 0
 	var visited: int = 0
+	unfinished = false
 
 	while true:
 		while sp < n_seeds:
@@ -290,7 +323,14 @@ func _run(cost: PackedByteArray) -> void:
 			_reset_queue()
 			break
 		visited += _drain(cost)
+		if budget > 0 and visited >= budget:
+			unfinished = true
+			break
 
+	_seed_at = sp
+	if not unfinished:
+		_seeds = PackedInt64Array()
+		_seed_at = 0
 	last_visited = visited
 
 
