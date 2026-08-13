@@ -89,7 +89,7 @@
         ],
         "to": [
           128,
-          138
+          140
         ],
         "free": true,
         "instant": true
@@ -97,6 +97,42 @@
     },
     {
       "tick": 6,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          131,
+          130
+        ],
+        "to": [
+          140,
+          130
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 7,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          125,
+          130
+        ],
+        "to": [
+          116,
+          130
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 8,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -110,7 +146,7 @@
       }
     },
     {
-      "tick": 7,
+      "tick": 9,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -124,7 +160,7 @@
       }
     },
     {
-      "tick": 8,
+      "tick": 10,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -138,7 +174,7 @@
       }
     },
     {
-      "tick": 9,
+      "tick": 11,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -152,7 +188,7 @@
       }
     },
     {
-      "tick": 10,
+      "tick": 12,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -166,7 +202,7 @@
       }
     },
     {
-      "tick": 11,
+      "tick": 13,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -180,7 +216,7 @@
       }
     },
     {
-      "tick": 12,
+      "tick": 14,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -194,7 +230,7 @@
       }
     },
     {
-      "tick": 13,
+      "tick": 15,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -208,7 +244,7 @@
       }
     },
     {
-      "tick": 14,
+      "tick": 16,
       "cmd": {
         "system": "build",
         "op": "place",

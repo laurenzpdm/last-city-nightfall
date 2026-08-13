@@ -101,6 +101,42 @@
       "tick": 6,
       "cmd": {
         "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          131,
+          130
+        ],
+        "to": [
+          140,
+          130
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 7,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          125,
+          130
+        ],
+        "to": [
+          116,
+          130
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 8,
+      "cmd": {
+        "system": "build",
         "op": "place",
         "kind": "warmth_radiator",
         "cell": [
@@ -112,7 +148,7 @@
       }
     },
     {
-      "tick": 7,
+      "tick": 9,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -126,7 +162,7 @@
       }
     },
     {
-      "tick": 8,
+      "tick": 10,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -140,7 +176,7 @@
       }
     },
     {
-      "tick": 9,
+      "tick": 11,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -165,7 +201,23 @@
         ],
         "to": [
           128,
-          141
+          142
+        ]
+      }
+    },
+    {
+      "tick": 500,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          128,
+          142
+        ],
+        "to": [
+          127,
+          142
         ]
       }
     },
@@ -246,6 +298,22 @@
       }
     },
     {
+      "tick": 2400,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          133,
+          131
+        ],
+        "to": [
+          133,
+          136
+        ]
+      }
+    },
+    {
       "tick": 2600,
       "cmd": {
         "system": "build",
@@ -258,13 +326,29 @@
       }
     },
     {
+      "tick": 2800,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          125,
+          130
+        ],
+        "to": [
+          125,
+          120
+        ]
+      }
+    },
+    {
       "tick": 3000,
       "cmd": {
         "system": "build",
         "op": "place",
         "kind": "field_kitchen",
         "cell": [
-          124,
+          122,
           120
         ]
       }
@@ -308,8 +392,40 @@
           125
         ],
         "to": [
-          126,
+          129,
           110
+        ]
+      }
+    },
+    {
+      "tick": 4100,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          129,
+          110
+        ],
+        "to": [
+          129,
+          95
+        ]
+      }
+    },
+    {
+      "tick": 4150,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          129,
+          98
+        ],
+        "to": [
+          127,
+          98
         ]
       }
     },
@@ -321,7 +437,7 @@
         "kind": "ore_drill",
         "cell": [
           124,
-          98
+          97
         ]
       }
     },
@@ -333,7 +449,7 @@
         "kind": "smelter",
         "cell": [
           130,
-          108
+          107
         ]
       }
     },
@@ -345,11 +461,11 @@
         "kind": "wall",
         "from": [
           106,
-          94
+          93
         ],
         "to": [
           114,
-          94
+          93
         ]
       }
     },
@@ -361,11 +477,11 @@
         "kind": "wall",
         "from": [
           115,
-          94
+          93
         ],
         "to": [
           123,
-          94
+          93
         ]
       }
     },
@@ -377,11 +493,11 @@
         "kind": "wall",
         "from": [
           124,
-          94
+          93
         ],
         "to": [
           132,
-          94
+          93
         ]
       }
     },
@@ -393,11 +509,11 @@
         "kind": "wall",
         "from": [
           133,
-          94
+          93
         ],
         "to": [
           141,
-          94
+          93
         ]
       }
     },
@@ -409,11 +525,43 @@
         "kind": "wall",
         "from": [
           142,
-          94
+          93
         ],
         "to": [
           150,
-          94
+          93
+        ]
+      }
+    },
+    {
+      "tick": 5250,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          129,
+          95
+        ],
+        "to": [
+          140,
+          95
+        ]
+      }
+    },
+    {
+      "tick": 5280,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          129,
+          95
+        ],
+        "to": [
+          109,
+          95
         ]
       }
     },
@@ -424,7 +572,7 @@
         "op": "place",
         "kind": "watchtower",
         "cell": [
-          112,
+          108,
           96
         ]
       }
@@ -436,7 +584,7 @@
         "op": "place",
         "kind": "watchtower",
         "cell": [
-          142,
+          141,
           96
         ]
       }
@@ -448,7 +596,7 @@
         "op": "place",
         "kind": "turret_mount",
         "cell": [
-          126,
+          119,
           96
         ]
       }
@@ -460,7 +608,7 @@
         "op": "place",
         "kind": "turret_mount",
         "cell": [
-          138,
+          136,
           96
         ]
       }
