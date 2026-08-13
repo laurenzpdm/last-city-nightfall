@@ -409,6 +409,20 @@ func invalidate_routes() -> void:
 		_nets[nid].route_dirty = true
 
 
+## Turns the residual-route memo off, so every in-tick reroute is recomputed.
+## A pure performance switch: with it off the simulation must produce exactly
+## the same numbers, and tests/perf/test_heat_flow_equivalence.gd asserts that
+## on a real city rather than taking the cache's word for it.
+func set_route_cache(on: bool) -> void:
+	_flow.residual_cache = on
+
+
+## [hits, misses] on the residual-route memo since the world was created.
+## Diagnostics for the perf harness; never read back into simulation state.
+func route_cache_stats() -> Array[int]:
+	return _flow.cache_stats()
+
+
 ## Every warm thing on the map, for [P13]'s light rig and [P14]'s embers.
 ## {pos: Vector2 (world px), radius: float (px), intensity: float 0..1, seed: int}
 ##

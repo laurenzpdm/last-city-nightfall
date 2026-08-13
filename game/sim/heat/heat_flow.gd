@@ -67,12 +67,6 @@ const B_NONE: int = 0
 const B_CAPACITY: int = 1
 const B_SUPPLY: int = 2
 
-static var PROF: Dictionary = {}
-static func _pk(k: String, t0: int) -> int:
-	PROF[k] = int(PROF.get(k, 0)) + (Time.get_ticks_usec() - t0)
-	PROF["n_" + k] = int(PROF.get("n_" + k, 0)) + 1
-	return Time.get_ticks_usec()
-
 var _nodes: Dictionary[int, HeatNode] = {}
 var _net: HeatNetwork = null
 var _topo: HeatTopology = null
@@ -124,6 +118,16 @@ var _tier_members: Dictionary[int, PackedInt32Array] = {}
 var _loss_acc: float = 0.0
 ## Hash of every routing-relevant gate this tick. See solve().
 var _route_sig: int = 0
+## Hash of the tiles this tick's allocation has saturated shut, folded in the
+## moment a tile crosses to zero residual capacity. Together with _route_sig it
+## identifies the graph a residual reroute would search.
+var _block_sig: int = 0
+var _cache_hits: int = 0
+var _cache_misses: int = 0
+
+## Off switch for the residual-route memo. Only tests flip it — with it off the
+## solver recomputes every reroute, and the two runs must agree exactly.
+var residual_cache: bool = true
 
 # --- [P10] research modifiers -------------------------------------------------
 # Set by HeatSystem once per tick from ResearchSystem.multiplier(). All default
@@ -138,6 +142,12 @@ var tech_throughput: float = 1.0    ## conduit capacity
 var tech_buffer: float = 1.0        ## accumulator storage
 
 
+## Routing-cache tally since the last reset: [hits, misses]. A perf tell, not
+## simulation state — nothing reads it back into the world.
+func cache_stats() -> Array[int]:
+	return [_cache_hits, _cache_misses]
+
+
 ## Solves one network for one tick and writes the result back onto its nodes.
 func solve(net: HeatNetwork, members: PackedInt32Array, nodes: Dictionary[int, HeatNode],
 		neigh: Dictionary[int, PackedInt32Array], dt: float, cold_mult: float,
@@ -148,11 +158,8 @@ func solve(net: HeatNetwork, members: PackedInt32Array, nodes: Dictionary[int, H
 	_topo = net.topology(members, nodes, neigh, graph_version)
 	_n = _topo.count
 	_grow(_n)
-	var _t: int = Time.get_ticks_usec()
 	_reset()
-	_t = _pk("reset", _t)
 	_classify(cold_mult, autarky)
-	_t = _pk("classify", _t)
 
 	var live: PackedInt32Array = _live_sources(_producers)
 	# The cache key has to cover EVERYTHING the router branches on, not just which
@@ -168,16 +175,11 @@ func solve(net: HeatNetwork, members: PackedInt32Array, nodes: Dictionary[int, H
 	else:
 		_use_route(_topo.primary)
 
-	_t = Time.get_ticks_usec()
 	for tier: int in _tiers:
 		_serve_tier(_tier_members[tier])
-	_t = _pk("serve", _t)
 	_phase_buffers()
-	_t = _pk("buffers", _t)
 	_phase_charge()
-	_t = _pk("charge", _t)
 	_write_back()
-	_t = _pk("writeback", _t)
 
 
 ## Grows every scratch table to hold the largest network solved so far. Nothing
@@ -231,6 +233,7 @@ func _reset() -> void:
 	_tier_members.clear()
 	_loss_acc = 0.0
 	_route_sig = 1469598103
+	_block_sig = 2166136261
 	_net.bottlenecks = []
 	_net.charge = 0.0
 	_net.discharge = 0.0
@@ -346,6 +349,10 @@ func _classify(cold_mult: float, autarky: bool) -> void:
 						if _avail[i] <= EPS:
 							_avail[i] = 0.0
 							_has_avail[i] = 0
+							# A cached path carries its sink only when the sink is
+							# its own source, so a generator that self-serves itself
+							# dry changes the ANSWER and must change the key.
+							sig = ((sig * 31) ^ (bid * 4 + 4)) & 0x7FFFFFFF
 				_sinks.append(i)
 				# Array, not PackedInt32Array: a packed array inside a Dictionary
 				# copies on write, which would make this grouping quadratic.
@@ -419,15 +426,36 @@ func _use_route(r: HeatRoute) -> void:
 ## efficiency", because efficiency only shrinks along a path: the best route of
 ## length L+1 must extend a best route of length L.
 ##
-## `residual` picks the scratch routing object instead of the cross-tick cache.
+## `residual` picks a memoised scratch route instead of the cross-tick cache.
 ## The two are separate storage on purpose — an in-tick reroute over the
 ## saturated graph is a different answer to a different question, and letting it
 ## overwrite the cache is what used to force a full BFS every tick for any
 ## network carrying a deficit.
+##
+## A residual route is also LOOKED UP before it is computed. Everything the
+## router branches on is folded into one signature (`_route_sig` for the gates
+## and tech, `_block_sig` for the tiles saturation has shut, plus the seed set),
+## so a hit is the same answer by construction, not by hope. In a steady night
+## the same trunk saturates in the same order every tick and this turns nine
+## thousand floods into a handful. Set `residual_cache` false to prove it: the
+## run must come out byte-identical, which is what tests/perf asserts.
 func _route(seeds: PackedInt32Array, residual: bool) -> void:
 	var topo: HeatTopology = _topo
-	var _tr: int = Time.get_ticks_usec()
-	var r: HeatRoute = topo.scratch if residual else topo.primary
+	var r: HeatRoute = null
+	var sorted_seeds: PackedInt32Array = seeds.duplicate()
+	sorted_seeds.sort()
+	if residual:
+		var key: int = _residual_sig(sorted_seeds)
+		if residual_cache:
+			var hit: HeatRoute = topo.find_residual(key)
+			if hit != null:
+				_use_route(hit)
+				_cache_hits += 1
+				return
+		r = topo.claim_residual(key)
+		_cache_misses += 1
+	else:
+		r = topo.primary
 
 	var dist: PackedInt32Array = r.dist
 	var eta: PackedFloat64Array = r.eta
@@ -438,8 +466,7 @@ func _route(seeds: PackedInt32Array, residual: bool) -> void:
 	parent.fill(-1)
 	root.fill(-1)
 
-	var frontier: PackedInt32Array = seeds.duplicate()
-	frontier.sort()
+	var frontier: PackedInt32Array = sorted_seeds
 	for s: int in frontier:
 		dist[s] = 0
 		eta[s] = 1.0
@@ -499,18 +526,25 @@ func _route(seeds: PackedInt32Array, residual: bool) -> void:
 			next_frontier.append(v)
 		frontier = next_frontier
 		level += 1
-		PROF["levels"] = int(PROF.get("levels",0)) + 1
-		PROF["level_nodes"] = int(PROF.get("level_nodes",0)) + touched.size()
 
 	r.dist = dist
 	r.eta = eta
 	r.parent = parent
 	r.root = root
 	r.valid = true
-	PROF["seeds"] = int(PROF.get("seeds",0)) + seeds.size()
-	r.bump()
+	if not residual:
+		r.bump()
 	_use_route(r)
-	_pk("route_residual" if residual else "route_primary", _tr)
+
+
+## Fold the seed set into the gate signature and the saturation signature. These
+## three together are the complete input to the breadth-first search above:
+## topology identity is guaranteed because the cache lives ON the topology.
+func _residual_sig(sorted_seeds: PackedInt32Array) -> int:
+	var h: int = ((_route_sig * 31) ^ _block_sig) & 0x7FFFFFFF
+	for s: int in sorted_seeds:
+		h = ((h * 31) ^ (s + 1)) & 0x7FFFFFFF
+	return h if h != 0 else 1
 
 
 ## Path from a sink up to its source, source last. The sink itself is on the
@@ -550,7 +584,6 @@ func _serve_tier(tier: PackedInt32Array) -> void:
 		var live: PackedInt32Array = _live_sources(_avail_ids)
 		if live.is_empty():
 			return
-		PROF["src_serve"] = int(PROF.get("src_serve",0)) + 1
 		_route(live, true)
 
 
@@ -593,9 +626,6 @@ func _fill(tier: PackedInt32Array) -> bool:
 				touched.append(node)
 	touched.sort()
 
-	PROF["fills"] = int(PROF.get("fills",0)) + 1
-	PROF["touched"] = int(PROF.get("touched",0)) + touched.size()
-	var _tf: int = Time.get_ticks_usec()
 	var saturated: bool = false
 	var rounds: int = 0
 	while not active.is_empty() and rounds < MAX_ROUNDS:
@@ -642,7 +672,10 @@ func _fill(tier: PackedInt32Array) -> bool:
 				continue
 			var flow: float = _eta[node] * used
 			_load[node] += flow
-			_cap[node] = maxf(0.0, _cap[node] - flow)
+			var before: float = _cap[node]
+			_cap[node] = maxf(0.0, before - flow)
+			if before > EPS and _cap[node] <= EPS:
+				_block_sig = ((_block_sig * 31) ^ (node + 1)) & 0x7FFFFFFF
 			if _has_avail[node] != 0:
 				_avail[node] = maxf(0.0, _avail[node] - used)
 
@@ -666,8 +699,6 @@ func _fill(tier: PackedInt32Array) -> bool:
 		if not froze_any:
 			break
 		active = next_active
-	PROF["rounds"] = int(PROF.get("rounds",0)) + rounds
-	_pk("fill_rounds", _tf)
 	return saturated
 
 
@@ -692,11 +723,13 @@ func _phase_buffers() -> void:
 		if _has_avail[i] == 0:
 			_has_avail[i] = 1
 			_avail_ids.append(i)
+			# Same reason as the self-service fold in _classify: a buffer that
+			# becomes a source this tick changes the paths a reroute would build.
+			_block_sig = ((_block_sig * 31) ^ (i * 4 + 5)) & 0x7FFFFFFF
 		_avail[i] += out
 		added = true
 	if not added:
 		return
-	PROF["src_buffers"] = int(PROF.get("src_buffers",0)) + 1
 	_route(_live_sources(_avail_ids), true)
 	for tier: int in _tiers:
 		_serve_tier(_tier_members[tier])
@@ -731,7 +764,6 @@ func _phase_charge() -> void:
 	if tier.is_empty():
 		return
 
-	PROF["src_charge"] = int(PROF.get("src_charge",0)) + 1
 	_route(sources, true)
 	_fill(tier)
 	for k: int in tier.size():

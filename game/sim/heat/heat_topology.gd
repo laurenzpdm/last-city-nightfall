@@ -39,7 +39,16 @@ var repeater: PackedByteArray = PackedByteArray()
 var loss_per_tile: PackedFloat64Array = PackedFloat64Array()
 
 var primary: HeatRoute = HeatRoute.new()
-var scratch: HeatRoute = HeatRoute.new()
+
+## Residual routes are memoised, not recomputed. A network that cannot meet its
+## demand reroutes over the saturated graph up to twice per priority tier per
+## tick, and in a steady night the saturation pattern is the SAME pattern tick
+## after tick — the same trunk over capacity, the same spur starved. Keyed on a
+## signature of everything the router reads, a small ring turns nine thousand
+## full breadth-first floods into a handful.
+const RESIDUAL_SLOTS: int = 6
+var residual: Array[HeatRoute] = []
+var _residual_next: int = 0
 
 
 ## True when this topology still describes the network it was built for.
@@ -102,4 +111,29 @@ func build(members: PackedInt32Array, nodes: Dictionary[int, HeatNode],
 	nb_start[count] = written
 
 	primary.resize(count)
-	scratch.resize(count)
+	residual.resize(RESIDUAL_SLOTS)
+	for k: int in RESIDUAL_SLOTS:
+		if residual[k] == null:
+			residual[k] = HeatRoute.new()
+		residual[k].resize(count)
+		residual[k].sig = 0
+	_residual_next = 0
+
+
+## An already-laid residual route with this exact signature, or null.
+func find_residual(sig: int) -> HeatRoute:
+	for k: int in residual.size():
+		var r: HeatRoute = residual[k]
+		if r.valid and r.sig == sig:
+			return r
+	return null
+
+
+## The slot the next residual route is written into. Round-robin, so the routes
+## a tick keeps coming back to survive and a one-off is what gets evicted.
+func claim_residual(sig: int) -> HeatRoute:
+	var r: HeatRoute = residual[_residual_next]
+	_residual_next = (_residual_next + 1) % residual.size()
+	r.sig = sig
+	r.bump()
+	return r

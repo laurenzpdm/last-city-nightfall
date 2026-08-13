@@ -23,6 +23,11 @@ var stamp: Array[int] = []                         ## which epoch that cached pa
 var epoch: int = 0
 
 var valid: bool = false                            ## false until a route has been laid
+## Hash of every input the router branched on to produce this solution: the seed
+## set, the tiles that were saturated shut, and the gates in HeatFlow._route_sig.
+## Same signature, same answer — that is what makes reusing it sound rather than
+## hopeful. 0 means "never laid".
+var sig: int = 0
 
 
 ## Sizes every array for a network of `n` nodes. Called once per topology build,
