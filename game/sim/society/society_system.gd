@@ -269,9 +269,9 @@ func _sample(tick: int) -> void:
 ## A city with nobody left in it is over, and it does not need a fourth warning:
 ## every one of those deaths was already announced by name and cause.
 func _check_extinction(tick: int) -> void:
+	# At least one death is the guard: a population of zero on the very first
+	# sample means the people have not been created yet, not that they are gone.
 	if populace.deaths_total < 1.0 or populace.population > 0.0:
-		return
-	if not _reading.has_source(&"citizens") and populace.authoritative and _tick < _hour_ticks:
 		return
 	verdict.ended = true
 	verdict.end_reason = REASON_EXTINCT
@@ -570,6 +570,8 @@ func _announce() -> void:
 # =========================================================================
 
 func _advance_seal(tick: int) -> void:
+	if verdict.ended:
+		return
 	var law: LawDef = book.advance(tick, _hour_ticks)
 	if law == null:
 		return
@@ -699,6 +701,8 @@ func available_laws() -> Array[StringName]:
 ## Puts a law to the room. Returns {ok, reason, hours}. This is what the UI
 ## calls through Sim.submit_command({"system": &"society", "op": "sign", ...}).
 func sign_law(id: StringName) -> Dictionary:
+	if verdict.ended:
+		return {"ok": false, "reason": "There is nobody left to sign it in front of.", "hours": 0.0}
 	var res: Dictionary = book.propose(id, _day, _tick, _hour_ticks)
 	if not bool(res.get("ok", false)):
 		Bus.narrative_event.emit(SocietyDefs.EV_LAW_REFUSED, {
@@ -911,6 +915,7 @@ func serialize() -> Dictionary:
 		"people": populace.serialize(),
 		"verdict": verdict.serialize(_tick, _hour_ticks),
 		"city": _reading.serialize(),
+		"law_problems": _law_problems,
 		"seen": {
 			"destroyed": _destroyed_seen,
 			"research": _research_seen,

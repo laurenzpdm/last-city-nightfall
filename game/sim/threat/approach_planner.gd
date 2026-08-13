@@ -98,9 +98,17 @@ func build_vectors() -> void:
 	Log.info("threat", "%d approach vector(s): %s" % [_candidates.size(), _describe()])
 
 
-## Re-measures what the player has built on every lane. Cheap enough to run
-## every few seconds while a wave is on the map.
+## Re-measures what the player has built on every lane.
+##
+## THIS IS THE ONLY EXPENSIVE THING IN THIS PART, so it is written like it:
+## one pass over the building list, one dictionary lookup per building to find
+## which corridors it sits in, and per-zone accumulation into flat arrays
+## indexed by lane rather than into a dictionary. `has_method` is probed once
+## against the first entry instead of once per building — [P11] hands out a
+## homogeneous array of BuildingInstance, and 1700 reflection calls a scan is
+## the difference between 3 ms and 0.4 ms at stress scale.
 func rescore() -> void:
+	var n: int = _candidates.size()
 	for v: ThreatVector in _candidates:
 		v.defence_dps = 0.0
 		v.barrier_hp = 0.0
@@ -115,56 +123,83 @@ func rescore() -> void:
 	var raw: Variant = _build.call("all_buildings")
 	if typeof(raw) != TYPE_ARRAY:
 		return
+	var list: Array = raw
+	if list.is_empty():
+		return
+	var probe: Object = list[0]
+	if probe == null or not probe.has_method("is_complete"):
+		return
+	var has_health: bool = probe.has_method("health_ratio")
+	var has_rect: bool = probe.has_method("rect")
 	var has_power: bool = _heat != null and _heat.has_method("power_factor")
-	var found: Dictionary[int, Array] = {}
-	for entry: Variant in (raw as Array):
+
+	var dps: PackedFloat32Array = PackedFloat32Array()
+	var barrier: PackedFloat32Array = PackedFloat32Array()
+	var turret_n: PackedInt32Array = PackedInt32Array()
+	var wall_n: PackedInt32Array = PackedInt32Array()
+	var ids_by_zone: Array[PackedInt32Array] = []
+	dps.resize(n)
+	barrier.resize(n)
+	turret_n.resize(n)
+	wall_n.resize(n)
+	for _i: int in n:
+		ids_by_zone.append(PackedInt32Array())
+
+	for entry: Variant in list:
 		var b: Object = entry
-		if b == null or not b.has_method("is_complete") or not bool(b.call("is_complete")):
+		if b == null or not bool(b.call("is_complete")):
 			continue
-		var mask: int = _zone_of(b)
+		var mask: int = int(_zone.get(b.get("cell"), 0))
+		if mask == 0 and has_rect:
+			var r: Rect2i = b.call("rect")
+			mask = int(_zone.get(r.position + r.size / 2, 0))
 		if mask == 0:
 			continue
-		var kind: StringName = StringName(String(b.get("kind")))
-		var info: Dictionary = _kind_info(kind)
-		var health: float = 1.0
-		if b.has_method("health_ratio"):
-			health = clampf(float(b.call("health_ratio")), 0.0, 1.0)
+		var info: Dictionary = _kind_info(StringName(String(b.get("kind"))))
+		var health: float = clampf(float(b.call("health_ratio")), 0.0, 1.0) if has_health else 1.0
 		var id: int = int(b.get("id"))
-		var turret: bool = bool(info.get("turret", false))
-		var power: float = 1.0
-		if turret and has_power:
-			power = clampf(float(_heat.call("power_factor", id)), 0.0, 1.0)
 		var hp: float = float(b.get("hp"))
-		for zone: int in _candidates.size():
-			if (mask & (1 << zone)) == 0:
-				continue
-			var v3: ThreatVector = _candidates[zone]
-			if turret:
-				# A cold turret is a decoration. This one line is the whole reason
-				# the heat grid IS the defence grid.
-				v3.defence_dps += _profile.turret_dps * health * (0.15 + 0.85 * power)
-				v3.turrets += 1
-			elif bool(info.get("defense", false)):
-				v3.defence_dps += _profile.support_dps * health
-				v3.walls += 1
-				v3.barrier_hp += hp * _profile.wall_barrier_scale
-			else:
-				# Anything else is still a body in the way, and still something
-				# they can stop to take apart.
-				v3.barrier_hp += hp * 0.25
-			var list: Array = found.get(zone, [])
-			list.append(id)
-			found[zone] = list
+		var turret: bool = bool(info["turret"])
+		var defense: bool = bool(info["defense"])
+		# A cold turret is a decoration. This one line is the whole reason the
+		# heat grid IS the defence grid.
+		var add_dps: float = 0.0
+		if turret:
+			var power: float = 1.0
+			if has_power:
+				power = clampf(float(_heat.call("power_factor", id)), 0.0, 1.0)
+			add_dps = _profile.turret_dps * health * (0.15 + 0.85 * power)
+		elif defense:
+			add_dps = _profile.support_dps * health
+		# Anything that is not a gun is still a body in the way, and still
+		# something they can stop to take apart.
+		var add_hp: float = 0.0 if turret else (
+			hp * _profile.wall_barrier_scale if defense else hp * 0.25)
 
-	var zones: Array = found.keys()
-	zones.sort()
-	for zone2: int in zones:
-		var ids: Array = found[zone2]
-		ids.sort()
-		_candidates[zone2].structures = PackedInt32Array(ids)
-	for v4: ThreatVector in _candidates:
-		var rating: float = v4.defence_dps + v4.barrier_hp * _profile.defence_hp_weight
-		v4.defence = rating / (rating + _profile.defence_reference)
+		var zone: int = 0
+		while mask != 0 and zone < n:
+			if (mask & 1) != 0:
+				dps[zone] += add_dps
+				barrier[zone] += add_hp
+				if turret:
+					turret_n[zone] += 1
+				elif defense:
+					wall_n[zone] += 1
+				ids_by_zone[zone].append(id)
+			mask >>= 1
+			zone += 1
+
+	for z: int in n:
+		var v3: ThreatVector = _candidates[z]
+		v3.defence_dps = dps[z]
+		v3.barrier_hp = barrier[z]
+		v3.turrets = turret_n[z]
+		v3.walls = wall_n[z]
+		# [P11] hands out its buildings ascending by id, so the corridor lists
+		# come out ascending too and never need sorting.
+		v3.structures = ids_by_zone[z]
+		var rating: float = v3.defence_dps + v3.barrier_hp * _profile.defence_hp_weight
+		v3.defence = rating / (rating + _profile.defence_reference)
 
 
 ## Chooses tonight's vectors and their shares. Returns fresh ThreatVector

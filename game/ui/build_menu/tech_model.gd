@@ -48,6 +48,9 @@ class TechNode extends RefCounted:
 	var unlocks: Array[StringName] = []          ## building kinds
 	var grants: Array[StringName] = []           ## non-building unlock ids
 	var leads_to: Array[StringName] = []
+	## Numeric payoff, as [P10] publishes it: key -> delta. Keys ending in
+	## "_mult" stack as 1.0 + sum, so they read as percentages.
+	var effects: Dictionary = {}
 	var state: int = State.LOCKED
 	## The word [P10] itself used: locked / available / queued / active / parked / done.
 	var state_word: String = "locked"
@@ -92,6 +95,29 @@ class TechNode extends RefCounted:
 
 	func eta_label() -> String:
 		return "" if eta_seconds < 0.0 else LcnUiFormat.duration(eta_seconds)
+
+	## The payoff in sentences. A tech screen that shows a node with no buildings
+	## and no words has told the player nothing, and half of a good tree is
+	## modifiers rather than unlocks.
+	func effect_lines() -> PackedStringArray:
+		var out: PackedStringArray = PackedStringArray()
+		for k: StringName in LcnUiFormat.sorted_names(effects.keys()):
+			var v: float = LcnUiFormat.as_number(effects[k])
+			if is_zero_approx(v):
+				continue
+			var label: String = String(k)
+			if label.ends_with("_mult"):
+				out.append("%s %s" % [
+					LcnUiFormat.item_name(StringName(label.substr(0, label.length() - 5))),
+					LcnUiFormat.signed(v * 100.0) + "%"])
+			elif label.ends_with("_add"):
+				out.append("%s %s" % [
+					LcnUiFormat.item_name(StringName(label.substr(0, label.length() - 4))),
+					LcnUiFormat.signed(v)])
+			else:
+				out.append("%s %s" % [LcnUiFormat.item_name(k), LcnUiFormat.signed(v)])
+		return out
+
 
 	## Whichever "why now" line exists: the author's beats the derived one.
 	func why_now() -> String:
@@ -223,6 +249,9 @@ func _from_research(research: Object) -> bool:
 		n.unlocks = _string_names(d.get("unlocks", d.get("buildings", [])))
 		n.grants = _string_names(d.get("grants", []))
 		n.leads_to = _string_names(d.get("leads_to", []))
+		var payoff: Variant = d.get("effects", null)
+		if typeof(payoff) == TYPE_DICTIONARY:
+			n.effects = payoff
 		if d.has("column") and d.has("row"):
 			n.column = LcnUiFormat.as_int(d["column"])
 			n.row = LcnUiFormat.as_int(d["row"])
@@ -287,7 +316,10 @@ func _from_registry(registry: Object) -> bool:
 			n.cost_points = LcnUiFormat.as_number(res.get(&"points"))
 		n.prereqs = _first_names(res, [&"prereqs", &"requires", &"parents", &"depends_on"])
 		n.unlocks = _first_names(res, [&"unlocks", &"buildings", &"unlock_buildings"])
-		n.grants = _first_names(res, [&"grants", &"effects"])
+		n.grants = _first_names(res, [&"grants"])
+		var payoff: Variant = res.get(&"effects")
+		if typeof(payoff) == TYPE_DICTIONARY:
+			n.effects = payoff
 		n.source = &"content"
 		_add(n)
 	return not nodes.is_empty()

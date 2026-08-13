@@ -203,6 +203,12 @@ func _rebuild_detail() -> void:
 			b.pressed.connect(func() -> void: building_requested.emit(kind))
 			_detail.add_child(b)
 
+	var payoff: PackedStringArray = n.effect_lines()
+	if not payoff.is_empty():
+		_detail.add_child(_heading("Pays off as"))
+		for line: String in payoff:
+			_detail.add_child(LcnUiStyle.label("·  %s" % line, LcnUiStyle.FS_SMALL, LcnUiStyle.GOOD))
+
 	if not n.grants.is_empty():
 		_detail.add_child(_heading("Also grants"))
 		var names: PackedStringArray = PackedStringArray()
@@ -374,6 +380,9 @@ class _Graph extends Control:
 			return "%d building%s" % [n.unlocks.size(), "" if n.unlocks.size() == 1 else "s"]
 		if not n.grants.is_empty():
 			return "%d unlock%s" % [n.grants.size(), "" if n.grants.size() == 1 else "s"]
+		var payoff: PackedStringArray = n.effect_lines()
+		if not payoff.is_empty():
+			return payoff[0]
 		if n.cost_points > 0.0:
 			return "%s insight" % LcnUiFormat.num(n.cost_points)
 		return LcnUiFormat.item_name(n.branch)

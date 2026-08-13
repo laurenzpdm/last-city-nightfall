@@ -131,9 +131,9 @@ func _ingest_recipes(registry: Object) -> void:
 			_node(item).made_by.append({
 				"how": String(HOW_RECIPE), "recipe": String(r.id), "building": "",
 				"amount": int(r.outputs[k]), "rate": r.rate_of(item),
-				"text": "%s makes %s every %s" % [
-					r.display_name, LcnUiFormat.items({item: int(r.outputs[k])}),
-					LcnUiFormat.duration(r.seconds)],
+				"text": "%s every %s%s" % [
+					LcnUiFormat.items({item: int(r.outputs[k])}),
+					LcnUiFormat.duration(r.seconds), _in_machine(r)],
 			})
 		var in_keys: Array = r.inputs.keys()
 		in_keys = LcnUiFormat.sorted_names(in_keys)
@@ -142,9 +142,9 @@ func _ingest_recipes(registry: Object) -> void:
 			_node(item2).used_by.append({
 				"how": String(HOW_RECIPE_INPUT), "recipe": String(r.id), "building": "",
 				"amount": int(r.inputs[k2]), "rate": -r.rate_of(item2),
-				"text": "%s consumes %s every %s" % [
+				"text": "%s uses %s every %s%s" % [
 					r.display_name, LcnUiFormat.items({item2: int(r.inputs[k2])}),
-					LcnUiFormat.duration(r.seconds)],
+					LcnUiFormat.duration(r.seconds), _in_machine(r)],
 			})
 
 
@@ -261,6 +261,17 @@ func _ingest_buildings(build_system: Object) -> void:
 					recipe.machines.append(kind)
 					recipe.machines.sort_custom(
 						func(a: StringName, b: StringName) -> bool: return String(a) < String(b))
+
+
+## " in the Smelter" — a recipe named after its own output ("Iron Plate makes
+## 1 Iron Plate") tells a player nothing; the machine is the useful half.
+static func _in_machine(r: Recipe) -> String:
+	if r.machines.is_empty():
+		return ""
+	var names: PackedStringArray = PackedStringArray()
+	for m: StringName in r.machines:
+		names.append(LcnUiFormat.item_name(m))
+	return "  in the %s" % LcnUiFormat.prose_list(names, "or")
 
 
 func _node(id: StringName) -> ItemNode:

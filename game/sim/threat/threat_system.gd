@@ -115,6 +115,9 @@ var _alive_at_dusk: int = 0
 var _kills_at_dusk: int = 0
 var _lost_at_dusk: int = 0
 var _breaches_at_dusk: int = 0
+## [P02]'s balance sheet, cached for the tick it was read on.
+var _totals: Dictionary = {}
+var _totals_tick: int = -1
 
 # --- profiling. Never reaches serialize() or metrics(); see step(). ----------
 ## Total wall time inside step(), and the part of it spent inside OTHER parts'
@@ -199,6 +202,8 @@ func step(tick: int) -> void:
 
 	if tick % _profile.heat_sample_interval == 0:
 		_sample_heat()
+		if _state == ThreatDefs.WaveState.ACTIVE:
+			_sample_night_heat()
 
 	var night: bool = _read_is_night()
 	if _plan != null and not _peace:
@@ -649,7 +654,6 @@ func _run_wave(tick: int, night: bool) -> void:
 	if tick % _profile.siege_step_ticks == 0:
 		if not _combat_resolves():
 			_siege.step(_plan, _profile.siege_step_ticks)
-		_sample_night_heat()
 		_check_breach()
 
 	if night:
@@ -929,16 +933,32 @@ func _read_storm_calendar() -> Dictionary[int, Dictionary]:
 	return out
 
 
+## [P02]'s city-wide balance sheet, fetched AT MOST ONCE PER TICK and charged to
+## the external budget. It is not a cheap call — it walks the whole warmth field
+## to produce an average this system does not even use — so everything here goes
+## through this one accessor and everything here is sampled, never polled.
+func _heat_totals() -> Dictionary:
+	if _totals_tick == _tick:
+		return _totals
+	_totals_tick = _tick
+	_totals = {}
+	if _heat == null or not _heat.has_method("totals"):
+		return _totals
+	var t0: int = Time.get_ticks_usec()  # lint:allow profiling only; never serialized
+	var raw: Variant = _heat.call("totals")
+	_extern_us += Time.get_ticks_usec() - t0  # lint:allow profiling only
+	if typeof(raw) == TYPE_DICTIONARY:
+		_totals = raw
+	return _totals
+
+
 ## The city's heat output as the plain perceives it: everything that actually
 ## left the generators, delivered or lost into the cold. Sampled, not read once,
 ## so panicking and shutting the grid down at dusk does not fool anybody.
 func _sample_heat() -> void:
-	if _heat == null or not _heat.has_method("totals"):
+	var t: Dictionary = _heat_totals()
+	if t.is_empty():
 		return
-	var raw: Variant = _heat.call("totals")
-	if typeof(raw) != TYPE_DICTIONARY:
-		return
-	var t: Dictionary = raw
 	_sig_sum += maxf(0.0, float(t.get("delivered", 0.0))) + maxf(0.0, float(t.get("loss", 0.0)))
 	_sig_n += 1
 	if _heat_signature <= 0.0 and _sig_n >= 4:
@@ -949,14 +969,8 @@ func _sample_heat() -> void:
 
 func _sample_night_heat() -> void:
 	_night_samples += 1
-	if _heat == null or not _heat.has_method("totals"):
-		_night_heat_ok += 1
-		return
-	var raw: Variant = _heat.call("totals")
-	if typeof(raw) != TYPE_DICTIONARY:
-		_night_heat_ok += 1
-		return
-	if float((raw as Dictionary).get("deficit", 0.0)) <= 0.01:
+	var t: Dictionary = _heat_totals()
+	if t.is_empty() or float(t.get("deficit", 0.0)) <= 0.01:
 		_night_heat_ok += 1
 
 

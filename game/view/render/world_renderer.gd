@@ -3,10 +3,26 @@ extends Node2D
 ## The renderer. [P13] Reads the simulation, never writes it.
 ##
 ## Structure:
-##   LcnTerrainRenderer   the ground: one shaded quad over a data plane
-##   LcnEntityRenderer    shadow / additive-warmth / sprite passes
-##   LcnLightRig          night CanvasModulate + pooled warm Light2Ds
-##   LcnPostProcess       grade, bloom, vignette, grain, cold chromatic split
+##   LcnTerrainRenderer   the ground: ONE shaded quad over a small data plane
+##                        (LcnTerrainField). No tiles, no chunk streaming.
+##   LcnEntityRenderer    shadow / additive-warmth / sprite passes, all three
+##                        drawing out of ONE atlas so a pass is a few draw calls
+##   LcnLightRig          hour cast + pooled warm Light2Ds
+##   LcnPostProcess       grade, bloom, vignette, grain, cold split, heat shimmer
+##
+## SECOND PASS, in one paragraph. Everything the first pass got wrong was
+## structural. Terrain repeated because it was four baked tile images, and seamed
+## because snow was baked into a tile at the moment its chunk loaded; both are
+## gone because no tile and no chunk is drawn any more. Night was a void because
+## a CanvasModulate multiplied the whole frame down; darkness is now made per
+## surface by the light rig in LcnPalette, which the ground shader and the entity
+## tint both evaluate, so the settlement keeps a moonlight floor and the plain
+## beyond it does not. Dusk was a colour filter because the key had no elevation;
+## it has one now and rakes across drifts. And entity drawing cost 37 ms at 206
+## buildings because every sprite was its own texture; one atlas took the same
+## frame to 2.4 ms and 8 draw calls. Measurements are in the log, per stage, per
+## frame — see _log_frame_cost — and at stress-city scale in
+## tests/render/render_perf.tscn.
 ##
 ## Movement is interpolated with SimClock.alpha, so agents move smoothly at
 ## 60fps on top of a 20Hz simulation.
