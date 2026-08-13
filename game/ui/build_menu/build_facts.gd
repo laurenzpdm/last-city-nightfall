@@ -490,7 +490,11 @@ static func _placement_warnings(def: Resource, kind: StringName, ctx: Ctx, warni
 		var have: int = int(ctx.build.call(&"count_of", kind))
 		var cap: int = LcnUiFormat.as_int(def.get(&"max_count"))
 		if have >= cap:
+			# "its The Hearth" is what a naive format string produces, and it is
+			# the kind of sentence that tells a player nobody read this screen.
 			var what: String = LcnUiFormat.as_text(def.get(&"display_name"))
+			if what.begins_with("The "):
+				what = what.substr(4)
 			var text: String = "The city already has its %s." % what
 			if cap > 1:
 				text = "The city already has all %d of its %s." % [cap, what]

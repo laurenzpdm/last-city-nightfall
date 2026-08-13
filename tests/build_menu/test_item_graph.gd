@@ -74,6 +74,30 @@ func test_orphans_are_the_shopping_list() -> void:
 		assert_empty(graph.producers_of(id), "%s really has no producer" % String(id))
 
 
+func test_the_wildcard_deposit_is_not_an_item() -> void:
+	assert_has_not(graph.item_ids(), &"*",
+		"'*' means 'whatever seam it stands on'; a browser entry nobody can hold is a bug")
+
+
+func test_the_browser_opens_on_the_busiest_item() -> void:
+	var busiest: StringName = graph.busiest_item()
+	assert_ne(String(busiest), "", "there is something to open on")
+	var best: int = graph.producers_of(busiest).size() + graph.consumers_of(busiest).size()
+	for id: StringName in graph.item_ids():
+		assert_le(float(graph.producers_of(id).size() + graph.consumers_of(id).size()), float(best),
+			"nothing is more connected than the item the browser opens on")
+
+
+func test_an_empty_query_lists_the_recipes_too() -> void:
+	var g := LcnItemGraph.new()
+	g.rebuild(world.system(&"build"), _fake_registry())
+	var kinds: Dictionary = {}
+	for row: Dictionary in g.search("", world.system(&"build"), 500):
+		kinds[String(row["kind"])] = true
+	assert_true(kinds.has("item"), "the shelf shows items")
+	assert_true(kinds.has("recipe"), "and the crafts, without having to type first")
+
+
 func test_search_spans_items_recipes_and_buildings() -> void:
 	var rows: Array[Dictionary] = graph.search("coal", world.system(&"build"))
 	assert_not_empty(rows, "'coal' finds something")

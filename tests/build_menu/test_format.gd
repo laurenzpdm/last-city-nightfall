@@ -35,6 +35,34 @@ func test_item_lists_are_sorted_and_named() -> void:
 	assert_eq(LcnUiFormat.items({}), "nothing", "an empty bill says so")
 
 
+func test_compact_items_fit_a_list_row() -> void:
+	var bill: Dictionary = {&"scrap": 45, &"iron_plate": 20, &"steel_plate": 40}
+	assert_eq(LcnUiFormat.items_compact(bill), "20 iron · 45 scrap · 40 steel",
+		"a palette row has 140 pixels, not 400")
+	assert_eq(LcnUiFormat.short_item(&"copper_coil"), "copper", "first word, lower case")
+
+
+func test_names_sort_by_text_not_by_pointer() -> void:
+	# Godot compares StringName by pointer. Everything ordered in this part goes
+	# through sorted_names precisely because `keys.sort()` does not do this.
+	var sorted: Array[StringName] = LcnUiFormat.sorted_names(
+		[&"zinc", &"iron_plate", &"aluminium", &"coal"])
+	assert_eq(String(sorted[0]), "aluminium", "alphabetical, first")
+	assert_eq(String(sorted[3]), "zinc", "alphabetical, last")
+
+
+func test_foreign_reads_never_crash_on_a_missing_field() -> void:
+	assert_eq(LcnUiFormat.as_text(null), "", "a missing string reads as empty")
+	assert_eq(LcnUiFormat.as_number(null), 0.0, "a missing number reads as zero")
+	assert_eq(LcnUiFormat.as_int(null), 0, "and as an integer zero")
+	assert_false(LcnUiFormat.as_flag(null), "a missing flag is false")
+	assert_eq(String(LcnUiFormat.as_name(null)), "", "a missing id is empty")
+	assert_eq(LcnUiFormat.as_text({}), "", "and a container is not a string")
+	assert_eq(LcnUiFormat.as_number("nope"), 0.0, "nor is a word a number")
+	assert_eq(LcnUiFormat.as_text(&"iron"), "iron", "a real value still passes through")
+	assert_eq(LcnUiFormat.as_number(3), 3.0, "and so does a real number")
+
+
 func test_prose_lists() -> void:
 	assert_eq(LcnUiFormat.prose_list(PackedStringArray(["a"])), "a", "one")
 	assert_eq(LcnUiFormat.prose_list(PackedStringArray(["a", "b"])), "a and b", "two")

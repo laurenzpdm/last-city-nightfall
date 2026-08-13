@@ -64,6 +64,20 @@ func _run() -> void:
 	var starved: float = _time(res, RUNS, 3000000)
 	var m2: Dictionary = res.call("metrics")
 
+	# Stress scale. The only read in this part that grows with the city is the
+	# census (one pass over every building, once per 100 ticks), so this is the
+	# number that decides whether the system scales.
+	var placed: int = 0
+	if build != null:
+		build.call("execute", {"op": &"set_stock", "items": {
+			"iron_plate": 90000, "stone": 90000, "timber": 90000, "scrap": 90000,
+			"gear": 90000, "copper_coil": 90000, "coal": 90000, "steel_plate": 90000,
+		}})
+		build.call("execute", {"op": &"place_area", "kind": &"wall",
+			"from": [60, 60], "to": [99, 99], "free": true, "instant": true})
+		placed = int(build.call("building_count"))
+	var stress: float = _time(res, RUNS, 4000000)
+
 	print("")
 	print("research.step() cost, %d nodes in the tree, %d consecutive ticks per sample"
 		% [(res.call("graph") as ResearchGraph).size(), RUNS])
@@ -71,6 +85,8 @@ func _run() -> void:
 		% [early, early / 500.0])
 	print("  empty yard   %8.3f us/tick   (%.4f %% of the 50 ms budget)"
 		% [starved, starved / 500.0])
+	print("  %d buildings %8.3f us/tick   (%.4f %% of the 50 ms budget)"
+		% [placed, stress, stress / 500.0])
 	print("")
 	print("  mid-campaign: %d researched, active '%s', %d available, %.2f insight/s" % [
 		int(m1["researched_count"]), String(m1["active"]),

@@ -319,10 +319,10 @@ func _sync_city(tick: int) -> void:
 	var gone: PackedInt32Array = board.refresh(tick)
 	if not gone.is_empty():
 		board.release(pool, gone)
-	if board.version != before:
+	if not board.blocked_cells.is_empty():
 		# A new wall or a demolition changes what "walkable" means, and a path
-		# cached through the old world walks into the new one.
-		router.invalidate()
+		# cached through the old world walks into the new one. Only those paths.
+		router.invalidate_cells(board.blocked_cells)
 	_collect_free_hands()
 	if not _homeless.is_empty():
 		var moved: int = board.assign_homes(pool, _homeless, MOVE_INS_PER_PASS)

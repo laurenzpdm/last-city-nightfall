@@ -219,17 +219,17 @@ static func research_rate(workers: int, power_factor: float) -> float:
 ## Budget points the design throws at the city on this night.
 ##
 ## [P08] owns the wave director and ships a far richer curve than a balance
-## table should duplicate, so this DELEGATES to `ThreatSystem.budget_for_night`
-## whenever that system exists, and only computes from the table when it does
-## not. One source of truth at runtime; a documented envelope when [P08] is
-## absent, so a scenario written against economy alone still behaves.
+## table should duplicate, so this DELEGATES to the live `ThreatProfile`
+## whenever one exists, and only computes from the table when it does not. One
+## source of truth at runtime; a documented envelope when [P08] is absent, so a
+## scenario written against economy alone still behaves.
 ##
 ## `city_points` is the labour value of everything standing (see
 ## `city_points_of`), which is how the fallback adapts to an overbuilder.
 static func threat_budget(campaign_day: int, city_points: float = 0.0) -> float:
-	var threat: SimSystem = Sim.get_system(&"threat")
-	if threat != null and threat.has_method("budget_for_night"):
-		var v: Variant = threat.call("budget_for_night", campaign_day)
+	var profile: Resource = _threat_profile()
+	if profile != null and profile.has_method("base_budget"):
+		var v: Variant = profile.call("base_budget", maxi(1, campaign_day))
 		if typeof(v) == TYPE_FLOAT or typeof(v) == TYPE_INT:
 			return float(v) * table().threat_mult
 	var t: BalanceTable = table()
@@ -527,7 +527,7 @@ static func audit_research() -> Array[Dictionary]:
 static func audit_threat() -> Array[Dictionary]:
 	var t: BalanceTable = table()
 	var out: Array[Dictionary] = []
-	var curve_points: PackedFloat32Array = _threat_curve()
+	var curve_points: PackedFloat32Array = threat_curve()
 	if curve_points.is_empty():
 		return out
 	for i: int in range(1, curve_points.size()):
@@ -537,25 +537,23 @@ static func audit_threat() -> Array[Dictionary]:
 				"night %d asks for less than night %d — pressure that goes backwards "
 				% [i + 1, i] + "reads as the game losing interest"))
 			break
-	# Affordability: what the night asks for, against what the city could have
-	# built by then if it spent everything on defence.
-	var built: float = 0.0
-	var affordable_line: float = _city_points_by_night(1)
+	# Affordability: what the night asks for, against what a city following the
+	# intended build order could have standing by then if it spent the whole
+	# defence share of its wealth on turrets and wall.
+	if _city_points_by_night(1) <= 0.0:
+		return [_finding(&"economy", &"no_city_growth_model", 0.0, 1.0, INF,
+			"the affordability line evaluated to zero, so this audit proved nothing")]
 	for i: int in curve_points.size():
 		var night: int = i + 1
-		built = _city_points_by_night(night)
+		var built: float = _city_points_by_night(night)
 		var needed: float = float(curve_points[i]) * t.defence_points_per_threat_point
 		var ceiling: float = built * t.defence_share_of_city_max * t.defence_affordability_slack
-		if needed > ceiling and ceiling > 0.0:
+		if needed > ceiling:
 			out.append(_finding(StringName("night_%d" % night), &"threat_unaffordable",
 				needed, 0.0, ceiling,
 				"night %d wants %.0f points of defence; a city of %.0f points may only "
 				% [night, needed, built] + "spend %.0f on it" % ceiling))
 			break
-	affordable_line = built
-	if affordable_line <= 0.0:
-		out.append(_finding(&"economy", &"no_city_growth_model", 0.0, 1.0, INF,
-			"the affordability line evaluated to zero, so this audit proved nothing"))
 	return out
 
 
@@ -579,18 +577,34 @@ static func _city_points_by_night(night: int) -> float:
 	return start + per_day * float(maxi(0, night - 1))
 
 
-static func _threat_curve() -> PackedFloat32Array:
+## The live ThreatProfile, from content first and from [P08] second. Null when
+## [P08] has not landed — every threat question then falls back to the table.
+static func _threat_profile() -> Resource:
 	for id: StringName in Registry.ids("threat"):
 		var res: Resource = Registry.get_item("threat", id)
 		if res != null and "budget_table" in res:
-			var raw: Variant = res.get("budget_table")
-			if typeof(raw) == TYPE_PACKED_FLOAT32_ARRAY:
-				return raw
+			return res
 	var threat: SimSystem = Sim.get_system(&"threat")
-	if threat != null and threat.has_method("budget_for_night"):
+	if threat != null and threat.has_method("profile"):
+		return threat.call("profile") as Resource
+	return null
+
+
+## The budget curve the audit is measuring, night 1 upward. Empty when [P08] has
+## not landed. Public so a test can prove the audit had something to chew on —
+## an affordability check over an empty curve passes for the wrong reason.
+static func threat_curve() -> PackedFloat32Array:
+	var profile: Resource = _threat_profile()
+	if profile == null:
+		return PackedFloat32Array()
+	if "budget_table" in profile:
+		var raw: Variant = profile.get("budget_table")
+		if typeof(raw) == TYPE_PACKED_FLOAT32_ARRAY:
+			return raw
+	if profile.has_method("base_budget"):
 		var out := PackedFloat32Array()
 		for night: int in range(1, 13):
-			var v: Variant = threat.call("budget_for_night", night)
+			var v: Variant = profile.call("base_budget", night)
 			if typeof(v) != TYPE_FLOAT and typeof(v) != TYPE_INT:
 				return PackedFloat32Array()
 			out.append(float(v))

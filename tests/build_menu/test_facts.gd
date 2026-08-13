@@ -132,6 +132,24 @@ func test_unique_buildings_report_their_limit() -> void:
 	assert_eq(_row_value(sheet, "Structure", "Limit"), "1 in the city", "one hearth, ever")
 
 
+func test_the_second_hearth_is_refused_once_and_in_english() -> void:
+	var c: Vector2i = _core()
+	world.cmd_now({"system": &"build", "op": "place", "kind": "the_hearth",
+		"cell": [c.x - 2, c.y - 2], "free": true, "instant": true})
+	var sheet: Dictionary = LcnBuildFacts.sheet(_def(&"the_hearth"), _ctx(c + Vector2i(20, 0), true))
+	var texts: PackedStringArray = PackedStringArray()
+	var about_the_cap: int = 0
+	for w: Variant in sheet["warnings"]:
+		var text: String = String((w as Dictionary)["text"])
+		texts.append(text)
+		if text.contains("already has"):
+			about_the_cap += 1
+	assert_eq(about_the_cap, 1,
+		"the cap is stated once — [P11]'s refusal and ours are the same fact: %s" % str(texts))
+	assert_has(texts, "The city already has its Hearth.",
+		"and it reads as English, not as 'its The Hearth'")
+
+
 func test_it_lists_what_a_conduit_lets_you_place() -> void:
 	var sheet: Dictionary = LcnBuildFacts.sheet(_def(&"heat_pipe"), _ctx())
 	var enables: String = _row_value(sheet, "Connections", "Lets you place")

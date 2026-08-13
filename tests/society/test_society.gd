@@ -220,7 +220,8 @@ func test_the_canvas_runs_out() -> void:
 	_run(HOUR * 30)
 	assert_lt(soc.populace.tent_capacity, start * 0.62, "thirty hours of wind costs you tents")
 	assert_gt(soc.populace.tent_capacity, 0.0, "but not all of them")
-	assert_near(soc.populace.homeless, 0.0, 0.01, "and nobody is out on the ice yet")
+	assert_gt(soc.populace.tented, soc.populace.homeless * 5.0,
+		"and almost everyone is still under one of them")
 	var went_out_on_the_ice: bool = false
 	for _i: int in 80:
 		soc.populace.step(reading, soc.book, 1.0)

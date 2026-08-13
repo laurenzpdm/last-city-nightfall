@@ -35,6 +35,8 @@ class LawRecord extends RefCounted:
 	var summary: String = ""
 	var chapter: StringName = &"the_book"
 	var chapter_title: String = "The Book"
+	## Sub-heading inside the chapter, as authored ("The Children").
+	var section: String = ""
 	## Exclusive group: signing one law in a slot forecloses its siblings.
 	var slot: StringName = &""
 	var sort_order: int = 0
@@ -195,11 +197,11 @@ func _ingest(registry: Object) -> void:
 		l.min_day = LcnUiFormat.as_int(res.get(&"min_day"))
 		# `section` is the authored chapter heading ("The Children"); `branch` is
 		# the machine key. Group by the key, show the heading.
-		var section: String = _first_string(res, [&"section", &"chapter_title"])
+		l.section = _first_string(res, [&"section", &"chapter_title"])
 		var chapter: String = _first_string(res, [&"chapter", &"branch", &"category", &"book"])
-		if chapter != "" or section != "":
-			l.chapter = StringName(chapter if chapter != "" else section.to_snake_case())
-			l.chapter_title = section if section != "" else LcnUiFormat.item_name(l.chapter)
+		if chapter != "" or l.section != "":
+			l.chapter = StringName(chapter if chapter != "" else l.section.to_snake_case())
+			l.chapter_title = LcnUiFormat.item_name(l.chapter)
 		for line: String in _policy_lines(res):
 			l.effects.append(line)
 		l.slot = StringName(_first_string(res, [&"slot", &"exclusive_group", &"group", &"pair"]))
@@ -284,9 +286,9 @@ func _from_dict(d: Dictionary) -> LawRecord:
 	l.argument_against = LcnUiFormat.as_text(d.get("argument_against", ""))
 	l.signed_line = LcnUiFormat.as_text(d.get("signed_line", ""))
 	l.summary = LcnUiFormat.as_text(d.get("summary", ""))
-	var section: String = LcnUiFormat.as_text(d.get("section", ""))
+	l.section = LcnUiFormat.as_text(d.get("section", ""))
 	l.chapter = LcnUiFormat.as_name(d.get("chapter", d.get("branch", "the_book")))
-	l.chapter_title = section if section != "" else LcnUiFormat.item_name(l.chapter)
+	l.chapter_title = LcnUiFormat.item_name(l.chapter)
 	l.slot = LcnUiFormat.as_name(d.get("slot", ""))
 	l.sort_order = LcnUiFormat.as_int(d.get("sort_order", 0))
 	l.forecloses = _name_list(d.get("excludes", []))

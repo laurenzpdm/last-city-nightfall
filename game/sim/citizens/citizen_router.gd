@@ -30,8 +30,10 @@ const MAX_NODES: int = 1300
 const NODES_PER_CELL: int = 22
 const MIN_NODES: int = 650
 const REQUESTS_PER_TICK: int = 1
-## Ticks a cached route is trusted for. One in-world minute.
-const ROUTE_TTL: int = 1200
+## Ticks a cached route is trusted for. Half an in-world day: staleness is
+## handled by invalidate_cells when the ground actually changes, so a route has
+## no reason to expire while the city around it stands still.
+const ROUTE_TTL: int = 6000
 ## After a failed search, do not try that pair again for this long.
 const FAIL_COOLDOWN: int = 400
 const QUEUE_CAP: int = 512
@@ -47,6 +49,9 @@ var _by_key: Dictionary[int, int] = {}
 var _key_of: Dictionary[int, int] = {}
 var _used: Dictionary[int, int] = {}
 var _failed: Dictionary[int, int] = {}
+## packed cell -> route ids crossing it. Lets a new wall drop exactly the paths
+## that walked through it instead of the entire cache.
+var _by_cell: Dictionary[int, PackedInt32Array] = {}
 var _queue: Array[int] = []
 var _queued: Dictionary[int, bool] = {}
 var _next_id: int = 1
@@ -132,14 +137,35 @@ func entry_index(route_id: int, x: float, y: float) -> int:
 	return best
 
 
-## Throws away every cached route. Called when the walkable world changes —
-## a wall, a demolition, a new road — because a stale path walks into a wall.
+## Drops only the paths that walked through cells the city just built on, and
+## forgets every "no path exists" verdict, because a demolition can open one.
+##
+## Wiping the whole cache on every placement is the obvious version and it is
+## wrong: a city lays hundreds of pipe segments an hour, and a cache that is
+## cleared hundreds of times an hour is not a cache. Nine tenths of the cost of
+## walking a thousand people is paid right here.
+func invalidate_cells(cells: Array) -> void:
+	for c: Variant in cells:
+		var cell: Vector2i = c
+		var packed: int = (cell.x & 0xFFFF) | ((cell.y & 0xFFFF) << 16)
+		# Copy before dropping: _drop edits the very list we are walking.
+		var users: PackedInt32Array = (_by_cell.get(packed, PackedInt32Array()) as PackedInt32Array).duplicate()
+		if users.is_empty():
+			continue
+		for i: int in users.size():
+			_drop(users[i])
+		_by_cell.erase(packed)
+	_failed.clear()
+
+
+## Throws away every cached route. Save loading and tests only.
 func invalidate() -> void:
 	_routes.clear()
 	_by_key.clear()
 	_key_of.clear()
 	_used.clear()
 	_failed.clear()
+	_by_cell.clear()
 	_queue.clear()
 	_queued.clear()
 
@@ -174,6 +200,9 @@ func _solve(key: int, tick: int) -> void:
 	if path.size() < 2:
 		failures += 1
 		_failed[key] = tick
+		Log.debug("citizens.route", "FAIL %s -> %s budget %d from_ok=%s to_ok=%s" % [
+			str(from), str(to), _node_budget(from, to),
+			str(_grid.call("is_walkable", from)), str(_grid.call("is_walkable", to))])
 		return
 	var cells := PackedInt32Array()
 	cells.resize(path.size())
@@ -186,6 +215,11 @@ func _solve(key: int, tick: int) -> void:
 	_by_key[key] = id
 	_key_of[id] = key
 	_used[id] = tick
+	for i2: int in cells.size():
+		var packed: int = cells[i2]
+		var users: PackedInt32Array = _by_cell.get(packed, PackedInt32Array())
+		users.append(id)
+		_by_cell[packed] = users
 	if _routes.size() > MAX_ROUTES:
 		_evict()
 
@@ -210,6 +244,18 @@ func _drop(route_id: int) -> void:
 	var key: int = int(_key_of.get(route_id, -1))
 	if key != -1:
 		_by_key.erase(key)
+	var cells: PackedInt32Array = _routes.get(route_id, PackedInt32Array())
+	for i: int in cells.size():
+		var packed: int = cells[i]
+		var users: PackedInt32Array = _by_cell.get(packed, PackedInt32Array())
+		var at: int = users.find(route_id)
+		if at < 0:
+			continue
+		users.remove_at(at)
+		if users.is_empty():
+			_by_cell.erase(packed)
+		else:
+			_by_cell[packed] = users
 	_key_of.erase(route_id)
 	_routes.erase(route_id)
 	_used.erase(route_id)

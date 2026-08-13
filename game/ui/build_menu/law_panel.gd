@@ -83,7 +83,14 @@ func refresh() -> void:
 		_footer.text = "0 signed"
 		return
 
+	# A thirty-one page book needs its sections called out, or it reads as one
+	# long scroll of paragraphs.
+	var section: String = ""
 	for law: LcnLawModel.LawRecord in model.laws_in(chapter):
+		if law.section != "" and law.section != section:
+			section = law.section
+			_list.add_child(LcnUiStyle.label(section.to_upper(),
+				LcnUiStyle.FS_TINY, LcnUiStyle.ACCENT))
 		_list.add_child(_law_block(law))
 	_footer.text = "%d of %d signed%s" % [
 		model.signed_count(), model.laws.size(),

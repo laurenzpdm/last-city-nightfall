@@ -41,6 +41,8 @@ const MIN_FUEL_RESERVE: float = 4.0
 const REQUEST_EVERY: int = 10
 ## Ticks between "the city is out of X" alerts.
 const ALERT_EVERY: int = 400
+## Ticks between full rescans of [P02]'s world for burners.
+const BURNER_RESCAN_TICKS: int = 200
 
 var world: LogiWorld = LogiWorld.new()
 var haul: LogiHaul = LogiHaul.new()
@@ -64,6 +66,10 @@ var _seen_build: Dictionary[int, bool] = {}
 var _kind_traits: Dictionary[StringName, Dictionary] = {}
 
 var _last_alert_tick: int = -100000
+var _burner_cache: Array[int] = []
+var _burner_fuel: Dictionary[int, StringName] = {}
+var _burner_scan_size: int = -1
+var _burner_scan_tick: int = -100000
 ## True while there is nowhere in the world an item could come from. See
 ## _has_any_source: this is the counterpart of [P02]'s fuel autarky.
 var _bootstrap_logged: bool = false
@@ -100,6 +106,11 @@ func setup() -> void:
 	_removed_total = 0
 	_fuel_short = 0
 	_last_alert_tick = -100000
+	_burner_cache = []
+	_burner_fuel = {}
+	_burner_scan_size = -1
+	_burner_scan_tick = -100000
+	_bootstrap_logged = false
 	_load_content()
 
 
@@ -198,8 +209,8 @@ func _serve_fuel() -> void:
 	var short: int = 0
 	var missing: StringName = &""
 	var unmetered: bool = not _has_any_source()
-	for id: int in world.burner_ids():
-		var fuel: StringName = world.fuel_item_of[id]
+	for id: int in _burners():
+		var fuel: StringName = _fuel_of(id)
 		if String(fuel) == "":
 			continue
 		if not bool(_heat.call("has_building", id)):
@@ -209,7 +220,7 @@ func _serve_fuel() -> void:
 		if stock >= reserve:
 			continue
 		var want: int = int(ceilf(reserve - stock))
-		var cell: Vector2i = world.store_origin.get(id, Vector2i.ZERO)
+		var cell: Vector2i = world.store_origin.get(id, _cell_of(id))
 		if unmetered:
 			_bootstrap_note()
 			haul.fuel_total += world.give_fuel(id, fuel, want)
@@ -237,14 +248,80 @@ func _serve_fuel() -> void:
 		Log.info("logistics", "%d burners short of %s" % [short, String(missing)])
 
 
+## Every burner in the world that wants fuel, ascending.
+##
+## Not just the ones [P11] built: [P02] can own heat entities nobody constructed
+## (its own command surface mints them, and every heat test does), and a burner
+## nobody feeds is a burner that never lights. The list is rebuilt only when the
+## heat world actually changed size, because a hundred and fifty pipes must not
+## be walked every tick to find two furnaces.
+func _burners() -> Array[int]:
+	var nodes: Dictionary = {}
+	if _heat != null:
+		var raw: Variant = _heat.get("nodes")
+		if typeof(raw) == TYPE_DICTIONARY:
+			nodes = raw
+	if nodes.size() != _burner_scan_size or _tick - _burner_scan_tick >= BURNER_RESCAN_TICKS:
+		_burner_scan_size = nodes.size()
+		_burner_scan_tick = _tick
+		var found: Dictionary[int, StringName] = {}
+		for id: Variant in nodes:
+			var n: Object = nodes[id]
+			if n == null:
+				continue
+			var d: Object = n.get("def")
+			if d == null:
+				continue
+			var fuel: StringName = StringName(String(d.get("fuel")))
+			if String(fuel) != "":
+				found[int(id)] = fuel
+		for id2: int in world.burner_ids():
+			if not found.has(id2):
+				found[id2] = world.fuel_item_of[id2]
+		var keys: Array = found.keys()
+		keys.sort()
+		_burner_cache = []
+		_burner_fuel.clear()
+		for k: int in keys:
+			_burner_cache.append(k)
+			_burner_fuel[k] = found[k]
+	return _burner_cache
+
+
+func _fuel_of(building_id: int) -> StringName:
+	var known: StringName = _burner_fuel.get(building_id, &"")
+	if String(known) != "":
+		return known
+	return world.fuel_item_of.get(building_id, &"")
+
+
 ## Fuel a burner is kept topped up to: half a minute of full output.
 func _fuel_reserve(building_id: int) -> float:
-	var burn: float = 0.0
-	var b: Object = _building(building_id)
-	if b != null:
-		var traits: Dictionary = _traits_of(StringName(String(b.get("kind"))))
-		burn = float(traits.get("burn", 0.0))
+	var burn: float = _burn_rate(building_id)
+	if burn <= 0.0:
+		var b: Object = _building(building_id)
+		if b != null:
+			var traits: Dictionary = _traits_of(StringName(String(b.get("kind"))))
+			burn = float(traits.get("burn", 0.0))
 	return maxf(MIN_FUEL_RESERVE, burn * FUEL_RESERVE_SECONDS)
+
+
+## Items per second this burner eats at full output, straight off [P02]'s own
+## normalised definition, so a retuned .tres changes the reserve with it.
+func _burn_rate(building_id: int) -> float:
+	if _heat == null:
+		return 0.0
+	var raw: Variant = _heat.get("nodes")
+	if typeof(raw) != TYPE_DICTIONARY:
+		return 0.0
+	var n: Object = (raw as Dictionary).get(building_id)
+	if n == null:
+		return 0.0
+	var d: Object = n.get("def")
+	if d == null:
+		return 0.0
+	return maxf(0.0, (float(d.get("output")) + float(d.get("self_burn")))
+		* float(d.get("fuel_per_unit")))
 
 
 ## Stores that asked to be kept stocked get filled from everywhere else.

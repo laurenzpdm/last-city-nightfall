@@ -58,6 +58,10 @@ var segment_ids: Array[int] = []
 ## Bumped whenever the topology changes, so cached lookups can be invalidated.
 var topo_version: int = 0
 var topo_dirty: bool = false
+## Set when something that is not a belt changed next to one — a chest going up
+## at the end of a line changes where that line delivers, and resolving sinks is
+## far cheaper than rebuilding every line to find that out.
+var sinks_dirty: bool = false
 
 # ------------------------------------------------------------ item kinds ---
 
@@ -138,6 +142,7 @@ func add_entity(e: LogiEntity) -> void:
 		_pair_underground(e)
 	if e.is_transport() or e.role() == LogiTypes.Role.SPLITTER:
 		topo_dirty = true
+	sinks_dirty = true
 
 
 func remove_entity(id: int) -> LogiEntity:
@@ -162,6 +167,7 @@ func remove_entity(id: int) -> LogiEntity:
 			other.is_entrance = true
 	if e.is_transport() or e.role() == LogiTypes.Role.SPLITTER:
 		topo_dirty = true
+	sinks_dirty = true
 	return e
 
 
@@ -268,6 +274,7 @@ func rebuild_topology() -> void:
 
 	for sid: int in segment_ids:
 		_resolve_sink(segments[sid])
+	sinks_dirty = false
 
 	for item: Dictionary in carried:
 		if not _restore_item(item):
@@ -445,6 +452,10 @@ func step(tick: int) -> void:
 	items_moved = 0
 	if topo_dirty:
 		rebuild_topology()
+	elif sinks_dirty:
+		for sid: int in segment_ids:
+			_resolve_sink(segments[sid])
+		sinks_dirty = false
 	_move_belts()
 	_run_splitters()
 	_settle_lines()
@@ -626,33 +637,43 @@ func _run_inserters() -> void:
 		if not arm.enabled:
 			arm.settle_rate()
 			continue
-		if arm.timer > 0.0:
-			arm.timer -= SimClock.DT
-		match arm.phase:
-			LogiInserter.Phase.WAITING:
+		arm.timer -= SimClock.DT
+		# The state machine runs to a stop inside the tick, and each phase ADDS
+		# its duration to whatever was left over instead of overwriting it. A
+		# 0.433 s cycle is 8.66 ticks: rounding each half up to a whole tick and
+		# spending another one deciding to grab cost a stack arm a fifth of its
+		# rated throughput, which would have made the whole tier ladder a lie.
+		var half: float = arm.cycle_time() * 0.5
+		var guard: int = 0
+		while arm.timer <= 0.0 and guard < 4:
+			guard += 1
+			if arm.phase == LogiInserter.Phase.BACK:
+				arm.phase = LogiInserter.Phase.WAITING
+			if arm.phase == LogiInserter.Phase.WAITING:
 				# A bored arm stops asking so often. Deterministic: the schedule
 				# is a function of the tick and the id, never of the frame.
 				if arm.idle_ticks >= IDLE_POLL_AFTER and (_tick + arm.id) % IDLE_POLL_EVERY != 0:
 					arm.idle_ticks += 1
-				elif _arm_grab(arm):
-					arm.idle_ticks = 0
-					arm.phase = LogiInserter.Phase.OUT
-					arm.timer = arm.cycle_time() * 0.5
-				else:
+					arm.timer = 0.0
+					break
+				if not _arm_grab(arm):
 					arm.idle_ticks += 1
-			LogiInserter.Phase.OUT:
-				if arm.timer <= 0.0:
-					if _arm_drop(arm):
-						arm.phase = LogiInserter.Phase.BACK
-						arm.timer = arm.cycle_time() * 0.5
-						arm.idle_ticks = 0
-					else:
-						# Holding a full hand with nowhere to put it. Visible,
-						# and exactly what the player needs to see.
-						arm.idle_ticks += 1
-			LogiInserter.Phase.BACK:
-				if arm.timer <= 0.0:
-					arm.phase = LogiInserter.Phase.WAITING
+					arm.timer = 0.0
+					break
+				arm.idle_ticks = 0
+				arm.phase = LogiInserter.Phase.OUT
+				arm.timer += half
+				continue
+			if arm.phase == LogiInserter.Phase.OUT:
+				if not _arm_drop(arm):
+					# Holding a full hand with nowhere to put it. Visible, and
+					# exactly what a player needs to see.
+					arm.idle_ticks += 1
+					arm.timer = 0.0
+					break
+				arm.idle_ticks = 0
+				arm.phase = LogiInserter.Phase.BACK
+				arm.timer += half
 		arm.settle_rate()
 
 

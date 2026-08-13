@@ -48,6 +48,8 @@ class Site extends RefCounted:
 	## Walls and pipes are most of a city's building count and nobody visits them,
 	## so everything expensive in refresh() is gated on this flag.
 	var needs_door: bool = false
+	## Standing here stops a walker. Only these change what a path can do.
+	var blocks: bool = false
 	var assigned: int = 0
 	var present: int = 0
 	var taken: int = 0              ## beds occupied
@@ -151,8 +153,14 @@ func door_of(building_id: int) -> Vector2i:
 ## the contracts pointing at them. A building that merely stopped running keeps
 ## its crew: they walk to the dark workshop, find it dead and go home, which is
 ## how a heat failure should read — not as a mass layoff and a mass rehire.
+## Cells whose walkability changed during the last refresh(). [P05]'s router
+## drops exactly the cached paths that crossed them.
+var blocked_cells: Array[Vector2i] = []
+
+
 func refresh(_tick: int) -> PackedInt32Array:
 	var gone := PackedInt32Array()
+	blocked_cells.clear()
 	if _build == null or not _build.has_method("all_buildings"):
 		return gone
 	var raw: Variant = _build.call("all_buildings")
@@ -176,6 +184,8 @@ func refresh(_tick: int) -> PackedInt32Array:
 				continue
 			sites[id] = s
 			changed = true
+			if s.blocks:
+				_collect_cells(s)
 		# A wall's operating state is nobody's business here. Skipping it is what
 		# keeps a seventeen-hundred-building city off this system's tick budget.
 		if not s.needs_door:
@@ -188,6 +198,8 @@ func refresh(_tick: int) -> PackedInt32Array:
 		if seen.has(id) or not sites.has(id):
 			continue
 		gone.append(id)
+		if sites[id].blocks:
+			_collect_cells(sites[id])
 		sites.erase(id)
 		changed = true
 	if changed:
@@ -198,6 +210,12 @@ func refresh(_tick: int) -> PackedInt32Array:
 	_revalidate_doors()
 	_refresh_totals()
 	return gone
+
+
+func _collect_cells(s: Site) -> void:
+	for y: int in s.size.y:
+		for x: int in s.size.x:
+			blocked_cells.append(s.cell + Vector2i(x, y))
 
 
 ## A door is a fact about the ground, and the ground changes: the pipe run laid
@@ -248,6 +266,7 @@ func _make_site(b: Object) -> Site:
 		if tags.has(t):
 			s.hazard = true
 			break
+	s.blocks = bool(def.get("blocks_movement"))
 	s.needs_door = _needs_door(s)
 	s.door = _find_door(s) if s.needs_door else s.center
 	return s

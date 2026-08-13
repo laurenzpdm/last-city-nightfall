@@ -89,12 +89,20 @@ func test_the_research_tree_is_priced_and_gets_dearer() -> void:
 
 
 func test_the_wave_director_asks_for_nights_the_economy_can_arm() -> void:
+	if not need_system(&"threat"):
+		return
+	# [P08] keeps its profile on the live system rather than in content, so this
+	# one needs a world standing to read the curve it is auditing.
+	var world: SimFixture = SimFixture.new(7).start()
+	var curve: PackedFloat32Array = Balance.threat_curve()
 	var lines: PackedStringArray = PackedStringArray()
 	for f: Dictionary in Balance.audit_threat():
 		lines.append(String(f["text"]))
-	if lines.size() == 1 and lines[0].contains("no_city_growth_model"):
-		skip("no ThreatProfile and no [P08] to read a curve from")
-		return
+	world.stop()
+
+	assert_not_empty(curve,
+		"[P08] is in this build and the economy could not read its budget curve "
+		+ "— an affordability audit over nothing passes for the wrong reason")
 	assert_empty(lines, "the threat curve outruns the economy that has to pay "
 		+ "for it:\n      " + "\n      ".join(lines))
 

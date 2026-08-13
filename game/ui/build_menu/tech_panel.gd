@@ -50,10 +50,17 @@ func build_body() -> void:
 	_graph.node_clicked.connect(_on_node_clicked)
 	scroll.add_child(_graph)
 
+	# The detail column gets its own opaque plate: without one the graph draws
+	# straight through the text behind it and both become unreadable.
+	var plate := PanelContainer.new()
+	plate.add_theme_stylebox_override(&"panel", LcnUiStyle.panel_box(false, true))
+	plate.custom_minimum_size = Vector2(320.0, 460.0)
+	plate.mouse_filter = Control.MOUSE_FILTER_STOP
+	columns.add_child(plate)
+
 	var right := ScrollContainer.new()
-	right.custom_minimum_size = Vector2(300.0, 460.0)
 	right.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	columns.add_child(right)
+	plate.add_child(right)
 	_detail = VBoxContainer.new()
 	_detail.add_theme_constant_override(&"separation", 3)
 	_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL

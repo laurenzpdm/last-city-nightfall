@@ -8,6 +8,8 @@ extends TestCase
 
 const SHADER_PATH: String = "res://game/view/render/terrain.gdshader"
 const RENDERER_PATH: String = "res://game/view/render/terrain_renderer.gd"
+const POST_SHADER_PATH: String = "res://game/view/render/post_process.gdshader"
+const POST_PATH: String = "res://game/view/render/post_process.gd"
 
 var field: LcnTerrainField = null
 var model: LcnWorldModel = null
@@ -172,9 +174,32 @@ func test_every_uniform_the_renderer_sets_exists_in_the_shader() -> void:
 ## The shader has to stay inside what the GL Compatibility backend accepts, and
 ## the project ships on that backend.
 func test_shader_stays_within_gl_compatibility() -> void:
-	var src: String = FileAccess.get_file_as_string(SHADER_PATH)
-	assert_true(src.begins_with("shader_type canvas_item;"), "it is a canvas item shader")
-	for banned: String in ["textureLod(", "dFdx(", "dFdy(", "fwidth(", "texelFetch("]:
-		assert_false(src.contains(banned), "no %s — unsupported or unreliable on GLES3 canvas" % banned)
-	assert_true(src.contains("varying vec2 world_pos"), "world position is carried from the vertex stage")
-	assert_true(src.contains("void vertex()"), "and there is a vertex stage to carry it")
+	for path: String in [SHADER_PATH, POST_SHADER_PATH]:
+		var src: String = FileAccess.get_file_as_string(path)
+		assert_true(src.begins_with("shader_type canvas_item;"), "%s is a canvas item shader" % path)
+		for banned: String in ["textureLod(", "dFdx(", "dFdy(", "fwidth(", "texelFetch("]:
+			assert_false(src.contains(banned),
+				"%s: no %s — unsupported or unreliable on GLES3 canvas" % [path, banned])
+	var ground: String = FileAccess.get_file_as_string(SHADER_PATH)
+	assert_true(ground.contains("varying vec2 world_pos"), "world position is carried from the vertex stage")
+	assert_true(ground.contains("void vertex()"), "and there is a vertex stage to carry it")
+
+
+## Same contract for the post stack, which is where the heat shimmer lives.
+func test_post_stack_uniforms_match_the_shader() -> void:
+	var src: String = FileAccess.get_file_as_string(POST_SHADER_PATH)
+	var code: String = FileAccess.get_file_as_string(POST_PATH)
+	var re := RegEx.new()
+	assert_eq(re.compile("set_shader_parameter\\(\"([a-z_0-9]+)\""), OK, "regex compiles")
+	var checked: int = 0
+	for m: RegExMatch in re.search_all(code):
+		var name: String = m.get_string(1)
+		assert_true(src.contains(" " + name), "post_process.gdshader declares uniform '%s'" % name)
+		checked += 1
+	assert_gt(float(checked), 12.0, "%d post uniforms kept in step" % checked)
+	# The shimmer must be inert until the ground binds a real heat field: an
+	# unbound sampler reads WHITE, which would haze the entire frame.
+	assert_true(src.contains("uniform float shimmer_amount = 0.0;"),
+		"shimmer defaults to off in the shader")
+	assert_true(code.contains("Image.FORMAT_RGBA8"), "and to a black 1x1 texture in the script")
+	assert_true(src.contains("heat_tex"), "the shimmer samples the ground's heat field")

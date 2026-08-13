@@ -43,6 +43,12 @@ const TAG: String = ResearchDefs.TAG
 ## Ticks between pacing samples. The measurements it reads move on the scale of
 ## a minute; sampling every tick would be twenty times the cost for no signal.
 const PACING_INTERVAL: int = 100
+## Ticks between passes over the building list. This is the only read in the
+## part whose cost grows with the size of the city, so it runs on its own,
+## slower cadence: at 1500 buildings a census costs about 2.4 ms, which is 24
+## us/tick at 100 and 8 us/tick at 300. Machine and conduit counts move on the
+## scale of a minute; fifteen seconds of staleness is invisible.
+const CENSUS_INTERVAL: int = 300
 ## Ticks between recomputing the insight rate from the cached census plus the
 ## live heat and temperature readings. No scan; three dictionary lookups.
 const RATE_INTERVAL: int = 20
@@ -209,8 +215,9 @@ func step(tick: int) -> void:
 	if _graph.size() == 0:
 		return
 
-	if tick % PACING_INTERVAL == 0:
+	if tick % CENSUS_INTERVAL == 0:
 		_take_census()
+	if tick % PACING_INTERVAL == 0:
 		_pacing.sample(tick, _census)
 		_refresh_suggestion()
 	if tick % RATE_INTERVAL == 0:

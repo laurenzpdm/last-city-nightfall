@@ -120,6 +120,21 @@ func test_research_state_tracks_the_system() -> void:
 		"starting a project through the panel's own command shows up in the tree")
 
 
+func test_a_node_never_claims_to_open_itself() -> void:
+	if not need_system(&"research"):
+		return
+	var model := LcnTechModel.new()
+	model.rebuild(world.system(&"research"), world.system(&"build"), TestEnv.registry())
+	var build: SimSystem = world.system(&"build")
+	for n: LcnTechModel.TechNode in model.nodes:
+		assert_has_not(n.unlocks, n.id,
+			"'%s' must not list itself as a building it opens" % String(n.id))
+		for kind: StringName in n.unlocks:
+			assert_not_null(build.call(&"def_of", kind),
+				"'%s' lists '%s' as a building, so it had better be one" % [
+					String(n.id), String(kind)])
+
+
 func test_every_gated_building_hangs_off_a_node() -> void:
 	if not need_system(&"research"):
 		return
