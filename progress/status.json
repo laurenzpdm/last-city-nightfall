@@ -1,9 +1,9 @@
 {
- "round": 2,
- "phase": "B \u2014 Systems + Legibility",
- "state": "12 builders fanning out",
- "agents_live": 12,
- "critic_score": 3.8,
+ "round": 3,
+ "phase": "C \u2014 Repair + Reachability",
+ "state": "10 builders: boot seam, gate teeth, reachability, VFX, feel, audio, narrative, stats",
+ "agents_live": 10,
+ "critic_score": 4.2,
  "blind_wins": 0,
  "blind_total": 0,
  "parts": [
@@ -22,37 +22,37 @@
   {
    "id": "P03",
    "name": "Logistics / belts",
-   "status": "in_progress",
-   "score": null
+   "status": "done",
+   "score": 2
   },
   {
    "id": "P04",
    "name": "Production & recipes",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
    "id": "P05",
    "name": "Citizens",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
    "id": "P06",
    "name": "Society: hope, laws",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
    "id": "P07",
    "name": "Combat & turrets",
-   "status": "in_progress",
-   "score": null
+   "status": "done",
+   "score": 3
   },
   {
    "id": "P08",
    "name": "Threat director",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
@@ -64,7 +64,7 @@
   {
    "id": "P10",
    "name": "Research",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
@@ -76,25 +76,25 @@
   {
    "id": "P12",
    "name": "Economy tuning",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
    "id": "P13",
    "name": "Render & art direction",
    "status": "done",
-   "score": 3
+   "score": 4
   },
   {
    "id": "P14",
    "name": "VFX & weather",
-   "status": "todo",
+   "status": "in_progress",
    "score": null
   },
   {
    "id": "P15",
    "name": "Feel & juice",
-   "status": "todo",
+   "status": "in_progress",
    "score": null
   },
   {
@@ -106,25 +106,25 @@
   {
    "id": "P17",
    "name": "HUD",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
    "id": "P18",
    "name": "Build menu & tooltips",
-   "status": "in_progress",
-   "score": null
+   "status": "done",
+   "score": 1
   },
   {
    "id": "P19",
    "name": "Readability overlays",
-   "status": "in_progress",
-   "score": null
+   "status": "done",
+   "score": 5
   },
   {
    "id": "P20",
    "name": "Stats & graphs",
-   "status": "todo",
+   "status": "in_progress",
    "score": null
   },
   {
@@ -136,13 +136,13 @@
   {
    "id": "P22",
    "name": "Narrative & events",
-   "status": "todo",
+   "status": "in_progress",
    "score": null
   },
   {
    "id": "P23",
    "name": "Audio",
-   "status": "todo",
+   "status": "in_progress",
    "score": null
   },
   {
@@ -153,14 +153,21 @@
   }
  ],
  "shots": [
-  "shots/opening.png",
-  "shots/midday.png",
+  "shots/assault.png",
+  "shots/build.png",
+  "shots/dawn.png",
+  "shots/deep_night.png",
+  "shots/deep_night.png.import",
   "shots/dusk.png",
-  "shots/deep_night.png"
+  "shots/dusk.png.import",
+  "shots/midday.png",
+  "shots/midday.png.import",
+  "shots/opening.png",
+  "shots/opening.png.import"
  ],
  "verdict": {
   "blind": [],
-  "summary": "Round 1 critic (fresh context, judged the running build only): 3.8/10 overall. Heat solver rated deeper than Frostpunk's radius model. Determinism verified independently. Visual 3, legibility 2, feel 2.",
-  "biggest_gap": "Legibility. The sim computes per-network bottlenecks, per-node dist/eta/served/reason and ships it all in state.json. None of it reaches a pixel."
+  "summary": "Round 2 critic: 4.2/10 (up from 3.8). Perf 36 -> 122 ticks/s, 60fps at 1700 buildings, determinism holds. But the critic found the build menu is NEVER in the scene tree: add_child fails at boot, install() swallows it, boot logs success. 768 tests report green because Log.errors ignores engine-level errors.",
+  "biggest_gap": "Nothing you built is reachable, and the gate cannot see it. Until a human can open a menu, the eleven systems underneath are a simulation, not a game."
  }
 }
