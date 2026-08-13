@@ -79,11 +79,22 @@ var _pending_night: Dictionary = {}
 
 
 func _init() -> void:
-	name = "LcnStats"
+	# The name `LcnLayers.SLOTS` matches on. The integrator's table enforces the
+	# canvas layer by NODE NAME, so renaming this node silently opts the whole
+	# part out of the one check that stops a screen drawing under the HUD.
+	name = "LcnStatsRoot"
 	layer = LAYER
 
 
 func _ready() -> void:
+	# Two installers reach for this part — `boot._install_pending()` and this
+	# part's own `.tres` bootstrap — precisely so that neither being absent can
+	# leave it unreachable. Whichever loses the race stands down here rather than
+	# quietly recording the same world twice into two histories.
+	if not get_tree().get_nodes_in_group(GROUP).is_empty():
+		Log.info("ui.stats", "a statistics screen is already installed; standing down")
+		queue_free()
+		return
 	add_to_group(GROUP)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	theme_ref = LcnStatsTheme.new()

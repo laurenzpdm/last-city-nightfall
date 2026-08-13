@@ -31,6 +31,9 @@ def grade(run: G.Run, spec: dict, defaults: dict) -> list[G.Finding]:
     findings += G.check_metrics(run, spec.get("metrics") or {})
     findings += G.check_state(run, spec.get("state") or {})
     findings += G.check_implications(run, spec.get("implications") or [])
+    rules = list(defaults.get("consistency") or []) if spec.get("consistency") != "none" else []
+    rules += [r for r in (spec.get("consistency") or []) if isinstance(r, dict)]
+    findings += G.check_consistency(run, rules)
     liveness = dict(defaults.get("liveness") or {})
     liveness.update(spec.get("liveness") or {})
     findings += G.check_liveness(run, liveness)

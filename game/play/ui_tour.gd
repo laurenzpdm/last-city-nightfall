@@ -62,6 +62,20 @@ func _run() -> void:
 		_record("%s closes on Escape" % String(screen["label"]), "Escape", closed, "")
 		index += 1
 
+	# --- screens outside [P18]'s panel set, same contract --------------------
+	for extra: Dictionary in LcnLayers.EXTRA_SCREENS:
+		var node: Node = get_tree().get_first_node_in_group(extra["group"])
+		if node == null:
+			_record("%s [%s]" % [String(extra["label"]), String(extra["owner"])],
+				OS.get_keycode_string(int(extra["key"])), false, "not in this build yet")
+			continue
+		await _press(int(extra["key"]))
+		var open2: bool = bool(node.get(extra["flag"]))
+		await _shoot("%02d_%s" % [index, String(extra["group"])], String(extra["label"]))
+		_record(String(extra["label"]), OS.get_keycode_string(int(extra["key"])), open2, "")
+		await _press(KEY_ESCAPE)
+		index += 1
+
 	# --- the lenses, on the keys the router reserved for them ----------------
 	for key: int in LcnLayers.RESERVED_LENS:
 		await _press(key)

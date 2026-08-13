@@ -101,7 +101,7 @@ const SLOTS: Array[Dictionary] = [
 	{"key": &"build_menu", "layer": BUILD_MENU, "owner": "P18 build menu",
 		"names": ["LcnBuildMenu", "BuildMenu"]},
 	{"key": &"stats", "layer": STATS, "owner": "P20 stats",
-		"names": ["LcnStatsRoot", "StatsRoot"]},
+		"names": ["LcnStatsRoot", "StatsRoot", "LcnStats"]},
 ]
 
 # --- hotkeys -----------------------------------------------------------------
@@ -121,6 +121,13 @@ const SCREENS: Array[Dictionary] = [
 	{"id": &"tech", "key": KEY_T, "label": "research tree"},
 	{"id": &"blueprints", "key": KEY_N, "label": "blueprint library"},
 	{"id": &"laws", "key": KEY_L, "label": "the Book of Laws"},
+]
+
+## Screens that live outside [P18]'s panel set. Same contract: a key, a thing
+## that reports whether it is open, and a suite that presses the key.
+const EXTRA_SCREENS: Array[Dictionary] = [
+	{"key": KEY_G, "group": &"lcn_stats", "flag": &"is_open",
+		"label": "production graphs & the night report", "owner": "P20"},
 ]
 
 # --- test/tooling escape hatch ----------------------------------------------

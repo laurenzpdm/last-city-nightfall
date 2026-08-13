@@ -37,7 +37,7 @@ const VEIL_BLOBS: int = 7
 ## Weather strength each snow layer waits for. Far haze arrives first, the big
 ## near flakes only in real weather; all three arriving together is what makes
 ## game snow read as a switch being thrown.
-const LAYER_GATE: PackedFloat32Array = PackedFloat32Array([0.0, 0.18, 0.45])
+const LAYER_GATE: Array[float] = [0.0, 0.18, 0.45]
 
 var layers: Array[GPUParticles2D] = []
 var drift: LcnVfxPointField = null

@@ -179,6 +179,22 @@ func _suite_every_screen_opens_on_its_key() -> void:
 		await _press(KEY_ESCAPE)
 		_ok(not _panel_open(id), "%s closes on Escape" % label)
 
+	# Screens that are not [P18] panels but owe the player the same contract.
+	for extra: Dictionary in LcnLayers.EXTRA_SCREENS:
+		var node: Node = get_tree().get_first_node_in_group(extra["group"])
+		var owner: String = String(extra["owner"])
+		var label2: String = String(extra["label"])
+		if node == null:
+			# Not landed yet is a fact worth stating, not a failure to invent.
+			print("  (not in this build yet: %s [%s])" % [label2, owner])
+			continue
+		var key2: int = int(extra["key"])
+		await _press(key2)
+		_ok(bool(node.get(extra["flag"])),
+			"%s opens on %s" % [label2, OS.get_keycode_string(key2)])
+		await _press(KEY_ESCAPE)
+		_ok(not bool(node.get(extra["flag"])), "%s closes on Escape" % label2)
+
 
 func _close_everything() -> void:
 	if _menu == null or not _menu.has_method(&"open_panels"):

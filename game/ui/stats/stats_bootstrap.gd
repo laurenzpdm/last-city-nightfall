@@ -47,7 +47,7 @@ static func install() -> LcnStats:
 		return null
 	var existing: Node = tree.get_first_node_in_group(LcnStats.GROUP)
 	if existing == null:
-		existing = tree.root.get_node_or_null(NodePath("LcnStats"))
+		existing = _find_by_name(tree.root)
 	if existing != null:
 		_installed = true
 		return existing as LcnStats
@@ -93,6 +93,20 @@ static func _verify_later(stats: LcnStats) -> void:
 	Log.error("ui.stats", "the statistics screen could not be parented — "
 		+ "P and G will do nothing and no history is being recorded")
 	stats.free()
+
+
+## `boot._install_pending()` parents the screen under Boot rather than under the
+## window root, so a name lookup on the root alone would miss it and install a
+## second one. The group is the primary test; this is the belt to its braces.
+static func _find_by_name(node: Node) -> LcnStats:
+	var found := node as LcnStats
+	if found != null:
+		return found
+	for child: Node in node.get_children():
+		var hit: LcnStats = _find_by_name(child)
+		if hit != null:
+			return hit
+	return null
 
 
 ## Tests install and uninstall repeatedly in one process.

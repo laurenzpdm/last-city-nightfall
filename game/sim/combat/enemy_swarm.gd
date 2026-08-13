@@ -46,11 +46,12 @@ const REACH_SLACK: float = 16.0
 # "nothing is alive", and nothing anywhere logged a word about it.
 #
 # Three teeth, in order of how gentle they are:
-#   1. PROGRESS. An enemy that has not got closer to the hearth than it has ever
-#      been, and has not destroyed anything, for STALL_TICKS, has its target
-#      dropped and is made to look again. Chewing a wall for forty-five seconds
-#      is normal; chewing it for forty-five seconds WITHOUT the wall dying and
-#      without gaining a metre is not.
+#   1. PROGRESS. Getting closer to the hearth than ever before is progress; so
+#      is landing a hit, and so is taking one. A body that has done NONE of the
+#      three for STALL_TICKS is not fighting and not travelling — it is stuck —
+#      so its target is dropped and it is made to look again. This deliberately
+#      does not punish a breaker that spends a minute eating one wall: it is
+#      hitting something, and that is the fight working.
 #   2. PATIENCE. Three of those in a row and it breaks off and leaves.
 #   3. LIFETIME. Whatever it is doing, nothing lives past MAX_LIFE_TICKS.
 # Every one of them writes a line. A stall is now loud, bounded and countable —
@@ -364,6 +365,9 @@ func hurt(slot: int, expect_id: int, raw: float, channel: int, pierce: float, ti
 	var dealt: float = CombatTypes.resolve_damage(raw, _resist(d, channel), d_armour[d], pierce)
 	if dealt <= 0.0:
 		return 0.0
+	# Being shot at is not being stuck. A body standing in a kill zone is exactly
+	# where the game wants it; only the watchdog's hard lifetime applies to it.
+	e_prog[slot] = tick
 	e_hp[slot] -= dealt
 	if e_gate[slot] >= 0.0 and e_hp[slot] <= e_gate[slot] and e_hp[slot] > 0.0:
 		_queue_adds(slot, tick)
@@ -743,6 +747,10 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 						e_state[i] = CombatTypes.EnemyState.WALKING
 					else:
 						damage_dealt += landed
+						if landed > 0.0:
+							# Landing hits is the fight working, whether or not
+							# the body has moved a pixel this minute.
+							e_prog[i] = tick
 						if d_lifesteal[d] > 0.0:
 							e_hp[i] = minf(d_health[d], e_hp[i] + landed * d_lifesteal[d])
 						if d_detonate[d] == 1:

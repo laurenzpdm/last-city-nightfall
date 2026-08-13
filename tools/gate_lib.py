@@ -150,9 +150,12 @@ def _short_src(src: str) -> str:
 
 
 def parse_log_file(path: str) -> List[ErrorRecord]:
+    rel = os.path.relpath(path, ROOT)
+    if rel.startswith(".."):
+        rel = os.path.basename(path)
     try:
         with open(path, "r", errors="replace") as fh:
-            return parse_log_text(fh.read(), source=os.path.relpath(path, ROOT))
+            return parse_log_text(fh.read(), source=rel)
     except OSError:
         return []
 
@@ -855,6 +858,48 @@ def _claim_implies(run: Run, rule: Dict[str, Any], pat: "re.Pattern[str]") -> Fi
                        "no alert of this shape was raised in this run", why)
     return Finding(PASS, "alerts tell the truth: %s" % name,
                    "%d alert(s), all backed by %s" % (matched, series_name), why)
+
+
+def check_consistency(run: Run, rules: Sequence[Dict[str, Any]]) -> List[Finding]:
+    """Two counters of the same event have to agree.
+
+    The generalised form of "the UI says X while the data says not-X", applied
+    to the simulation's own reporting surface: every number a panel can print
+    comes from either a metric or a Bus signal, and when those two disagree one
+    of them is lying to the player.  This is how threat.waves_cleared was caught
+    frozen at 1 in a run where Bus.wave_cleared fired twice and
+    threat.waves_survived reached 2.
+    """
+    out: List[Finding] = []
+    for rule in rules:
+        rid = str(rule.get("id", "consistency"))
+        why = str(rule.get("why", ""))
+        metric = str(rule.get("metric", ""))
+        signal = str(rule.get("signal", ""))
+        series = run.series.get(metric)
+        sig = run.signals
+        if series is None:
+            out.append(Finding(UNCHECKED, "counters agree: %s" % rid, "no metric %s" % metric, why))
+            continue
+        if not run.gate:
+            out.append(Finding(UNCHECKED, "counters agree: %s" % rid,
+                               "no gate.json — the signal side was never recorded", why))
+            continue
+        raw = sig.get(signal, sig.get(signal + "_count"))
+        if raw is None:
+            out.append(Finding(UNCHECKED, "counters agree: %s" % rid, "no signal %s" % signal, why))
+            continue
+        events = len(raw) if isinstance(raw, list) else int(raw)
+        counted = _num(series.final())
+        tol = float(rule.get("tolerance", 0))
+        if counted is None:
+            out.append(Finding(UNCHECKED, "counters agree: %s" % rid, "%s is not numeric" % metric, why))
+            continue
+        ok = abs(counted - events) <= tol
+        out.append(Finding(PASS if ok else FAIL, "counters agree: %s" % rid,
+                           "%s says %s, Bus.%s fired %d time(s)" % (metric, _fmt(counted), signal, events),
+                           why))
+    return out
 
 
 def check_implications(run: Run, rules: Sequence[Dict[str, Any]]) -> List[Finding]:

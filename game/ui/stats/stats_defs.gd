@@ -120,7 +120,7 @@ static func table() -> Dictionary:
 		&"research": _row(Kind.LEVEL, "Research", G_CITY, U_NONE, P.ICE_BLUE,
 			"Progress through the node you are working on, 0 to 1."),
 		&"researched": _row(Kind.LEVEL, "Technologies", G_CITY, U_NONE, P.SNOW_MID,
-			"Nodes finished."),
+			"Research nodes finished. Every one of them changed something already standing."),
 
 		# --------------------------------------------------------- world ----
 		&"temperature": _row(Kind.LEVEL, "Outside", G_WORLD, " C", P.ICE_BLUE,

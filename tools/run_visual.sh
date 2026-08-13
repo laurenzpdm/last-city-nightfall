@@ -18,4 +18,19 @@ fi
 
 mkdir -p "$ROOT/artifacts" && : > "$ROOT/artifacts/.gdignore"
 
-"$GODOT" --path "$ROOT" --resolution 1920x1080 -- --harness --visual "$@"
+# A visual run is the ONLY place the UI code executes, and it is where every
+# engine error this build has ever printed came from: 68 String formatting
+# errors and one refused add_child() in a single 30 second pass, all of them
+# invisible to Log.errors and therefore to the harness's exit code.
+# LCN_NO_ERROR_GATE=1 opts out.
+LOG="$(mktemp "${TMPDIR:-/tmp}/lcn_run_visual.XXXXXX")"
+"$GODOT" --path "$ROOT" --resolution 1920x1080 -- --harness --visual "$@" 2> >(tee "$LOG" >&2)
+code=$?
+if [ "${LCN_NO_ERROR_GATE:-0}" != "1" ]; then
+  if ! "${PYTHON:-python3}" "$ROOT/tools/scan_errors.py" "$LOG" --label "engine errors (run_visual)"; then
+    echo "run_visual: the run exited $code but the engine printed errors — see above" >&2
+    [ "$code" -eq 0 ] && code=3
+  fi
+fi
+rm -f "$LOG"
+exit $code
