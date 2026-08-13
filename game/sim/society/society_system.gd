@@ -95,7 +95,6 @@ var _tech_hope: float = 1.0
 var _tech_discontent: float = 1.0
 var _rate_hope: float = 0.0
 var _rate_discontent: float = 0.0
-## Smoothed microseconds spent in step(). METRICS ONLY, never serialize().
 
 
 func system_name() -> StringName:
@@ -185,11 +184,15 @@ func _set_day_length(ticks: int) -> void:
 #  the tick
 # =========================================================================
 
+## Self-profiling used to live here and published a `step_us` column into
+## metrics.csv. It was right that "society is cheap" needs a measurement, and
+## wrong about where to put it: metrics.csv is DIFFED between builds and between
+## the two runs of tools/determinism.sh, so a wall-clock column made every one of
+## those diffs report a difference that was not in the world. Per-system timing
+## now lives in Sim.profile_report(), which no artifact anybody diffs can see —
+## `tools/profile_run.gd --scenario=stress_1000` prints it for every system at
+## once, including this one.
 func step(tick: int) -> void:
-	# Self profiling. This number reaches metrics() only, which is metrics.csv;
-	# state.json never sees it, so a replay cannot diverge on it. It is here
-	# because "society is cheap" is a claim, and a claim with no measurement in
-	# the artifacts is worth nothing.
 	_tick = tick
 	_advance_seal(tick)
 	if tick % SocietyDefs.SAMPLE_EVERY == 0:
