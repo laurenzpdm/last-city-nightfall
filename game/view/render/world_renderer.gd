@@ -115,8 +115,13 @@ func _on_world_ready() -> void:
 	if _owns_camera and _camera != null:
 		var c: Vector2 = _city_centre()
 		_camera.position = c
-	Log.info("render", "world ready: %d structures, %d agents, source=%s" % [
-		model.building_count(), model.agent_count(),
+	# Report what is ON SCREEN, not what the terrain came from. `using_preview()`
+	# is about the ground; saying "source=sim" while every visible structure is a
+	# placeholder is the one log line a reviewer would have trusted.
+	Log.info("render", "world ready: %d structures (%s), %d agents, terrain=%s" % [
+		model.building_count(),
+		"PLACEHOLDERS" if model.showing_preview_settlement() else "real",
+		model.agent_count(),
 		"preview" if model.using_preview() else "sim",
 	])
 

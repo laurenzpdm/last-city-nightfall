@@ -37,8 +37,12 @@ func _ready() -> void:
 		Log.info("boot", "harness mode; boot yields control to Harness")
 		return
 
-	Sim.create_world(_seed_from_cli())
+	# View FIRST, world second: the play shell and the camera bind to the world on
+	# Bus.world_ready, and a world created before they exist fires it into an
+	# empty room — which is how the camera ended up parked at (0, 0) looking at
+	# empty snow while the city stood a hundred tiles away.
 	_install_view()
+	Sim.create_world(_seed_from_cli())
 	_seed_opening_settlement()
 	SimClock.start()
 
@@ -123,18 +127,18 @@ static func opening_commands(c: Vector2i) -> Array[Dictionary]:
 			"from": [a.x, a.y], "to": [b.x, b.y], "free": true, "instant": true})
 
 	place.call("the_hearth", c + Vector2i(-2, -2), 0)
-	line.call("heat_pipe", c + Vector2i(3, 0), c + Vector2i(11, 0))
-	line.call("heat_pipe", c + Vector2i(-3, 0), c + Vector2i(-11, 0))
-	line.call("heat_pipe", c + Vector2i(0, 3), c + Vector2i(0, 9))
-	place.call("warmth_radiator", c + Vector2i(12, -1), 0)
-	place.call("warmth_radiator", c + Vector2i(-13, -1), 0)
-	place.call("housing_block", c + Vector2i(6, 2), 0)
-	place.call("housing_block", c + Vector2i(-10, 2), 0)
-	place.call("housing_block", c + Vector2i(-2, 4), 0)
-	place.call("coal_generator", c + Vector2i(-3, 10), 0)
-	place.call("workshop", c + Vector2i(2, 10), 0)
-	place.call("storage_yard", c + Vector2i(8, 4), 0)
-	place.call("watchtower", c + Vector2i(14, -8), 0)
-	place.call("watchtower", c + Vector2i(-15, -8), 0)
-	place.call("turret_mount", c + Vector2i(14, 10), 0)
+	line.call("heat_pipe", c + Vector2i(3, 0), c + Vector2i(12, 0))
+	line.call("heat_pipe", c + Vector2i(-3, 0), c + Vector2i(-12, 0))
+	line.call("heat_pipe", c + Vector2i(0, 3), c + Vector2i(0, 12))
+	line.call("heat_pipe", c + Vector2i(3, 2), c + Vector2i(12, 2))
+	line.call("heat_pipe", c + Vector2i(-3, 2), c + Vector2i(-12, 2))
+	place.call("warmth_radiator", c + Vector2i(13, -1), 0)
+	place.call("warmth_radiator", c + Vector2i(-14, -1), 0)
+	place.call("housing_block", c + Vector2i(5, 3), 0)
+	place.call("housing_block", c + Vector2i(-9, 3), 0)
+	place.call("coal_generator", c + Vector2i(-3, 11), 0)
+	place.call("workshop", c + Vector2i(1, 11), 0)
+	place.call("storage_yard", c + Vector2i(10, 4), 0)
+	place.call("watchtower", c + Vector2i(14, -9), 0)
+	place.call("turret_mount", c + Vector2i(14, 9), 0)
 	return out

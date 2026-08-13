@@ -66,6 +66,10 @@ func attach(cam: GameCamera, overlay: PlayHud) -> void:
 	hud = overlay
 	camera.action_pressed.connect(_on_action)
 	camera.hover_cell_changed.connect(_on_hover)
+	if Sim.alive:
+		# The world may already exist (harness, or a reload): world_ready has
+		# fired and is not coming back.
+		_on_world_ready()
 
 
 func _on_world_ready() -> void:
