@@ -361,7 +361,7 @@ const AGENT_ID_BASE: int = 5000000
 #  names — the whole point. A number does not have a surname.
 # ==========================================================================
 
-const FIRST_NAMES: PackedStringArray = PackedStringArray([
+const FIRST_NAMES: Array[String] = [
 	"Mara", "Tobias", "Ilse", "Anton", "Greta", "Kasimir", "Nadia", "Emrik",
 	"Halina", "Bruno", "Vera", "Otto", "Zofia", "Lennart", "Milena", "Rurik",
 	"Agnes", "Fedor", "Karin", "Janos", "Lidia", "Marek", "Sonja", "Hendrik",

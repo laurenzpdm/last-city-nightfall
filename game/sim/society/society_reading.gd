@@ -43,6 +43,9 @@ var brownouts: int = 0
 var kitchens: int = 0
 var kitchens_running: float = 0.0     ## sum of power factors, not a headcount
 var granaries: int = 0
+## Complete heat producers that are enabled and not iced over. This is what a
+## camp with no houses yet actually huddles around.
+var hearths_lit: int = 0
 var workplaces: int = 0
 var jobs_required: int = 0
 var food_capacity_per_day: float = 0.0
@@ -143,6 +146,7 @@ func _read_buildings(build: SimSystem, heat: SimSystem) -> void:
 	kitchens = 0
 	kitchens_running = 0.0
 	granaries = 0
+	hearths_lit = 0
 	workplaces = 0
 	jobs_required = 0
 	home_temp_avg = outdoor_c
@@ -203,6 +207,12 @@ func _read_buildings(build: SimSystem, heat: SimSystem) -> void:
 				if has_power and has_node and bool(heat.call("has_building", id)):
 					pf = clampf(float(heat.call("power_factor", id)), 0.0, 1.0)
 				kitchens_running += pf
+		if def.heat_produced > 0.0:
+			var lit: bool = bool(b.get("enabled"))
+			if lit and has_frozen and has_node and bool(heat.call("has_building", id)):
+				lit = not bool(heat.call("is_frozen", id))
+			if lit:
+				hearths_lit += 1
 		if def.workers_required > 0:
 			workplaces += 1
 
@@ -281,6 +291,7 @@ func serialize() -> Dictionary:
 		"kitchens": kitchens,
 		"kitchens_running": snappedf(kitchens_running, 0.01),
 		"granaries": granaries,
+		"hearths_lit": hearths_lit,
 		"food_capacity_per_day": snappedf(food_capacity_per_day, 0.01),
 		"buildings": buildings_operational,
 		"sources": src,

@@ -118,6 +118,8 @@ var _bucket_fill: PackedInt32Array = PackedInt32Array()
 
 var kills: int = 0
 var leaked: int = 0            ## reached the core and stopped being ours to shoot
+## Flat (id, x, y) triples for everything that died this tick.
+var deaths: PackedInt32Array = PackedInt32Array()
 var damage_dealt: float = 0.0  ## to the player's structures, after their armour
 var discontent_raised: float = 0.0
 var heat_siphoned: float = 0.0
@@ -341,9 +343,23 @@ func _kill(slot: int, tick: int) -> void:
 	e_state[slot] = CombatTypes.EnemyState.SPENT
 	e_hp[slot] = 0.0
 	kills += 1
+	deaths.append(e_id[slot])
+	deaths.append(int(e_x[slot]))
+	deaths.append(int(e_y[slot]))
 	var d: int = e_def[slot]
 	if d_spawn_death[d] == 1:
 		_queue_adds(slot, tick)
+
+
+## Drains this tick's death record as flat (id, x, y) triples. [CombatSystem]
+## turns them into Bus.enemy_killed so the view can put an ember where each one
+## fell; the swarm itself never touches the signal bus.
+func take_deaths() -> PackedInt32Array:
+	if deaths.is_empty():
+		return PackedInt32Array()
+	var out: PackedInt32Array = deaths
+	deaths = PackedInt32Array()
+	return out
 
 
 func _queue_adds(slot: int, _tick: int) -> void:
@@ -579,7 +595,16 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 				else:
 					mvx = 0.0
 					mvy = 0.0
-					if e_target[i] < 0:
+					# Whatever is physically in the way becomes the problem, unless
+					# the thing already being shelled is still inside reach — that
+					# is what lets a siege engine keep lobbing over the wall it is
+					# standing against instead of deadlocking on it.
+					var keep: bool = false
+					if e_target[i] >= 0:
+						var kx: float = e_tx[i] - px
+						var ky: float = e_ty[i] - py
+						keep = kx * kx + ky * ky <= d_reach[d] * d_reach[d]
+					if not keep:
 						e_target[i] = blocker
 						e_tx[i] = float(acx) * TILE + HALF_TILE
 						e_ty[i] = float(acy) * TILE + HALF_TILE

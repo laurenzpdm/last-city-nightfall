@@ -8,6 +8,20 @@ heat-connection rule, and it refuses to emit a command that would be refused at
 runtime. Run it, then run tools/check.sh.
 
     python3 tools/gen_scenarios.py
+
+THE CONNECTION RULE (HeatGraph, game/sim/heat/heat_graph.gd):
+
+    two buildings are linked when their footprints touch orthogonally AND at
+    least one of them CONDUCTS (heat_capacity > 0).
+
+Two machines standing side by side are NOT connected. That single rule is the
+layout game, and getting it wrong is silent: a generator that touches only a
+housing block forms its own one-node network, produces into nothing, freezes,
+and the run still exits 0. That is exactly how economy_60min came to simulate a
+city whose sixteen generators all sat on private islands while heat supply read
+120.00 — the Hearth — for an hour. `Layout.audit_heat()` below rebuilds the
+component graph over the finished layout and refuses to write a scenario whose
+heat entities are not one connected grid.
 """
 
 import json
@@ -16,31 +30,45 @@ import os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "tests", "scenarios")
 
-# id -> (w, h, needs_heat_neighbour)
+# id -> (w, h, needs_heat_neighbour, conducts, participates_in_heat)
+#
+#   needs_heat_neighbour  BuildingDef.must_connect contains "heat"
+#   conducts              BuildingDef.is_heat_conduit (heat_capacity > 0)
+#   participates          HeatDef.participates(): output, demand, storage,
+#                         capacity or radiance — i.e. it joins the heat graph
+#                         and is worthless off the grid
 DEFS = {
-    "coal_generator": (3, 2, False),
-    "field_kitchen": (3, 2, False),
-    "geothermal_tap": (3, 3, False),
-    "granary": (3, 3, False),
-    "heat_accumulator": (2, 2, True),
-    "heat_booster_pump": (1, 1, True),
-    "heat_pipe": (1, 1, False),
-    "housing_block": (4, 4, False),
-    "ore_drill": (3, 3, False),
-    "rubble_road": (1, 1, False),
-    "scrap_collector": (2, 2, False),
-    "smelter": (3, 3, False),
-    "storage_yard": (3, 3, False),
-    "the_hearth": (5, 5, False),
-    "turret_mount": (2, 2, False),
-    "wall": (1, 1, False),
-    "warmth_radiator": (2, 2, True),
-    "watchtower": (2, 2, False),
-    "workshop": (4, 3, False),
+    "coal_generator": (3, 2, False, False, True),
+    "field_kitchen": (3, 2, False, False, True),
+    "geothermal_tap": (3, 3, False, False, True),
+    "granary": (3, 3, False, False, True),
+    "heat_accumulator": (2, 2, True, True, True),
+    "heat_booster_pump": (1, 1, True, True, True),
+    "heat_pipe": (1, 1, False, True, True),
+    "heat_pipe_insulated": (1, 1, False, True, True),
+    "heat_trunk_main": (1, 1, False, True, True),
+    "housing_block": (4, 4, False, False, True),
+    "ore_drill": (3, 3, False, False, True),
+    "rubble_road": (1, 1, False, False, False),
+    "scrap_collector": (2, 2, False, False, True),
+    "smelter": (3, 3, False, False, True),
+    "storage_yard": (3, 3, False, False, False),
+    "the_hearth": (5, 5, False, False, True),
+    "turret_mount": (2, 2, False, False, True),
+    "wall": (1, 1, False, False, False),
+    "warmth_radiator": (2, 2, True, False, True),
+    "watchtower": (2, 2, False, False, True),
+    "workshop": (4, 3, False, False, True),
 }
 # Kinds that satisfy a must_connect(&"heat") test.
-HEAT_TAGS = {"heat_pipe", "the_hearth", "coal_generator", "geothermal_tap",
-             "heat_accumulator", "heat_booster_pump"}
+HEAT_TAGS = {"heat_pipe", "heat_pipe_insulated", "heat_trunk_main", "the_hearth",
+             "coal_generator", "geothermal_tap", "heat_accumulator",
+             "heat_booster_pump"}
+
+CONDUCTS = {k for k, v in DEFS.items() if v[3]}
+PARTICIPATES = {k for k, v in DEFS.items() if v[4]}
+
+NEIGHBOURS = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
 CORE = (128, 128)
 
@@ -50,10 +78,11 @@ class Layout:
 
     def __init__(self):
         self.occ = {}          # cell -> kind
+        self.origins = []      # (kind, origin) in placement order
         self.script = []
 
     def cells(self, kind, origin):
-        w, h, _ = DEFS[kind]
+        w, h = DEFS[kind][0], DEFS[kind][1]
         return [(origin[0] + x, origin[1] + y) for y in range(h) for x in range(w)]
 
     def free(self, kind, origin):
@@ -74,6 +103,76 @@ class Layout:
     def claim(self, kind, origin):
         for c in self.cells(kind, origin):
             self.occ[c] = kind
+        self.origins.append((kind, origin))
+
+    # ------------------------------------------------------------ heat audit
+    def heat_components(self):
+        """Connected components over the finished layout, HeatGraph's rule.
+
+        Returns a list of dicts {kinds: Counter-ish set, size, sample cell}.
+        A building is a node; two nodes are linked when they touch orthogonally
+        and at least one of them conducts.
+        """
+        owner = {}                          # cell -> node index
+        nodes = []                          # index -> (kind, origin)
+        for kind, origin in self.origins:
+            if kind not in PARTICIPATES:
+                continue
+            idx = len(nodes)
+            nodes.append((kind, origin))
+            for c in self.cells(kind, origin):
+                # A later line may have been refused on this cell; occ holds the
+                # kind that actually owns it, exactly as build does at runtime.
+                if self.occ.get(c) == kind:
+                    owner.setdefault(c, idx)
+
+        parent = list(range(len(nodes)))
+
+        def find(a):
+            while parent[a] != a:
+                parent[a] = parent[parent[a]]
+                a = parent[a]
+            return a
+
+        def union(a, b):
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                parent[max(ra, rb)] = min(ra, rb)
+
+        for cell, idx in owner.items():
+            for dx, dy in NEIGHBOURS:
+                other = owner.get((cell[0] + dx, cell[1] + dy))
+                if other is None or other == idx:
+                    continue
+                if nodes[idx][0] in CONDUCTS or nodes[other][0] in CONDUCTS:
+                    union(idx, other)
+
+        groups = {}
+        for i in range(len(nodes)):
+            groups.setdefault(find(i), []).append(i)
+        out = []
+        for members in groups.values():
+            kinds = sorted({nodes[i][0] for i in members})
+            out.append({"size": len(members), "kinds": kinds,
+                        "sample": nodes[members[0]][1],
+                        "members": [nodes[i] for i in members]})
+        out.sort(key=lambda g: -g["size"])
+        return out
+
+    def audit_heat(self, name, allow_islands=0):
+        """Refuse to write a scenario whose heat entities are not one grid."""
+        comps = self.heat_components()
+        if not comps:
+            return
+        islands = comps[1:]
+        if len(islands) <= allow_islands:
+            return
+        detail = "; ".join(
+            "%d node(s) %s at %s" % (g["size"], ",".join(g["kinds"]), g["sample"])
+            for g in islands[:6])
+        raise AssertionError(
+            "%s: heat grid is in %d pieces, %d allowed. Main network has %d nodes. "
+            "Orphans: %s" % (name, len(comps), allow_islands + 1, comps[0]["size"], detail))
 
     def place(self, tick, kind, dx, dy, free=False, instant=False):
         origin = (CORE[0] + dx, CORE[1] + dy)
@@ -112,6 +211,7 @@ class Layout:
             # occupied cells and lays the rest, which is what a player sees too.
             if c not in self.occ:
                 self.occ[c] = kind
+                self.origins.append((kind, c))
         cmd = {"system": "build", "op": "place_line", "kind": kind,
                "from": [x0, y0], "to": [x1, y1]}
         if free:
@@ -135,18 +235,31 @@ class Layout:
 
 
 def write(scenario):
+    # Private keys the schema does not know about: consumed here, never written.
+    layout = scenario.pop("_layout", None)
+    allow_islands = scenario.pop("_allow_islands", 0)
     scenario["script"] = sorted(scenario["script"], key=lambda e: e["tick"])
     for e in scenario["script"]:
         assert 1 <= e["tick"] <= scenario["ticks"], (scenario["name"], e)
     rows = scenario["ticks"] // scenario["sample_every"]
     assert 20 <= rows <= 4000, (scenario["name"], rows)
+
+    grid = ""
+    if layout is not None:
+        layout.audit_heat(scenario["name"], allow_islands)
+        comps = layout.heat_components()
+        if comps:
+            total = sum(c["size"] for c in comps)
+            grid = ", heat grid %d/%d nodes in %d network(s)" % (
+                comps[0]["size"], total, len(comps))
+
     path = os.path.join(OUT, scenario["name"] + ".json")
     with open(path, "w") as f:
         json.dump(scenario, f, indent=2)
         f.write("\n")
-    print("%-14s %3d commands, %4d metric rows, last tick %d" % (
+    print("%-14s %3d commands, %4d metric rows, last tick %d%s" % (
         scenario["name"], len(scenario["script"]), rows,
-        scenario["script"][-1]["tick"]))
+        scenario["script"][-1]["tick"], grid))
 
 
 # --------------------------------------------------------------------- smoke
@@ -183,6 +296,7 @@ def smoke():
         "seed": 7, "ticks": 600, "sample_every": 20,
         "expects": {"min_ticks_per_second": 200, "max_errors": 0},
         "script": L.script,
+        "_layout": L,
         "shots": [
             {"tick": 40, "name": "dawn_wide"},
             {"tick": 150, "name": "morning_industry"},
@@ -258,8 +372,10 @@ def first_night():
                         "This is what the art, audio and UI parts screenshot against."),
         "tags": ["reference", "gate", "visual"],
         "seed": 7, "ticks": 11000, "sample_every": 20,
-        "expects": {"min_ticks_per_second": 300, "max_errors": 0},
+        "expects": {"min_ticks_per_second": 300, "max_errors": 0,
+                    "balance_days": [1], "max_heat_networks": 3},
         "script": L.script,
+        "_layout": L,
         "shots": [
             {"tick": 30, "name": "opening"},
             {"tick": 1500, "name": "build"},
@@ -281,7 +397,11 @@ def determinism():
     L.place(4, "the_hearth", -2, -2)
     L.line(60, "heat_pipe", (3, 0), (14, 0))
     L.place(120, "warmth_radiator", 15, -1)
-    L.place(200, "coal_generator", -7, 6)
+    # On the grid, not beside it: a generator that only touches bare ground is a
+    # one-node network, and then the flow solver — the thing this scenario is
+    # here to prove deterministic — never runs on it at all.
+    L.line(180, "heat_pipe", (0, 3), (-6, 3))
+    L.place(200, "coal_generator", -8, 4)
     L.cmd(260, {"system": "grid", "op": "snowfall", "rate": 0.9})
     L.cmd(300, {"system": "climate", "op": "force_storm",
                 "intensity": 0.85, "duration_ticks": 900})
@@ -289,7 +409,7 @@ def determinism():
                 "cell": [CORE[0], CORE[1]], "radius": 5, "amount": 70})
     L.cmd(500, {"system": "build", "op": "place_area", "kind": "rubble_road",
                 "from": [CORE[0] - 4, CORE[1] + 10], "to": [CORE[0] + 4, CORE[1] + 13]})
-    L.cmd(620, {"system": "build", "op": "rotate", "cell": [CORE[0] - 7, CORE[1] + 6]})
+    L.cmd(620, {"system": "build", "op": "rotate", "cell": [CORE[0] - 8, CORE[1] + 4]})
     L.cmd(700, {"system": "build", "op": "undo"})
     L.cmd(760, {"system": "build", "op": "redo"})
     L.cmd(900, {"system": "build", "op": "capture_blueprint",

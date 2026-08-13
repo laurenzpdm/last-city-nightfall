@@ -41,6 +41,12 @@ var warnings_fired: int = 0
 var precision: int = -1
 ## True once the set-piece day-ahead notice has gone out.
 var notice_fired: bool = false
+## False while the vectors are provisional. The plain commits to where it is
+## coming from at the first warning; after that the telegraph cannot lie.
+var locked: bool = false
+## Composition as the composer produced it, before it was split across vectors.
+## Kept so a re-lock can redistribute without re-rolling the night.
+var composition: Array[Dictionary] = []
 
 
 func unit_count() -> int:
@@ -174,6 +180,7 @@ func to_dict() -> Dictionary:
 		"warnings_fired": warnings_fired,
 		"precision": precision,
 		"notice_fired": notice_fired,
+		"locked": locked,
 	}
 
 

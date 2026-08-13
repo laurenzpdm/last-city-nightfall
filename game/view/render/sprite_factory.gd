@@ -36,7 +36,14 @@ const RUST_TOP: Color = Color(0.353, 0.259, 0.192)
 const RUST_FT: Color = Color(0.243, 0.169, 0.125)
 const RUST_FB: Color = Color(0.110, 0.078, 0.059)
 
+## Transparent gutter between atlas entries, so linear filtering at zoomed-out
+## scale cannot drag one sprite's pixels into its neighbour's.
+const ATLAS_GAP: int = 4
+const AGENT_KINDS: Array[StringName] = [&"citizen", &"worker", &"soldier", &"swarm", &"brute"]
+
 var _cache: Dictionary[StringName, Dictionary] = {}
+var _atlas: Dictionary = {}
+var _atlas_keys: Dictionary[StringName, bool] = {}
 
 
 # ------------------------------------------------------------------ catalog --
@@ -159,29 +166,40 @@ static func archetype_for(kind: StringName) -> StringName:
 
 # ------------------------------------------------------------------- public --
 
-## Baked sprite for an archetype. Cached in memory and on disk.
-## Keys: texture, offset (draw position relative to footprint top-left),
+## Baked sprite for an archetype at a specific footprint. Cached in memory and
+## on disk. Keys: texture, offset (draw position relative to footprint top-left),
 ## tiles, lift, warm, light_offset, light_radius.
-func building(arch: StringName) -> Dictionary:
-	var hit: Dictionary = _cache.get(arch, {})
+##
+## Pass `tiles` whenever the building definition has a size of its own. The
+## sprite is then DRAWN at that footprint rather than drawn once and stretched:
+## a 5x5 structure gets 5x5 worth of detail, and two buildings that happen to
+## share an archetype never appear as the same picture at two zoom levels.
+func building(arch: StringName, tiles: Vector2i = Vector2i.ZERO) -> Dictionary:
+	var sp: Dictionary = spec(arch)
+	var nat: Vector2i = sp["tiles"]
+	var t: Vector2i = nat
+	if tiles.x > 0 and tiles.y > 0:
+		t = Vector2i(clampi(tiles.x, 1, 12), clampi(tiles.y, 1, 12))
+	var key: StringName = StringName("%s_%dx%d" % [arch, t.x, t.y])
+	var hit: Dictionary = _cache.get(key, {})
 	if not hit.is_empty():
 		return hit
-	var sp: Dictionary = spec(arch)
-	var tiles: Vector2i = sp["tiles"]
-	var lift: float = sp["lift"]
+
+	var ratio: float = sqrt(float(t.x * t.y) / float(maxi(1, nat.x * nat.y)))
+	var lift: float = float(sp["lift"]) * clampf(ratio, 0.55, 1.85)
 	var tex: ImageTexture = LcnArtCache.get_texture(
-		"bld_%s" % arch, func() -> Image: return _bake_building(arch, tiles, lift)
+		"bld_%s_%dx%d" % [arch, t.x, t.y], func() -> Image: return _bake_building(arch, t, lift)
 	)
 	var entry: Dictionary = {
 		"texture": tex,
 		"offset": Vector2(-PAD, -PAD - lift),
-		"tiles": tiles,
+		"tiles": t,
 		"lift": lift,
 		"warm": float(sp["warm"]),
-		"light_offset": Vector2(float(tiles.x) * TILE * 0.5, float(tiles.y) * TILE * 0.5 - lift * 0.45),
-		"light_radius": maxf(96.0, float(maxi(tiles.x, tiles.y)) * TILE * 2.6),
+		"light_offset": Vector2(float(t.x) * TILE * 0.5, float(t.y) * TILE * 0.5 - lift * 0.45),
+		"light_radius": maxf(96.0, float(maxi(t.x, t.y)) * TILE * 2.6),
 	}
-	_cache[arch] = entry
+	_cache[key] = entry
 	return entry
 
 
@@ -229,6 +247,13 @@ func _bake_building(arch: StringName, tiles: Vector2i, lift: float) -> Image:
 	var c := LcnVectorCanvas.new(w + PAD * 2, d + int(lift) + PAD * 2, SS)
 	var g := Rect2(float(PAD), float(PAD) + lift, float(w), float(d))
 	match arch:
+		&"hearth": _draw_hearth(c, g)
+		&"radiator": _draw_radiator(c, g)
+		&"accumulator": _draw_accumulator(c, g)
+		&"silo": _draw_silo(c, g)
+		&"kitchen": _draw_kitchen(c, g)
+		&"drill": _draw_drill(c, g)
+		&"collector": _draw_collector(c, g)
 		&"generator": _draw_generator(c, g)
 		&"heat_plant": _draw_heat_plant(c, g)
 		&"foundry": _draw_foundry(c, g)
@@ -1087,6 +1112,382 @@ func _draw_wreck(c: LcnVectorCanvas, g: Rect2) -> void:
 		Vector2(cx - 22.4, base_y - 14.4), Vector2(cx + 4.0, base_y - 17.6),
 		Vector2(cx + 3.0, base_y - 15.4), Vector2(cx - 21.4, base_y - 12.4),
 	]), Color(0.855, 0.894, 0.945, 0.80))
+
+
+# ------------------------------------------------- bake: second-pass shapes --
+# Seven shapes added because a critic could not tell a granary from a warehouse
+# from a heat accumulator at far zoom — everything industrial was the same block.
+# Each of these owns exactly one outline feature: the hearth a stepped ziggurat
+# with a burning crown, the radiator a fin stack, the accumulator a tank pair,
+# the silo three cylinders, the kitchen a lean-to awning, the drill an A-frame
+# derrick, the collector a low arm.
+
+
+## THE HEARTH. The one structure the whole city is arranged around: a stepped
+## ziggurat with a ring of fire at the top and four buttress stacks. Nothing else
+## in the game is round-shouldered and this tall.
+func _draw_hearth(c: LcnVectorCanvas, g: Rect2) -> void:
+	var cx: float = g.position.x + g.size.x * 0.5
+	var base_y: float = g.end.y - 3.0
+	var w: float = g.size.x
+	var dep: float = g.size.y
+
+	c.fill_ellipse(Vector2(cx, base_y + 2.0), w * 0.56, dep * 0.26, Color(0.043, 0.059, 0.098, 0.6))
+
+	# Three stacked plinths, each narrower and taller than the one below.
+	var steps: Array[float] = [0.50, 0.40, 0.30]
+	var hs: Array[float] = [18.0, 22.0, 26.0]
+	var y: float = base_y
+	for i: int in 3:
+		var hw: float = w * steps[i]
+		var h: float = hs[i]
+		var top: float = y - h
+		c.fill_polygon_gradient(PackedVector2Array([
+			Vector2(cx - hw * 0.94, top), Vector2(cx + hw * 0.94, top),
+			Vector2(cx + hw, y), Vector2(cx - hw, y),
+		]), METAL_FT.lerp(DARK_FT, float(i) * 0.22), DARK_FB,
+			Vector2(0.0, top), Vector2(0.0, y))
+		c.stroke_polygon(PackedVector2Array([
+			Vector2(cx - hw * 0.94, top), Vector2(cx + hw * 0.94, top),
+			Vector2(cx + hw, y), Vector2(cx - hw, y),
+		]), OUTLINE, 1.8)
+		# A band of grate light on each tier: heat leaking out of the whole mass.
+		for j: int in 5:
+			var f: float = (float(j) + 0.5) / 5.0
+			var gx: float = lerpf(cx - hw * 0.74, cx + hw * 0.74, f)
+			c.fill_round_rect(Rect2(gx - 2.2, top + h * 0.32, 4.4, h * 0.42), 1.6,
+				Color(1.0, 0.55 + 0.06 * float(j % 2), 0.22, 0.93))
+		c.fill_glow(Vector2(cx, top + h * 0.5), hw * 0.9,
+			Color(1.0, 0.46, 0.16, 0.28), Color(1.0, 0.46, 0.16, 0.0))
+		y = top
+
+	# The crown: an open fire bowl with a ring of flame.
+	var crown_r: float = w * 0.22
+	c.fill_ellipse(Vector2(cx, y + 2.0), crown_r * 1.20, crown_r * 0.44, Color(0.129, 0.153, 0.208))
+	c.stroke_polygon(LcnVectorCanvas.circle_points(Vector2(cx, y + 2.0), crown_r * 1.20, crown_r * 0.44, 30),
+		OUTLINE, 1.7)
+	c.fill_glow(Vector2(cx, y - 2.0), crown_r * 2.4, Color(1.0, 0.52, 0.18, 0.72), Color(1.0, 0.42, 0.12, 0.0), 40)
+	c.fill_ellipse(Vector2(cx, y + 1.0), crown_r * 0.92, crown_r * 0.32, Color(1.0, 0.72, 0.32, 0.98))
+	c.fill_ellipse(Vector2(cx, y + 0.0), crown_r * 0.52, crown_r * 0.20, LcnPalette.WARM_WHITE)
+	for i: int in 5:
+		var a: float = -1.7 + float(i) * 0.85
+		var fx: float = cx + cos(a) * crown_r * 0.72
+		c.fill_polygon(PackedVector2Array([
+			Vector2(fx - 3.2, y + 1.0), Vector2(fx, y - 13.0 - float(i % 2) * 6.0),
+			Vector2(fx + 3.2, y + 1.0),
+		]), Color(1.0, 0.60, 0.22, 0.72))
+
+	# Four buttress stacks at the corners, which is what reads at far zoom.
+	for i: int in 4:
+		var sx: float = cx + (w * 0.40 if (i % 2) == 0 else -w * 0.40)
+		var sy: float = base_y - (6.0 if i < 2 else 16.0)
+		_chimney(c, sx, sy, 34.0 + float(i % 2) * 8.0, 8.0, i * 3 + 1)
+
+
+## Warmth radiator: a stack of fins on a squat plinth, glowing between the fins.
+func _draw_radiator(c: LcnVectorCanvas, g: Rect2) -> void:
+	var cx: float = g.position.x + g.size.x * 0.5
+	var base_y: float = g.end.y - 4.0
+	var w: float = g.size.x
+	c.fill_ellipse(Vector2(cx, base_y + 1.5), w * 0.46, g.size.y * 0.2, Color(0.043, 0.059, 0.098, 0.5))
+	var plinth := Rect2(cx - w * 0.36, base_y - 12.0, w * 0.72, 12.0)
+	c.fill_rect_gradient(plinth, DARK_FT, DARK_FB)
+	c.stroke_rect(plinth, OUTLINE, 1.6)
+
+	var fins: int = 6
+	var top_y: float = base_y - 12.0
+	c.fill_glow(Vector2(cx, top_y - 16.0), w * 0.66, Color(1.0, 0.48, 0.17, 0.42), Color(1.0, 0.48, 0.17, 0.0))
+	for i: int in fins:
+		var fy: float = top_y - 4.0 - float(i) * 5.4
+		var fw: float = w * (0.42 - float(i) * 0.018)
+		c.fill_round_rect(Rect2(cx - fw, fy - 3.4, fw * 2.0, 3.4), 1.2,
+			METAL_TOP.lerp(Color(0.44, 0.50, 0.60), float(i) / float(fins)))
+		c.fill_round_rect(Rect2(cx - fw + 1.5, fy - 0.6, fw * 2.0 - 3.0, 1.6), 0.7,
+			Color(1.0, 0.55, 0.20, 0.85))
+		c.stroke_rect(Rect2(cx - fw, fy - 3.4, fw * 2.0, 3.4), Color(0.043, 0.063, 0.110, 0.7), 1.0)
+	# Central spine so the fins hang off something.
+	c.fill_round_rect(Rect2(cx - 3.4, top_y - 4.0 - float(fins) * 5.4, 6.8, float(fins) * 5.4 + 4.0),
+		2.0, METAL_FT)
+	c.fill_circle(Vector2(cx, top_y - 6.0 - float(fins) * 5.4), 4.0, LcnPalette.WARM_MID, 14)
+	c.stroke_polygon(LcnVectorCanvas.circle_points(Vector2(cx, top_y - 6.0 - float(fins) * 5.4), 4.0, 4.0, 14),
+		OUTLINE, 1.2)
+
+
+## Heat accumulator: two riveted tanks side by side with a level gauge.
+func _draw_accumulator(c: LcnVectorCanvas, g: Rect2) -> void:
+	var base_y: float = g.end.y - 4.0
+	var cx: float = g.position.x + g.size.x * 0.5
+	c.fill_ellipse(Vector2(cx, base_y + 1.5), g.size.x * 0.48, g.size.y * 0.2, Color(0.043, 0.059, 0.098, 0.5))
+	var rx: float = g.size.x * 0.22
+	for i: int in 2:
+		var tx: float = cx + (-1.0 if i == 0 else 1.0) * g.size.x * 0.23
+		var h: float = 30.0 - float(i) * 4.0
+		_cylinder(c, tx, base_y - float(i) * 2.0, rx, g.size.y * 0.14, h,
+			Color(0.290, 0.345, 0.435), Color(0.216, 0.263, 0.345), Color(0.075, 0.098, 0.153))
+		# Level gauge: how full the buffer is, in warm light.
+		c.fill_round_rect(Rect2(tx - 1.6, base_y - float(i) * 2.0 - h * 0.62, 3.2, h * 0.46), 1.2,
+			Color(1.0, 0.58, 0.24, 0.85))
+		_rivets(c, Rect2(tx - rx + 2.0, base_y - float(i) * 2.0 - h + 4.0, rx * 2.0 - 4.0, h - 8.0), 4,
+			Color(0.055, 0.075, 0.118, 0.65))
+	c.fill_round_rect(Rect2(cx - g.size.x * 0.26, base_y - 22.0, g.size.x * 0.52, 4.0), 1.6, METAL_FT)
+	c.stroke_rect(Rect2(cx - g.size.x * 0.26, base_y - 22.0, g.size.x * 0.52, 4.0), OUTLINE, 1.2)
+
+
+## Silo / granary: three tall cylinders with conical caps. Unmistakable outline.
+func _draw_silo(c: LcnVectorCanvas, g: Rect2) -> void:
+	var base_y: float = g.end.y - 3.0
+	var cx: float = g.position.x + g.size.x * 0.5
+	c.fill_ellipse(Vector2(cx, base_y + 1.5), g.size.x * 0.50, g.size.y * 0.22, Color(0.043, 0.059, 0.098, 0.5))
+	var rx: float = g.size.x * 0.155
+	for i: int in 3:
+		var f: float = float(i) / 2.0
+		var tx: float = lerpf(cx - g.size.x * 0.30, cx + g.size.x * 0.30, f)
+		var h: float = 44.0 - absf(f - 0.5) * 16.0
+		var y0: float = base_y - float(i % 2) * 3.0
+		_cylinder(c, tx, y0, rx, g.size.y * 0.10, h,
+			Color(0.322, 0.345, 0.392), Color(0.243, 0.267, 0.318), Color(0.086, 0.098, 0.129))
+		# Conical cap.
+		c.fill_polygon(PackedVector2Array([
+			Vector2(tx - rx * 1.08, y0 - h), Vector2(tx, y0 - h - 12.0), Vector2(tx + rx * 1.08, y0 - h),
+		]), Color(0.404, 0.435, 0.494))
+		c.stroke_polygon(PackedVector2Array([
+			Vector2(tx - rx * 1.08, y0 - h), Vector2(tx, y0 - h - 12.0), Vector2(tx + rx * 1.08, y0 - h),
+		]), OUTLINE, 1.5)
+		c.fill_polygon(PackedVector2Array([
+			Vector2(tx - rx * 0.9, y0 - h - 1.5), Vector2(tx, y0 - h - 11.0), Vector2(tx - rx * 0.1, y0 - h - 1.5),
+		]), Color(0.910, 0.933, 0.969, 0.85))
+		for j: int in 3:
+			var by: float = y0 - h * (0.28 + 0.26 * float(j))
+			c.stroke_polyline(PackedVector2Array([Vector2(tx - rx, by), Vector2(tx + rx, by)]),
+				Color(0.043, 0.063, 0.110, 0.5), 1.2)
+
+
+## Field kitchen: a lean-to awning over a range, with the only open flame at
+## ground level in the whole city.
+func _draw_kitchen(c: LcnVectorCanvas, g: Rect2) -> void:
+	var body := Rect2(g.position.x + 2.0, g.position.y + 8.0, g.size.x * 0.58, g.size.y - 10.0)
+	_mass(c, body, 22.0, RUST_TOP.lerp(METAL_TOP, 0.55), RUST_FT.lerp(METAL_FT, 0.5), METAL_FB)
+	_snow_roof(c, body, 22.0, 0.55, 27, RUST_TOP.lerp(METAL_TOP, 0.55))
+	var roof_y: float = body.end.y - 22.0
+	_chimney(c, body.position.x + 8.0, roof_y, 24.0, 7.0, 2)
+
+	# Canvas awning on two poles, sagging between them.
+	var ax0: float = body.end.x - 2.0
+	var ax1: float = g.end.x - 2.0
+	var ay: float = roof_y + 4.0
+	c.fill_polygon(PackedVector2Array([
+		Vector2(ax0, ay), Vector2(ax1, ay + 5.0),
+		Vector2(ax1, ay + 9.0), Vector2(ax0, ay + 4.0),
+	]), Color(0.478, 0.396, 0.310))
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(ax0, ay), Vector2(lerpf(ax0, ax1, 0.5), ay + 4.0), Vector2(ax1, ay + 5.0),
+	]), Color(0.663, 0.573, 0.451), 1.6)
+	for i: int in 2:
+		var px: float = ax1 - float(i) * 1.0
+		c.stroke_polyline(PackedVector2Array([Vector2(px, ay + 5.0), Vector2(px, g.end.y - 3.0)]),
+			Color(0.180, 0.157, 0.129), 2.0)
+	# The range: a pot over an open fire.
+	var fx: float = lerpf(ax0, ax1, 0.45)
+	var fy: float = g.end.y - 6.0
+	c.fill_glow(Vector2(fx, fy), 20.0, Color(1.0, 0.50, 0.18, 0.62), Color(1.0, 0.42, 0.12, 0.0))
+	c.fill_ellipse(Vector2(fx, fy), 7.0, 3.0, Color(1.0, 0.66, 0.28, 0.95))
+	c.fill_polygon(PackedVector2Array([
+		Vector2(fx - 6.0, fy - 5.0), Vector2(fx + 6.0, fy - 5.0),
+		Vector2(fx + 4.6, fy - 13.0), Vector2(fx - 4.6, fy - 13.0),
+	]), Color(0.157, 0.176, 0.212))
+	c.stroke_polygon(PackedVector2Array([
+		Vector2(fx - 6.0, fy - 5.0), Vector2(fx + 6.0, fy - 5.0),
+		Vector2(fx + 4.6, fy - 13.0), Vector2(fx - 4.6, fy - 13.0),
+	]), OUTLINE, 1.3)
+
+
+## Ore drill: an A-frame derrick over a spoil heap. The tallest lattice in the
+## game after the pylon, and the only one that is triangular.
+func _draw_drill(c: LcnVectorCanvas, g: Rect2) -> void:
+	var cx: float = g.position.x + g.size.x * 0.5
+	var base_y: float = g.end.y - 3.0
+	var top_y: float = g.position.y + 4.0
+	c.fill_ellipse(Vector2(cx, base_y + 1.0), g.size.x * 0.50, g.size.y * 0.22, Color(0.043, 0.059, 0.098, 0.5))
+
+	# Spoil heap: this is a mine, and mines make a mess.
+	c.fill_polygon(_blob(Vector2(cx + g.size.x * 0.26, base_y - 5.0), g.size.x * 0.22, 7.0, 71, 0.30),
+		Color(0.184, 0.169, 0.153))
+
+	var half: float = g.size.x * 0.34
+	var legs := PackedVector2Array([
+		Vector2(cx - half, base_y), Vector2(cx - half * 0.22, top_y),
+		Vector2(cx + half * 0.22, top_y), Vector2(cx + half, base_y),
+	])
+	c.stroke_polyline(PackedVector2Array([legs[0], legs[1]]), Color(0.267, 0.298, 0.361), 3.4)
+	c.stroke_polyline(PackedVector2Array([legs[3], legs[2]]), Color(0.212, 0.239, 0.298), 3.4)
+	var rungs: int = 7
+	for i: int in rungs:
+		var f: float = (float(i) + 0.5) / float(rungs)
+		var ly: float = lerpf(base_y, top_y, f)
+		var lw: float = lerpf(half, half * 0.22, f)
+		c.stroke_polyline(PackedVector2Array([Vector2(cx - lw, ly), Vector2(cx + lw, ly)]),
+			Color(0.239, 0.267, 0.322), 1.7)
+		var nl: float = lerpf(base_y, top_y, (float(i) + 1.5) / float(rungs))
+		var nw: float = lerpf(half, half * 0.22, (float(i) + 1.5) / float(rungs))
+		c.stroke_polyline(PackedVector2Array([Vector2(cx - lw, ly), Vector2(cx + nw, nl)]),
+			Color(0.196, 0.220, 0.271), 1.3)
+	c.fill_round_rect(Rect2(cx - half * 0.34, top_y - 5.0, half * 0.68, 6.0), 1.8, METAL_TOP)
+	c.stroke_rect(Rect2(cx - half * 0.34, top_y - 5.0, half * 0.68, 6.0), OUTLINE, 1.3)
+	c.fill_circle(Vector2(cx, top_y - 2.0), 2.0, LcnPalette.CAUTION, 10)
+	# Winch house at the foot.
+	var shed := Rect2(cx - g.size.x * 0.40, base_y - 18.0, g.size.x * 0.34, 18.0)
+	_mass(c, shed, 14.0, METAL_TOP, METAL_FT, METAL_FB)
+	_windows(c, Rect2(shed.position.x + 2.0, shed.end.y - 12.0, shed.size.x - 4.0, 8.0), 2, 1,
+		LcnPalette.WARM_MID, 33)
+
+
+## Scrap collector: a low sorting table with a hydraulic arm reaching sideways.
+func _draw_collector(c: LcnVectorCanvas, g: Rect2) -> void:
+	var base_y: float = g.end.y - 4.0
+	var cx: float = g.position.x + g.size.x * 0.5
+	c.fill_ellipse(Vector2(cx, base_y + 1.0), g.size.x * 0.44, g.size.y * 0.18, Color(0.043, 0.059, 0.098, 0.45))
+	var table := Rect2(g.position.x + 3.0, base_y - 14.0, g.size.x - 6.0, 14.0)
+	c.fill_rect_gradient(table, RUST_FT.lerp(METAL_FT, 0.5), METAL_FB)
+	c.fill_rect_gradient(Rect2(table.position.x, table.position.y - 5.0, table.size.x, 5.0),
+		Color(0.302, 0.267, 0.220), Color(0.220, 0.196, 0.165))
+	c.stroke_rect(Rect2(table.position.x, table.position.y - 5.0, table.size.x, table.size.y + 5.0), OUTLINE, 1.6)
+	# Sorted scrap on the table.
+	for i: int in 5:
+		var sx: float = lerpf(table.position.x + 4.0, table.end.x - 4.0, (float(i) + 0.5) / 5.0)
+		c.fill_polygon(_blob(Vector2(sx, table.position.y - 2.0), 3.4, 2.0, 90 + i, 0.5),
+			Color(0.365, 0.318, 0.271) if (i % 2) == 0 else Color(0.271, 0.290, 0.333))
+	# The arm: one bent limb, and the whole reason this silhouette is not a box.
+	var px: float = table.position.x + 5.0
+	var py: float = table.position.y - 4.0
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(px, py), Vector2(px + 5.0, py - 20.0), Vector2(px + 22.0, py - 13.0),
+	]), Color(0.259, 0.290, 0.353), 3.6)
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(px + 22.0, py - 13.0), Vector2(px + 26.0, py - 5.0),
+	]), Color(0.212, 0.239, 0.298), 2.6)
+	c.fill_circle(Vector2(px + 5.0, py - 20.0), 3.0, Color(0.322, 0.353, 0.420), 12)
+	c.fill_circle(Vector2(px + 26.0, py - 4.0), 2.2, LcnPalette.CAUTION, 10)
+
+
+# ------------------------------------------------------------- draw atlas ----
+
+## Atlas region key for a building sprite.
+static func sprite_key(arch: StringName, tiles: Vector2i) -> StringName:
+	return StringName("bld_%s_%dx%d" % [arch, tiles.x, tiles.y])
+
+
+## Atlas region key for an agent sprite.
+static func agent_key(kind: StringName) -> StringName:
+	return StringName("agent_%s" % kind)
+
+
+## Every sprite the entity renderer draws, packed into ONE texture.
+##
+## This is the batching fix. Godot's canvas renderer starts a new draw call every
+## time the bound texture changes, so 206 buildings across 20 archetypes plus a
+## separate shadow blob and glow cookie cost hundreds of state changes — measured
+## at 797 draw calls and 37 ms of CPU for one frame of a 206-building city. With
+## a single atlas the same frame is a handful of calls, because every
+## draw_texture_rect_region in a pass binds the same texture.
+##
+## Returns {texture: ImageTexture, regions: Dictionary[StringName, Rect2]}.
+func atlas(extra_buildings: Array = []) -> Dictionary:
+	if not _atlas.is_empty() and _atlas_covers(extra_buildings):
+		return _atlas
+	var entries: Array[Dictionary] = []
+	for arch: StringName in archetypes():
+		var s: Dictionary = building(arch)
+		entries.append({"key": sprite_key(arch, s["tiles"]),
+			"img": (s["texture"] as ImageTexture).get_image()})
+	for req: Variant in extra_buildings:
+		var pair: Array = req
+		var arch2: StringName = pair[0]
+		var t: Vector2i = pair[1]
+		var key2: StringName = sprite_key(arch2, t)
+		var known: bool = false
+		for e: Dictionary in entries:
+			if e["key"] == key2:
+				known = true
+				break
+		if known:
+			continue
+		var s2: Dictionary = building(arch2, t)
+		entries.append({"key": key2, "img": (s2["texture"] as ImageTexture).get_image()})
+	for kind: StringName in AGENT_KINDS:
+		var a: Dictionary = agent(kind)
+		entries.append({"key": agent_key(kind), "img": (a["texture"] as ImageTexture).get_image()})
+	entries.append({"key": &"barrel", "img": (turret_barrel()["texture"] as ImageTexture).get_image()})
+	entries.append({"key": &"glow", "img": glow_texture(256).get_image()})
+	entries.append({"key": &"shadow", "img": shadow_texture(96).get_image()})
+	entries.append({"key": &"smear", "img": _smear_texture().get_image()})
+
+	_atlas = _pack(entries)
+	_atlas_keys = {}
+	for e2: Dictionary in entries:
+		_atlas_keys[e2["key"]] = true
+	return _atlas
+
+
+func _atlas_covers(extra_buildings: Array) -> bool:
+	for req: Variant in extra_buildings:
+		var pair: Array = req
+		if not _atlas_keys.has(sprite_key(pair[0], pair[1])):
+			return false
+	return true
+
+
+## Shelf packer. Sprites are sorted tallest first, which for this catalogue wastes
+## under 10% of the sheet — good enough, and it keeps the whole thing one texture.
+func _pack(entries: Array[Dictionary]) -> Dictionary:
+	entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return (a["img"] as Image).get_height() > (b["img"] as Image).get_height())
+	var gap: int = ATLAS_GAP
+	var width: int = 1024
+	var x: int = gap
+	var y: int = gap
+	var shelf: int = 0
+	var placed: Array[Dictionary] = []
+	for e: Dictionary in entries:
+		var img: Image = e["img"]
+		var w: int = img.get_width()
+		var h: int = img.get_height()
+		if x + w + gap > width:
+			x = gap
+			y += shelf + gap
+			shelf = 0
+		placed.append({"key": e["key"], "img": img, "pos": Vector2i(x, y)})
+		x += w + gap
+		shelf = maxi(shelf, h)
+	var height: int = y + shelf + gap
+	var sheet: Image = Image.create(width, maxi(height, 4), false, Image.FORMAT_RGBA8)
+	sheet.fill(Color(0, 0, 0, 0))
+	var regions: Dictionary[StringName, Rect2] = {}
+	for p: Dictionary in placed:
+		var img2: Image = p["img"]
+		var pos: Vector2i = p["pos"]
+		sheet.blit_rect(img2, Rect2i(Vector2i.ZERO, img2.get_size()), pos)
+		regions[p["key"]] = Rect2(Vector2(pos), Vector2(img2.get_size()))
+	return {
+		"texture": ImageTexture.create_from_image(sheet),
+		"regions": regions,
+		"size": Vector2i(width, height),
+	}
+
+
+## A soft directional smear used for cast shadows. Bright at one end, gone at the
+## other, so a stretched quad of it reads as a shadow falling away from a light.
+static func _smear_texture() -> ImageTexture:
+	return LcnArtCache.get_texture("smear_64", func() -> Image:
+		var n: int = 64
+		var img: Image = Image.create(n, n, false, Image.FORMAT_RGBA8)
+		for yy: int in n:
+			for xx: int in n:
+				var u: float = (float(xx) + 0.5) / float(n)
+				var v: float = (float(yy) + 0.5) / float(n)
+				var edge: float = minf(u, 1.0 - u) * 2.0
+				var a: float = pow(clampf(1.0 - v, 0.0, 1.0), 1.35) * smoothstep(0.0, 0.34, edge)
+				img.set_pixel(xx, yy, Color(1, 1, 1, a))
+		return img)
 
 
 # ---------------------------------------------------------------- bake: fx --

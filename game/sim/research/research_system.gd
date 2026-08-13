@@ -837,16 +837,49 @@ func _refresh_suggestion() -> void:
 
 ## What the engineers start when nobody told them what to do. Deterministic:
 ## highest pacing score, ties broken by id.
+##
+## Two rounds on purpose. Engineers start what they can actually start, so the
+## first round only considers projects whose opening instalment the yard can
+## cover; a tree full of steel-hungry tier-3 nodes never leaves the city idle on
+## day two. Only when nothing at all is affordable does the second round pick the
+## most urgent project regardless — and that project then STALLS visibly, which
+## is the correct message: you need a supply line before you need a technology.
 func _auto_pick() -> StringName:
 	_ensure_available()
-	var best: StringName = &""
-	var best_score: float = -1.0e9
-	for id: StringName in _available:
-		var s: float = _score_of(id)
-		if s > best_score + 0.0001:
-			best_score = s
-			best = id
-	return best
+	for round_i: int in 2:
+		var best: StringName = &""
+		var best_score: float = -1.0e9
+		for id: StringName in _available:
+			if round_i == 0 and not _can_open(id):
+				continue
+			var s: float = _score_of(id)
+			if s > best_score + 0.0001:
+				best_score = s
+				best = id
+		if String(best) != "":
+			return best
+	return &""
+
+
+## Can the yard cover this project's FIRST instalment right now?
+func _can_open(id: StringName) -> bool:
+	var n: ResearchNode = _graph.node(id)
+	if n == null:
+		return false
+	var p: ResearchProgress = _progress.get(id)
+	var stage: int = p.stage if p != null else 0
+	if stage >= ResearchProgress.STAGES:
+		return true
+	var upto: Dictionary[StringName, int] = n.cost_by_fraction(
+		ResearchProgress.stage_fraction(stage + 1))
+	var owed: Dictionary[StringName, int] = {}
+	var keys: Array = upto.keys()
+	keys.sort()
+	for k: StringName in keys:
+		var need: int = int(upto[k]) - (int(p.paid.get(k, 0)) if p != null else 0)
+		if need > 0:
+			owed[k] = need
+	return _ledger.can_afford(owed)
 
 
 func _score_of(id: StringName) -> float:

@@ -611,9 +611,7 @@ func buildings() -> Array[Dictionary]:
 ## proportional to what they actually burn.
 func add_building(id: int, kind: StringName, cell: Vector2i) -> void:
 	var arch: StringName = LcnSpriteFactory.archetype_for(kind)
-	var sp: Dictionary = _sprites.building(arch)
-	var arch_tiles: Vector2i = sp["tiles"]
-	var tiles: Vector2i = arch_tiles
+	var tiles: Vector2i = LcnSpriteFactory.spec(arch)["tiles"]
 	var heat_produced: float = 0.0
 	var heat_radius_tiles: float = 0.0
 	var def: Resource = _def_for(kind)
@@ -624,14 +622,20 @@ func add_building(id: int, kind: StringName, cell: Vector2i) -> void:
 		heat_produced = float(def.get("heat_produced") if def.get("heat_produced") != null else 0.0)
 		heat_radius_tiles = float(def.get("heat_radius") if def.get("heat_radius") != null else 0.0)
 
-	var scale: float = float(tiles.x) / float(maxi(1, arch_tiles.x))
-	var industrial: bool = arch in [&"foundry", &"heat_plant", &"generator", &"mine", &"workshop"]
+	# The sprite is baked AT this footprint. Nothing is stretched any more: the
+	# first pass drew a 5x5 hearth as the 3x3 generator sprite blown up 1.7x and
+	# put both in the same frame, which is why they read as the same building.
+	var sp: Dictionary = _sprites.building(arch, tiles)
+	var scale: float = 1.0
+	var industrial: bool = arch in [
+		&"foundry", &"heat_plant", &"generator", &"hearth", &"mine", &"drill", &"workshop",
+	]
 	# Heat output is the honest source of warmth. Buildings that make none still
 	# show a little window light if their archetype is a place people live.
 	var warm: float = float(sp["warm"]) * 0.35
 	if heat_produced > 0.0:
 		warm = clampf(0.30 + heat_produced / 90.0, 0.0, 1.0)
-	var radius: float = float(sp["light_radius"]) * scale
+	var radius: float = float(sp["light_radius"])
 	if heat_radius_tiles > 0.0:
 		radius = maxf(radius, heat_radius_tiles * float(TILE) * 1.35)
 
@@ -639,10 +643,12 @@ func add_building(id: int, kind: StringName, cell: Vector2i) -> void:
 		"id": id,
 		"kind": kind,
 		"arch": arch,
+		"sprite": LcnSpriteFactory.sprite_key(arch, sp["tiles"]),
 		"cell": cell,
 		"tiles": tiles,
 		"scale": scale,
 		"centre": Vector2(float(cell.x) + float(tiles.x) * 0.5, float(cell.y) + float(tiles.y) * 0.5) * float(TILE),
+		"lift": float(sp["lift"]),
 		"state": BUILD_OPERATIONAL,
 		"warm": warm,
 		"base_warm": warm,
@@ -713,6 +719,21 @@ func building_count() -> int:
 	return _buildings.size()
 
 
+## Every (archetype, footprint) pair currently on the map. The renderer hands
+## this to the sprite factory so the draw atlas contains exactly the sprites this
+## world needs and nothing else.
+func sprite_requests() -> Array:
+	var seen: Dictionary[StringName, bool] = {}
+	var out: Array = []
+	for b: Dictionary in buildings():
+		var k: StringName = b["sprite"]
+		if seen.has(k):
+			continue
+		seen[k] = true
+		out.append([b["arch"], b["tiles"]])
+	return out
+
+
 ## Warm light emitters. Real heat data when [P02] exposes it, otherwise derived
 ## from which buildings are hot enough to glow.
 func heat_sources() -> Array[Dictionary]:
@@ -752,9 +773,8 @@ func _build_heat_sources() -> Array[Dictionary]:
 			w *= clampf(0.35 + float(_heat.call("power_factor", int(b["id"]))) * 0.75, 0.0, 1.2)
 		if w < 0.10:
 			continue
-		var sp: Dictionary = _sprites.building(b["arch"])
 		derived.append({
-			"pos": (b["centre"] as Vector2) + Vector2(0.0, -float(sp["lift"]) * float(b["scale"]) * 0.35),
+			"pos": (b["centre"] as Vector2) + Vector2(0.0, -float(b["lift"]) * 0.35),
 			"radius": float(b["radius"]),
 			"intensity": w,
 			"seed": int(b["seed"]),

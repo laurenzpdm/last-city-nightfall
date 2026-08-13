@@ -35,12 +35,26 @@ const FAMINE_MORTALITY_PER_HOUR: float = 0.028
 const INDOOR_LETHAL_FRACTION: float = 0.75
 const INDOOR_LETHAL_GAIN: float = 2.0
 
+## The column arrived with canvas. Canvas does not last: the wind takes it, and
+## what the wind leaves gets burned. This is why the opening hours are survivable
+## and why the third day is not, and it is the clock the whole first act runs on.
+const TENT_CAPACITY: float = 64.0
+const TENT_LIFE_DAYS: float = 3.0
+## Degrees a sheet of canvas is worth on its own.
+const TENT_BONUS_C: float = 6.0
+## Degrees a lit heat source is worth to the people camped around it.
+const TENT_HEARTH_C: float = 5.0
+const TENT_HEARTH_MAX_C: float = 18.0
+
 var authoritative: bool = true      ## false once [P05] answers
 
 var population: float = 0.0
 var sick: float = 0.0
 var homeless: float = 0.0
 var sheltered: float = 0.0
+var tented: float = 0.0
+var tent_capacity: float = TENT_CAPACITY
+var camp_temp_c: float = 0.0
 var hunger_share: float = 0.0
 var crowding: float = 0.0
 var exposure: float = 0.0           ## 0..1, population weighted cold stress
@@ -63,6 +77,9 @@ func reset() -> void:
 	sick = 0.0
 	homeless = 0.0
 	sheltered = 0.0
+	tented = 0.0
+	tent_capacity = TENT_CAPACITY
+	camp_temp_c = 0.0
 	hunger_share = 0.0
 	crowding = 0.0
 	exposure = 0.0
