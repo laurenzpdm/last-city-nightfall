@@ -4,11 +4,14 @@
 > **Stop after Phase C. Do NOT launch Phase D or any further wave without asking him first.**
 > Report the Phase C result and wait.
 
-The machine was shut down with Phase C mid-flight. Everything below is verified, not claimed.
+Machine shut down at **21:58** on 2026-08-13 with Phase C mid-flight.
+FINAL STATE: **117370 lines** across **366 .gd files**, **130 commits**, working tree clean.
+Phase C ran 20:58 to 21:58 (3 of 10 builders returned). No remote exists: this disk is the only copy.
+Everything below is verified, not claimed.
 
 ## Where the project stands
 
-- **110,609 lines** of GDScript across 344 files, 116 commits today, all committed.
+- **117370 lines** of GDScript across 366 files, 130 commits, all committed.
 - Godot **4.7.1**. Run the game: `/Applications/Godot.app/Contents/MacOS/Godot --path .`
 - Read `docs/ARCHITECTURE.md` first. It is the binding contract for all parallel agent work.
 - An autosave loop commits every 3 minutes. It does NOT survive a reboot: restart it with
