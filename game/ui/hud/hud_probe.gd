@@ -923,7 +923,9 @@ func _describe_crew(id: int, out: Dictionary) -> void:
 ## [P05]'s citizen_info if it exists. Empty otherwise, and the panel says so
 ## rather than inventing a person.
 func describe_citizen(id: int) -> Dictionary:
-	if _citizens == null:
+	if _citizens == null or id < 0:
+		return {}
+	if _citizens.has_method("has_citizen") and not bool(_citizens.call("has_citizen", id)):
 		return {}
 	for method: StringName in [&"citizen_info", &"describe_citizen", &"info_for"]:
 		if _citizens.has_method(method):
@@ -934,8 +936,14 @@ func describe_citizen(id: int) -> Dictionary:
 	return {}
 
 
-## The id under a map cell, asked of whoever owns entities there.
+## The id under a map cell, asked of whoever owns entities there. A citizen
+## standing on a tile wins over the building underneath: the player clicked the
+## person they could see moving.
 func entity_at_cell(cell: Vector2i) -> int:
+	if _citizens != null and _citizens.has_method("citizen_at_cell"):
+		var who: int = int(_citizens.call("citizen_at_cell", cell))
+		if who >= 0:
+			return who
 	if _build != null and _build.has_method("entity_at_cell"):
 		return int(_build.call("entity_at_cell", cell))
 	return -1
@@ -1096,6 +1104,16 @@ func _tick() -> int:
 func _seconds() -> float:
 	var c: Node = _autoload(&"SimClock")
 	return 0.0 if c == null else float(c.call("seconds"))
+
+
+## A cell from whatever shape a part reports one in: Vector2i, or [x, y].
+static func _to_cell_static(v: Variant) -> Vector2i:
+	if v is Vector2i:
+		return v as Vector2i
+	if v is Array and (v as Array).size() >= 2:
+		var a: Array = v as Array
+		return Vector2i(int(a[0]), int(a[1]))
+	return Vector2i.ZERO
 
 
 static func _autoload(n: StringName) -> Node:

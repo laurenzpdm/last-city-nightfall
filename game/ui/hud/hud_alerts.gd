@@ -77,25 +77,6 @@ func _init() -> void:
 		return
 	for pair: Array in _subscriptions():
 		bus.connect(pair[0], pair[1])
-	_unused_init()
-
-
-## The explicit connect list above replaced these; kept as a compile-time check
-## that every handler still exists.
-func _unused_init() -> void:
-	pass
-
-
-func _legacy_connect(bus: Node) -> void:
-	bus.connect(&"alert_raised", _on_alert)
-	bus.connect(&"toast", _on_toast)
-	bus.connect(&"citizen_died", _on_citizen_died)
-	bus.connect(&"machine_stalled", _on_machine_stalled)
-	bus.connect(&"placement_rejected", _on_placement_rejected)
-	bus.connect(&"research_completed", _on_research_completed)
-	bus.connect(&"law_enacted", _on_law_enacted)
-	bus.connect(&"wave_cleared", _on_wave_cleared)
-	bus.connect(&"game_over", _on_game_over)
 
 
 ## Rebuilds the list. `now` is in-world seconds, so alerts age at game speed.

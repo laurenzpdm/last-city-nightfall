@@ -277,6 +277,30 @@ func _check_selection() -> void:
 	_ok(not hot.is_empty(), "the selection panel explains its rows too")
 	_hud.call("select", -1)
 	_ok(not panel.visible, "deselecting closes it again")
+	_check_citizen_selection(panel)
+
+
+## Clicking a person, not just a building. [P05] answers with needs on a 0..100
+## scale and its own written phrases; the panel has to speak both.
+func _check_citizen_selection(panel: Control) -> void:
+	var citizens: SimSystem = Sim.get_system(&"citizens")
+	if citizens == null or not citizens.has_method("citizen_ids"):
+		return
+	var ids: PackedInt32Array = citizens.call("citizen_ids")
+	if ids.is_empty():
+		return
+	_hud.call("select", ids[0])
+	_ok(panel.visible, "selecting a citizen opens the panel")
+	var lines: Array = (_hud.get("selection_panel") as Control).get("_lines")
+	_ok(not lines.is_empty(), "a citizen has rows to show")
+	var labels: PackedStringArray = PackedStringArray()
+	for l: Dictionary in lines:
+		labels.append(String(l["label"]))
+		_ok(String(l["tip"]) != "", "every citizen row explains itself too")
+		_ok(not String(l["value"]).contains("."),
+			"a need reads as a percentage, not as a raw 0..100 float")
+	_ok(labels.has("Warmth"), "the panel shows what the cold is doing to them")
+	_hud.call("select", -1)
 
 
 ## ui_scale must move geometry and font_scale must move type, and neither may

@@ -16,6 +16,7 @@ const Probe := preload("res://game/ui/hud/hud_probe.gd")
 const Style := preload("res://game/ui/hud/hud_style.gd")
 
 var world: SimFixture = null
+var _models: Array[LcnHudAlerts] = []
 
 
 func suite_name() -> String:
@@ -26,9 +27,24 @@ func before_all() -> void:
 	world = SimFixture.new(7)
 
 
+func teardown() -> void:
+	# Every alert model subscribes to the Bus, and an autoload signal holds the
+	# callable that holds the model. Without this they pile up for the process.
+	for m: LcnHudAlerts in _models:
+		m.dispose()
+	_models.clear()
+
+
 func after_all() -> void:
 	if world != null:
 		world.stop()
+
+
+## An alert model that will be unsubscribed when the test ends.
+func _alerts() -> LcnHudAlerts:
+	var a: LcnHudAlerts = Alerts.new()
+	_models.append(a)
+	return a
 
 
 # ======================================================================  words =
@@ -174,7 +190,7 @@ func _probe_with_heat(deficit: float, starved: int, reason: String) -> LcnHudPro
 
 
 func test_a_shortfall_is_written_not_dumped() -> void:
-	var a: LcnHudAlerts = Alerts.new()
+	var a: LcnHudAlerts = _alerts()
 	a.refresh(_probe_with_heat(14.2, 6, "capacity"), 10.0)
 	assert_eq(a.entries.size(), 1)
 	var e: Dictionary = a.entries[0]
@@ -187,13 +203,13 @@ func test_a_shortfall_is_written_not_dumped() -> void:
 
 
 func test_a_rounding_artefact_never_becomes_an_alert() -> void:
-	var a: LcnHudAlerts = Alerts.new()
+	var a: LcnHudAlerts = _alerts()
 	a.refresh(_probe_with_heat(0.2, 0, "capacity"), 10.0)
 	assert_empty(a.entries, "'short 0 heat/s' is noise, and noise is not shown")
 
 
 func test_a_small_shortfall_that_starves_someone_is_still_shown() -> void:
-	var a: LcnHudAlerts = Alerts.new()
+	var a: LcnHudAlerts = _alerts()
 	a.refresh(_probe_with_heat(0.2, 2, "capacity"), 10.0)
 	assert_eq(a.entries.size(), 1)
 	assert_has(String((a.entries[0] as Dictionary)["head"]), "browning out")
@@ -203,7 +219,7 @@ func test_frozen_buildings_are_one_line_not_six() -> void:
 	var p: LcnHudProbe = Probe.new()
 	p.has_heat = true
 	p.heat_frozen = 6
-	var a: LcnHudAlerts = Alerts.new()
+	var a: LcnHudAlerts = _alerts()
 	a.refresh(p, 10.0)
 	assert_eq(a.entries.size(), 1)
 	assert_eq(String((a.entries[0] as Dictionary)["head"]), "6 buildings have frozen solid")
@@ -218,7 +234,7 @@ func test_worst_first_and_stable() -> void:
 	p.population = 40
 	p.freezing = 20                        # CRITICAL
 	p.sick = 3                             # WARN
-	var a: LcnHudAlerts = Alerts.new()
+	var a: LcnHudAlerts = _alerts()
 	a.refresh(p, 10.0)
 	assert_ge(float(a.entries.size()), 3.0)
 	assert_eq(int((a.entries[0] as Dictionary)["sev"]), Style.Sev.CRITICAL)
@@ -237,7 +253,7 @@ func _keys_of(a: LcnHudAlerts) -> PackedStringArray:
 
 func test_an_alert_disappears_when_the_cause_does() -> void:
 	var p: LcnHudProbe = _probe_with_heat(14.0, 6, "supply")
-	var a: LcnHudAlerts = Alerts.new()
+	var a: LcnHudAlerts = _alerts()
 	a.refresh(p, 10.0)
 	assert_not_empty(a.entries)
 	p.short_networks.clear()
@@ -247,7 +263,7 @@ func test_an_alert_disappears_when_the_cause_does() -> void:
 
 
 func test_chatter_goes_to_the_toast_lane() -> void:
-	var a: LcnHudAlerts = Alerts.new()
+	var a: LcnHudAlerts = _alerts()
 	Bus.alert_raised.emit(0, &"climate_dusk", "Dusk falls over the city", Vector2.ZERO)
 	a.refresh(Probe.new(), 5.0)
 	assert_empty(a.entries, "severity 0 must never push a real problem off the list")
@@ -256,7 +272,7 @@ func test_chatter_goes_to_the_toast_lane() -> void:
 
 
 func test_the_hud_drops_wording_it_already_says_better() -> void:
-	var a: LcnHudAlerts = Alerts.new()
+	var a: LcnHudAlerts = _alerts()
 	Bus.alert_raised.emit(1, &"heat_supply_5", "Network 5 short 0 heat/s", Vector2.ZERO)
 	Bus.alert_raised.emit(1, &"building_froze", "Coal Generator froze at -31°C", Vector2.ZERO)
 	a.refresh(Probe.new(), 5.0)
@@ -264,7 +280,7 @@ func test_the_hud_drops_wording_it_already_says_better() -> void:
 
 
 func test_an_unknown_bus_alert_is_still_shown() -> void:
-	var a: LcnHudAlerts = Alerts.new()
+	var a: LcnHudAlerts = _alerts()
 	Bus.alert_raised.emit(1, &"grid_cramped", "map is unusually closed in", Vector2(96, 64))
 	a.refresh(Probe.new(), 5.0)
 	assert_eq(a.entries.size(), 1, "a part the HUD has never heard of still gets a voice")
@@ -272,7 +288,7 @@ func test_an_unknown_bus_alert_is_still_shown() -> void:
 
 
 func test_bus_alerts_expire() -> void:
-	var a: LcnHudAlerts = Alerts.new()
+	var a: LcnHudAlerts = _alerts()
 	Bus.alert_raised.emit(1, &"grid_cramped", "map is unusually closed in", Vector2.ZERO)
 	a.refresh(Probe.new(), 5.0)
 	assert_eq(a.entries.size(), 1)
@@ -281,7 +297,7 @@ func test_bus_alerts_expire() -> void:
 
 
 func test_repeated_toasts_count_instead_of_stacking() -> void:
-	var a: LcnHudAlerts = Alerts.new()
+	var a: LcnHudAlerts = _alerts()
 	for _i: int in 4:
 		Bus.toast.emit("Cannot build there")
 	a.refresh(Probe.new(), 1.0)
@@ -290,7 +306,7 @@ func test_repeated_toasts_count_instead_of_stacking() -> void:
 
 
 func test_the_end_of_the_world_outranks_everything() -> void:
-	var a: LcnHudAlerts = Alerts.new()
+	var a: LcnHudAlerts = _alerts()
 	var p: LcnHudProbe = _probe_with_heat(30.0, 9, "supply")
 	Bus.game_over.emit("the last generator went out")
 	a.refresh(p, 5.0)
@@ -305,7 +321,7 @@ func test_a_stock_running_out_is_a_deadline_not_a_number() -> void:
 	p.stock[&"coal"] = 600
 	for i: int in 8:
 		p.trend.sample(&"coal", 1000.0 - float(i) * 50.0, float(i) * 2.0)
-	var a: LcnHudAlerts = Alerts.new()
+	var a: LcnHudAlerts = _alerts()
 	a.refresh(p, 20.0)
 	assert_eq(a.entries.size(), 1)
 	assert_has(String((a.entries[0] as Dictionary)["head"]), "Coal runs out")
@@ -321,7 +337,7 @@ func test_a_healthy_city_says_nothing_at_all() -> void:
 	p.discontent = 0.1
 	p.heat_demand = 80.0
 	p.heat_delivered = 80.0
-	var a: LcnHudAlerts = Alerts.new()
+	var a: LcnHudAlerts = _alerts()
 	a.refresh(p, 5.0)
 	assert_empty(a.entries, "calm when the city is healthy — that is the whole rule")
 	assert_eq(a.worst_severity(), Style.Sev.CALM)

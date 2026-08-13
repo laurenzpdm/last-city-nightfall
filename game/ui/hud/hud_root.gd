@@ -556,35 +556,65 @@ func _on_camera_selection(ids: PackedInt32Array, cell_rect: Rect2i) -> void:
 	select(ids[0])
 
 
+## One citizen, in the selection panel's shape. [P05]'s `citizen_info` carries
+## needs on a 0..100 scale plus its own written `condition` and `doing` phrases —
+## those phrases are used as written, because the part that models a person is
+## better placed to describe them than the part that draws rectangles.
 func _citizen_view(info: Dictionary) -> Dictionary:
 	var lines: Array[Dictionary] = []
 	var problems: Array[String] = []
-	for key: String in ["job", "home", "warmth", "health", "mood", "task"]:
-		if not info.has(key):
+	var rows: Array = [
+		["Warmth", "warmth", "Body warmth. Below 40 they start falling ill; below "
+			+ "12 the cold begins taking their health."],
+		["Health", "health", "How badly hurt or ill they are. It only comes back "
+			+ "with warmth, food and rest."],
+		["Hunger", "hunger", "How hungry they are. Kitchens and a short walk to "
+			+ "them are what bring it down."],
+		["Fatigue", "fatigue", "How tired they are. Longer shifts raise it and "
+			+ "only a bed lowers it."],
+		["Morale", "morale", "Whether this one still believes in the city. It "
+			+ "feeds [P06]'s hope and discontent."],
+	]
+	for row: Array in rows:
+		if not info.has(row[1]):
 			continue
-		var raw: Variant = info[key]
-		var value: String = ""
-		if typeof(raw) == TYPE_FLOAT:
-			value = LcnHudFormat.percent(float(raw)) if float(raw) <= 1.0 \
-				else LcnHudFormat.rate(float(raw))
-		else:
-			value = LcnHudFormat.titleize(str(raw))
+		var raw: float = float(info[row[1]])
+		var value01: float = raw / 100.0 if raw > 1.0001 else raw
+		var good: float = value01
+		if row[1] == "hunger" or row[1] == "fatigue":
+			good = 1.0 - value01
 		lines.append({
-			"label": key, "value": value, "good": 1.0,
-			"tip": "What this citizen's %s is right now." % key,
+			"label": String(row[0]), "value": LcnHudFormat.percent(value01),
+			"good": good, "tip": String(row[2]),
 		})
+	for pair: Array in [["Trade", "profession"], ["Works at", "job_name"],
+			["Home", "home_name"], ["Shift", "shift"]]:
+		var text: String = String(info.get(pair[1], ""))
+		if text == "" or text == "-1":
+			continue
+		lines.append({
+			"label": String(pair[0]), "value": LcnHudFormat.titleize(text), "good": 1.0,
+			"tip": "Where this citizen belongs in the city. An unhoused or "
+				+ "unemployed citizen is a citizen the winter gets to first.",
+		})
+	if not bool(info.get("housed", true)):
+		problems.append("They have nowhere to sleep.")
+	var condition: String = String(info.get("condition", ""))
+	if condition != "":
+		problems.append(LcnHudFormat.titleize(condition) + ".")
 	for key2: String in ["problem", "why", "complaint"]:
 		if info.has(key2):
 			problems.append(String(info[key2]))
+	var cell: Variant = info.get("cell", Vector2i.ZERO)
 	return {
 		"id": int(info.get("id", -1)),
 		"kind": &"citizen",
 		"title": String(info.get("name", "Citizen")),
-		"cell": info.get("cell", Vector2i.ZERO),
+		"cell": cell if cell is Vector2i else LcnHudProbe._to_cell_static(cell),
 		"state": 2,
 		"lines": lines,
 		"problems": problems,
-		"task": String(info.get("task", info.get("activity", ""))),
+		"task": String(info.get("doing", info.get("task", info.get("activity", "")))),
 		"progress": 1.0,
 		"hp": 1.0,
 		"max_hp": 1.0,

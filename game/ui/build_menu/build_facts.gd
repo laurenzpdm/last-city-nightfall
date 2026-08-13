@@ -504,9 +504,12 @@ static func _placement_warnings(def: Resource, kind: StringName, ctx: Ctx, warni
 	var check: Dictionary = ctx.build.call(&"can_place", kind, ctx.cell, ctx.rot, true, -1)
 	if bool(check.get("ok", false)):
 		return
-	var code := StringName(String(check.get("code", "")))
-	if code == &"insufficient_materials" or code == &"locked":
-		return                                    # already said, once, above
+	# [P11] refuses for the same three reasons this sheet has already worded in
+	# its own voice. Printing both is how a tooltip ends up saying "the city can
+	# only support 1 The Hearth" directly under "the city already has its Hearth".
+	var code := LcnUiFormat.as_name(check.get("code", ""))
+	if code == &"insufficient_materials" or code == &"locked" or code == &"max_count":
+		return
 	var text: String = String(check.get("reason", ""))
 	if code == &"needs_ore":
 		var hint: String = _nearest_ore_hint(def, ctx)
