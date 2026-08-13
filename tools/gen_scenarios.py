@@ -560,9 +560,20 @@ def stress():
                         "the same network, which is the expensive case: HeatFlow's "
                         "progressive fill over a single 1400-node component is the ceiling "
                         "on the whole tick budget, and it is measured here rather than "
-                        "hidden behind three dozen private one-node networks. The floor is "
-                        "35 ticks/s, measured; the 400 target stands as the bar it has to "
-                        "reach. There are no hostiles in it because [P07]/[P08] have not "
+                        "hidden behind three dozen private one-node networks. "
+                        "THE FLOOR IS A CONTRACT, NOT A RUBBER STAMP. It was 35 while the "
+                        "build measured 41, so the gate reported green at 11% of its own "
+                        "declared target and no regression could ever trip it. Measured "
+                        "after the solver was rewritten around a dense per-network index: "
+                        "128-132 ticks/s over three runs on an M3 Max, 7.4 ms/tick with all "
+                        "eleven systems, of which heat is 6.4. The floor of 100 is ~24% "
+                        "under the worst of those runs - enough that a loaded machine does "
+                        "not cry wolf, tight enough that any real regression fails. The "
+                        "target of 200 is 10x realtime, which is what 3x fast-forward needs "
+                        "with a 5.6 ms renderer in front of it; 400 was never reachable at "
+                        "20 Hz for a max-min-fair flow solve over 1400 nodes in GDScript "
+                        "and pretending otherwise made the number meaningless. "
+                        "There are no hostiles in it because [P07]/[P08] have not "
                         "landed - a scenario may not address a system this build does not "
                         "have (see tests/p00/test_scenarios.gd), so the combat half of the "
                         "stress test is owed, not forgotten."),
@@ -572,7 +583,7 @@ def stress():
         # rock in it that place_line skips, stranding a few pipe stubs at the
         # western edge. What matters for the perf case is that the expensive
         # component is the whole city, so the share is the real claim.
-        "expects": {"min_ticks_per_second": 35, "target_ticks_per_second": 400,
+        "expects": {"min_ticks_per_second": 100, "target_ticks_per_second": 200,
                     "max_errors": 0, "min_buildings": 1000,
                     "max_heat_networks": 6, "min_main_network_share": 0.95},
         "script": L.script,
