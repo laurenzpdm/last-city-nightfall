@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_svhal"]
+
+[resource]
+resource_name = "Survey Hall"
+script = ExtResource("1_svhal")
+id = &"survey_hall"
+display_name = "Survey Hall"
+description = "Drawing boards, a wall of salvaged instruments and the only lamps in the city that burn all night on purpose. Four people here read the plain, the pipes and the dead, and turn what they learn into something the rest of you can build."
+category = &"production"
+sort_order = 95
+tags = Array[StringName]([&"research", &"machine", &"comfort"])
+size = Vector2i(3, 3)
+cost = Dictionary[StringName, int]({
+&"copper_coil": 20,
+&"iron_plate": 40,
+&"stone": 50,
+&"timber": 45
+})
+build_time_ticks = 1500
+demolish_time_ticks = 200
+refund_ratio = 0.55
+build_priority = 50
+workers_required = 3
+staff_capacity = 6
+heat_consumed = 8.0
+heat_buffer = 45.0
+heat_insulation = 0.45
+hp = 620.0
+storage_capacity = 60
+tint = Color(0.55, 0.68, 0.78, 1)
+light_energy = 0.85
