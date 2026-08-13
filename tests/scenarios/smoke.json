@@ -10,7 +10,7 @@
   "ticks": 600,
   "sample_every": 20,
   "expects": {
-    "min_ticks_per_second": 200,
+    "min_ticks_per_second": 300,
     "max_errors": 0
   },
   "script": [

@@ -302,7 +302,7 @@ def smoke():
                         "and deep night rather than six pictures of the same minute."),
         "tags": ["fast", "gate", "visual"],
         "seed": 7, "ticks": 600, "sample_every": 20,
-        "expects": {"min_ticks_per_second": 200, "max_errors": 0},
+        "expects": {"min_ticks_per_second": 300, "max_errors": 0},
         "script": L.script,
         "_layout": L,
         "shots": [
@@ -420,7 +420,7 @@ def first_night():
         # grades. Day two is deliberately not claimed: [P08] sends hounds and
         # they can and do eat the Hearth, which splits the four arms apart. That
         # is the game working.
-        "expects": {"min_ticks_per_second": 300, "max_errors": 0,
+        "expects": {"min_ticks_per_second": 600, "max_errors": 0,
                     "balance_days": [1], "max_heat_networks": 3},
         "script": L.script,
         "_layout": L,
@@ -484,7 +484,7 @@ def determinism():
                         "and diffs the state byte for byte."),
         "tags": ["determinism", "gate"],
         "seed": 1337, "ticks": 4000, "sample_every": 10,
-        "expects": {"min_ticks_per_second": 300, "max_errors": 0},
+        "expects": {"min_ticks_per_second": 900, "max_errors": 0},
         "script": L.script,
         "_layout": L,
         # Islands are the POINT here. A house dropped in the snow, a watchtower
@@ -858,7 +858,7 @@ def economy():
                         "game/content/economy/BALANCE.md open."),
         "tags": ["balance", "long"],
         "seed": 11, "ticks": 72000, "sample_every": 200,
-        "expects": {"min_ticks_per_second": 250, "max_errors": 0,
+        "expects": {"min_ticks_per_second": 650, "max_errors": 0,
                     "balance_days": [1, 2, 3, 4, 5, 6, 7],
                     "max_heat_networks": 1, "min_main_network_share": 1.0},
         "script": L.script,

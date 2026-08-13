@@ -9,7 +9,7 @@
   "ticks": 72000,
   "sample_every": 200,
   "expects": {
-    "min_ticks_per_second": 250,
+    "min_ticks_per_second": 650,
     "max_errors": 0,
     "balance_days": [
       1,

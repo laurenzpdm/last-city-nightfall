@@ -68,6 +68,12 @@ var _not_heat: Dictionary[StringName, bool] = {}
 var _not_ours: Dictionary[int, bool] = {}
 var _nets: Dictionary[int, HeatNetwork] = {}
 var _ids: PackedInt32Array = PackedInt32Array()
+## The same nodes as `_ids`, in the same order, as objects. _burn_fuel,
+## _thermal and _radiate each walk every building once a tick, and looking each
+## one up in `nodes` was three dictionary probes per building per tick — about
+## five thousand of them on the stress city, for a list that only changes when
+## something is built or demolished.
+var _node_list: Array[HeatNode] = []
 var _ids_dirty: bool = true
 var _next_local_id: int = LOCAL_ID_BASE
 
@@ -448,8 +454,8 @@ func route_cache_stats() -> Array[int]:
 ## never writes back.
 func heat_sources_for_view() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	for id: int in _sorted_ids():
-		var n: HeatNode = nodes[id]
+	for n: HeatNode in _sorted_nodes():
+		var id: int = n.id
 		var d: HeatDef = n.def
 		var strength: float = 0.0
 		if d.radiates() and d.radiance > 0.0:
@@ -541,8 +547,7 @@ func _place_line(kind: StringName, from: Vector2i, to: Vector2i) -> void:
 
 
 func _fuel_all(item: StringName, amount: float) -> void:
-	for id: int in _sorted_ids():
-		var n: HeatNode = nodes[id]
+	for n: HeatNode in _sorted_nodes():
 		if n.def.fuel == item:
 			n.fuel_stock = minf(n.def.fuel_capacity, n.fuel_stock + amount)
 
@@ -701,15 +706,30 @@ func _mint_id() -> int:
 
 
 func _sorted_ids() -> PackedInt32Array:
-	if not _ids_dirty:
-		return _ids
+	if _ids_dirty:
+		_rebuild_id_cache()
+	return _ids
+
+
+## Same order as _sorted_ids(), as objects.
+func _sorted_nodes() -> Array[HeatNode]:
+	if _ids_dirty:
+		_rebuild_id_cache()
+	return _node_list
+
+
+func _rebuild_id_cache() -> void:
 	var keys: Array = nodes.keys()
 	keys.sort()
 	_ids = PackedInt32Array()
+	_node_list = []
+	_node_list.resize(keys.size())
+	var i: int = 0
 	for k: int in keys:
 		_ids.append(k)
+		_node_list[i] = nodes[k]
+		i += 1
 	_ids_dirty = false
-	return _ids
 
 
 func _to_cell(v: Variant) -> Vector2i:
@@ -789,8 +809,7 @@ func _burn_fuel() -> void:
 	if _fuel_autarky:
 		return
 	var dt: float = SimClock.DT
-	for id: int in _sorted_ids():
-		var n: HeatNode = nodes[id]
+	for n: HeatNode in _sorted_nodes():
 		if n.def.fuel == &"" or n.def.fuel_per_unit <= 0.0 or not n.enabled or n.frozen:
 			continue
 		# A lit hearth burns coal for the warmth it throws into the street even
@@ -806,8 +825,8 @@ func _burn_fuel() -> void:
 func _pull_fuel() -> void:
 	if _fuel_autarky or _fuel_source == null or not _fuel_source.has_method("request_fuel"):
 		return
-	for id: int in _sorted_ids():
-		var n: HeatNode = nodes[id]
+	for n: HeatNode in _sorted_nodes():
+		var id: int = n.id
 		if n.def.fuel == &"" or n.fuel_stock > n.def.fuel_capacity * 0.5:
 			continue
 		var want: float = n.def.fuel_capacity - n.fuel_stock
@@ -820,8 +839,8 @@ func _pull_fuel() -> void:
 ## read. This is where a heat shortfall turns into a city that dies.
 func _thermal() -> void:
 	var frozen: int = 0
-	for id: int in _sorted_ids():
-		var n: HeatNode = nodes[id]
+	for n: HeatNode in _sorted_nodes():
+		var id: int = n.id
 		var d: HeatDef = n.def
 		var outside: float = _ambient_c + _warmth.value_at(n.center_cell)
 		var gain: float = INTERNAL_C_PER_UNIT * (n.delivered + n.output * SELF_HEAT_FRAC)
@@ -889,13 +908,13 @@ func _state_for(n: HeatNode) -> int:
 ## Radiant sources follow how hard the building is actually working, smoothed so
 ## the field does not strobe, and only repainted four times a second.
 func _radiate(tick: int) -> void:
-	for id: int in _sorted_ids():
-		var n: HeatNode = nodes[id]
+	var radius_mult: float = _tech_radius
+	for n: HeatNode in _sorted_nodes():
 		if not n.def.radiates():
 			continue
 		var target: float = n.def.radiance * n.radiance_factor()
 		n.radiance_cur += (target - n.radiance_cur) * RADIANCE_SMOOTH
-		_warmth.set_source(id, n.bbox_origin, n.bbox_size, n.def.radius * _tech_radius,
+		_warmth.set_source(n.id, n.bbox_origin, n.bbox_size, n.def.radius * radius_mult,
 			n.radiance_cur)
 	if tick % WARMTH_REFRESH_TICKS == 0:
 		_warmth.flush()
@@ -940,8 +959,8 @@ func _report(net: HeatNetwork, tick: int) -> void:
 
 func serialize() -> Dictionary:
 	var buildings: Array = []
-	for id: int in _sorted_ids():
-		var n: HeatNode = nodes[id]
+	for n: HeatNode in _sorted_nodes():
+		var id: int = n.id
 		buildings.append({
 			"id": id,
 			"kind": String(n.kind),

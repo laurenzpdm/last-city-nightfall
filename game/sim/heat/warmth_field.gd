@@ -21,6 +21,13 @@ var _shape: Dictionary[int, String] = {}
 var _strength: Dictionary[int, float] = {}
 var _applied: Dictionary[int, float] = {}
 var _stamps: Dictionary[String, Array] = {}
+## Size+radius a source's cached shape key was built from. set_source() is called
+## for every radiating building EVERY tick, and building the key means formatting
+## a String and hashing it — an allocation per building per tick for a shape that
+## changes only when research moves the radius. This turns the common call into
+## three integer compares.
+var _key_size: Dictionary[int, Vector2i] = {}
+var _key_radius: Dictionary[int, float] = {}
 
 var repaints: int = 0            ## diagnostic: cell writes since creation
 
@@ -34,12 +41,21 @@ func value_at(cell: Vector2i) -> float:
 ## Registers or moves a radiant source. Cheap to call every tick — nothing is
 ## painted until flush().
 func set_source(id: int, origin: Vector2i, size: Vector2i, radius: float, strength: float) -> void:
+	# Fast path: same building, same place, same shape as last tick. Only the
+	# strength moved, and flush() is what turns strength into painted cells.
+	if _origin.get(id, Vector2i(-99999, -99999)) == origin \
+			and _key_size.get(id, Vector2i.ZERO) == size \
+			and _key_radius.get(id, -1.0) == radius:
+		_strength[id] = maxf(0.0, strength)
+		return
 	var key: String = _shape_key(size, radius)
 	if _shape.has(id) and (_shape[id] != key or _origin[id] != origin):
 		_paint(id, -_applied.get(id, 0.0))
 		_applied[id] = 0.0
 	_shape[id] = key
 	_origin[id] = origin
+	_key_size[id] = size
+	_key_radius[id] = radius
 	_strength[id] = maxf(0.0, strength)
 	if not _stamps.has(key):
 		_stamps[key] = _build_stamp(size, radius)
@@ -51,6 +67,8 @@ func remove_source(id: int) -> void:
 	_paint(id, -_applied.get(id, 0.0))
 	_shape.erase(id)
 	_origin.erase(id)
+	_key_size.erase(id)
+	_key_radius.erase(id)
 	_strength.erase(id)
 	_applied.erase(id)
 
@@ -73,6 +91,8 @@ func clear() -> void:
 	_field.clear()
 	_origin.clear()
 	_shape.clear()
+	_key_size.clear()
+	_key_radius.clear()
 	_strength.clear()
 	_applied.clear()
 

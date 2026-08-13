@@ -5,7 +5,7 @@
     "min_ticks_per_second, so a scenario can never drift away from the",
     "performance contract it was written to hold.",
     "",
-    "floor_multiplier scales every floor at once — set it below 1.0 on a slow",
+    "floor_multiplier scales every floor at once \u2014 set it below 1.0 on a slow",
     "CI box rather than weakening the scenarios themselves.",
     "overrides pins one scenario to an absolute floor, before the multiplier."
   ],
