@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_c3logi"]
+
+[resource]
+resource_name = "Sunken Belt"
+script = ExtResource("1_c3logi")
+id = &"underground_mk1"
+display_name = "Sunken Belt"
+description = "A hooded mouth and a trench under the ice. Place two facing the same way within five tiles and everything between them is somebody else's problem."
+category = &"logistics"
+tier = 1
+sort_order = 20
+tags = Array[StringName]([&"logistics", &"belt", &"underground", &"transport"])
+size = Vector2i(1, 1)
+rotatable = true
+rotation_symmetry = 4
+blocks_movement = false
+walkable = true
+drag_mode = 0
+cost = Dictionary[StringName, int]({
+&"iron_plate": 4,
+&"stone": 2
+})
+build_time_ticks = 10
+demolish_time_ticks = 4
+refund_ratio = 0.8
+build_priority = 55
+hp = 90.0
+tint = Color(0.6, 0.52, 0.36, 1)

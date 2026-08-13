@@ -1,0 +1,58 @@
+# ────────────────────────────────────────────────────────────────────────────
+#  ENGINE ERROR ALLOWLIST — the only way an `ERROR:` on stderr is not a failure
+# ────────────────────────────────────────────────────────────────────────────
+#
+# Godot writes ERROR: / SCRIPT ERROR: / USER ERROR: straight to stderr and never
+# touches game/core/log.gd.  Log.errors counts the project's own logger, so for
+# the whole first phase of this build the harness could report "0 errors" while
+# the process printed 70.  tools/scan_errors.py reads the real stream; this file
+# is the ONLY escape hatch, and it is deliberately expensive to use.
+#
+# DEFAULT IS FAIL.  Every entry must carry all five fields below or it is
+# ignored — and an ignored entry means its errors go back to being blocking:
+#
+#   id:          short slug, unique
+#   class:       tracked | benign
+#                  tracked — printed in the report under KNOWN, NOT FIXED,
+#                            does not fail the gate, cannot be forgotten
+#                  benign  — counted only.  Reserved for engine noise that
+#                            carries no information at all.
+#   match:       python regex against the error MESSAGE (not the whole line)
+#   owner:       who is expected to make it go away
+#   why:         a real justification, >= 25 characters.  "known issue" is not
+#                a justification.
+#   expires:     YYYY-MM-DD.  After that date the entry stops suppressing and
+#                the gate goes red until someone renews it with a reason.
+#
+# Optional:
+#   kinds:       comma list of ENGINE_ERROR, SCRIPT_ERROR, USER_ERROR, LOG_ERROR
+#   blame:       regex on the top GDScript frame, e.g. ^game/ui/hud/
+#   max_per_run: integer ratchet.  More occurrences than this fails anyway.
+#
+# There is no entry here for `add_child() failed`, for `String formatting error`
+# or for any SCRIPT ERROR, and there must never be one.  Those are bugs with an
+# address: the scanner prints the exact res:// frame that raised them.
+
+id: exit_resource_leak
+class: tracked
+kinds: ENGINE_ERROR
+match: ^\d+ resources still in use at exit
+owner: integrator — game/core/sim.gd teardown + whichever system holds a cycle
+why: Godot reports RefCounted cycles once, at process exit, after the run has
+     already produced its artifacts.  It cannot corrupt a replay or a metric, it
+     is identical in every scenario including an empty one, and the fix is a
+     teardown change in game/core/ which this part does not own.  It is tracked
+     rather than benign because a growing leak is a real regression: the count
+     is printed in every gate report so it cannot rot quietly.
+expires: 2026-10-01
+
+id: exit_object_leak
+class: tracked
+kinds: ENGINE_ERROR
+match: ^\d+ ObjectDB instances were leaked at exit
+owner: integrator — game/core/sim.gd teardown
+why: Same event as exit_resource_leak seen from the object side, and reported by
+     the engine after the last artifact is written.  Kept visible with a count so
+     a jump from hundreds to thousands is readable in the report instead of being
+     filtered out of it, which is what the old check.sh did with grep -v ERROR.
+expires: 2026-10-01

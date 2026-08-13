@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_c3logi"]
+
+[resource]
+resource_name = "Sunken Belt III"
+script = ExtResource("1_c3logi")
+id = &"underground_mk3"
+display_name = "Sunken Belt III"
+description = "Nine tiles under anything you have built. This is how a factory stops being a knot."
+category = &"logistics"
+tier = 3
+sort_order = 22
+tags = Array[StringName]([&"logistics", &"belt", &"underground", &"transport"])
+size = Vector2i(1, 1)
+rotatable = true
+rotation_symmetry = 4
+blocks_movement = false
+walkable = true
+drag_mode = 0
+cost = Dictionary[StringName, int]({
+&"gear": 2,
+&"steel_plate": 4,
+&"stone": 2
+})
+build_time_ticks = 10
+demolish_time_ticks = 4
+refund_ratio = 0.8
+build_priority = 55
+hp = 90.0
+unlock_id = &"driven_rollers"
+tint = Color(0.72, 0.68, 0.54, 1)

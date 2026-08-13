@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_c3logi"]
+
+[resource]
+resource_name = "Stack Arm"
+script = ExtResource("1_c3logi")
+id = &"inserter_mk3"
+display_name = "Stack Arm"
+description = "Takes three at a time. One of these is worth six loading arms and costs less heat than two."
+category = &"logistics"
+tier = 3
+sort_order = 42
+tags = Array[StringName]([&"logistics", &"inserter"])
+size = Vector2i(1, 1)
+rotatable = true
+rotation_symmetry = 4
+blocks_movement = false
+walkable = true
+drag_mode = 1
+cost = Dictionary[StringName, int]({
+&"circuit": 3,
+&"gear": 4,
+&"steel_plate": 3
+})
+build_time_ticks = 12
+demolish_time_ticks = 4
+refund_ratio = 0.8
+build_priority = 54
+hp = 80.0
+unlock_id = &"driven_rollers"
+tint = Color(0.7, 0.78, 0.86, 1)

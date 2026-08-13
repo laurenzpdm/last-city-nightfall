@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_c3logi"]
+
+[resource]
+resource_name = "Steel Bunker"
+script = ExtResource("1_c3logi")
+id = &"bunker_chest"
+display_name = "Steel Bunker"
+description = "Sixteen hundred things behind a steel door. Where a district keeps what it cannot afford to lose."
+category = &"storage"
+tier = 2
+sort_order = 51
+tags = Array[StringName]([&"logistics", &"storage", &"container"])
+size = Vector2i(1, 1)
+rotatable = false
+rotation_symmetry = 1
+blocks_movement = true
+walkable = false
+drag_mode = 0
+cost = Dictionary[StringName, int]({
+&"steel_plate": 10,
+&"stone": 20
+})
+build_time_ticks = 20
+demolish_time_ticks = 8
+refund_ratio = 0.7
+build_priority = 45
+hp = 220.0
+storage_capacity = 1600
+unlock_id = &"belt_gearing"
+tint = Color(0.5, 0.54, 0.58, 1)

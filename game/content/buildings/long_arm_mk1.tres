@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_c3logi"]
+
+[resource]
+resource_name = "Long Arm"
+script = ExtResource("1_c3logi")
+id = &"long_arm_mk1"
+display_name = "Long Arm"
+description = "Reaches two tiles, so a belt can run past a machine instead of into it."
+category = &"logistics"
+tier = 2
+sort_order = 43
+tags = Array[StringName]([&"logistics", &"inserter"])
+size = Vector2i(1, 1)
+rotatable = true
+rotation_symmetry = 4
+blocks_movement = false
+walkable = true
+drag_mode = 1
+cost = Dictionary[StringName, int]({
+&"gear": 3,
+&"iron_plate": 4
+})
+build_time_ticks = 12
+demolish_time_ticks = 4
+refund_ratio = 0.8
+build_priority = 54
+hp = 80.0
+tint = Color(0.58, 0.62, 0.72, 1)

@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_c3logi"]
+
+[resource]
+resource_name = "Driven Belt"
+script = ExtResource("1_c3logi")
+id = &"belt_mk3"
+display_name = "Driven Belt"
+description = "Hardened links running on powered rollers. Forty-five things a second and it never slips in the cold."
+category = &"logistics"
+tier = 3
+sort_order = 12
+tags = Array[StringName]([&"logistics", &"belt", &"transport"])
+size = Vector2i(1, 1)
+rotatable = true
+rotation_symmetry = 4
+blocks_movement = false
+walkable = true
+drag_mode = 1
+cost = Dictionary[StringName, int]({
+&"gear": 1,
+&"steel_plate": 1
+})
+build_time_ticks = 4
+demolish_time_ticks = 2
+refund_ratio = 0.8
+build_priority = 55
+hp = 60.0
+unlock_id = &"driven_rollers"
+tint = Color(0.82, 0.8, 0.66, 1)

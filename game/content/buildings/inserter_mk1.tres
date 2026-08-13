@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_c3logi"]
+
+[resource]
+resource_name = "Loading Arm"
+script = ExtResource("1_c3logi")
+id = &"inserter_mk1"
+display_name = "Loading Arm"
+description = "A counterweighted arm that takes from the tile behind it and puts down in front. Slow, cheap, and the reason anything ever gets into a furnace."
+category = &"logistics"
+tier = 1
+sort_order = 40
+tags = Array[StringName]([&"logistics", &"inserter"])
+size = Vector2i(1, 1)
+rotatable = true
+rotation_symmetry = 4
+blocks_movement = false
+walkable = true
+drag_mode = 1
+cost = Dictionary[StringName, int]({
+&"gear": 2,
+&"iron_plate": 2
+})
+build_time_ticks = 12
+demolish_time_ticks = 4
+refund_ratio = 0.8
+build_priority = 54
+hp = 80.0
+tint = Color(0.6, 0.64, 0.7, 1)

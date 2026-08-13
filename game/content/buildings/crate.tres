@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_c3logi"]
+
+[resource]
+resource_name = "Salvage Crate"
+script = ExtResource("1_c3logi")
+id = &"crate"
+display_name = "Salvage Crate"
+description = "Banded timber, four hundred things, and a lid that keeps the snow out. A belt that ends in one of these stops backing up."
+category = &"storage"
+tier = 1
+sort_order = 50
+tags = Array[StringName]([&"logistics", &"storage", &"container"])
+size = Vector2i(1, 1)
+rotatable = false
+rotation_symmetry = 1
+blocks_movement = true
+walkable = false
+drag_mode = 0
+cost = Dictionary[StringName, int]({
+&"scrap": 4,
+&"timber": 8
+})
+build_time_ticks = 20
+demolish_time_ticks = 8
+refund_ratio = 0.7
+build_priority = 45
+hp = 220.0
+storage_capacity = 400
+tint = Color(0.55, 0.44, 0.3, 1)

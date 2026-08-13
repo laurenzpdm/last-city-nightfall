@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_c3logi"]
+
+[resource]
+resource_name = "Requisition Post"
+script = ExtResource("1_c3logi")
+id = &"requester_post"
+display_name = "Requisition Post"
+description = "A board, a bell and a standing order. Porters keep it stocked with whatever you ask for, at a price in legs."
+category = &"storage"
+tier = 2
+sort_order = 52
+tags = Array[StringName]([&"logistics", &"storage", &"container"])
+size = Vector2i(1, 1)
+rotatable = false
+rotation_symmetry = 1
+blocks_movement = true
+walkable = false
+drag_mode = 0
+cost = Dictionary[StringName, int]({
+&"iron_plate": 6,
+&"timber": 10
+})
+build_time_ticks = 20
+demolish_time_ticks = 8
+refund_ratio = 0.7
+build_priority = 45
+hp = 220.0
+storage_capacity = 200
+tint = Color(0.66, 0.58, 0.36, 1)

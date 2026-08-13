@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_c3logi"]
+
+[resource]
+resource_name = "Sorting Table"
+script = ExtResource("1_c3logi")
+id = &"splitter_mk1"
+display_name = "Sorting Table"
+description = "A sprung paddle that flicks every other thing sideways. Even splits, priority feeds, and one named item pulled off a mixed line."
+category = &"logistics"
+tier = 1
+sort_order = 30
+tags = Array[StringName]([&"logistics", &"splitter", &"transport"])
+size = Vector2i(1, 2)
+rotatable = true
+rotation_symmetry = 4
+blocks_movement = false
+walkable = true
+drag_mode = 0
+cost = Dictionary[StringName, int]({
+&"gear": 4,
+&"iron_plate": 5
+})
+build_time_ticks = 16
+demolish_time_ticks = 6
+refund_ratio = 0.8
+build_priority = 52
+hp = 140.0
+tint = Color(0.68, 0.66, 0.5, 1)

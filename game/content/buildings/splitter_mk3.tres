@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_c3logi"]
+
+[resource]
+resource_name = "Sorting Table III"
+script = ExtResource("1_c3logi")
+id = &"splitter_mk3"
+display_name = "Sorting Table III"
+description = "Solenoid gates and a counter that never loses its place."
+category = &"logistics"
+tier = 3
+sort_order = 32
+tags = Array[StringName]([&"logistics", &"splitter", &"transport"])
+size = Vector2i(1, 2)
+rotatable = true
+rotation_symmetry = 4
+blocks_movement = false
+walkable = true
+drag_mode = 0
+cost = Dictionary[StringName, int]({
+&"circuit": 4,
+&"gear": 4,
+&"steel_plate": 5
+})
+build_time_ticks = 16
+demolish_time_ticks = 6
+refund_ratio = 0.8
+build_priority = 52
+hp = 140.0
+unlock_id = &"driven_rollers"
+tint = Color(0.78, 0.76, 0.62, 1)
