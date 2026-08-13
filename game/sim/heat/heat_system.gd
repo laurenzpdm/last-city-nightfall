@@ -82,6 +82,16 @@ var _has_ambient: bool = false
 var _has_loss_mult: bool = false
 var _has_set_frozen: bool = false
 var _has_resource_amount: bool = false
+var _has_all_buildings: bool = false
+## [P11]'s monotonic roster counter, and the value we last walked the roster at.
+## -1 forces the first tick after setup or a load to do the full walk.
+var _has_roster_version: bool = false
+var _roster_seen: int = -1
+## Buildings [P11] owns that are heat entities, with the last store level we
+## published for each. Rebuilt only when the roster moves.
+var _store_inst: Array[Object] = []
+var _store_nodes: Array[HeatNode] = []
+var _store_last: PackedFloat64Array = PackedFloat64Array()
 ## [P10]. Null in a build without research; then every modifier stays 1.0.
 var _research: SimSystem = null
 var _tech_fuel: float = 1.0
@@ -120,6 +130,10 @@ func setup() -> void:
 	_ids_dirty = true
 	_next_local_id = LOCAL_ID_BASE
 	_ambient_c = DEFAULT_AMBIENT_C
+	_roster_seen = -1
+	_store_inst = []
+	_store_nodes = []
+	_store_last = PackedFloat64Array()
 	_load_defs()
 
 
@@ -130,6 +144,8 @@ func post_setup() -> void:
 	_has_ambient = _climate != null and _climate.has_method("ambient_temperature")
 	_has_loss_mult = _climate != null and _climate.has_method("heat_loss_multiplier")
 	_has_set_frozen = _build != null and _build.has_method("set_frozen")
+	_has_all_buildings = _build != null and _build.has_method("all_buildings")
+	_has_roster_version = _build != null and _build.has_method("roster_version")
 	_has_resource_amount = _grid != null and _grid.has_method("resource_amount_at")
 	var logistics: SimSystem = Sim.get_system(&"logistics")
 	var production: SimSystem = Sim.get_system(&"production")
@@ -146,9 +162,7 @@ func post_setup() -> void:
 
 
 func step(tick: int) -> void:
-	var _t0: int = Time.get_ticks_usec()
 	_sync_from_build()
-	HeatFlow._pk("z_sync", _t0)
 	var changed: PackedInt32Array = _graph.settle()
 	for nid: int in changed:
 		if not _graph.members.has(nid):
@@ -169,7 +183,6 @@ func step(tick: int) -> void:
 	_total_buffer = 0.0
 	_brownouts = 0
 
-	var _ts: int = Time.get_ticks_usec()
 	for nid: int in _graph.network_ids():
 		var net: HeatNetwork = _network(nid)
 		_flow.solve(net, _graph.members[nid], nodes, _graph.neigh,
@@ -182,15 +195,10 @@ func step(tick: int) -> void:
 		_total_buffer += net.buffer
 		_brownouts += net.brownouts
 		_report(net, tick)
-	HeatFlow._pk("y_solveall", _ts)
 
-	var _t: int = Time.get_ticks_usec()
 	_burn_fuel()
-	_t = HeatFlow._pk("h_burn", _t)
 	_thermal()
-	_t = HeatFlow._pk("i_thermal", _t)
 	_radiate(tick)
-	_t = HeatFlow._pk("j_radiate", _t)
 	if tick % FUEL_PULL_EVERY == 0:
 		_pull_fuel()
 
@@ -585,19 +593,57 @@ func _def_for(kind: StringName) -> HeatDef:
 	return def
 
 
-## Pulls the finished buildings out of [P11] every tick. Build runs at order 15,
-## heat at 25, so anything completed this tick is already on the network this
-## tick. A pull instead of a Bus subscription on purpose: a RefCounted system
-## that subscribes to an autoload signal is never released, and the heat state
-## of a building belongs to whoever owns the building, not to a signal replay.
+## Pulls the finished buildings out of [P11]. Build runs at order 15, heat at 25,
+## so anything completed this tick is already on the network this tick. A pull
+## instead of a Bus subscription on purpose: a RefCounted system that subscribes
+## to an autoload signal is never released, and the heat state of a building
+## belongs to whoever owns the building, not to a signal replay.
+##
+## The pull used to walk the WHOLE roster every tick and read six properties off
+## every instance through Object.get()/call(). Over a 1700-building city that is
+## roughly twelve thousand dynamic dispatches, 1.9 ms — a quarter of the entire
+## heat budget — spent re-learning a roster that changes a few times a minute.
+## Now [P11] hands out a monotonic roster_version() and the walk happens only
+## when something actually moved. What remains per tick is the one write heat
+## genuinely owes: the store level, and only for buildings whose store moved.
 func _sync_from_build() -> void:
-	if _build == null or not _build.has_method("all_buildings"):
+	if _build == null or not _has_all_buildings:
 		return
+	if _has_roster_version:
+		var v: int = int(_build.call("roster_version"))
+		if v != _roster_seen:
+			_roster_seen = v
+			_rescan_build_roster()
+	else:
+		_rescan_build_roster()
+	_flush_stores()
+
+
+## Writes each node's charge back onto [P11]'s instance. Skips a building whose
+## store did not move — in a settled city most thermal masses sit exactly full,
+## so this is the difference between 1400 reflective writes a tick and a few
+## dozen. The comparison is exact, so nothing about the value changes.
+func _flush_stores() -> void:
+	for k: int in _store_nodes.size():
+		var n: HeatNode = _store_nodes[k]
+		var v: float = n.stored + n.local_stored
+		if v == _store_last[k]:
+			continue
+		_store_last[k] = v
+		_store_inst[k].set("heat_stored", v)
+
+
+## The full walk. Registers anything newly finished, drops anything that is
+## gone, and rebuilds the write-back list.
+func _rescan_build_roster() -> void:
 	var raw: Variant = _build.call("all_buildings")
 	if typeof(raw) != TYPE_ARRAY:
 		return
 	var list: Array = raw
 	var seen: Dictionary[int, bool] = {}
+	_store_inst.clear()
+	_store_nodes.clear()
+	_store_last.resize(0)
 	for entry: Variant in list:
 		var b: Object = entry
 		if b == null or not b.has_method("is_complete"):
@@ -622,7 +668,11 @@ func _sync_from_build() -> void:
 		if n.enabled != on:
 			set_building_enabled(id, on)
 		# BuildingInstance.heat_stored is documented as ours to write.
-		b.set("heat_stored", n.stored + n.local_stored)
+		_store_inst.append(b)
+		_store_nodes.append(n)
+		# NAN, so the first flush after a rescan always writes: a freshly
+		# registered building has never had its store published.
+		_store_last.append(NAN)
 	for id: int in _sorted_ids().duplicate():
 		if id >= LOCAL_ID_BASE or seen.has(id):
 			continue
@@ -952,6 +1002,7 @@ func deserialize(data: Dictionary) -> void:
 		n.local_stored = float(raw.get("local", 0.0))
 		n.fuel_stock = float(raw.get("fuel", 0.0))
 	rebuild_networks()
+	_roster_seen = -1
 	Log.info("heat", "restored %d heat buildings" % nodes.size())
 
 

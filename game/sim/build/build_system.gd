@@ -90,6 +90,9 @@ var _removed_total: int = 0
 var _completed_total: int = 0
 var _rejected_total: int = 0
 var _destroyed_total: int = 0
+## Bumped whenever a finished building is switched on or off. Part of
+## roster_version() — see that function for why the number exists at all.
+var _switched_total: int = 0
 
 
 func _init() -> void:
@@ -123,6 +126,7 @@ func setup() -> void:
 	_completed_total = 0
 	_rejected_total = 0
 	_destroyed_total = 0
+	_switched_total = 0
 
 	stock = BuildStock.new()
 	for k: Variant in STARTING_STOCK:
@@ -588,6 +592,7 @@ func _op_set_enabled(cmd: Dictionary) -> Dictionary:
 		return _ok({"id": b.id, "enabled": b.enabled})
 	var was: bool = b.enabled
 	b.enabled = on
+	_switched_total += 1
 	if b.is_complete():
 		b.state = BuildTypes.State.OPERATIONAL if on else BuildTypes.State.DISABLED
 		Bus.building_state_changed.emit(b.id, b.state)
@@ -1310,6 +1315,20 @@ func all_buildings() -> Array[BuildingInstance]:
 	for id: int in _ids:
 		out.append(_buildings[id])
 	return out
+
+
+## Monotonic counter of every change to the roster another system pulls: a
+## building placed, completed, removed, destroyed or switched. Nothing else in
+## this file needs it — it exists so a puller can ask "did anything move?" for
+## the price of one integer compare.
+##
+## [P02] heat re-reads all_buildings() every tick through Object.get()/call()
+## reflection, which is ~12k dynamic dispatches over a 1700-building city and
+## cost 1.9 ms of a 7 ms heat budget for a roster that changes a few times a
+## minute. Same number, no rescan.
+func roster_version() -> int:
+	return _placed_total + _removed_total + _completed_total \
+		+ _destroyed_total + _switched_total
 
 
 ## Finished, switched-on buildings only. What heat, production and combat want.
