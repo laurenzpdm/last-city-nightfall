@@ -154,11 +154,11 @@ func _draw_leaders(victims: Array[int]) -> void:
 		var before: int = _leads.size()
 		var dir: Vector2 = LcnOverlayGeometry.leader(from, to, _leads)
 		LcnOverlayGeometry.arrow(to - dir * px(7.0), dir, px(8.0), _leads)
-		var c: Color = LcnOverlayPalette.with_a(pal.bad(), 0.78 if direct else 0.42)
+		var c: Color = LcnOverlayPalette.with_a(pal.bad(), 0.88 if direct else 0.5)
 		for _k: int in (_leads.size() - before) / 2:
 			_lead_cols.append(c)
 	if _leads.size() >= 2:
-		draw_multiline_colors(_leads, _lead_cols, stroke(1.8))
+		draw_multiline_colors(_leads, _lead_cols, stroke(2.2))
 
 
 ## The words. A handful only — a screen full of text is not legibility.

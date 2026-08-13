@@ -16,6 +16,9 @@ const PAD: float = 14.0
 const WIDTH: float = 508.0
 const ROW: float = 21.0
 const MARGIN: float = 22.0
+## The panel sits this far off the bottom edge, leaving [P17]'s HUD strip room
+## to exist underneath it instead of fighting it for the same pixels.
+const BOTTOM_CLEARANCE: float = 78.0
 
 var pal: LcnOverlayPalette = null
 var snap: LcnOverlaySnapshot = null
@@ -63,7 +66,7 @@ func _draw_hint() -> void:
 	var size: Vector2 = get_viewport_rect().size
 	var text: String = "%s  overlays      ALT  details" % _key_summary()
 	var w: float = _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 13).x
-	_text(Vector2(size.x - w - MARGIN, size.y - MARGIN), text, 13,
+	_text(Vector2(size.x - w - MARGIN, size.y - BOTTOM_CLEARANCE), text, 13,
 		LcnOverlayPalette.with_a(LcnOverlayPalette.INK_DIM, 0.7))
 
 
@@ -101,7 +104,7 @@ func _draw_rail() -> void:
 func _draw_panel() -> void:
 	var size: Vector2 = get_viewport_rect().size
 	var h: float = PAD * 2.0 + 26.0 + 20.0 + 22.0 + float(_rows.size()) * ROW + 26.0
-	var origin := Vector2(MARGIN, size.y - h - MARGIN)
+	var origin := Vector2(MARGIN, size.y - h - BOTTOM_CLEARANCE)
 	var panel := Rect2(origin, Vector2(WIDTH, h))
 	draw_rect(panel, LcnOverlayPalette.PANEL, true)
 	draw_rect(panel, LcnOverlayPalette.PANEL_EDGE, false, 1.5)
@@ -225,12 +228,12 @@ func _rows_bottlenecks() -> void:
 	for b: Dictionary in snap.bottlenecks:
 		var cell: Array = b.get("cell", [0, 0])
 		if String(b.get("reason", "")) == "capacity":
-			_row("%s (%d, %d)  %.0f/%.0f u/s  ->  %d starved" % [
+			_row("%s (%d, %d) at capacity %.0f/%.0f u/s — %d draw through it" % [
 				String(b.get("kind", "line")), int(cell[0]), int(cell[1]),
 				float(b.get("load", 0.0)), float(b.get("capacity", 0.0)),
 				int(b.get("consumers", 0))], pal.bad())
 		else:
-			_row("grid %d out of heat  ->  %d starved" % [
+			_row("grid %d generating everything it has — %d draw on it" % [
 				int(b.get("net", 0)), int(b.get("consumers", 0))], pal.bad())
 	var starved: int = snap.starved_count()
 	if starved > 0:
@@ -264,8 +267,11 @@ func _rows_freeze() -> void:
 			worst = eta
 			worst_kind = snap.node_kind[i]
 	if soon > 0:
-		_row("%d cooling toward the line; soonest %s in %ds" % [
-			soon, String(worst_kind), int(round(worst))], pal.bad())
+		var when: String = "already below the line"
+		if worst >= 1.0:
+			when = "in %ds" % int(round(worst))
+		_row("%d cooling toward the line; soonest is the %s, %s" % [
+			soon, String(worst_kind), when], pal.bad())
 	elif frozen == 0:
 		_row("nothing is freezing", pal.good())
 	_row("gauge tick = that building's own freeze point", LcnOverlayPalette.INK_DIM)

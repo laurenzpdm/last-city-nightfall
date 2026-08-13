@@ -4,7 +4,8 @@ extends RefCounted
 func run() -> void:
 	Log.min_level = Log.Level.WARN
 	_throughput()
-	_scale()
+	_scale(40, 24)
+	_scale(100, 32)
 
 
 func _fresh() -> LogisticsSystem:
@@ -48,10 +49,8 @@ func _feed(logi: LogisticsSystem, cell: Vector2i) -> void:
 
 ## A factory that is big enough to be a real answer: 40 lines of 24 belts, a
 ## splitter and an arm on each, all of them saturated and moving.
-func _scale() -> void:
+func _scale(lines: int, length: int) -> void:
 	var logi: LogisticsSystem = _fresh()
-	var lines: int = 40
-	var length: int = 24
 	var entries: Array[Vector2i] = []
 	for l: int in lines:
 		var o := Vector2i(20, 20 + l * 3)
@@ -91,24 +90,3 @@ func _scale() -> void:
 	var only_us: int = Time.get_ticks_usec() - only
 	print(" logistics.step  %.3f ms" % (float(only_us) / float(samples) / 1000.0))
 
-
-## One-off diagnostic: what happens to an underground pair.
-func diag_tunnel() -> void:
-	var logi: LogisticsSystem = _fresh()
-	var o := Vector2i(40, 40)
-	for i: int in 4:
-		logi.place(&"belt_mk1", o + Vector2i(i, 0), 0, true)
-	var a: Dictionary = logi.place(&"underground_mk1", o + Vector2i(4, 0), 0, true)
-	var b: Dictionary = logi.place(&"underground_mk1", o + Vector2i(8, 0), 0, true)
-	print(" place a: %s" % str(a))
-	print(" place b: %s" % str(b))
-	SimClock.advance(1)
-	var ea: LogiEntity = logi.entity_at(o + Vector2i(4, 0))
-	var eb: LogiEntity = logi.entity_at(o + Vector2i(8, 0))
-	print(" a: role=%d pair=%d entrance=%s seg=%d" % [ea.role(), ea.pair_id, str(ea.is_entrance), ea.seg_id])
-	print(" b: role=%d pair=%d entrance=%s seg=%d" % [eb.role(), eb.pair_id, str(eb.is_entrance), eb.seg_id])
-	print(" segments: %d" % logi.world.segment_ids.size())
-	for sid: int in logi.world.segment_ids:
-		var s: LogiSegment = logi.world.segments[sid]
-		print("   seg %d %s entry %s exit %s len %.1f tunnel %s sink %d" % [
-			sid, s.kind, str(s.entry_cell), str(s.exit_cell), s.length, str(s.is_tunnel), s.sink])
