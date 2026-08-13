@@ -43,6 +43,12 @@ const MAX_PASSES: int = 3        ## rerouting attempts per tier
 const MAX_LEVELS: int = 8192
 const LOCAL_RECHARGE_RATE: float = 0.08  ## fraction of a building's own store per second
 
+static var PROF: Dictionary = {}
+static func _pk(k: String, t0: int) -> int:
+	PROF[k] = int(PROF.get(k, 0)) + (Time.get_ticks_usec() - t0)
+	PROF["n_" + k] = int(PROF.get("n_" + k, 0)) + 1
+	return Time.get_ticks_usec()
+
 var _nodes: Dictionary[int, HeatNode] = {}
 var _neigh: Dictionary[int, PackedInt32Array] = {}
 var _net: HeatNetwork = null
@@ -98,8 +104,11 @@ func solve(net: HeatNetwork, members: PackedInt32Array, nodes: Dictionary[int, H
 	_neigh = neigh
 	_net = net
 	_dt = dt
+	var _t: int = Time.get_ticks_usec()
 	_reset()
+	_t = _pk("reset", _t)
 	_classify(members, cold_mult, autarky)
+	_t = _pk("classify", _t)
 
 	var live: PackedInt32Array = _live_sources(_producers)
 	# The cache key has to cover EVERYTHING the router branches on, not just which
@@ -112,6 +121,7 @@ func solve(net: HeatNetwork, members: PackedInt32Array, nodes: Dictionary[int, H
 		net.route_version = graph_version
 		net.route_sig = sig
 		net.routed_ticks += 1
+		_t = _pk("route_primary", _t)
 	else:
 		_dist = net.dist
 		_eta = net.eta
@@ -119,11 +129,16 @@ func solve(net: HeatNetwork, members: PackedInt32Array, nodes: Dictionary[int, H
 		_root = net.root
 		_paths = net.paths
 
+	_t = Time.get_ticks_usec()
 	for tier: int in _tiers:
 		_serve_tier(_tier_members[tier])
+	_t = _pk("serve", _t)
 	_phase_buffers()
+	_t = _pk("buffers", _t)
 	_phase_charge(members)
+	_t = _pk("charge", _t)
 	_write_back(members)
+	_t = _pk("writeback", _t)
 
 
 func _reset() -> void:
@@ -307,6 +322,7 @@ func _all_source_ids() -> PackedInt32Array:
 ## efficiency", because efficiency only shrinks along a path: the best route of
 ## length L+1 must extend a best route of length L.
 func _route(seeds: PackedInt32Array, residual: bool) -> void:
+	var _tr: int = Time.get_ticks_usec()
 	if residual:
 		# Residual routing is scratch, never the cross-tick cache.
 		_dist = {}
@@ -376,6 +392,7 @@ func _route(seeds: PackedInt32Array, residual: bool) -> void:
 			next_frontier.append(v)
 		frontier = next_frontier
 		level += 1
+	_pk("route_residual" if residual else "route_bfs", _tr)
 
 
 ## Path from a sink up to its source, source last. The sink itself is on the
@@ -443,16 +460,23 @@ func _fill(tier: PackedInt32Array) -> bool:
 
 	var saturated: bool = false
 	var rounds: int = 0
+	PROF["fills"] = int(PROF.get("fills", 0)) + 1
 	while not active.is_empty() and rounds < MAX_ROUNDS:
 		rounds += 1
+		PROF["rounds"] = int(PROF.get("rounds", 0)) + 1
+		var _ts: int = Time.get_ticks_usec()
 		_acc.clear()
 		for c: int in active:
 			var need: float = _rem[c] / maxf(_eta.get(c, 1.0), EPS)
 			for n: int in _paths[c]:
 				_acc[n] = _acc.get(n, 0.0) + need
 
+		_pk("fill_acc", _ts)
+		var _tsort: int = Time.get_ticks_usec()
 		var keys: Array = _acc.keys()
 		keys.sort()
+		PROF["acc_keys"] = int(PROF.get("acc_keys", 0)) + keys.size()
+		_pk("fill_sort", _tsort)
 		var t: float = 1.0
 		var binding: int = -1
 		var binding_kind: StringName = &""
