@@ -69,10 +69,14 @@ const SCENES: Array[Dictionary] = [
 		"visibility": 0.45, "snow": 0.7, "combat": false, "frost": false},
 	{"name": "great_frost", "weather": "great_frost", "intensity": 1.0, "storm": 1.0,
 		"visibility": 0.10, "snow": 0.95, "combat": false, "frost": false},
-	{"name": "battle", "weather": "snowfall", "intensity": 0.5, "storm": 0.0,
-		"visibility": 0.9, "snow": 0.4, "combat": true, "frost": false},
-	{"name": "frostbite", "weather": "overcast", "intensity": 0.3, "storm": 0.0,
-		"visibility": 0.95, "snow": 0.5, "combat": false, "frost": true},
+	# The last two are CONTROLLED comparisons: `battle` is the `snowfall` row
+	# with a fire-fight added and nothing else changed, `frostbite` is the
+	# `clear` row with a starved district added and nothing else changed. Any
+	# other difference between the frames would be attributed to the effect.
+	{"name": "battle", "weather": "snowfall", "intensity": 0.8, "storm": 0.0,
+		"visibility": 0.85, "snow": 0.4, "combat": true, "frost": false},
+	{"name": "frostbite", "weather": "clear", "intensity": 0.0, "storm": 0.0,
+		"visibility": 1.0, "snow": 0.1, "combat": false, "frost": true},
 ]
 
 
@@ -338,6 +342,7 @@ func _diff(off: Image, on: Image) -> Dictionary:
 	var changed: int = 0
 	var warm_added: int = 0
 	var cool_added: int = 0
+	var flakes: int = 0
 	var sampled: int = 0
 	for y: int in range(y0, y1, 2):
 		for x: int in range(x0, x1, 2):
@@ -353,8 +358,22 @@ func _diff(off: Image, on: Image) -> Dictionary:
 				warm_added += 1
 			elif db > 0.030 and db >= dr:
 				cool_added += 1
+			# A FLAKE, as distinct from a veil. Both lift the frame; only a flake
+			# lifts it in one place and not four pixels to either side. Without
+			# this separation "there is snow on screen" would be provable by a
+			# blue filter, which is precisely the criticism this part exists to
+			# answer.
+			if x - 4 >= x0 and x + 4 < x1:
+				var d: float = _dluma(off, on, x, y)
+				if d > 0.10 and d - _dluma(off, on, x - 4, y) > 0.06 \
+						and d - _dluma(off, on, x + 4, y) > 0.06:
+					flakes += 1
 	return {"changed": changed, "warm_added": warm_added, "cool_added": cool_added,
-		"diff_sampled": sampled}
+		"flakes": flakes, "diff_sampled": sampled}
+
+
+static func _dluma(off: Image, on: Image, x: int, y: int) -> float:
+	return _luma(on.get_pixel(x, y)) - _luma(off.get_pixel(x, y))
 
 
 ## Statistics over the middle of the frame only. The edges carry the HUD and the
@@ -462,14 +481,14 @@ func _verdict() -> void:
 	# switched off, so it is what THIS PART drew and not what the hour happened
 	# to look like.
 	var noise: int = int(clear.get("changed", 0))
-	var s_snow: int = int(snowfall.get("cool_added", 0))
-	var c_snow: int = int(clear.get("cool_added", 0))
-	var b_snow: int = int(_measure.get("blizzard", {}).get("cool_added", 0))
-	_expect(s_snow > maxi(600, c_snow * 3),
-		"snowfall drew %d pale pixels the same frame without it does not have (clear: %d)"
+	var s_snow: int = int(snowfall.get("flakes", 0))
+	var c_snow: int = int(clear.get("flakes", 0))
+	var b_snow: int = int(_measure.get("blizzard", {}).get("flakes", 0))
+	_expect(s_snow > maxi(250, c_snow * 4),
+		"snowfall drew %d discrete flakes the control frame does not have (clear: %d)"
 		% [s_snow, c_snow])
-	_expect(b_snow > int(float(s_snow) * 1.4),
-		"a blizzard (%d px) was not markedly thicker than ordinary snowfall (%d px)"
+	_expect(b_snow > int(float(s_snow) * 1.25),
+		"a blizzard (%d flakes) was not markedly thicker than ordinary snowfall (%d)"
 		% [b_snow, s_snow])
 	_expect(int(frost_scene.get("changed", 0)) > noise * 3,
 		"a Great Frost changed %d pixels against a %d-pixel still-frame noise floor"
@@ -496,12 +515,16 @@ func _verdict() -> void:
 			"scene '%s' cost %d draw calls of effects (ceiling %d)"
 			% [scene_name, added, MAX_DRAW_CALLS])
 
-	_expect(int(battle.get("warm_added", 0)) > maxi(300, int(snowfall.get("warm_added", 0)) * 2),
-		"a fire-fight drew %d warm pixels the control frame lacks (quiet weather: %d)" % [
+	# `battle` and `snowfall` are the same weather, so the extra warm pixels are
+	# the guns and nothing else.
+	_expect(int(battle.get("warm_added", 0)) > int(snowfall.get("warm_added", 0)) + 800,
+		"a fire-fight drew %d warm pixels against %d in the same weather without it" % [
 			int(battle.get("warm_added", -1)), int(snowfall.get("warm_added", -1))])
 
-	_expect(int(frostbite.get("cool_added", 0)) > maxi(300, int(clear.get("cool_added", 0)) * 3),
-		"frost creep drew %d pale pixels the control frame lacks (clear: %d)" % [
+	# `frostbite` and `clear` are the same weather, so the extra pale pixels are
+	# the rime on the starved district.
+	_expect(int(frostbite.get("cool_added", 0)) > int(clear.get("cool_added", 0)) + 800,
+		"frost creep drew %d pale pixels against %d with the district warm" % [
 			int(frostbite.get("cool_added", -1)), int(clear.get("cool_added", -1))])
 
 

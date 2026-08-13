@@ -21,7 +21,7 @@ extends RefCounted
 ## makes a player rebuild the grid before the next dusk.
 
 ## Items listed in the produced / consumed columns.
-const TOP_N: int = 6
+const TOP_N: int = 8
 ## [P06]'s meters run 0..100. Below and above these, the night was a near miss.
 const HOPE_FLOOR: float = 20.0
 const DISCONTENT_CEILING: float = 75.0

@@ -122,13 +122,13 @@ func _draw_strip(t: LcnStatsTheme) -> void:
 	var cells: Array[Dictionary] = [
 		{"label": "OUTPUT", "value": "%s/min" % LcnStatsTheme.compact(
 			float(s["items_per_min"])), "colour": t.TEXT_BRIGHT},
-		{"label": "LINES RUNNING", "value": "%d of %d" % [int(s["active_lines"]),
+		{"label": "LINES", "value": "%d of %d" % [int(s["active_lines"]),
 			int(s["items"])], "colour": t.TEXT},
 		{"label": "MACHINES", "value": "%d running" % int(machines["active"]),
 			"colour": t.GOOD if int(machines["active"]) > 0 else t.TEXT_DIM},
 		{"label": "STALLED", "value": "%d" % int(machines["stalled"]),
 			"colour": t.BAD if int(machines["stalled"]) > 0 else t.TEXT_DIM},
-		{"label": "WAITING ON AN ITEM", "value": "%d" % int(s["starved_machines"]),
+		{"label": "WAITING", "value": "%d" % int(s["starved_machines"]),
 			"colour": t.WARN if int(s["starved_machines"]) > 0 else t.TEXT_DIM},
 		{"label": "BACKED UP", "value": "%d" % int(s["blocked_machines"]),
 			"colour": t.WARN if int(s["blocked_machines"]) > 0 else t.TEXT_DIM},
@@ -141,8 +141,8 @@ func _draw_strip(t: LcnStatsTheme) -> void:
 			draw_line(Vector2(float(i) * cell_w, rect.position.y + 9.0),
 				Vector2(float(i) * cell_w, rect.position.y + rect.size.y - 9.0),
 				t.RIM_SOFT, 1.0)
-		t.caps(self, Vector2(x, rect.position.y + 18.0), String(c["label"]),
-			t.fs(t.FS_TINY), t.TEXT_FAINT)
+		t.caps_clipped(self, Vector2(x, rect.position.y + 18.0), String(c["label"]),
+			t.fs(t.FS_TINY), t.TEXT_FAINT, cell_w - 20.0)
 		t.text(self, Vector2(x, rect.position.y + 39.0), String(c["value"]),
 			t.fs(t.FS_HEAD), c["colour"])
 

@@ -107,10 +107,13 @@ func _draw() -> void:
 	# hogging is where the run's own history goes.
 	var wanted: float = maxf(_made_height(t, report),
 		maxf(_cost_height(t, report), _record_height(t, report)))
+	# The comparison strip appears from the SECOND night onward. One night next to
+	# nothing is not a comparison, it is a bar chart of one bar, and the space it
+	# would eat belongs to the report itself until there is something to compare.
 	var strip: float = 0.0
-	if reports.size() > 1 or available - wanted > 150.0:
-		strip = maxf(0.0, available - wanted - BLOCK_GAP)
-	var body_h: float = clampf(wanted, 120.0, available - (strip + BLOCK_GAP if strip > 0.0 else 0.0))
+	if reports.size() >= 2 and available - wanted > 150.0:
+		strip = clampf(available - wanted - BLOCK_GAP, 120.0, 220.0)
+	var body_h: float = available - (strip + BLOCK_GAP if strip > 0.0 else 0.0)
 	_draw_made(t, report, Rect2(Vector2(PAD, y), Vector2(col_w, body_h)))
 	_draw_cost(t, report, Rect2(Vector2(PAD * 2.0 + col_w, y), Vector2(col_w, body_h)))
 	_draw_record(t, report, Rect2(Vector2(PAD * 3.0 + col_w * 2.0, y),

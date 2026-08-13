@@ -150,7 +150,7 @@ func _paint(c: Control) -> void:
 		var beat: float = 0.55 + 0.45 * LcnEase.breathe(LcnTiming.ui_now * (0.35 + threat * 1.1))
 		var tc: Color = LcnPalette.DANGER
 		c.draw_texture_rect(_vignette_tex, full, false,
-			Color(tc.r, tc.g, tc.b, 0.34 * threat * beat))
+			Color(tc.r, tc.g, tc.b, 0.26 * threat * beat))
 
 	# 2. the one-off edge pulse
 	var e: float = _edge.value()
@@ -200,9 +200,11 @@ func _bake_vignette() -> ImageTexture:
 	for y: int in VIGNETTE_PX:
 		for x: int in VIGNETTE_PX:
 			var d: float = Vector2((float(x) - half) / half, (float(y) - half) / half).length()
-			# Starts at 42% of the way out, so the readable centre stays clean.
+			# Starts half way out, so the readable centre of the frame stays clean
+			# even with night, cold and threat pressure stacked on top of each
+			# other — the vignette is a mood, not a mask.
 			var a: float = LcnEase.apply(LcnEase.Kind.QUAD_IN,
-				clampf((d - 0.42) / 0.72, 0.0, 1.0))
+				clampf((d - 0.50) / 0.70, 0.0, 1.0))
 			img.set_pixel(x, y, Color(1.0, 1.0, 1.0, a))
 	return ImageTexture.create_from_image(img)
 

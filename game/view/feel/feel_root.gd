@@ -78,8 +78,6 @@ var enabled: bool = true
 var _renderer: WorldRenderer = null
 var _camera: GameCamera = null
 var _build: SimSystem = null
-var _climate: SimSystem = null
-var _threat: SimSystem = null
 var _model: LcnWorldModel = null
 
 # --- continuous pressures -----------------------------------------------------
@@ -224,8 +222,6 @@ func _on_world_ready() -> void:
 	_renderer = get_tree().get_first_node_in_group(WorldRenderer.GROUP) as WorldRenderer
 	_camera = GameCamera.current()
 	_build = Sim.get_system(&"build")
-	_climate = Sim.get_system(&"climate")
-	_threat = Sim.get_system(&"threat")
 	_model = _renderer.world_model() if _renderer != null else null
 	if _model != null:
 		idle.bind(_model)
@@ -294,6 +290,25 @@ func _sim_dt(ui_dt: float) -> float:
 	return clampf(ui_dt * speed, 0.0, 0.2)
 
 
+## How dark an hour is, by [P13]'s OWN name for it, so the vignette and the
+## colour grade can never disagree about what time it is. Returns -1 for a phase
+## this table has never heard of — which is not hypothetical: the first version
+## of this function matched on `&"evening"`, a name the palette does not use, and
+## silently gave deep night a pressure of zero. `tests/feel/test_night_pressure`
+## now walks every hour of the day and fails on any name that falls through.
+static func darkness_for(phase: StringName) -> float:
+	match phase:
+		&"deep_night": return 1.00
+		&"night": return 0.92
+		&"twilight": return 0.78
+		&"dusk": return 0.55
+		&"dawn": return 0.40
+		&"morning": return 0.10
+		&"noon": return 0.00
+		&"afternoon": return 0.05
+	return -1.0
+
+
 ## Night and threat are STATES, not events, so they are read every frame from
 ## the simulation rather than latched from a signal. A player should feel the
 ## night coming for half a minute, not be told about it for one frame.
@@ -302,14 +317,7 @@ func _update_pressures(ui_dt: float) -> void:
 	var day_t: float = _model.day_fraction() if _model != null else 0.0
 	# Darkness as the palette itself defines it, so the vignette and the grade
 	# can never disagree about what hour it is.
-	var phase: StringName = LcnPalette.phase_at(day_t)
-	var dark: float = 0.0
-	match phase:
-		&"night": dark = 1.0
-		&"dusk": dark = 0.62
-		&"dawn": dark = 0.42
-		&"evening": dark = 0.5
-		_: dark = 0.0
+	var dark: float = maxf(0.0, darkness_for(LcnPalette.phase_at(day_t)))
 	# Ease toward it rather than snapping between phases.
 	_night01 = lerpf(_night01, dark, clampf(ui_dt * 1.6, 0.0, 1.0))
 

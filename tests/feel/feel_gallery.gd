@@ -208,9 +208,22 @@ func _beat_reject() -> void:
 	await _shoot("09_rejected")
 
 
-## The one the whole build is named after.
+## The one the whole build is named after — and the one beat this suite refuses
+## to fake. The world is RUN forward until [P09]'s climate says the night has
+## started, so what is photographed is the real hour arriving, not a signal
+## emitted by a test. Roughly six thousand ticks at 600+ ticks/s.
 func _beat_nightfall() -> void:
-	Bus.night_started.emit(1)
+	var arrived: Array[bool] = [false]
+	var on_night: Callable = func(_day: int) -> void: arrived[0] = true
+	Bus.night_started.connect(on_night)
+	var spent: int = 0
+	while not arrived[0] and spent < 12000:
+		SimClock.advance(200)
+		spent += 200
+	Bus.night_started.disconnect(on_night)
+	_check(arrived[0], "the climate reached nightfall on its own (%d ticks)" % spent)
+	if not arrived[0]:
+		Bus.night_started.emit(1)
 	await _frames(2)
 	_check(_feel.nightfall_progress() > 0.0,
 		"nightfall is under way (%.2f)" % _feel.nightfall_progress())
@@ -223,7 +236,12 @@ func _beat_nightfall() -> void:
 	_check(float((_feel.stats()["screen"] as Dictionary)["sweep"]) > 0.0,
 		"and it is still crossing it when the shutter opens")
 	await _shoot("10_nightfall_sweep")
-	await _frames(40)
+	# Long enough for the continuous night pressure to ease in behind the sweep:
+	# the sweep is the event, the vignette is the hour, and the second shot is
+	# there to prove the hour outlives the event.
+	await _frames(90)
+	_check(_feel.night_pressure() > 0.3,
+		"and the night keeps its pressure on the frame afterwards (%.2f)" % _feel.night_pressure())
 	await _shoot("11_night_pressure")
 
 

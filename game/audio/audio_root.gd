@@ -70,6 +70,9 @@ var _bound: bool = false
 var _ready_logged: bool = false
 var _report_written: bool = false
 var _frames: int = 0
+## Peak microseconds per stage of the frame, so a slow frame can be attributed
+## instead of argued about.
+var _stage_usec: Dictionary[StringName, int] = {&"bake": 0, &"probe": 0, &"layers": 0, &"voices": 0}
 
 
 static func current() -> LcnAudio:
@@ -449,6 +452,7 @@ func report() -> Dictionary:
 		"update_usec": last_update_usec,
 		"peak_update_usec": peak_update_usec,
 		"cues_played": _played,
+		"peak_stage_usec": _stage_usec,
 		"cues_dropped": _dropped,
 		"pending": _pending.size(),
 		"mixer": mixer.report() if mixer != null else {},

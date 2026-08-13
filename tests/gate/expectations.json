@@ -130,8 +130,8 @@
           "why": "Every placement in this scenario was generated against the real footprints; a rejection is a contract break between the generator and [P11]."
         },
         "heat.networks": {
-          "max": 3,
-          "why": "The scenario's own expects block says 3. More than that means the grid fragmented and the night is being fought by three separate cities."
+          "final_max": 3,
+          "why": "The scenario's own expects block says 3. More than that at the end means the grid fragmented and the night is being fought by three separate cities. final_max for the same reason as stress_1000: mid-construction fragmentation is scaffolding, not a fault."
         },
         "heat.delivered": {
           "peak_min": 20.0,
@@ -332,16 +332,16 @@
           "why": "The scenario's own expects. A perf number measured on a city that failed to place is a fast empty map."
         },
         "heat.networks": {
-          "max": 6,
-          "why": "The expensive case is one big connected component; if it fragments, the measurement is of a cheaper problem than the one that ships."
+          "final_max": 6,
+          "why": "The scenario's own expects. The expensive case the perf number is supposed to measure is ONE big connected component; if the city ends fragmented, the measurement is of a cheaper problem than the one that ships. final_max, not max: while the city is under construction the grid legitimately fragments and re-merges as pipe runs complete (it peaks at 14 around tick 900), and failing on that would be failing on the scaffolding rather than the building."
         },
         "heat.buildings": {
           "final_min": 800,
           "why": "Buildings placed but not attached to the grid do not cost the solver anything, so the perf number would flatter itself."
         },
         "grid.buildings": {
-          "final_min": 1000,
-          "why": "Cross-check from the grid's side: two systems have to agree the city is there."
+          "final_min": 100,
+          "why": "Only structures that OCCUPY cells register with the grid \u2014 pipes and floors do not \u2014 so this is not a mirror of build.buildings_total (375 vs 1723 in the reference run and both are right). It is the floor that says the occupancy layer is being fed at all, which is what the flow field and every path in the game read."
         }
       },
       "state": {
@@ -369,9 +369,13 @@
           "must_move": true,
           "why": "The scenario jumps the calendar on purpose."
         },
-        "grid.tiles_dirty": {
-          "peak_min": 1,
-          "why": "Snowfall and melt are scripted; a grid that never dirties a tile did not receive them."
+        "grid.walkable": {
+          "must_move": true,
+          "why": "The scenario scripts snowfall, melt and placements; the walkable-cell count is the surface every one of those edits lands on. (grid.tiles_dirty was banded here first and it was the WRONG metric: dirty_count() is a per-tick gauge the rebuild clears, so a sample every ten ticks reads 0 forever and the band failed for a reason that had nothing to do with the build.)"
+        },
+        "climate.snow": {
+          "must_move": true,
+          "why": "Snowfall is scripted in this scenario and it feeds the grid's snow carry, one of the mutable caches the replay is supposed to prove stable."
         }
       },
       "liveness": {

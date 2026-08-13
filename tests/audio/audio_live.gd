@@ -141,6 +141,10 @@ func _suite_it_answers_the_simulation() -> void:
 	await _frames(8)
 
 	var probe: LcnAudioProbe = _audio.probe
+	# Headless frames carry a few microseconds of delta, so the probe's own
+	# five-hertz timer never comes due. Ask it directly.
+	probe.poll_now()
+	probe.poll_now()
 	_check(probe.polls > 0, "the probe has read the world %d times" % probe.polls)
 	_check(probe.has_climate, "it found [P09] climate")
 	_check(probe.has_heat, "it found [P02] heat")
@@ -238,6 +242,14 @@ func _suite_an_assault_cannot_blow_out_the_mix() -> void:
 	_headline("an assault cannot blow out the mix")
 	if _audio == null:
 		return
+	# Finish the bake first. A cue whose stream is not baked yet is a counted
+	# silence, and this suite is about the limiter, not about the bake.
+	var guard: int = 0
+	while not _audio.bank.finished() and guard < 4000:
+		guard += 1
+		_audio.bank.pump(20000)
+	_check(_audio.bank.finished(), "the whole catalogue is baked (%d streams)"
+		% _audio.bank.ready_count())
 	var voices_before: Dictionary = _audio.pool.report()
 
 	# Exactly the traffic a harness frame produces: thousands of simulation
@@ -273,7 +285,7 @@ func _suite_an_assault_cannot_blow_out_the_mix() -> void:
 
 	# Per-frame cost. This runs alongside a 50 ms tick budget that heat already
 	# spends 86% of, so audio is not allowed to be a second budget.
-	_check(_audio.peak_update_usec < 12000,
+	_check(_audio.peak_update_usec < 8000,
 		"the worst audio frame in this whole suite cost %d us" % _audio.peak_update_usec)
 
 
@@ -354,7 +366,8 @@ func _print_report() -> void:
 	print("")
 	print("── BANK ───────────────────────────────────────────────────────────────")
 	print("   %s" % JSON.stringify(r["bank"]))
-	print("   worst audio frame: %d us" % _audio.peak_update_usec)
+	print("   worst audio frame: %d us  %s" % [
+		_audio.peak_update_usec, JSON.stringify(r["peak_stage_usec"])])
 	print("")
 
 	var base: String = ProjectSettings.globalize_path(_out_dir)

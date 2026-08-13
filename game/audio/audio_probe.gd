@@ -101,6 +101,13 @@ func update(delta: float) -> bool:
 	if _accum < 1.0 / POLL_HZ:
 		return false
 	_accum = 0.0
+	return poll_now()
+
+
+## Reads the world right now, ignoring the poll timer. Used on binding and by
+## the suites: a headless process runs frames as fast as it can, so `delta` is a
+## few microseconds and a five-hertz timer never comes due at all.
+func poll_now() -> bool:
 	var sim: Node = _autoload(&"Sim")
 	if sim == null or not bool(sim.get("alive")):
 		has_climate = false

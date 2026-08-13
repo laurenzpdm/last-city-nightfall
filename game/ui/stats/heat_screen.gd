@@ -134,7 +134,7 @@ func _read_stats(t: LcnStatTrack) -> Array[Dictionary]:
 	var burn: float = 0.0
 	if defence != null and defence.size() > 1:
 		burn = (defence.last() - defence.first()) / maxf(1.0, t.window_seconds())
-	out.append(_stat("SPENT ON", "%s / %s" % [
+	out.append(_stat("SPENT", "%s / %s" % [
 		LcnStatsTheme.compact(pipe), LcnStatsTheme.compact(burn)],
 		"pipes / turrets, heat per second", _theme().TEXT_DIM))
 	return out
@@ -179,6 +179,7 @@ func _draw() -> void:
 		if i > 0:
 			draw_line(Vector2(float(i) * cell, y + 10.0),
 				Vector2(float(i) * cell, y + STRIP_H - 10.0), t.RIM_SOFT, 1.0)
-		t.caps(self, Vector2(x, y + 20.0), String(s["label"]), t.fs(t.FS_TINY), t.TEXT_FAINT)
+		t.caps_clipped(self, Vector2(x, y + 20.0), String(s["label"]),
+			t.fs(t.FS_TINY), t.TEXT_FAINT, cell - 20.0)
 		t.text(self, Vector2(x, y + 45.0), String(s["value"]), t.fs(t.FS_HEAD + 3), s["colour"])
 		t.text(self, Vector2(x, y + 63.0), String(s["note"]), t.fs(t.FS_TINY), t.TEXT_FAINT)

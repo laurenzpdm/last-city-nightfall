@@ -202,20 +202,48 @@ static func _title_for(outcome: StringName) -> String:
 	return "The Winter, So Far"
 
 
+## The simulation's end reasons are single words on purpose, because [P06] logs
+## them. An epilogue is not a log. Each one gets the sentence it deserves, and
+## an unrecognised reason is quoted rather than guessed at.
+static func _why_it_ended(reason: String) -> String:
+	match reason:
+		"exiled":
+			return ("the council was put out of its own gate by the people it was "
+				+ "keeping alive")
+		"despair":
+			return ("there was nobody left in the Nine who believed the next morning "
+				+ "was worth getting up for")
+		"extinct":
+			return "there was nobody left at all"
+		"":
+			return "it stopped"
+	return "the record gives it as '%s'" % reason
+
+
 static func _verdict_line(outcome: StringName, day: int, alive: int, dead: int,
 		end_reason: String) -> String:
 	match outcome:
 		&"held":
-			return ("Caldera Nine was still standing on day %d. %d people were alive "
-				+ "in it and %d were not, and both of those numbers were produced by "
-				+ "the same set of decisions.") % [day, alive, dead]
+			return ("Caldera Nine was still standing on day %d. %s alive in it and "
+				+ "%s not, and both of those numbers were produced by the same set "
+				+ "of decisions.") % [day, _people(alive, true), _people(dead, true)]
 		&"lost":
-			var why: String = end_reason if end_reason != "" else "it stopped"
-			return ("Caldera Nine ended on day %d. The record gives the reason as %s. "
-				+ "%d people had already died before that, and %d were there to see it.") % [
-					day, why, dead, alive]
-	return ("Day %d. %d alive, %d dead. The winter is not finished with this place "
-		+ "and neither is this account.") % [day, alive, dead]
+			return ("Caldera Nine ended on day %d, and it ended because %s. %s "
+				+ "already died before that, and %s there to see it.") % [
+					day, _why_it_ended(end_reason), _people(dead, false),
+					_people(alive, true)]
+	return ("Day %d. %s alive, %s dead. The winter is not finished with this place "
+		+ "and neither is this account.") % [day, _people(alive, false),
+			_people(dead, false)]
+
+
+## "1 person was" / "17 people were". A ledger that says "1 people" is a ledger
+## nobody trusts with the rest of the numbers.
+static func _people(n: int, with_verb: bool = false) -> String:
+	var noun: String = "1 person" if n == 1 else "%d people" % n
+	if not with_verb:
+		return noun
+	return noun + (" was" if n == 1 else " were")
 
 
 static func _toll_line(facts: Dictionary, dead: int) -> String:
@@ -224,19 +252,27 @@ static func _toll_line(facts: Dictionary, dead: int) -> String:
 			+ "line in this ledger that was entirely a choice, made early, and paid "
 			+ "for in things that do not have names.")
 	var parts: PackedStringArray = PackedStringArray()
+	# [key, what one of them did, what several of them did]
 	var causes: Array = [
-		[&"deaths_cold", "froze"], [&"deaths_starvation", "starved"],
-		[&"deaths_illness", "went with the fever"], [&"deaths_injury", "died of injuries"],
-		[&"deaths_exhaustion", "were worked until they stopped"],
+		[&"deaths_cold", "froze", "froze"],
+		[&"deaths_starvation", "starved", "starved"],
+		[&"deaths_illness", "went with the fever", "went with the fever"],
+		[&"deaths_injury", "died of an injury", "died of injuries"],
+		[&"deaths_exhaustion", "was worked until they stopped",
+			"were worked until they stopped"],
 	]
 	for row: Array in causes:
 		var n: int = int(facts.get(row[0] as StringName, 0.0))
 		if n > 0:
-			parts.append("%d %s" % [n, String(row[1])])
+			parts.append("%d %s" % [n, String(row[1] if n == 1 else row[2])])
 	if parts.is_empty():
-		return "%d people died and the ledger does not say of what, which is its own answer." % dead
-	return "Of the %d: %s. Every one of them has a name written down somewhere in the Nine, and every one of those names was read out at the kitchen by somebody who knew them." % [
-		dead, _join_list(parts)]
+		return ("%s died and the ledger does not say of what, which is its own "
+			+ "answer.") % _people(dead, false)
+	var opener: String = "The one: %s." % _join_list(parts) if dead == 1 \
+		else "Of the %d: %s." % [dead, _join_list(parts)]
+	return opener + (" Every one of them has a name written down somewhere in the "
+		+ "Nine, and every one of those names was read out at the kitchen by "
+		+ "somebody who knew them.")
 
 
 static func _law_line(signed: int, cruel: PackedStringArray, costly: PackedStringArray) -> String:
@@ -244,16 +280,19 @@ static func _law_line(signed: int, cruel: PackedStringArray, costly: PackedStrin
 		return ("The Book of Laws was never opened. Whatever this city became, it "
 			+ "became without being ordered to, and it took longer, and it cost more "
 			+ "in the only currency that was actually short.")
-	var s: String = "%d law%s were signed." % [signed, "" if signed == 1 else "s"]
-	if cruel.size() > 0:
-		s += " %s %s %s carried a price that was paid by somebody who was not in the room: %s." % [
-			str(cruel.size()), "of them" if cruel.size() > 1 else "of them",
-			"were" if cruel.size() > 1 else "was", _join_list(cruel)]
+	var s: String = "One law was signed." if signed == 1 else "%d laws were signed." % signed
+	if cruel.size() == 1:
+		s += (" One of them carried a price that was paid by somebody who was not "
+			+ "in the room: %s.") % cruel[0]
+	elif cruel.size() > 1:
+		s += (" %d of them carried a price that was paid by people who were not in "
+			+ "the room: %s.") % [cruel.size(), _join_list(cruel)]
 	if costly.size() > 0:
 		s += " %s cost the city something it could measure: %s." % [
 			"Others" if cruel.size() > 0 else "Some", _join_list(costly)]
 	if cruel.is_empty():
-		s += " None of them were the kind you have to argue yourself into, which is a harder way to run a winter and is worth writing down."
+		s += (" None of them were the kind you have to argue yourself into, which "
+			+ "is a harder way to run a winter and is worth writing down.")
 	return s
 
 
@@ -268,8 +307,8 @@ static func _choice_line(hard: int, journal: NarrativeJournal) -> String:
 		if String(row.get("kind", "")) == String(NarrativeDefs.CAT_DILEMMA) and row.has("choice"):
 			latest = String(row.get("choice", ""))
 			break
-	var s: String = "%d decision%s were taken with no good answer available." % [
-		hard, "" if hard == 1 else "s"]
+	var s: String = "One decision was taken with no good answer available." if hard == 1 \
+		else "%d decisions were taken with no good answer available." % hard
 	if latest != "":
 		s += " The last of them was: %s." % latest
 	s += " The people who lived with the outcome were not consulted on any of them, and knew it."
@@ -287,12 +326,12 @@ static func _closing_line(outcome: StringName, alive: int, dead: int, cruel: int
 			+ "the ledger rather than the story.")
 	if cruel > 0 and alive > 0:
 		return ("The city survived. It is worth being precise about what that sentence "
-			+ "means: %d people are alive, and the arrangement that kept them alive is "
-			+ "written down, in order, in a book with your signature at the bottom of "
-			+ "every page.") % alive
-	return ("The city survived. Whether that was worth %d people is not a question the "
+			+ "means: %s alive, and the arrangement that kept them alive is written "
+			+ "down, in order, in a book with your signature at the bottom of every "
+			+ "page.") % _people(alive, true)
+	return ("The city survived. Whether that was worth %s is not a question the "
 		+ "ledger can settle, and it is the only question anybody in the Nine is "
-		+ "going to ask about it afterwards.") % dead
+		+ "going to ask about it afterwards.") % _people(dead, false)
 
 
 static func _join_list(parts: PackedStringArray) -> String:

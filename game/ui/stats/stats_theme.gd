@@ -118,6 +118,24 @@ func caps(ci: CanvasItem, pos: Vector2, s: String, size: int, colour: Color,
 	return maxf(0.0, x - pos.x - tracking)
 
 
+## Small caps that stop at `max_w` and end in an ellipsis. Strip labels live in
+## a cell whose width is the panel divided by six, and a label that runs into
+## its neighbour at 1.25x type reads as one nonsense word.
+func caps_clipped(ci: CanvasItem, pos: Vector2, s: String, size: int, colour: Color,
+		max_w: float, tracking: float = 1.6) -> float:
+	if caps_width(s, size, tracking) <= max_w:
+		return caps(ci, pos, s, size, colour, tracking)
+	var ell: float = text_width("…", size)
+	var kept: String = ""
+	for i: int in s.length():
+		if caps_width(kept + s[i], size, tracking) + ell > max_w:
+			break
+		kept += s[i]
+	var used: float = caps(ci, pos, kept, size, colour, tracking)
+	text(ci, Vector2(pos.x + used + tracking, pos.y), "…", size, colour)
+	return used + ell
+
+
 func caps_width(s: String, size: int, tracking: float = 1.6) -> float:
 	var up: String = s.to_upper()
 	var w: float = 0.0

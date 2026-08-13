@@ -60,8 +60,12 @@ const SNOW_LAYERS: Array[Dictionary] = [
 		"drift": 0.45, "spin": 0.0, "z": 52, "art": "mote"},
 	{"name": "SnowMid", "amount": 1300, "size": 0.29, "fall": 68.0, "alpha": 0.72,
 		"drift": 0.75, "spin": 1.2, "z": 54, "art": "mote"},
+	# z 59 puts the near layer ABOVE the whiteout veil (58). Snow a metre from
+	# the camera is in front of the fog, not inside it, and keeping it there is
+	# what stops a Great Frost turning into a flat blue filter with the flakes
+	# dissolved into it.
 	{"name": "SnowNear", "amount": 600, "size": 0.52, "fall": 116.0, "alpha": 0.62,
-		"drift": 1.15, "spin": 2.4, "z": 57, "art": "flake"},
+		"drift": 1.15, "spin": 2.4, "z": 59, "art": "flake"},
 ]
 
 ## Weather kind -> {snow, whiteout, gust}. `snow` scales every layer's ratio,

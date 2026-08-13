@@ -22,6 +22,7 @@ const SCENARIO: String = "res://tests/scenarios/first_night.json"
 const DUSK: int = 8100
 const DEEP_NIGHT: int = 8900
 const DAWN: int = 9900
+const DAY: int = 9600
 
 var _boot: Node = null
 var _stats: Node = null
@@ -104,6 +105,18 @@ func _run() -> void:
 	_stats.call("set_window", &"mid")
 	await _settle(8)
 	await _shot("07_heat_last_hour")
+
+	# --- a second night, so the report has something to compare against ---
+	_advance_to(DAWN + DAY)
+	await _settle(10)
+	_stats.call("show_tab", 3)
+	await _settle(8)
+	await _shot("08_two_nights")
+
+	_stats.call("show_tab", 2)
+	_stats.call("set_window", &"run")
+	await _settle(8)
+	await _shot("09_society_two_days")
 
 	print("shots written: %d -> %s" % [_shots, OUT_DIR])
 	quit(0)

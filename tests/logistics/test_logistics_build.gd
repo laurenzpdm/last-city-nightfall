@@ -374,7 +374,10 @@ func test_a_dragged_belt_delivers_exactly_what_it_claims() -> void:
 			return
 		_drag(kind, o, o + Vector2i(11, 0), 0)
 		_place("bunker_chest", o + Vector2i(12, 0))
-		world.run(120)
+		# A belt is a construction site like anything else, and a driven belt is
+		# three seconds of work a tile. Measure a FINISHED line or the number is
+		# the queue's, not the belt's.
+		assert_true(_await_line(o, 12), "%s: the whole run finished building" % kind)
 		var sink: LogiStore = logi.store_of(_id_at(o + Vector2i(12, 0)))
 		assert_not_null(sink, "%s: the crate at the end has a store" % kind)
 		if sink == null:
@@ -384,6 +387,20 @@ func test_a_dragged_belt_delivers_exactly_what_it_claims() -> void:
 		var declared: float = logi.def_of(StringName(kind)).belt_rate() * 60.0
 		assert_near(float(measured), declared, declared * 0.02,
 			"%s claims %.0f items a minute and delivered %d" % [kind, declared, measured])
+
+
+## Ticks until every tile of a run of `length` belts east of `entry` is standing.
+func _await_line(entry: Vector2i, length: int) -> bool:
+	for _wait: int in 200:
+		var done: bool = true
+		for i: int in length:
+			if logi.entity_at(entry + Vector2i(i, 0)) == null:
+				done = false
+				break
+		if done:
+			return true
+		world.run(20)
+	return false
 
 
 ## Fills the back of the line every tick and empties the sink every tick, so

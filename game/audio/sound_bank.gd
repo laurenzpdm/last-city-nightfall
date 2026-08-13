@@ -18,20 +18,35 @@ extends RefCounted
 ## about two seconds of arithmetic in total, so the budget is generous while the
 ## game is opening — nobody is playing yet and the frame is already busy with
 ## world generation — and drops to a background trickle afterwards.
-const EAGER_BUDGET_USEC: int = 6000
-const DEFAULT_BUDGET_USEC: int = 2500
-## Frames the eager budget lasts. Five seconds at 60 fps, which finishes the
-## whole bake with room to spare.
-const EAGER_FRAMES: int = 300
-## Samples of work per microsecond of budget, measured on the machine that wrote
-## this. Only used to convert the budget into a slice size; being wrong by 2x
-## costs a fraction of a millisecond either way.
-const SAMPLES_PER_USEC: int = 5
+const EAGER_BUDGET_USEC: int = 4000
+const DEFAULT_BUDGET_USEC: int = 2000
+## Frames the eager budget lasts. Ten seconds at 60 fps, which finishes the whole
+## bake with room to spare — and anything the game actually asks for before then
+## jumps the queue through `promote()`, so the wait is never audible.
+const EAGER_FRAMES: int = 600
+
+## Work units handed to a job between two checks of the clock.
+##
+## This replaced two failed attempts at predicting how long a slice would take,
+## and the reason both failed is worth writing down: the phases of a job differ
+## in cost by more than an order of magnitude. Rendering five detuned partials
+## runs at about 0.7 samples per microsecond; scrubbing and encoding the finished
+## buffer runs at about sixteen. A single "samples per microsecond" figure
+## learned from the fast phases sized a slice of the slow one at 25 000 samples,
+## and one uninterruptible slice became a 64 ms frame — a worse dropped frame
+## than the one the chunking was added to prevent.
+##
+## So the bank stops predicting and starts measuring: hand over a small fixed
+## quantum, look at the clock, decide again. The worst overshoot is one quantum
+## of the slowest phase, about 1.5 ms, and it does not depend on knowing anything
+## about the machine.
+const SLICE_QUANTUM: int = 1024
 
 var budget_usec: int = DEFAULT_BUDGET_USEC
 var eager_budget_usec: int = EAGER_BUDGET_USEC
 
 var _pumps: int = 0
+var _peak_pump_usec: int = 0
 
 var _streams: Dictionary[StringName, AudioStreamWAV] = {}
 var _queue: Array[StringName] = []
@@ -55,15 +70,27 @@ func warm_up() -> int:
 	return Time.get_ticks_usec() - t0
 
 
+## Prefixes in the order the game needs them. The room first, then the things a
+## player can trigger by hand, then the score, then the world. Anything not
+## matching a prefix comes last.
+const BUILD_ORDER: Array[String] = ["hearth", "wind", "city", "click", "ui_",
+	"panel", "confirm", "deny", "sting", "mus_", "mach_", "shot", "impact",
+	"thud", "rubble", "chord"]
+
+
 ## Every recipe not already built joins the queue, most useful first.
 func queue_all() -> void:
 	var keys: Array[StringName] = []
 	for k: StringName in LcnSynthRecipes.all():
 		keys.append(k)
-	# Sorted so the build order is the same on every machine and every run —
-	# a bank that finishes in a different order produces a different first
-	# thirty seconds, which makes a bug report unreproducible.
+	# Sorted, then grouped by usefulness. Deterministic on purpose: a bank that
+	# finishes in a different order every run produces a different first thirty
+	# seconds, which makes a bug report unreproducible.
 	keys.sort()
+	for prefix: String in BUILD_ORDER:
+		for k: StringName in keys:
+			if String(k).begins_with(prefix):
+				queue(k)
 	for k: StringName in keys:
 		queue(k)
 
@@ -88,7 +115,11 @@ func pump(usec: int = -1) -> int:
 		return 0
 	var finished_now: int = 0
 	var t0: int = Time.get_ticks_usec()
-	while Time.get_ticks_usec() - t0 < allowance:
+	while true:
+		var elapsed: int = Time.get_ticks_usec() - t0
+		var remaining: int = allowance - elapsed
+		if remaining <= 0:
+			break
 		if _active == null:
 			if _queue.is_empty():
 				break
@@ -97,12 +128,13 @@ func pump(usec: int = -1) -> int:
 			if _streams.has(key):
 				continue
 			_active = LcnSynthJob.new(key, LcnSynthRecipes.spec(key))
-		var slice: int = maxi(512, allowance * SAMPLES_PER_USEC / 4)
-		if _active.advance(slice):
+		if _active.advance(SLICE_QUANTUM):
 			_adopt(_active)
 			_active = null
 			finished_now += 1
-	_build_usec += Time.get_ticks_usec() - t0
+	var spent: int = Time.get_ticks_usec() - t0
+	_build_usec += spent
+	_peak_pump_usec = maxi(_peak_pump_usec, spent)
 	return finished_now
 
 
@@ -186,6 +218,7 @@ func report() -> Dictionary:
 		"bytes": _bytes,
 		"kib": int(round(float(_bytes) / 1024.0)),
 		"build_ms": snappedf(float(_build_usec) / 1000.0, 0.1),
+		"peak_pump_usec": _peak_pump_usec,
 		"misses": miss_total,
 		"non_finite_samples": _non_finite,
 	}

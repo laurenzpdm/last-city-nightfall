@@ -119,7 +119,13 @@ func _throughput() -> void:
 			"from": [o.x, o.y], "to": [o.x + 11, o.y], "rot": 0, "free": true})
 		Sim.submit_command({"system": &"build", "op": "place", "kind": "bunker_chest",
 			"cell": [o.x + 12, o.y], "free": true, "instant": true})
-		SimClock.advance(120)
+		# A belt is a construction site like anything else, and a driven belt is
+		# three seconds of work a tile: measure a FINISHED line or the number
+		# belongs to the build queue rather than to the belt.
+		for _wait: int in 200:
+			SimClock.advance(20)
+			if logi.entity_at(o + Vector2i(11, 0)) != null:
+				break
 		var chest: LogiStore = logi.store_of(_id_at(logi, o + Vector2i(12, 0)))
 		if chest == null or logi.entity_at(o) == null:
 			print(" %-12s could not be built" % kind)
