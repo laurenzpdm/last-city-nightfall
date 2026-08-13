@@ -615,7 +615,7 @@ func _apply_cli() -> void:
 			_shot_wait = WARMUP_FRAMES
 			# Run the world fast so the shots show a city that has been alive for
 			# a while: heat flowing, buffers filling, a real warning or two.
-			SimClock.speed = 4.0
+			SimClock.speed = 2.0
 
 
 ## The screenshot rig for this part. Not the world harness: [P18] needs the REAL
@@ -629,7 +629,7 @@ const SETTLE_FRAMES: int = 20
 const GAP_FRAMES: int = 20
 
 const SHOT_SEQUENCE: Array[Dictionary] = [
-	{"name": "01_palette", "panels": ["palette"], "tooltip": true},
+	{"name": "01_palette", "panels": ["palette"], "query": "", "tooltip": true},
 	{"name": "02_palette_search", "panels": ["palette"], "query": "heat", "tooltip": true},
 	{"name": "03_recipes", "panels": ["recipes"]},
 	{"name": "04_tech", "panels": ["tech"]},

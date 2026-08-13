@@ -435,6 +435,8 @@ func network_title(nid: int) -> String:
 	var nodes: Dictionary = _heat.get("nodes")
 	var best_id: int = -1
 	var best_out: float = -1.0
+	var hungriest: int = -1
+	var most_demand: float = -1.0
 	for id: int in ids:
 		var node: Object = nodes.get(id)
 		if node == null:
@@ -446,16 +448,28 @@ func network_title(nid: int) -> String:
 		if out > best_out:
 			best_out = out
 			best_id = id
+		var want: float = float(def.get("demand"))
+		if want > most_demand:
+			most_demand = want
+			hungriest = id
 	var title: String = "grid %d" % nid
 	if best_id >= 0 and best_out > 0.0:
-		var node2: Object = nodes.get(best_id)
-		var name: String = LcnHudFormat.building_title(StringName(String(node2.get("kind"))))
-		# "The Hearth" already carries its article; "the The Hearth grid" does not
-		# read like something a person would say.
-		title = "%s grid" % name if name.to_lower().begins_with("the ") \
-			else "the %s grid" % name
+		title = _grid_name(String((nodes[best_id] as Object).get("kind")), "grid")
+	elif hungriest >= 0 and most_demand > 0.0:
+		# No generator on it at all: name it after what is waiting to be fed,
+		# which is also the thing the player has to go and look at.
+		title = _grid_name(String((nodes[hungriest] as Object).get("kind")), "run")
 	_net_titles[nid] = title
 	return title
+
+
+## "the Hearth grid", "the Warmth Radiator run". "The Hearth" already carries its
+## article, and "the The Hearth grid" is not something a person would say.
+func _grid_name(kind: String, suffix: String) -> String:
+	var name: String = LcnHudFormat.building_title(StringName(kind))
+	if name.to_lower().begins_with("the "):
+		return "%s %s" % [name, suffix]
+	return "the %s %s" % [name, suffix]
 
 
 ## World position of the tile that is choking a network, for the camera jump.

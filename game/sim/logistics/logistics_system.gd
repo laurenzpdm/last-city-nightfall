@@ -48,8 +48,10 @@ const BURNER_RESCAN_TICKS: int = 200
 ## every pipe in the city; once every twenty ticks is a quarter of a second of
 ## latency on a bunker that starts empty anyway.
 const BURNER_RESCAN_MIN: int = 20
-## Ticks between sweeps of [P11]'s building list when nothing was built.
-const SYNC_EVERY: int = 10
+## Ticks between sweeps of [P11]'s building list. A finished chest joining the
+## logistics world a second late is invisible; walking seventeen hundred
+## buildings every tick to find out sooner is not.
+const SYNC_EVERY: int = 20
 ## How often the profiling line is written at DEBUG.
 const LOG_PERF_EVERY: int = 1000
 
@@ -82,6 +84,8 @@ var _sync_tick: int = -100000
 var _sync_count: int = -1
 var _burner_cache: Array[int] = []
 var _burner_fuel: Dictionary[int, StringName] = {}
+var _burner_seen: Dictionary[int, bool] = {}
+var _reserve_cache: Dictionary[int, float] = {}
 var _burner_scan_size: int = -1
 var _burner_scan_tick: int = -100000
 ## True while there is nowhere in the world an item could come from. See
@@ -122,6 +126,8 @@ func setup() -> void:
 	_last_alert_tick = -100000
 	_burner_cache = []
 	_burner_fuel = {}
+	_burner_seen = {}
+	_reserve_cache = {}
 	_burner_scan_size = -1
 	_burner_scan_tick = -100000
 	_bootstrap_logged = false
@@ -290,30 +296,49 @@ func _burners() -> Array[int]:
 			nodes = raw
 	var changed: bool = nodes.size() != _burner_scan_size
 	var waited: int = _tick - _burner_scan_tick
-	if (changed and waited >= BURNER_RESCAN_MIN) or waited >= BURNER_RESCAN_TICKS:
-		_burner_scan_size = nodes.size()
-		_burner_scan_tick = _tick
-		var found: Dictionary[int, StringName] = {}
-		for id: Variant in nodes:
-			var n: Object = nodes[id]
-			if n == null:
-				continue
-			var d: Object = n.get("def")
-			if d == null:
-				continue
-			var fuel: StringName = StringName(String(d.get("fuel")))
-			if String(fuel) != "":
-				found[int(id)] = fuel
-		for id2: int in world.burner_ids():
-			if not found.has(id2):
-				found[id2] = world.fuel_item_of[id2]
-		var keys: Array = found.keys()
+	if not ((changed and waited >= BURNER_RESCAN_MIN) or waited >= BURNER_RESCAN_TICKS):
+		return _burner_cache
+	_burner_scan_size = nodes.size()
+	_burner_scan_tick = _tick
+
+	# Incremental: a heat node is classified once and never again. A city with
+	# fourteen hundred pipes must not pay for forty property reads apiece every
+	# time somebody finishes a wall.
+	var dirty: bool = false
+	for id: Variant in nodes:
+		var key: int = int(id)
+		if _burner_seen.has(key):
+			continue
+		_burner_seen[key] = true
+		var n: Object = nodes[id]
+		if n == null:
+			continue
+		var d: Object = n.get("def")
+		if d == null:
+			continue
+		var fuel: StringName = StringName(String(d.get("fuel")))
+		if String(fuel) != "":
+			_burner_fuel[key] = fuel
+			dirty = true
+	for id2: int in world.burner_ids():
+		if not _burner_fuel.has(id2):
+			_burner_fuel[id2] = world.fuel_item_of[id2]
+			dirty = true
+	if _burner_seen.size() > nodes.size():
+		# Something was demolished. Rare, and the only time the full list is walked.
+		var stale: Array = _burner_seen.keys()
+		stale.sort()
+		for k2: int in stale:
+			if not nodes.has(k2) and not world.fuel_item_of.has(k2):
+				_burner_seen.erase(k2)
+				if _burner_fuel.erase(k2):
+					dirty = true
+	if dirty:
+		var keys: Array = _burner_fuel.keys()
 		keys.sort()
 		_burner_cache = []
-		_burner_fuel.clear()
 		for k: int in keys:
 			_burner_cache.append(k)
-			_burner_fuel[k] = found[k]
 	return _burner_cache
 
 
@@ -326,13 +351,18 @@ func _fuel_of(building_id: int) -> StringName:
 
 ## Fuel a burner is kept topped up to: half a minute of full output.
 func _fuel_reserve(building_id: int) -> float:
+	var cached: float = float(_reserve_cache.get(building_id, -1.0))
+	if cached >= 0.0:
+		return cached
 	var burn: float = _burn_rate(building_id)
 	if burn <= 0.0:
 		var b: Object = _building(building_id)
 		if b != null:
 			var traits: Dictionary = _traits_of(StringName(String(b.get("kind"))))
 			burn = float(traits.get("burn", 0.0))
-	return maxf(MIN_FUEL_RESERVE, burn * FUEL_RESERVE_SECONDS)
+	var reserve: float = maxf(MIN_FUEL_RESERVE, burn * FUEL_RESERVE_SECONDS)
+	_reserve_cache[building_id] = reserve
+	return reserve
 
 
 ## Items per second this burner eats at full output, straight off [P02]'s own
@@ -402,10 +432,8 @@ func _sync_from_build() -> void:
 	# Walking seventeen hundred buildings every tick to find the two that gained
 	# a chest is most of what this system would cost in a big city. The list is
 	# swept when it grew or shrank, and otherwise twice a second.
-	var count: int = int(_build.call("building_count")) if _build.has_method("building_count") else -1
-	if count == _sync_count and _tick - _sync_tick < SYNC_EVERY:
+	if _tick - _sync_tick < SYNC_EVERY:
 		return
-	_sync_count = count
 	_sync_tick = _tick
 	var raw: Variant = _build.call("all_buildings")
 	if typeof(raw) != TYPE_ARRAY:
@@ -491,6 +519,7 @@ func _adopt(b: Object, id: int) -> void:
 
 
 func _release(id: int) -> void:
+	_reserve_cache.erase(id)
 	world.unregister_store(id)
 	world.unregister_burner(id)
 	haul.forget(id)
