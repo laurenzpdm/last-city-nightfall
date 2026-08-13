@@ -239,6 +239,18 @@ func test_it_installs_nothing_headless() -> void:
 	assert_null(fresh, "headless runs install no UI at all — the sim gate pays nothing")
 
 
+func test_it_stands_down_when_the_world_goes_away() -> void:
+	_press(KEY_B)
+	_press(KEY_T)
+	world.stop()
+	# A world that died halfway leaves half-constructed systems in Sim.by_name
+	# whose methods dereference null internals; reading one takes the whole UI
+	# down. Nothing here may touch the simulation unless Sim says it is alive.
+	assert_no_errors(menu.rebuild_models, "a rebuild against a dead world is silent")
+	assert_no_errors(func() -> void: menu._process(1.0), "and so is a refresh tick")
+	world = SimFixture.new(7).start()
+
+
 func test_models_rebuild_without_the_optional_systems() -> void:
 	assert_no_errors(menu.rebuild_models,
 		"research, society and production are all absent and nothing complains")

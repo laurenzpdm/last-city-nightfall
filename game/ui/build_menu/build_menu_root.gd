@@ -189,7 +189,20 @@ func panel(id: StringName) -> LcnUiPanel:
 
 # ------------------------------------------------------------------ world ----
 
+## True only for a world that finished being built.
+##
+## `Sim.create_world` installs systems one at a time and calls `setup()` on them
+## afterwards, so a world that died halfway — a part mid-edit, a bad content
+## file — leaves half-constructed systems in `Sim.by_name` whose methods
+## dereference null internals. Reading one of those took this whole UI down in a
+## screenshot run. Nothing here talks to the simulation unless it is alive.
+func _sim_ready() -> bool:
+	return Sim.alive
+
+
 func _on_world_ready() -> void:
+	if not _sim_ready():
+		return
 	_build = Sim.get_system(&"build")
 	_heat = Sim.get_system(&"heat")
 	_grid = Sim.get_system(&"grid")
@@ -204,6 +217,8 @@ func _on_world_ready() -> void:
 ## Re-indexes everything that depends on content or on unlock state. Called on
 ## world creation and whenever something unlocks — never per frame.
 func rebuild_models() -> void:
+	if not _sim_ready():
+		return
 	catalog.rebuild(_build)
 	catalog.from_dict(store.palette)
 	graph.rebuild(_build, Registry)
@@ -492,6 +507,13 @@ func _process(delta: float) -> void:
 	if _accum < 1.0 / REFRESH_HZ:
 		return
 	_accum = 0.0
+	if not _sim_ready():
+		# The world went away (a load, a restart, a part being rewritten under
+		# us). Drop every pointer rather than keep polling a corpse.
+		_forget_systems()
+		if tooltip != null:
+			tooltip.visible = false
+		return
 	var t0: int = Time.get_ticks_usec()
 	_read_hover()
 	_refresh_open_panels(false)
@@ -507,6 +529,14 @@ func last_refresh_usec() -> int:
 	return _last_refresh_usec
 
 
+func _forget_systems() -> void:
+	_build = null
+	_heat = null
+	_grid = null
+	_research = null
+	_society = null
+
+
 func _read_hover() -> void:
 	if _shot_hover_lock:
 		return
@@ -517,6 +547,8 @@ func _read_hover() -> void:
 
 
 func _refresh_open_panels(force: bool) -> void:
+	if not _sim_ready():
+		return
 	if palette != null and palette.is_open():
 		palette.stock = _build.get(&"stock") if _build != null else null
 		palette.refresh()
@@ -554,6 +586,9 @@ func _play_rot() -> int:
 ## touches the simulation on a timer.
 func _refresh_tooltip() -> void:
 	if tooltip == null:
+		return
+	if not _sim_ready():
+		tooltip.visible = false
 		return
 	var subject: StringName = _tooltip_kind if String(_tooltip_kind) != "" else armed_kind
 	var instance: Object = null

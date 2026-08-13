@@ -166,6 +166,21 @@ func _init() -> void:
 			bus.connect(&"wave_cleared", _on_wave_cleared)
 
 
+## Drops every Bus subscription. MUST be called when the owner goes away: an
+## autoload signal holds a reference to the callable, which holds this object,
+## which is how a RefCounted subscribed to a global signal never dies.
+func dispose() -> void:
+	var bus: Node = _autoload(&"Bus")
+	if bus == null:
+		return
+	for pair: Array in [[&"heat_shortfall", _on_heat_shortfall],
+			[&"wave_incoming", _on_wave_incoming],
+			[&"wave_started", _on_wave_started],
+			[&"wave_cleared", _on_wave_cleared]]:
+		if bus.is_connected(pair[0], pair[1]):
+			bus.disconnect(pair[0], pair[1])
+
+
 ## Re-resolves every system pointer. Called on world_ready and whenever the tick
 ## counter goes backwards (a load, a new world, a test fixture restarting).
 ##

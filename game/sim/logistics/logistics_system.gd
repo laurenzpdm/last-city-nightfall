@@ -758,7 +758,8 @@ func totals() -> Dictionary:
 		"entities": world.entity_ids.size(),
 		"porters": haul.porters,
 		"hauled": haul.hauled_total,
-		"fuel_delivered": haul.fuel_total,
+		"fuel_by_porter": haul.fuel_total,
+		"fuel_by_machine": int(world.delivered_as_fuel),
 	}
 
 
@@ -1192,7 +1193,8 @@ func metrics() -> Dictionary:
 		"idle_arms": world.idle_arms(),
 		"items_moved": world.items_moved,
 		"hauled_total": haul.hauled_total,
-		"fuel_delivered": haul.fuel_total,
+		"fuel_by_porter": haul.fuel_total,
+		"fuel_by_machine": int(world.delivered_as_fuel),
 		"burners_short": _fuel_short,
 		"porters": haul.porters,
 		"spilled": world.spilled,

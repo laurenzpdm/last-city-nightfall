@@ -138,6 +138,12 @@ func _exit_tree() -> void:
 		Bus.ui_scale_changed.disconnect(_on_ui_scale_changed)
 	if Bus.alert_raised.is_connected(_on_alert_raised):
 		Bus.alert_raised.disconnect(_on_alert_raised)
+	# The probe and the alert model live on Bus subscriptions; without this they
+	# outlive the HUD that owns them and keep answering signals forever.
+	if probe != null:
+		probe.dispose()
+	if alerts != null:
+		alerts.dispose()
 
 
 # ======================================================================  api ==

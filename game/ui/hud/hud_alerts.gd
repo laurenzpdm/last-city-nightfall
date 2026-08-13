@@ -45,10 +45,48 @@ var _stall_keys: Dictionary[int, float] = {}
 var _now: float = 0.0
 
 
+## Signal -> handler, in one place so `dispose()` cannot drift from `_init`.
+func _subscriptions() -> Array:
+	return [
+		[&"alert_raised", _on_alert],
+		[&"toast", _on_toast],
+		[&"citizen_died", _on_citizen_died],
+		[&"machine_stalled", _on_machine_stalled],
+		[&"placement_rejected", _on_placement_rejected],
+		[&"research_completed", _on_research_completed],
+		[&"law_enacted", _on_law_enacted],
+		[&"wave_cleared", _on_wave_cleared],
+		[&"game_over", _on_game_over],
+	]
+
+
+## Drops every Bus subscription. MUST be called when the owner goes away — see
+## LcnHudProbe.dispose() for why a RefCounted on an autoload signal outlives you.
+func dispose() -> void:
+	var bus: Node = _autoload(&"Bus")
+	if bus == null:
+		return
+	for pair: Array in _subscriptions():
+		if bus.is_connected(pair[0], pair[1]):
+			bus.disconnect(pair[0], pair[1])
+
+
 func _init() -> void:
 	var bus: Node = _autoload(&"Bus")
 	if bus == null:
 		return
+	for pair: Array in _subscriptions():
+		bus.connect(pair[0], pair[1])
+	_unused_init()
+
+
+## The explicit connect list above replaced these; kept as a compile-time check
+## that every handler still exists.
+func _unused_init() -> void:
+	pass
+
+
+func _legacy_connect(bus: Node) -> void:
 	bus.connect(&"alert_raised", _on_alert)
 	bus.connect(&"toast", _on_toast)
 	bus.connect(&"citizen_died", _on_citizen_died)
