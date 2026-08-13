@@ -90,6 +90,9 @@ var _m_shift_law: String = ""
 var _m_child_labour: String = ""
 var _m_elder_labour: String = ""
 var _shift_law_sent: StringName = &""
+## [P10] society modifiers, refreshed on the sample. 1.0 without research.
+var _tech_hope: float = 1.0
+var _tech_discontent: float = 1.0
 var _rate_hope: float = 0.0
 var _rate_discontent: float = 0.0
 ## Smoothed microseconds spent in step(). METRICS ONLY, never serialize().
@@ -194,10 +197,24 @@ func step(tick: int) -> void:
 	_advance_seal(tick)
 	if tick % SocietyDefs.SAMPLE_EVERY == 0:
 		_sample(tick)
+		_read_tech()
 	_integrate()
 	if tick % ANNOUNCE_EVERY == 0:
 		_announce()
 	_step_us += (float(Time.get_ticks_usec() - t0) - _step_us) * 0.02  # lint:allow as above
+
+
+## [P10]. Thirteen of the forty-five nodes move one of these two, which made
+## them the single largest block of research that reached nothing.
+func _read_tech() -> void:
+	if _research == null or not _research.has_method("multiplier"):
+		return
+	var h: Variant = _research.call("multiplier", ResearchDefs.E_HOPE_MULT)
+	var d: Variant = _research.call("multiplier", ResearchDefs.E_DISCONTENT_MULT)
+	if typeof(h) == TYPE_FLOAT or typeof(h) == TYPE_INT:
+		_tech_hope = clampf(float(h), 0.05, 5.0)
+	if typeof(d) == TYPE_FLOAT or typeof(d) == TYPE_INT:
+		_tech_discontent = clampf(float(d), 0.05, 5.0)
 
 
 ## Per tick, and only this. Everything expensive happens on the sample.
@@ -210,9 +227,14 @@ func _integrate() -> void:
 	var raw_discontent: float = 0.0
 	for i: int in n:
 		if _pressures.meters[i] == SocietyPressures.HOPE:
-			raw_hope += _pressures.rates[i]
+			# [P10]. society.hope_mult scales what LIFTS hope; a research node
+			# that makes the city proud must not also make despair slower to
+			# arrive, so the modifier is applied to the positive side only.
+			var r: float = _pressures.rates[i]
+			raw_hope += r * _tech_hope if r > 0.0 else r
 		else:
-			raw_discontent += _pressures.rates[i]
+			var d: float = _pressures.rates[i]
+			raw_discontent += d * _tech_discontent if d > 0.0 else d
 	_rate_hope = raw_hope
 	_rate_discontent = raw_discontent
 

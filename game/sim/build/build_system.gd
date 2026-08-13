@@ -78,6 +78,9 @@ var _tick: int = 0
 var _planned_conn: Dictionary[Vector2i, Array] = {}
 
 var _research: SimSystem = null
+var _has_tech: bool = false
+## [P10] build.speed_mult, refreshed once a second. 1.0 without research.
+var _tech_speed: float = 1.0
 var _m_unlocked: String = ""
 var _citizens: SimSystem = null
 var _m_builders: String = ""
@@ -146,6 +149,7 @@ func post_setup() -> void:
 	_citizens = Sim.get_system(&"citizens")
 	if _citizens != null:
 		_m_builders = BuildWorldQuery._find(_citizens, ["idle_builders", "available_builders", "builder_count"], 0)
+	_has_tech = _research != null and _research.has_method("multiplier")
 
 	Log.info("build", "ready: %d definitions, stock '%s', unlocks %s, builders %s" % [
 		_defs.size(), String(stock.provider_name()),
@@ -173,6 +177,10 @@ func _load_defs() -> void:
 
 func step(tick: int) -> void:
 	_tick = tick
+	if _has_tech and tick % 20 == 0:
+		var v: Variant = _research.call("multiplier", ResearchDefs.E_BUILD_SPEED_MULT)
+		if typeof(v) == TYPE_FLOAT or typeof(v) == TYPE_INT:
+			_tech_speed = clampf(float(v), 0.05, 20.0)
 	var order_ids: Array[int] = queue.ids()
 	_deliver_materials(order_ids)
 	_advance_construction(order_ids)
@@ -254,7 +262,7 @@ func build_power() -> float:
 	var p: float = BASE_BUILD_POWER
 	if _citizens != null and _m_builders != "":
 		p += POWER_PER_BUILDER * float(_citizens.call(_m_builders))
-	return p
+	return p * _tech_speed
 
 
 func _begin_construction(b: BuildingInstance) -> void:

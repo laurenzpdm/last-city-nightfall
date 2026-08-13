@@ -105,6 +105,11 @@ var _has_warmth_field: bool = false
 var _has_walkable: bool = false
 var _m_hope: String = ""
 var _half_rations: bool = false
+## [P10] research modifiers, refreshed once a second. 1.0 without a tech tree.
+var _research: SimSystem = null
+var _tech_exposure: float = 1.0
+var _tech_heal: float = 1.0
+var _tech_food: float = 1.0
 
 # --- per-tick scratch --------------------------------------------------------
 var _phase: int = 1
@@ -186,6 +191,9 @@ func post_setup() -> void:
 			_ledger = ledger
 	board.bind(_build, _heat, _grid)
 	router.bind(_grid)
+	_research = Sim.get_system(&"research")
+	if _research != null and not _research.has_method("multiplier"):
+		_research = null
 	_found_population()
 	Log.info(TAG, "ready — %d founders, climate=%s heat=%s grid=%s build=%s pathing=%s" % [
 		pool.population(), str(_climate != null), str(_heat != null), str(_grid != null),
@@ -252,6 +260,7 @@ func step(tick: int) -> void:
 	# expensive tick and hide the real average behind a sampling alias.
 	if tick % CitizenDefs.JOB_SYNC_TICKS == JOB_SYNC_PHASE:
 		_sync_city(tick)
+		_read_tech()
 	if tick % PRESENCE_TICKS == PRESENCE_PHASE:
 		board.recount_presence(pool)
 		board.publish_workers()
@@ -282,6 +291,23 @@ func _read_world() -> void:
 		_warmth = _heat.call("warmth_field")
 
 
+## [P10]. Read on the same second-scale timer as the world sample: a node
+## finishes once a minute at best and this is consumed by every citizen.
+func _read_tech() -> void:
+	if _research == null:
+		return
+	_tech_exposure = _mult(ResearchDefs.E_EXPOSURE_RESIST)
+	_tech_heal = _mult(ResearchDefs.E_HEAL_MULT)
+	_tech_food = _mult(ResearchDefs.E_FOOD_MULT)
+
+
+func _mult(key: StringName) -> float:
+	var v: Variant = _research.call("multiplier", key)
+	if typeof(v) != TYPE_FLOAT and typeof(v) != TYPE_INT:
+		return 1.0
+	return clampf(float(v), 0.05, 10.0)
+
+
 func _fill_context() -> void:
 	var n: int = maxi(1, pool.population())
 	_ctx.tick = _tick
@@ -298,6 +324,8 @@ func _fill_context() -> void:
 	_ctx.morale_offset = -_grief + float(CitizenDefs.law_row(_shift_law).get("morale", 0.0)) \
 		+ _society_morale()
 	_ctx.rng = Rng.stream(RNG_STREAM)
+	_ctx.exposure_resist = _tech_exposure
+	_ctx.heal_mult = _tech_heal
 
 
 ## [P06] society has not landed yet and may name its number anything. Whatever
@@ -444,6 +472,9 @@ func _serve_meals(tick: int) -> void:
 	if lean:
 		per_meal *= CitizenDefs.LEAN_RATION
 		relief *= CitizenDefs.LEAN_RATION
+	# [P10] citizens.food_mult stretches a unit of food further; it feeds the
+	# same number of people for less of the store, it does not conjure grain.
+	per_meal /= maxf(0.05, _tech_food)
 	var served: int = 0
 	var missed: int = 0
 	for i: int in wanting.size():

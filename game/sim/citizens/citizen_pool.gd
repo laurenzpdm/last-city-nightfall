@@ -115,6 +115,9 @@ class Ctx extends RefCounted:
 	var fatigue_mult: float = 1.0        ## shift law
 	var morale_offset: float = 0.0       ## grief + [P06] hope, already summed
 	var rng: RandomNumberGenerator = null
+	# --- [P10] research modifiers, 1.0 in a build with no tech tree ---------
+	var exposure_resist: float = 1.0     ## >1 = the cold bites slower
+	var heal_mult: float = 1.0           ## >1 = the sick and hurt recover faster
 
 
 # =========================================================================
@@ -349,6 +352,8 @@ func step_needs(phase: int, buckets: int, ctx: Ctx) -> void:
 	var contagion: float = ctx.contagion * CitizenDefs.CONTAGION_PER_SEC * dt
 	var rng: RandomNumberGenerator = ctx.rng
 	var span: float = CitizenDefs.WARM_COMFORT_C - CitizenDefs.WARM_LETHAL_C
+	var exposure: float = ctx.exposure_resist
+	var healing: float = ctx.heal_mult
 
 	var i: int = phase
 	while i < n:
@@ -373,7 +378,8 @@ func step_needs(phase: int, buckets: int, ctx: Ctx) -> void:
 		if target > w:
 			w += (target - w) * CitizenDefs.WARM_GAIN_RATE * dt
 		else:
-			var loss: float = CitizenDefs.WARM_LOSS_RATE * CitizenDefs.TRAIT_COLD[t_id] * dt
+			var loss: float = CitizenDefs.WARM_LOSS_RATE * CitizenDefs.TRAIT_COLD[t_id] \
+				* dt / maxf(0.05, exposure)
 			if not indoors:
 				loss *= wind_loss
 			w += (target - w) * minf(loss, 1.0)
@@ -427,7 +433,7 @@ func step_needs(phase: int, buckets: int, ctx: Ctx) -> void:
 			or st == CitizenDefs.State.INJURED
 		if ill > 0.0 and w >= 50.0 and hu < 70.0 and resting:
 			var heal: float = CitizenDefs.ILLNESS_RECOVER_PER_SEC * dt
-			heal *= 1.0 + care * (CitizenDefs.CARE_RECOVERY_MULT - 1.0)
+			heal *= (1.0 + care * (CitizenDefs.CARE_RECOVERY_MULT - 1.0)) * healing
 			sick_gain -= heal
 		ill = clampf(ill + sick_gain, 0.0, 100.0)
 		illness[s] = ill
@@ -436,7 +442,7 @@ func step_needs(phase: int, buckets: int, ctx: Ctx) -> void:
 		var inj: float = injury[s]
 		if inj > 0.0:
 			inj = maxf(0.0, inj - CitizenDefs.INJURY_HEAL_PER_SEC
-				* (1.0 + care * 1.5) * dt)
+				* (1.0 + care * 1.5) * healing * dt)
 			injury[s] = inj
 
 		# --- health: the sum of everything going wrong -------------------------
