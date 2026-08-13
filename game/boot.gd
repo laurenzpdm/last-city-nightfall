@@ -7,10 +7,17 @@ extends Node
 ## is deliberate and explicit rather than a race of self-installers:
 ##
 ##   Sim.create_world()  the simulation, seeded
-##   WorldRenderer       [P13] terrain, entities, lights, post
-##   GameCamera          [P16] pan, zoom, drag, selection, the whole action map
+##   WorldRenderer       [P13] terrain, entities, lights, post          layer 60
+##   GameCamera          [P16] pan, zoom, drag, selection, the action map
+##   LcnHud              [P17] clock, grid, vitals, stocks, alerts      layer 65
+##   LcnOverlays         [P19] readability lenses, self-installing      layer 70/72
+##   LcnBuildMenu        [P18] palette, recipes, tech, blueprints, laws layer 74
 ##   PlayController      build mode, ghost, placement — the integrator's shell
-##   PlayHud             the clock, the grid and the controls
+##
+## The CanvasLayer stack above is the whole answer to "what covers what": the
+## world treatment is under the interface, the lenses are over it because a
+## diagnosis has to beat a decoration, and the build menu is over the lenses
+## because a panel you opened must not be stabbed through by a FROZEN badge.
 ##
 ## Headless runs (tools/check.sh, the deterministic harness) get the simulation
 ## and nothing else: no window, no art bake, no rendering cost, and no way for
@@ -24,7 +31,8 @@ const OPENING_SEED: int = 7
 var renderer: WorldRenderer = null
 var camera: GameCamera = null
 var play: PlayController = null
-var hud: PlayHud = null
+var hud: LcnHud = null
+var build_menu: LcnBuildMenu = null
 
 
 func _ready() -> void:
@@ -91,14 +99,24 @@ func _install_view() -> void:
 	else:
 		camera = GameCamera.current()
 
-	hud = PlayHud.new()
-	add_child(hud)
+	hud = get_tree().root.get_node_or_null(NodePath("LcnHud")) as LcnHud
+	if hud == null:
+		hud = LcnHud.new()
+		add_child(hud)
 
 	play = PlayController.new()
 	renderer.add_child(play)
 	play.attach(camera, hud)
 
-	Log.info("boot", "view installed: renderer + camera + play controller")
+	# [P18] ships a self-installing .tres so it could land without touching this
+	# file. Now that it has landed, boot installs it explicitly and the bootstrap
+	# stands down — one place decides what a session contains, and the build menu
+	# is guaranteed to exist rather than depending on Registry scan order.
+	build_menu = LcnBuildMenuBootstrap.install()
+	if build_menu == null:
+		Log.warn("boot", "the build menu declined to install — B will do nothing")
+
+	Log.info("boot", "view installed: renderer + camera + HUD + build menu + play shell")
 
 
 ## A city already stands when the player arrives — a hearth, the pipes that carry

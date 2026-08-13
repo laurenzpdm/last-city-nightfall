@@ -40,8 +40,11 @@ game/
   boot.gd/.tscn    INTEGRATOR ONLY. The single entry point: creates the world,
                    installs the renderer, the camera and the play shell.
   core/            INTEGRATOR ONLY. Autoloads + contracts. Do not touch.
-  play/            INTEGRATOR ONLY. The session shell: build mode, the ghost, the
-                   minimum HUD. Placeholder for [P17]/[P18]; delete on their arrival.
+  play/            INTEGRATOR ONLY. The session shell: build mode, the ghost on the
+                   map, placement validation, the drag-to-line commit. NOT a HUD —
+                   [P17] owns that and the placeholder was deleted when it landed.
+                   [P18]'s palette DRIVES this shell (`set_build_mode`, `kind`)
+                   rather than replacing it: a chooser is not a ghost.
   sim/             Deterministic simulation. No rendering, no input, no UI.
     grid/          [P01] tiles, terrain, chunks, pathfinding surface
     heat/          [P02] heat + power network graph, pipes, falloff
@@ -123,9 +126,20 @@ balance regressions show up as a diff instead of a vibe.
 Every sim system extends `SimSystem` and declares a tick order priority. Lower runs first.
 
 ```
-10 climate → 20 heat → 30 logistics → 40 production → 50 citizens
-→ 60 society → 70 threat → 80 combat → 90 research → 99 metrics
+10 climate → 15 build → 20 grid → 25 heat → 30 logistics → 40 production
+→ 50 citizens → 60 society → 70 threat → 80 combat → 90 research → 99 metrics
 ```
+
+`Sim.create_world()` sorts the array **three times** — before `setup()`, after
+`setup()` and after `post_setup()` — because a system may legitimately decide its
+order in any of the three. Sorting once cost this build a whole phase of heat
+ticking behind logistics and production, so every consumer read last tick's power
+factor and nobody noticed. Ties break on `system_name()` so the sequence is stable.
+
+**Layer stack for anything that draws:** 60 post-process [P13] · 65 HUD [P17] ·
+70/72 readability lenses + legend [P19] · 74 build menu and browsers [P18].
+The world treatment is under the interface, a diagnosis beats a decoration, and
+an open panel is never stabbed through by a world badge.
 
 ---
 

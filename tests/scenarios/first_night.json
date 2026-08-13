@@ -470,6 +470,18 @@
       }
     },
     {
+      "tick": 4650,
+      "cmd": {
+        "system": "production",
+        "op": "set_recipe",
+        "cell": [
+          122,
+          117
+        ],
+        "recipe": "salvaged_stores"
+      }
+    },
+    {
       "tick": 4700,
       "cmd": {
         "system": "build",

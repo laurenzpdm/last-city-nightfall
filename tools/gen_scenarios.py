@@ -350,8 +350,9 @@ def first_night():
     L.place(3000, "field_kitchen", -6, -8)
     L.place(3200, "rubble_sorter", -6, -11)
     # A sorter left alone picks sorted_rubble (sort_order 10) and makes building
-    # material the city already has. Say what it is for.
-    L.cmd(3900, {"system": "production", "op": "set_recipe",
+    # material the city already has. Say what it is for — AFTER it is standing,
+    # because set_recipe addresses a machine and a building site is not one yet.
+    L.cmd(4650, {"system": "production", "op": "set_recipe",
                  "cell": [CORE[0] - 6, CORE[1] - 11], "recipe": "salvaged_stores"})
     L.line(3400, "heat_pipe", (12, 1), (12, 8))
     L.place(3800, "heat_accumulator", 13, 8)

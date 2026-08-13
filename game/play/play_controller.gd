@@ -12,10 +12,11 @@ extends Node2D
 ##      [P02] rather than guessed.
 ##   3. HANDING THE CAMERA ITS WORLD — bounds and home, so H means something.
 ##
-## It is deliberately thin. [P18] replaces the palette with a real build menu and
-## [P17] replaces the read-out with a real HUD; when they land, this becomes the
-## fallback nobody sees. Until then it is the difference between a tech demo and
-## a game.
+## [P18]'s build menu drives responsibility 1 through `set_build_mode`/`kind`
+## rather than replacing it — a palette is a chooser, and something still has to
+## own the ghost on the map, validate it every frame and turn a drag into a
+## command. [P17]'s LcnHud took over responsibility 2 outright; this shell only
+## hands it the build-mode read-out.
 
 const TILE: int = 32
 ## Kinds a fresh session offers, in the order the palette cycles them. Anything
@@ -32,7 +33,7 @@ signal palette_changed(kind: StringName, index: int, total: int)
 signal build_mode_changed(active: bool)
 
 var camera: GameCamera = null
-var hud: PlayHud = null
+var hud: LcnHud = null
 
 var build_mode: bool = false
 var kind: StringName = &"heat_pipe"
@@ -61,7 +62,7 @@ func _ready() -> void:
 		_on_world_ready()
 
 
-func attach(cam: GameCamera, overlay: PlayHud) -> void:
+func attach(cam: GameCamera, overlay: LcnHud) -> void:
 	camera = cam
 	hud = overlay
 	camera.action_pressed.connect(_on_action)
