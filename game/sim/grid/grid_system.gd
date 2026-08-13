@@ -30,7 +30,7 @@ const COST_BUDGET: int = 3000
 ## happened mid-assault. With this cap the same event costs ~11 ms a tick for
 ## seven ticks, and the field stays usable throughout: correct where the wave has
 ## passed, stale behind it, converging on the identical answer.
-const FLOW_BUDGET: int = 8000
+const FLOW_BUDGET: int = 5000
 const SNOW_INTERVAL: int = 5
 const SNOW_CHUNKS_PER_PASS: int = 4
 const MAX_FIELDS: int = 8

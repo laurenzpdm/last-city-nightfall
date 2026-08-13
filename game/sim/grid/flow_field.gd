@@ -30,6 +30,12 @@ const MAX_CELLS: int = 1 << 24
 const W_ORTHO: int = 10
 const W_DIAG: int = 14
 const IMP: int = 255
+## Cells the raise/lower repair may invalidate before it gives up and re-floods
+## from scratch instead. Raising costs about what flooding costs per cell, and a
+## repair that raises most of the map has already spent a full rebuild without
+## having produced one. Measured: repairs beyond this were the 20-42 ms ticks in
+## a stress run, all of them during heavy construction.
+const RAISE_LIMIT: int = 3000
 
 var field_name: StringName = &"default"
 var width: int = 0
@@ -69,6 +75,15 @@ var _resuming: bool = false
 ## several ticks instead of as one dropped frame.
 var unfinished: bool = false
 
+## While a BUDGETED full rebuild is in flight the live arrays are being wiped and
+## re-flooded from nothing, so every query would see DIR_NONE and every agent on
+## the map would stop walking for a third of a second. These hold the previous,
+## complete field and every query reads them instead until the new one lands.
+## Costs 320 KB and buys "the pathing never blinks".
+var _shadow_integration: PackedInt32Array = PackedInt32Array()
+var _shadow_direction: PackedByteArray = PackedByteArray()
+var _shadowed: bool = false
+
 
 func setup(w: int, h: int, name: StringName = &"default") -> bool:
 	field_name = name
@@ -107,24 +122,34 @@ func set_goals(g: PackedInt32Array) -> void:
 
 # ---------------------------------------------------------------- queries
 
+## The field a query should read: the shadow while a budgeted full rebuild is
+## still filling the live one in.
+func _read_direction() -> PackedByteArray:
+	return _shadow_direction if _shadowed else direction
+
+
+func _read_integration() -> PackedInt32Array:
+	return _shadow_integration if _shadowed else integration
+
+
 func direction_at(idx: int) -> int:
-	return direction[idx] if idx >= 0 and idx < _size else DIR_NONE
+	return _read_direction()[idx] if idx >= 0 and idx < _size else DIR_NONE
 
 
 ## One step toward the goal from a flat index; ZERO at the goal or in dead space.
 func step_at(idx: int) -> Vector2i:
 	if idx < 0 or idx >= _size:
 		return Grid.ZERO
-	var d: int = direction[idx]
+	var d: int = _read_direction()[idx]
 	return Grid.ZERO if d >= 8 else Grid.DIRS8[d]
 
 
 func integration_at(idx: int) -> int:
-	return integration[idx] if idx >= 0 and idx < _size else UNREACHABLE
+	return _read_integration()[idx] if idx >= 0 and idx < _size else UNREACHABLE
 
 
 func reachable(idx: int) -> bool:
-	return idx >= 0 and idx < _size and integration[idx] != UNREACHABLE
+	return idx >= 0 and idx < _size and _read_integration()[idx] != UNREACHABLE
 
 
 ## Smoothly blended flow at a world position: bilinear over the four nearest
@@ -138,13 +163,14 @@ func steer(world_pos: Vector2) -> Vector2:
 	var tx: float = fx - float(x0)
 	var ty: float = fy - float(y0)
 	var acc: Vector2 = Vector2.ZERO
+	var dirs: PackedByteArray = _read_direction()
 	for j: int in range(2):
 		for i: int in range(2):
 			var x: int = x0 + i
 			var y: int = y0 + j
 			if x < 0 or y < 0 or x >= width or y >= height:
 				continue
-			var d: int = direction[y * width + x]
+			var d: int = dirs[y * width + x]
 			if d >= 8:
 				continue
 			var wgt: float = (tx if i == 1 else 1.0 - tx) * (ty if j == 1 else 1.0 - ty)
@@ -162,6 +188,12 @@ func steer(world_pos: Vector2) -> Vector2:
 func rebuild(cost: PackedByteArray, budget: int = 0) -> void:
 	if _size == 0:
 		return
+	if budget > 0 and rebuilds_full > 0 and not _shadowed:
+		# About to wipe a field agents are standing on. Keep the old one to
+		# answer queries from until the new flood has covered the map.
+		_shadow_integration = integration.duplicate()
+		_shadow_direction = direction.duplicate()
+		_shadowed = true
 	integration.fill(UNREACHABLE)
 	direction.fill(DIR_NONE)
 	_reset_queue()
@@ -215,6 +247,15 @@ func update(cost: PackedByteArray, changed: PackedInt32Array, budget: int = 0) -
 
 	var head: int = 0
 	while head < raise_q.size():
+		if budget > 0 and head > RAISE_LIMIT:
+			# The shadow this change casts is bigger than a whole fresh flood.
+			# Invalidating it is NOT budgetable — a half-invalidated field keeps
+			# stale-low integrations the following flood will refuse to improve,
+			# which is silently wrong rather than merely slow. So stop, throw the
+			# repair away and start a full flood, which IS budgetable and which
+			# the shadow buffer keeps invisible to anything walking on it.
+			rebuild(cost, budget)
+			return
 		var c: int = raise_q[head]
 		head += 1
 		if integration[c] == UNREACHABLE:
@@ -331,6 +372,10 @@ func _run(cost: PackedByteArray, budget: int = 0) -> void:
 	if not unfinished:
 		_seeds = PackedInt64Array()
 		_seed_at = 0
+		if _shadowed:
+			_shadowed = false
+			_shadow_integration = PackedInt32Array()
+			_shadow_direction = PackedByteArray()
 	last_visited = visited
 
 

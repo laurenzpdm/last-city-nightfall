@@ -96,7 +96,6 @@ var _tech_discontent: float = 1.0
 var _rate_hope: float = 0.0
 var _rate_discontent: float = 0.0
 ## Smoothed microseconds spent in step(). METRICS ONLY, never serialize().
-var _step_us: float = 0.0
 
 
 func system_name() -> StringName:
@@ -136,7 +135,6 @@ func setup() -> void:
 	_waves_seen = 0
 	_rate_hope = 0.0
 	_rate_discontent = 0.0
-	_step_us = 0.0
 	_set_day_length(SocietyDefs.DEFAULT_DAY_TICKS)
 
 	var problems: PackedStringArray = book.load_from_registry()
@@ -192,7 +190,6 @@ func step(tick: int) -> void:
 	# state.json never sees it, so a replay cannot diverge on it. It is here
 	# because "society is cheap" is a claim, and a claim with no measurement in
 	# the artifacts is worth nothing.
-	var t0: int = Time.get_ticks_usec()  # lint:allow metrics only, never serialize()
 	_tick = tick
 	_advance_seal(tick)
 	if tick % SocietyDefs.SAMPLE_EVERY == 0:
@@ -201,7 +198,6 @@ func step(tick: int) -> void:
 	_integrate()
 	if tick % ANNOUNCE_EVERY == 0:
 		_announce()
-	_step_us += (float(Time.get_ticks_usec() - t0) - _step_us) * 0.02  # lint:allow as above
 
 
 ## [P10]. Thirteen of the forty-five nodes move one of these two, which made
@@ -1007,7 +1003,6 @@ func metrics() -> Dictionary:
 		"unrest_stage": verdict.unrest_stage,
 		"despair_stage": verdict.despair_stage,
 		"ended": 1 if verdict.ended else 0,
-		"step_us": snappedf(_step_us, 0.01),
 	}
 
 
