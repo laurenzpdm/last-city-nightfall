@@ -26,11 +26,13 @@ extends RefCounted
 ##     every belt in a dragged run faces the next belt in the run,
 ##     and the last one keeps going the way the drag was going.
 ##
-## A run is the set of pieces of one kind placed on one tick whose cells form an
-## unbroken orthogonal chain — which is precisely what one drag produces, and
-## which splits itself correctly when the drag stepped over something already
-## standing there. A single click is a run of one and keeps the rotation the
-## player chose with R.
+## A run is the set of TRANSPORT pieces of one kind placed on one tick whose
+## cells form an unbroken orthogonal chain — which is precisely what one drag
+## produces, and which splits itself correctly when the drag stepped over
+## something already standing there. A single click is a run of one and keeps the
+## rotation the player chose with R, and so is every arm and every splitter: a
+## row of dragged inserters must all face the machine they are feeding, not each
+## other.
 ##
 ## Deterministic: the decision reads placement tick, kind, building id and cell
 ## and nothing else. No wall clock, no frame, no dictionary iteration order.
@@ -39,7 +41,7 @@ extends RefCounted
 ## so a belt adopted three ticks after it was placed still faces the right way.
 var facing: Dictionary[int, int] = {}
 
-## Pieces recorded since the last resolve(), each {id, kind, cell, rot, tick}.
+## Pieces recorded since the last resolve(), {id, kind, cell, rot, tick, transport}.
 var _fresh: Array[Dictionary] = []
 ## Build ids already recorded, so a sweep never re-decides a settled belt.
 var _noted: Dictionary[int, bool] = {}
