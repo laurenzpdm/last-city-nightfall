@@ -93,6 +93,10 @@ var _brownouts: int = 0
 var _frozen_count: int = 0
 
 
+func _init() -> void:
+	order = SYSTEM_ORDER
+
+
 func system_name() -> StringName:
 	return &"heat"
 

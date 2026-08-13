@@ -44,15 +44,31 @@ func create_world(world_seed: int) -> void:
 		systems.append(s)
 		by_name[s.system_name()] = s
 
-	systems.sort_custom(func(a: SimSystem, b: SimSystem) -> bool: return a.order < b.order)
+	# Sorted THREE times on purpose. A system may legitimately decide its order in
+	# _init(), in setup() or while wiring itself in post_setup(); sorting only once
+	# up front silently ticked heat behind logistics and production for a whole
+	# phase, so every consumer read last tick's power factor. Re-sorting is O(n log n)
+	# on eleven elements, once per world, and it makes the declared order true.
+	_sort_by_order()
 	for s: SimSystem in systems:
 		s.setup()
+	_sort_by_order()
 	for s: SimSystem in systems:
 		s.post_setup()
+	_sort_by_order()
 
 	alive = true
 	Log.info("sim", "world created, seed=%d, systems=%d" % [world_seed, systems.size()])
 	Bus.world_ready.emit()
+
+
+## Tie-broken by system name so two parts claiming the same order still produce
+## one stable, replayable tick sequence.
+func _sort_by_order() -> void:
+	systems.sort_custom(func(a: SimSystem, b: SimSystem) -> bool:
+		if a.order != b.order:
+			return a.order < b.order
+		return String(a.system_name()) < String(b.system_name()))
 
 
 func teardown() -> void:

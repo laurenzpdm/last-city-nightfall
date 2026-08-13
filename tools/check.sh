@@ -33,6 +33,13 @@ if [ ! -x "$GODOT" ]; then
   exit 2
 fi
 
+# Hard wall-clock cap for a single standalone suite. GNU coreutils `timeout` if
+# present, `gtimeout` on a stock mac, and no cap at all if neither exists.
+SUITE_TIMEOUT="${SUITE_TIMEOUT:-240}"
+TIMEOUT=""
+if command -v timeout >/dev/null 2>&1; then TIMEOUT="timeout -k 5 ${SUITE_TIMEOUT}"
+elif command -v gtimeout >/dev/null 2>&1; then TIMEOUT="gtimeout -k 5 ${SUITE_TIMEOUT}"; fi
+
 LOGDIR="$(mktemp -d "${TMPDIR:-/tmp}/lcn_check.XXXXXX")"
 trap 'rm -rf "$LOGDIR"' EXIT
 mkdir -p artifacts && : > artifacts/.gdignore   # keep the editor from importing run output
@@ -115,13 +122,20 @@ if [ -n "$STANDALONE" ]; then
     # registers the autoloads, so a Node-based suite launched that way dies on
     # `Identifier not found: Log`, prints nothing and exits 0 — which is exactly
     # how 371 build assertions were reported green while never executing.
+    # A suite that never exits is worse than one that fails: without this the
+    # gate blocks forever and every other agent's check.sh queues behind it.
     if [ "${rel##*.}" = "tscn" ]; then
-      "$GODOT" --headless --path "$ROOT" "res://$rel" > "$log" 2>&1
+      $TIMEOUT "$GODOT" --headless --path "$ROOT" "res://$rel" > "$log" 2>&1
     else
-      "$GODOT" --headless --path "$ROOT" --script "$rel" > "$log" 2>&1
+      $TIMEOUT "$GODOT" --headless --path "$ROOT" --script "$rel" > "$log" 2>&1
     fi
     code=$?
     note=""
+    if [ "$code" -eq 124 ]; then
+      note="hung — killed after ${SUITE_TIMEOUT}s"
+      record "$rel" "$log" 1 "$note"
+      continue
+    fi
     if grep -q "TESTS FAILED" "$log"; then
       code=1
       note="$(grep -m1 -oE '[0-9]+ (passed|checks).*' "$log" || true)"
