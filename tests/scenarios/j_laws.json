@@ -1,0 +1,906 @@
+{
+ "name": "j_laws",
+ "description": "The reference run. One full day and into the next: a hearth is lit, a heat grid grows out of it, housing and industry hang off the grid, a wall goes up before dusk, and the night is spent short of heat. This is what the art, audio and UI parts screenshot against.",
+ "tags": [
+  "reference",
+  "gate",
+  "visual"
+ ],
+ "seed": 7,
+ "ticks": 11000,
+ "sample_every": 20,
+ "expects": {
+  "min_ticks_per_second": 600,
+  "max_errors": 0,
+  "balance_days": [
+   1
+  ],
+  "max_heat_networks": 3
+ },
+ "script": [
+  {
+   "tick": 1,
+   "cmd": {
+    "system": "build",
+    "op": "add_stock",
+    "items": {
+     "iron_plate": 1400,
+     "steel_plate": 900,
+     "stone": 1400,
+     "timber": 900,
+     "scrap": 900,
+     "gear": 400,
+     "copper_coil": 400,
+     "coal": 900
+    }
+   }
+  },
+  {
+   "tick": 2,
+   "cmd": {
+    "system": "build",
+    "op": "grant_unlock",
+    "unlock": "thermal_storage"
+   }
+  },
+  {
+   "tick": 2,
+   "cmd": {
+    "system": "build",
+    "op": "grant_unlock",
+    "unlock": "pressurised_mains"
+   }
+  },
+  {
+   "tick": 3,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "the_hearth",
+    "cell": [
+     126,
+     126
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 4,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     131,
+     128
+    ],
+    "to": [
+     140,
+     128
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 5,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     125,
+     128
+    ],
+    "to": [
+     116,
+     128
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 6,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     131,
+     130
+    ],
+    "to": [
+     140,
+     130
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 7,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     125,
+     130
+    ],
+    "to": [
+     116,
+     130
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 8,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "warmth_radiator",
+    "cell": [
+     141,
+     127
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 9,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "warmth_radiator",
+    "cell": [
+     114,
+     127
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 10,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "housing_block",
+    "cell": [
+     133,
+     131
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 11,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "housing_block",
+    "cell": [
+     119,
+     131
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 400,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     128,
+     131
+    ],
+    "to": [
+     128,
+     142
+    ]
+   }
+  },
+  {
+   "tick": 500,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     128,
+     142
+    ],
+    "to": [
+     127,
+     142
+    ]
+   }
+  },
+  {
+   "tick": 600,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "coal_generator",
+    "cell": [
+     124,
+     142
+    ]
+   }
+  },
+  {
+   "tick": 900,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "workshop",
+    "cell": [
+     129,
+     142
+    ]
+   }
+  },
+  {
+   "tick": 1200,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "storage_yard",
+    "cell": [
+     137,
+     132
+    ]
+   }
+  },
+  {
+   "tick": 1300,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "survey_hall",
+    "cell": [
+     123,
+     137
+    ]
+   }
+  },
+  {
+   "tick": 1500,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     127,
+     136
+    ],
+    "to": [
+     120,
+     136
+    ]
+   }
+  },
+  {
+   "tick": 1800,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "warmth_radiator",
+    "cell": [
+     118,
+     135
+    ]
+   }
+  },
+  {
+   "tick": 2100,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "housing_block",
+    "cell": [
+     119,
+     137
+    ]
+   }
+  },
+  {
+   "tick": 2400,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     133,
+     131
+    ],
+    "to": [
+     133,
+     136
+    ]
+   }
+  },
+  {
+   "tick": 2600,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "granary",
+    "cell": [
+     134,
+     136
+    ]
+   }
+  },
+  {
+   "tick": 2800,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     125,
+     130
+    ],
+    "to": [
+     125,
+     117
+    ]
+   }
+  },
+  {
+   "tick": 3000,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "field_kitchen",
+    "cell": [
+     122,
+     120
+    ]
+   }
+  },
+  {
+   "tick": 3200,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "rubble_sorter",
+    "cell": [
+     122,
+     117
+    ]
+   }
+  },
+  {
+   "tick": 3400,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     140,
+     129
+    ],
+    "to": [
+     140,
+     136
+    ]
+   }
+  },
+  {
+   "tick": 3800,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "heat_accumulator",
+    "cell": [
+     141,
+     136
+    ]
+   }
+  },
+  {
+   "tick": 4000,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     128,
+     125
+    ],
+    "to": [
+     129,
+     110
+    ]
+   }
+  },
+  {
+   "tick": 4100,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     129,
+     110
+    ],
+    "to": [
+     129,
+     95
+    ]
+   }
+  },
+  {
+   "tick": 4150,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     129,
+     98
+    ],
+    "to": [
+     127,
+     98
+    ]
+   }
+  },
+  {
+   "tick": 4200,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "ore_drill",
+    "cell": [
+     124,
+     97
+    ]
+   }
+  },
+  {
+   "tick": 4600,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "smelter",
+    "cell": [
+     130,
+     107
+    ]
+   }
+  },
+  {
+   "tick": 4650,
+   "cmd": {
+    "system": "production",
+    "op": "set_recipe",
+    "cell": [
+     122,
+     117
+    ],
+    "recipe": "salvaged_stores"
+   }
+  },
+  {
+   "tick": 4700,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     130,
+     125
+    ],
+    "to": [
+     134,
+     125
+    ]
+   }
+  },
+  {
+   "tick": 4740,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     130,
+     131
+    ],
+    "to": [
+     132,
+     131
+    ]
+   }
+  },
+  {
+   "tick": 4760,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     126,
+     131
+    ],
+    "to": [
+     124,
+     131
+    ]
+   }
+  },
+  {
+   "tick": 4780,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "turret_mount",
+    "cell": [
+     133,
+     123
+    ]
+   }
+  },
+  {
+   "tick": 4820,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "turret_mount",
+    "cell": [
+     123,
+     123
+    ]
+   }
+  },
+  {
+   "tick": 4860,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "turret_mount",
+    "cell": [
+     131,
+     132
+    ]
+   }
+  },
+  {
+   "tick": 4900,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "turret_mount",
+    "cell": [
+     124,
+     132
+    ]
+   }
+  },
+  {
+   "tick": 5000,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "wall",
+    "from": [
+     106,
+     93
+    ],
+    "to": [
+     114,
+     93
+    ]
+   }
+  },
+  {
+   "tick": 5040,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "wall",
+    "from": [
+     115,
+     93
+    ],
+    "to": [
+     123,
+     93
+    ]
+   }
+  },
+  {
+   "tick": 5080,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "wall",
+    "from": [
+     124,
+     93
+    ],
+    "to": [
+     132,
+     93
+    ]
+   }
+  },
+  {
+   "tick": 5120,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "wall",
+    "from": [
+     133,
+     93
+    ],
+    "to": [
+     141,
+     93
+    ]
+   }
+  },
+  {
+   "tick": 5160,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "wall",
+    "from": [
+     142,
+     93
+    ],
+    "to": [
+     150,
+     93
+    ]
+   }
+  },
+  {
+   "tick": 5250,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     129,
+     95
+    ],
+    "to": [
+     141,
+     95
+    ]
+   }
+  },
+  {
+   "tick": 5280,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     129,
+     95
+    ],
+    "to": [
+     109,
+     95
+    ]
+   }
+  },
+  {
+   "tick": 5300,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "watchtower",
+    "cell": [
+     108,
+     96
+    ]
+   }
+  },
+  {
+   "tick": 5400,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "watchtower",
+    "cell": [
+     141,
+     96
+    ]
+   }
+  },
+  {
+   "tick": 5600,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "turret_mount",
+    "cell": [
+     119,
+     96
+    ]
+   }
+  },
+  {
+   "tick": 5800,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "turret_mount",
+    "cell": [
+     136,
+     96
+    ]
+   }
+  },
+  {
+   "tick": 6600,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "heat_booster_pump",
+    "cell": [
+     129,
+     140
+    ]
+   }
+  },
+  {
+   "tick": 7000,
+   "cmd": {
+    "system": "build",
+    "op": "set_enabled",
+    "cell": [
+     129,
+     142
+    ],
+    "on": false
+   }
+  },
+  {
+   "tick": 7400,
+   "cmd": {
+    "system": "heat",
+    "op": "dump"
+   }
+  },
+  {
+   "tick": 7800,
+   "cmd": {
+    "system": "grid",
+    "op": "melt",
+    "cell": [
+     128,
+     128
+    ],
+    "radius": 6,
+    "amount": 90
+   }
+  },
+  {
+   "tick": 8600,
+   "cmd": {
+    "system": "build",
+    "op": "set_enabled",
+    "cell": [
+     129,
+     142
+    ],
+    "on": true
+   }
+  },
+  {
+   "tick": 8800,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     128,
+     143
+    ],
+    "to": [
+     128,
+     146
+    ]
+   }
+  },
+  {
+   "tick": 9000,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "coal_generator",
+    "cell": [
+     129,
+     145
+    ]
+   }
+  },
+  {
+   "tick": 10100,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     125,
+     126
+    ],
+    "to": [
+     118,
+     126
+    ]
+   }
+  },
+  {
+   "tick": 10200,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "housing_block",
+    "cell": [
+     119,
+     122
+    ]
+   }
+  },
+  {
+   "tick": 2000,
+   "cmd": {
+    "system": "society",
+    "op": "sign",
+    "law": "child_labour"
+   }
+  },
+  {
+   "tick": 3500,
+   "cmd": {
+    "system": "society",
+    "op": "sign",
+    "law": "extended_shift"
+   }
+  },
+  {
+   "tick": 5000,
+   "cmd": {
+    "system": "society",
+    "op": "sign",
+    "law": "corpse_pits"
+   }
+  },
+  {
+   "tick": 6500,
+   "cmd": {
+    "system": "society",
+    "op": "sign",
+    "law": "press_gangs"
+   }
+  },
+  {
+   "tick": 8000,
+   "cmd": {
+    "system": "society",
+    "op": "sign",
+    "law": "martial_law"
+   }
+  }
+ ],
+ "shots": []
+}
