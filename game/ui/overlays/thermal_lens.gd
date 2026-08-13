@@ -19,7 +19,11 @@ extends LcnOverlayLayer
 
 const SURVIVAL_C: float = -10.0    ## HeatDef.ACTIVE_FREEZE_C
 const COMFORT_C: float = 10.0      ## HeatSystem.COMFORT_C
-const FIELD_ALPHA: float = 0.62
+const FIELD_ALPHA: float = 0.78
+## Degrees above ambient at which the field reaches full opacity.
+const SOFT_RANGE: float = 9.0
+## Opacity where the ground is exactly at outside air — a hint, not a sheet.
+const FLOOR_ALPHA: float = 0.10
 const LABELS_PER_LINE: int = 3
 
 var _tex: ImageTexture = null
@@ -57,10 +61,19 @@ func _paint_field() -> void:
 		_img_w = w
 		_img_h = h
 		_tex = ImageTexture.create_from_image(_img)
+	# Alpha rides on how far the tile is FROM the outside air, not on its absolute
+	# temperature. Painting the whole viewport at ambient turned the snow into a
+	# flat blue sheet and buried the art; this way the field only exists where the
+	# heat network actually changed something, and the warm island pops.
+	var base: float = snap.ambient_c
 	for y: int in h:
 		var row: int = y * w
 		for x: int in w:
-			_img.set_pixel(x, y, pal.thermal_color(snap.warm[row + x]))
+			var v: float = snap.warm[row + x]
+			var c: Color = pal.thermal_color(v)
+			var lift: float = clampf(absf(v - base) / SOFT_RANGE, 0.0, 1.0)
+			c.a = FLOOR_ALPHA + (1.0 - FLOOR_ALPHA) * (lift * lift * (3.0 - 2.0 * lift))
+			_img.set_pixel(x, y, c)
 	_tex.update(_img)
 
 	# Half-texel shift: sample i sits AT origin + i*step, but a stretched texture

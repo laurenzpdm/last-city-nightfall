@@ -64,6 +64,9 @@ var _seen_build: Dictionary[int, bool] = {}
 var _kind_traits: Dictionary[StringName, Dictionary] = {}
 
 var _last_alert_tick: int = -100000
+## True while there is nowhere in the world an item could come from. See
+## _has_any_source: this is the counterpart of [P02]'s fuel autarky.
+var _bootstrap_logged: bool = false
 var _placed_total: int = 0
 var _removed_total: int = 0
 var _fuel_short: int = 0
@@ -159,6 +162,25 @@ func step(tick: int) -> void:
 		_serve_requests()
 
 
+## Is there anywhere in this world an item could physically come from?
+##
+## [P02] switches its burners from faith to metered fuel the moment this system
+## exists, so a build with logistics but no construction stockpile and no stores
+## would have a heat grid that can never be lit — which is not a supply chain, it
+## is a broken build. In that one case fuel is handed out unmetered and said so
+## in the log, exactly the way heat says "autarky" when nobody hauls.
+func _has_any_source() -> bool:
+	return _stock() != null or not world.stores.is_empty()
+
+
+func _bootstrap_note() -> void:
+	if _bootstrap_logged:
+		return
+	_bootstrap_logged = true
+	Log.info("logistics", "no stockpile and no stores in this build — "
+		+ "burners are fuelled unmetered until an economy exists")
+
+
 ## Porters available to the haul network. [P05] raises it once citizens exist.
 func _crew() -> int:
 	if _citizens != null and _m_haulers != "":
@@ -175,6 +197,7 @@ func _serve_fuel() -> void:
 		return
 	var short: int = 0
 	var missing: StringName = &""
+	var unmetered: bool = not _has_any_source()
 	for id: int in world.burner_ids():
 		var fuel: StringName = world.fuel_item_of[id]
 		if String(fuel) == "":
@@ -187,6 +210,10 @@ func _serve_fuel() -> void:
 			continue
 		var want: int = int(ceilf(reserve - stock))
 		var cell: Vector2i = world.store_origin.get(id, Vector2i.ZERO)
+		if unmetered:
+			_bootstrap_note()
+			haul.fuel_total += world.give_fuel(id, fuel, want)
+			continue
 		var got: int = haul.serve(world, _stock(), id, cell, fuel, want)
 		if got > 0:
 			var taken: int = world.give_fuel(id, fuel, got)
@@ -195,7 +222,9 @@ func _serve_fuel() -> void:
 				# The bunker was fuller than we thought: put the rest back
 				# rather than letting items evaporate.
 				_return_items(cell, fuel, got - taken)
-		if got < want:
+		elif stock < MIN_FUEL_RESERVE:
+			# Nothing arrived AND the bunker is nearly empty. A half-full reserve
+			# that is merely refilling slowly is not a crisis and must not cry.
 			short += 1
 			missing = fuel
 	_fuel_short = short
@@ -428,6 +457,9 @@ func request_fuel(building_id: int, item: StringName, amount: float) -> float:
 	var want: int = int(ceilf(maxf(0.0, amount)))
 	if want <= 0:
 		return 0.0
+	if not _has_any_source():
+		_bootstrap_note()
+		return float(want)
 	var cell: Vector2i = world.store_origin.get(building_id, _cell_of(building_id))
 	var got: int = haul.serve(world, _stock(), building_id, cell, item, want)
 	haul.fuel_total += got

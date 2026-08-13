@@ -25,3 +25,4 @@ effects = Dictionary[StringName, float]({
 answers = &"discontent"
 answer_weight = 2.4
 urgency_line = "The crowd at the hearth is not asking any more."
+player_decision = true

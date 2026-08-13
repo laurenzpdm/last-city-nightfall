@@ -262,7 +262,7 @@ func _resolve_foreclosure() -> void:
 			if other.id != l2.id and other.forecloses.has(l2.id):
 				set[other.id] = true
 		var keys: Array = set.keys()
-		keys.sort()
+		keys = LcnUiFormat.sorted_names(keys)
 		var resolved: Array[StringName] = []
 		var titles: PackedStringArray = PackedStringArray()
 		for k: Variant in keys:

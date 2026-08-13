@@ -264,7 +264,7 @@ func _detail_recipe() -> void:
 
 	_detail.add_child(_heading("Takes"))
 	var in_keys: Array = r.inputs.keys()
-	in_keys.sort()
+	in_keys = LcnUiFormat.sorted_names(in_keys)
 	if in_keys.is_empty():
 		_detail.add_child(_note("— nothing"))
 	for k: Variant in in_keys:
@@ -276,7 +276,7 @@ func _detail_recipe() -> void:
 
 	_detail.add_child(_heading("Gives"))
 	var out_keys: Array = r.outputs.keys()
-	out_keys.sort()
+	out_keys = LcnUiFormat.sorted_names(out_keys)
 	for k2: Variant in out_keys:
 		var item2 := StringName(String(k2))
 		_detail.add_child(_link_row(
@@ -321,7 +321,7 @@ func _detail_building() -> void:
 	var cost: Variant = def.get(&"cost")
 	if typeof(cost) == TYPE_DICTIONARY:
 		var keys: Array = (cost as Dictionary).keys()
-		keys.sort()
+		keys = LcnUiFormat.sorted_names(keys)
 		for k: Variant in keys:
 			var item := StringName(String(k))
 			_detail.add_child(_link_row(

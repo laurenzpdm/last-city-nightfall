@@ -7,7 +7,7 @@ extends LcnOverlayLayer
 ##
 ##   * GUNS      every turret's weapon reach, unioned into a coverage field, and
 ##               a mark on every structure that no gun reaches
-##   * CREW      how far a worker will walk, when [P05] tells us
+##   * CREW      which sites [P05] actually staffed, and which are short
 ##   * POWER     everything that wants heat and is on no grid, hatched
 ##
 ## The map's own approach lanes and chokepoints ride along: [P01] already
@@ -43,7 +43,7 @@ func _draw() -> void:
 	_covers.clear()
 	draw_rect(view.grow(TILE * 2.0), Color(0.02, 0.03, 0.05, 0.34), true)
 	_draw_turrets()
-	_draw_walk()
+	_draw_crew()
 	_draw_gaps()
 	_draw_unpowered()
 	_draw_lanes()
@@ -84,30 +84,44 @@ func _ring_segments(radius: float) -> int:
 	return clampi(int(radius / maxf(px(4.0), 1.0)), 20, 96)
 
 
-func _draw_walk() -> void:
-	var probe: LcnOverlayProbe = snap.probe
-	if not probe.has_walk_radius():
+## Crew coverage. [P05] assigns citizens to sites, so "does anyone actually work
+## here" is real data: a dashed ring means the building is short of the crew it
+## needs, and the fraction is written next to it. Silent when no citizen system
+## exists, because inventing an answer is worse than admitting there is none.
+func _draw_crew() -> void:
+	if not snap.probe.has_citizens():
 		return
-	var radius: float = probe.walk_radius() * TILE
-	var drawn: int = 0
+	var shown: int = 0
 	for i: int in snap.bld_count:
-		if (snap.bld_flags[i] & LcnOverlaySnapshot.B_HOUSING) == 0:
+		var need: int = snap.bld_need[i]
+		if need <= 0 or snap.bld_workers[i] < 0:
 			continue
-		if drawn >= MAX_RANGE_RINGS:
-			break
-		var centre: Vector2 = snap.bld_center(i)
-		if not visible_rect(Rect2(centre - Vector2(radius, radius), Vector2(radius, radius) * 2.0)):
+		if (snap.bld_flags[i] & LcnOverlaySnapshot.B_GHOST) != 0:
 			continue
-		drawn += 1
+		var r: Rect2 = snap.bld_rect(i)
+		if not visible_rect(r):
+			continue
+		var have: int = snap.bld_workers[i]
+		var full: bool = have >= need
+		var c: Color = pal.good() if full else pal.warn()
 		var pts := PackedVector2Array()
-		LcnOverlayGeometry.ring(centre, radius, 48, pts)
-		var dashed := PackedVector2Array()
-		var i2: int = 0
-		while i2 + 1 < pts.size():
-			LcnOverlayGeometry.dashes(pts[i2], pts[i2 + 1], 9.0, 7.0, 0.0, dashed)
-			i2 += 2
-		push_lines(dashed, LcnOverlayPalette.with_a(pal.info(), 0.7))
-	flush_lines(stroke(1.6))
+		if full:
+			LcnOverlayGeometry.brackets(r.grow(px(4.0)), px(6.0), pts)
+			push_lines(pts, LcnOverlayPalette.with_a(c, 0.55))
+		else:
+			var ring := PackedVector2Array()
+			LcnOverlayGeometry.box(r.grow(px(4.0)), ring)
+			var dashed := PackedVector2Array()
+			var k: int = 0
+			while k + 1 < ring.size():
+				LcnOverlayGeometry.dashes(ring[k], ring[k + 1], 7.0, 6.0, 0.0, dashed)
+				k += 2
+			push_lines(dashed, LcnOverlayPalette.with_a(c, 0.9))
+			if shown < 14 and (alt or wpp < 1.4):
+				shown += 1
+				label(r.position + Vector2(0.0, -px(8.0)),
+					"crew %d/%d" % [have, need], 13.0, c)
+	flush_lines(stroke(1.7))
 
 
 ## Structures no gun reaches. The mark is a bracket, not a fill, so the thing

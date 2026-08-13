@@ -17,7 +17,7 @@ extends LcnOverlayLayer
 ##     and hatched, which is what "you built a spur off nothing" looks like
 
 const FLOW_SPEED: float = 46.0        ## world px per second the dashes travel
-const WIDTH_BUCKETS: Array[float] = [1.6, 2.6, 3.8, 5.4]
+const WIDTH_BUCKETS: Array[float] = [2.6, 3.8, 5.2, 7.0]
 const BADGE_LIMIT: int = 10
 
 var _bucket_pts: Array[PackedVector2Array] = []
@@ -67,11 +67,11 @@ func _draw_tiles() -> void:
 		var dead: bool = (flags & LcnOverlayDefs.F_UNREACHABLE) != 0 or slot < 0
 		var c: Color = pal.void_color() if dead else pal.network_color(slot)
 		if wash_ok:
-			var a: float = 0.10 + 0.16 * snap.node_load[i]
+			var a: float = 0.16 + 0.20 * snap.node_load[i]
 			if (flags & LcnOverlayDefs.F_CONDUIT) == 0:
-				a = 0.13
+				a = 0.20
 			if dead:
-				a = 0.16
+				a = 0.24
 			draw_rect(r, LcnOverlayPalette.with_a(c, pal.fill(a)), true)
 		if dead:
 			LcnOverlayGeometry.hatch(r.grow(-px(1.0)), px(6.0), _dead)
@@ -131,8 +131,16 @@ func _draw_spines() -> void:
 			pts.append(centre + Vector2(TILE, 0.0) * 0.22)
 			cols.append(LcnOverlayPalette.with_a(c, 0.94))
 	for i2: int in WIDTH_BUCKETS.size():
-		if _bucket_pts[i2].size() >= 2:
-			draw_multiline_colors(_bucket_pts[i2], _bucket_cols[i2], stroke(WIDTH_BUCKETS[i2]))
+		var pts2: PackedVector2Array = _bucket_pts[i2]
+		if pts2.size() < 2:
+			continue
+		# Casing first: a dark stroke under the bright one, so a pipe is legible
+		# on white snow at noon and on black ground at three in the morning.
+		var casing := PackedColorArray()
+		casing.resize(pts2.size() / 2)
+		casing.fill(Color(0.02, 0.03, 0.05, 0.75))
+		draw_multiline_colors(pts2, casing, stroke(WIDTH_BUCKETS[i2] + 2.6))
+		draw_multiline_colors(pts2, _bucket_cols[i2], stroke(WIDTH_BUCKETS[i2]))
 
 
 ## Flow: dashes travelling from each tile toward the neighbour the router feeds
@@ -157,7 +165,7 @@ func _draw_flow() -> void:
 		var dash: Vector2 = pal.network_dash(slot)
 		var c: Color = LcnOverlayPalette.with_a(
 			pal.network_color(slot).lerp(Color(1.0, 1.0, 1.0), 0.55),
-			0.35 + 0.6 * load)
+			0.55 + 0.45 * load)
 		var before: int = _flow.size()
 		for d: int in 4:
 			if (dirs & (1 << d)) == 0:
@@ -174,7 +182,7 @@ func _draw_flow() -> void:
 		for _k: int in added:
 			_flow_cols.append(c)
 	if _flow.size() >= 2:
-		draw_multiline_colors(_flow, _flow_cols, stroke(2.2))
+		draw_multiline_colors(_flow, _flow_cols, stroke(3.0))
 
 
 ## One badge per grid, on its northernmost visible member. This is the part that

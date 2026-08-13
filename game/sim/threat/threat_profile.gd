@@ -178,6 +178,15 @@ extends Resource
 ## Hard cap on distinct enemy kinds in one night. A night the player cannot
 ## read at a glance is not a night, it is noise.
 @export var max_kinds_per_wave: int = 4
+## Ceiling on the share of one night's budget a single kind may eat, when the
+## content does not state one of its own. Swarm things are allowed to dominate
+## a night; a boss is placed once and is never most of the budget.
+@export var share_swarm: float = 0.60
+@export var share_line: float = 0.55
+@export var share_breaker: float = 0.45
+@export var share_stalker: float = 0.45
+@export var share_siege: float = 0.40
+@export var share_boss: float = 0.35
 ## Composition loop safety valve. Never reached in practice; bounds the tick.
 @export var max_compose_steps: int = 96
 
@@ -315,6 +324,12 @@ func validate() -> bool:
 		ok = false
 	shape_full_night = maxi(2, shape_full_night)
 	max_kinds_per_wave = maxi(1, max_kinds_per_wave)
+	share_swarm = clampf(share_swarm, 0.05, 1.0)
+	share_line = clampf(share_line, 0.05, 1.0)
+	share_breaker = clampf(share_breaker, 0.05, 1.0)
+	share_stalker = clampf(share_stalker, 0.05, 1.0)
+	share_siege = clampf(share_siege, 0.05, 1.0)
+	share_boss = clampf(share_boss, 0.05, 1.0)
 	max_compose_steps = maxi(4, max_compose_steps)
 
 	spawn_window_ticks = maxi(1, spawn_window_ticks)
@@ -369,6 +384,22 @@ func shape_weights(wave: int) -> PackedFloat32Array:
 	for i: int in out.size():
 		out[i] = out[i] / total
 	return out
+
+
+## Default budget ceiling for one kind, when the content does not state one.
+func share_for_role(role: StringName, boss: bool) -> float:
+	if boss:
+		return share_boss
+	match role:
+		ThreatDefs.ROLE_SWARM:
+			return share_swarm
+		ThreatDefs.ROLE_BREAKER:
+			return share_breaker
+		ThreatDefs.ROLE_STALKER:
+			return share_stalker
+		ThreatDefs.ROLE_SIEGE:
+			return share_siege
+	return share_line
 
 
 ## Vectors the director may open on a given night, terrain permitting.

@@ -58,6 +58,9 @@ var verdict: SocietyVerdict = null
 
 var _reading: SocietyReading = null
 var _pressures: SocietyPressures = null
+## When set, the world scan is skipped and this reading is used instead.
+## See inject_reading().
+var _injected: SocietyReading = null
 
 var _tick: int = 0
 var _day: int = 1
@@ -245,7 +248,26 @@ func _sample(tick: int) -> void:
 		_on_verdict_event(ev)
 
 
+## Drives society against a city the caller describes instead of one it scans.
+##
+## This is not a test back door bolted on afterwards, it is the seam that makes
+## a social model tunable at all: hope and discontent are a response to a shape
+## of city, and you cannot balance that response by building the city by hand
+## forty times. Tests use it to hold a city at exactly minus nine degrees with
+## nineteen homes and watch what the meters do. Pass null to go back to reading
+## the real world.
+func inject_reading(r: SocietyReading) -> void:
+	_injected = r
+	_sample_world()
+	_rebuild_pressures()
+
+
 func _sample_world() -> void:
+	if _injected != null:
+		_reading = _injected
+		if _reading.day_ticks != _day_ticks:
+			_set_day_length(_reading.day_ticks)
+		return
 	if _citizens == null:
 		_citizens = Sim.get_system(&"citizens")
 	if _research == null:

@@ -141,7 +141,12 @@ static func terrain_takes_snow(kind: int) -> bool:
 ##
 ## Keys of a grade dictionary:
 ##   name          StringName, human-facing phase name
-##   sky           Color, CanvasModulate tint for the world canvas
+##   sky           Color, CanvasModulate cast over the world canvas. A HUE cast,
+##                 not a brightness cut: darkness is produced by the light rig
+##                 below, per surface, so that unlit things go dark and lit
+##                 things do not. Multiplying the whole canvas down was the
+##                 "flat global multiply" a critic named, and it is also what
+##                 made deep night an unreadable void.
 ##   ambient       Color, colour of light in unlit areas
 ##   shadow        Color, multiply colour of cast shadows
 ##   shadow_alpha  float, shadow opacity
@@ -191,24 +196,24 @@ static func _keyframes() -> Array[Dictionary]:
 			# a bounce term that keeps the settlement legible while the plain
 			# beyond it goes properly black.
 			"t": 0.00, "name": &"deep_night",
-			"sky": Color(0.300, 0.350, 0.470), "ambient": Color(0.090, 0.130, 0.230),
+			"sky": Color(0.790, 0.835, 0.960), "ambient": Color(0.090, 0.130, 0.230),
 			"shadow": Color(0.030, 0.050, 0.100), "shadow_alpha": 0.34,
 			"shadow_dir": Vector2(0.05, 0.55), "shadow_len": 0.9,
 			"lift": Color(0.010, 0.018, 0.040), "gain": Color(0.86, 0.92, 1.10),
 			"sat": 0.78, "fog": Color(0.075, 0.106, 0.192), "fog_amt": 0.30,
-			"light_energy": 1.05, "bloom": 0.80, "chroma": 1.00, "star_amt": 1.00,
+			"light_energy": 0.86, "bloom": 0.72, "chroma": 1.00, "star_amt": 1.00,
 			"sun_dir": Vector2(-0.42, -0.55), "sun_col": Color(0.60, 0.72, 1.00), "sun_energy": 0.20,
 			"sky_col": Color(0.150, 0.210, 0.380), "sky_energy": 0.30,
 			"bounce": 0.95, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.62,
 		},
 		{
 			"t": 0.19, "name": &"night",
-			"sky": Color(0.330, 0.385, 0.510), "ambient": Color(0.120, 0.165, 0.290),
+			"sky": Color(0.820, 0.860, 0.965), "ambient": Color(0.120, 0.165, 0.290),
 			"shadow": Color(0.035, 0.055, 0.110), "shadow_alpha": 0.36,
 			"shadow_dir": Vector2(-0.35, 0.60), "shadow_len": 1.2,
 			"lift": Color(0.008, 0.015, 0.034), "gain": Color(0.90, 0.95, 1.10),
 			"sat": 0.82, "fog": Color(0.086, 0.118, 0.208), "fog_amt": 0.26,
-			"light_energy": 1.00, "bloom": 0.75, "chroma": 0.85, "star_amt": 0.85,
+			"light_energy": 0.82, "bloom": 0.68, "chroma": 0.85, "star_amt": 0.85,
 			"sun_dir": Vector2(0.30, -0.60), "sun_col": Color(0.62, 0.74, 1.00), "sun_energy": 0.23,
 			"sky_col": Color(0.160, 0.225, 0.395), "sky_energy": 0.32,
 			"bounce": 0.88, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.56,
@@ -216,7 +221,7 @@ static func _keyframes() -> Array[Dictionary]:
 		{
 			# Dawn: a long low key from the east, still a cold fill behind it.
 			"t": 0.27, "name": &"dawn",
-			"sky": Color(0.560, 0.615, 0.735), "ambient": Color(0.330, 0.420, 0.600),
+			"sky": Color(0.930, 0.950, 0.995), "ambient": Color(0.330, 0.420, 0.600),
 			"shadow": Color(0.075, 0.102, 0.180), "shadow_alpha": 0.46,
 			"shadow_dir": Vector2(-0.86, 0.51), "shadow_len": 2.7,
 			"lift": Color(0.004, 0.010, 0.026), "gain": Color(0.95, 0.99, 1.12),
@@ -228,7 +233,7 @@ static func _keyframes() -> Array[Dictionary]:
 		},
 		{
 			"t": 0.37, "name": &"morning",
-			"sky": Color(0.800, 0.840, 0.915), "ambient": Color(0.600, 0.670, 0.790),
+			"sky": Color(0.985, 0.990, 1.000), "ambient": Color(0.600, 0.670, 0.790),
 			"shadow": Color(0.110, 0.140, 0.220), "shadow_alpha": 0.44,
 			"shadow_dir": Vector2(-0.52, 0.62), "shadow_len": 1.6,
 			"lift": Color(0.002, 0.006, 0.018), "gain": Color(0.99, 1.00, 1.06),
@@ -240,7 +245,7 @@ static func _keyframes() -> Array[Dictionary]:
 		},
 		{
 			"t": 0.50, "name": &"noon",
-			"sky": Color(0.955, 0.970, 1.000), "ambient": Color(0.820, 0.860, 0.930),
+			"sky": Color(1.000, 1.000, 1.000), "ambient": Color(0.820, 0.860, 0.930),
 			"shadow": Color(0.150, 0.185, 0.270), "shadow_alpha": 0.40,
 			"shadow_dir": Vector2(-0.10, 0.56), "shadow_len": 0.75,
 			"lift": Color(0.000, 0.003, 0.012), "gain": Color(1.02, 1.02, 1.03),
@@ -252,7 +257,7 @@ static func _keyframes() -> Array[Dictionary]:
 		},
 		{
 			"t": 0.63, "name": &"afternoon",
-			"sky": Color(0.930, 0.915, 0.900), "ambient": Color(0.760, 0.740, 0.740),
+			"sky": Color(1.000, 0.995, 0.985), "ambient": Color(0.760, 0.740, 0.740),
 			"shadow": Color(0.140, 0.150, 0.230), "shadow_alpha": 0.44,
 			"shadow_dir": Vector2(0.46, 0.60), "shadow_len": 1.5,
 			"lift": Color(0.002, 0.005, 0.016), "gain": Color(1.04, 1.00, 0.98),
@@ -267,11 +272,11 @@ static func _keyframes() -> Array[Dictionary]:
 			# copper, everything the sun cannot reach falls into a blue fill. The
 			# old flat multiply tinted snow forty tiles from any light source.
 			"t": 0.74, "name": &"dusk",
-			"sky": Color(0.845, 0.790, 0.760), "ambient": Color(0.540, 0.410, 0.380),
+			"sky": Color(1.000, 0.980, 0.960), "ambient": Color(0.540, 0.410, 0.380),
 			"shadow": Color(0.090, 0.085, 0.150), "shadow_alpha": 0.52,
 			"shadow_dir": Vector2(0.86, 0.50), "shadow_len": 2.9,
 			"lift": Color(0.008, 0.008, 0.024), "gain": Color(1.08, 0.98, 0.94),
-			"sat": 0.98, "fog": Color(0.420, 0.330, 0.330), "fog_amt": 0.36,
+			"sat": 0.98, "fog": Color(0.330, 0.300, 0.360), "fog_amt": 0.30,
 			"light_energy": 0.90, "bloom": 0.75, "chroma": 0.40, "star_amt": 0.10,
 			"sun_dir": Vector2(-0.93, -0.37), "sun_col": Color(1.00, 0.560, 0.300), "sun_energy": 0.72,
 			"sky_col": Color(0.290, 0.360, 0.560), "sky_energy": 0.38,
@@ -279,24 +284,24 @@ static func _keyframes() -> Array[Dictionary]:
 		},
 		{
 			"t": 0.83, "name": &"twilight",
-			"sky": Color(0.520, 0.500, 0.580), "ambient": Color(0.250, 0.250, 0.370),
+			"sky": Color(0.900, 0.895, 0.975), "ambient": Color(0.250, 0.250, 0.370),
 			"shadow": Color(0.055, 0.060, 0.115), "shadow_alpha": 0.44,
 			"shadow_dir": Vector2(0.55, 0.58), "shadow_len": 1.8,
 			"lift": Color(0.010, 0.014, 0.032), "gain": Color(1.00, 0.96, 1.02),
 			"sat": 0.88, "fog": Color(0.250, 0.240, 0.330), "fog_amt": 0.34,
-			"light_energy": 1.00, "bloom": 0.85, "chroma": 0.65, "star_amt": 0.55,
+			"light_energy": 0.84, "bloom": 0.76, "chroma": 0.65, "star_amt": 0.55,
 			"sun_dir": Vector2(-0.80, -0.60), "sun_col": Color(0.86, 0.62, 0.62), "sun_energy": 0.34,
 			"sky_col": Color(0.230, 0.270, 0.450), "sky_energy": 0.36,
 			"bounce": 0.55, "bounce_col": Color(0.72, 0.78, 0.98), "wild": 0.36,
 		},
 		{
 			"t": 1.00, "name": &"deep_night",
-			"sky": Color(0.300, 0.350, 0.470), "ambient": Color(0.090, 0.130, 0.230),
+			"sky": Color(0.790, 0.835, 0.960), "ambient": Color(0.090, 0.130, 0.230),
 			"shadow": Color(0.030, 0.050, 0.100), "shadow_alpha": 0.34,
 			"shadow_dir": Vector2(0.05, 0.55), "shadow_len": 0.9,
 			"lift": Color(0.010, 0.018, 0.040), "gain": Color(0.86, 0.92, 1.10),
 			"sat": 0.78, "fog": Color(0.075, 0.106, 0.192), "fog_amt": 0.30,
-			"light_energy": 1.05, "bloom": 0.80, "chroma": 1.00, "star_amt": 1.00,
+			"light_energy": 0.86, "bloom": 0.72, "chroma": 1.00, "star_amt": 1.00,
 			"sun_dir": Vector2(-0.42, -0.55), "sun_col": Color(0.60, 0.72, 1.00), "sun_energy": 0.20,
 			"sky_col": Color(0.150, 0.210, 0.380), "sky_energy": 0.30,
 			"bounce": 0.95, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.62,
@@ -355,7 +360,7 @@ static func blend(a: Dictionary, b: Dictionary, f: float) -> Dictionary:
 ## them. `up` biases the sky fill for a face pointing at the sky (a roof) versus
 ## one facing the camera (a wall).
 static func light_at(grade: Dictionary, city: float, warm: float, up: float = 0.75) -> Color:
-	var key: float = float(grade["sun_energy"]) * (0.62 + 0.38 * up)
+	var key: float = float(grade["sun_energy"]) * (0.30 + 0.72 * up)
 	var sun: Color = grade["sun_col"]
 	var sky: Color = grade["sky_col"]
 	var bc: Color = grade["bounce_col"]

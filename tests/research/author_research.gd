@@ -650,6 +650,9 @@ func _node(id: StringName, title: String, branch: StringName, tier: int) -> Rese
 	n.branch = branch
 	n.tier = tier
 	n.resource_name = title
+	# Written into the .tres rather than inferred at runtime, so the rule is
+	# visible in the content: a law is signed by the player or not at all.
+	n.player_decision = ResearchDefs.CONSENT_BRANCHES.has(branch)
 	return n
 
 

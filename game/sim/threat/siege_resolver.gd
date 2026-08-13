@@ -26,15 +26,18 @@ extends RefCounted
 ##
 ## What it deliberately does NOT model, because those things belong to [P07]:
 ## individual units, projectiles, targeting priorities, pathing around a new
-## wall, and the heat theft in EnemyDef.heat_drain (writing another system's
-## heat budget from here would be trespassing). When combat lands, this whole
+## wall, and heat theft (writing another system's heat budget from here would be
+## trespassing, and [P07]'s siphon behaviour already owns it). When combat lands,
+## this whole
 ## file goes quiet on its own — `is_active()` returns false and nothing in it
 ## runs.
 
 ## One kind of enemy, on one lane, treated as a single body with a shared pool.
 class Pack extends RefCounted:
 	var enemy: StringName = &""
-	var def: EnemyDef = null
+	var def: ThreatUnit = null
+	## Seconds of swing accumulated against whatever it is chewing on.
+	var swing: float = 0.0
 	var vector: int = 0
 	var spawned: int = 0
 	var alive: int = 0
@@ -62,6 +65,7 @@ var damage_dealt: float = 0.0
 
 var _profile: ThreatProfile = null
 var _planner: ApproachPlanner = null
+var _units: Dictionary[StringName, ThreatUnit] = {}
 var _build: SimSystem = null
 var _grid: SimSystem = null
 var _surface: Object = null
@@ -69,9 +73,11 @@ var _surface: Object = null
 var _barriers: Dictionary[int, Array] = {}
 
 
-func bind(profile: ThreatProfile, planner: ApproachPlanner, build: SimSystem, grid: SimSystem) -> void:
+func bind(profile: ThreatProfile, planner: ApproachPlanner, build: SimSystem, grid: SimSystem,
+		units: Dictionary[StringName, ThreatUnit]) -> void:
 	_profile = profile
 	_planner = planner
+	_units = units
 	_build = build
 	_grid = grid
 	_surface = null
@@ -135,7 +141,7 @@ func rearm(plan: WavePlan) -> void:
 
 ## Walks one group onto the map.
 func dispatch(group: WaveGroup, plan: WavePlan) -> void:
-	var def: EnemyDef = Registry.get_item("enemies", group.enemy) as EnemyDef
+	var def: ThreatUnit = _units.get(group.enemy)
 	if def == null or group.count <= 0:
 		return
 	var v: ThreatVector = plan.vector_of(group.vector)
@@ -234,6 +240,7 @@ func to_dict(plan: WavePlan) -> Dictionary:
 			"at": snappedf(p.path_pos, 0.01),
 			"cell": [cell.x, cell.y],
 			"engaging": p.engaging,
+			"swing": snappedf(p.swing, 0.001),
 			"withdrawn": p.withdrawn,
 		})
 	return {
@@ -262,7 +269,7 @@ func from_dict(d: Dictionary) -> void:
 		var e: Dictionary = raw
 		var p := Pack.new()
 		p.enemy = StringName(String(e.get("enemy", "")))
-		p.def = Registry.get_item("enemies", p.enemy) as EnemyDef
+		p.def = _units.get(p.enemy)
 		p.vector = int(e.get("vector", 0))
 		p.spawned = int(e.get("spawned", 0))
 		p.alive = int(e.get("alive", 0))
@@ -270,6 +277,7 @@ func from_dict(d: Dictionary) -> void:
 		p.pool = float(e.get("pool", 0.0))
 		p.path_pos = float(e.get("at", 0.0))
 		p.engaging = int(e.get("engaging", -1))
+		p.swing = float(e.get("swing", 0.0))
 		p.withdrawn = bool(e.get("withdrawn", false))
 		packs.append(p)
 
@@ -320,34 +328,50 @@ func _take_fire(p: Pack, v: ThreatVector, dt: float) -> void:
 
 ## Contact with a structure. The pack stops, chews, and moves on when the thing
 ## in front of it falls over.
+##
+## Damage lands in whole SWINGS, one per `attack_interval`, not as a continuous
+## trickle. That matters: [P11] subtracts a building's armour from every call to
+## apply_damage(), so dribbling a quarter-second of damage in sixteen times a
+## second would let four points of wall armour absorb an entire assault. One
+## blow per attack interval is what the statline actually means.
 func _engage(p: Pack, v: ThreatVector, dt: float) -> void:
 	var queue: Array = _barriers.get(v.index, [])
 	if queue.is_empty():
 		p.engaging = -1
+		p.swing = 0.0
 		return
 	if p.engaging < 0:
 		var front: Array = queue[0]
 		if p.path_pos > float(int(front[0])) + p.def.attack_range:
 			return
 		p.engaging = int(front[1])
+		p.swing = 0.0
 	if _build == null or not _build.has_method("apply_damage"):
 		p.engaging = -1
 		return
-	var amount: float = p.def.dps() * float(p.alive) * dt * _profile.siege_damage_efficiency
-	if amount <= 0.0:
+	p.swing += dt
+	if p.swing < p.def.attack_interval:
 		return
-	damage_dealt += amount
-	var destroyed: bool = bool(_build.call("apply_damage", p.engaging, amount, &"threat"))
-	if destroyed:
-		structures_lost += 1
-		queue.pop_front()
-		_barriers[v.index] = queue
-		p.engaging = -1
-	elif _build.has_method("get_building") and _build.call("get_building", p.engaging) == null:
+	var swings: int = int(p.swing / p.def.attack_interval)
+	p.swing -= float(swings) * p.def.attack_interval
+	var blow: float = p.def.damage * float(p.alive) * _profile.siege_damage_efficiency
+	if blow <= 0.0:
+		return
+	for _s: int in swings:
+		damage_dealt += blow
+		if bool(_build.call("apply_damage", p.engaging, blow, &"threat")):
+			structures_lost += 1
+			queue.pop_front()
+			_barriers[v.index] = queue
+			p.engaging = -1
+			p.swing = 0.0
+			return
+	if _build.has_method("get_building") and _build.call("get_building", p.engaging) == null:
 		# Demolished or removed under our feet by something else.
 		queue.pop_front()
 		_barriers[v.index] = queue
 		p.engaging = -1
+		p.swing = 0.0
 
 
 func _cell_at(v: ThreatVector, pos: float) -> Vector2i:

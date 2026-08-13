@@ -26,3 +26,4 @@ answers = &"fuel"
 answer_weight = 2.0
 urgency_line = "The dead are stacked at the gate because the ground is too hard to dig."
 priority_bias = -0.6
+player_decision = true

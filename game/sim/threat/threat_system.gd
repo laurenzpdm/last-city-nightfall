@@ -56,7 +56,9 @@ const LOG_PERF_EVERY: int = 6000
 
 # --- tuning and content ------------------------------------------------------
 var _profile: ThreatProfile = null
-var _defs: Array[EnemyDef] = []
+## The roster, adapted from whatever schema game/content/enemies/ is authored in.
+var _defs: Array[ThreatUnit] = []
+var _by_id: Dictionary[StringName, ThreatUnit] = {}
 
 # --- machinery ---------------------------------------------------------------
 var _schedule: WaveSchedule = WaveSchedule.new()
@@ -1153,21 +1155,47 @@ func metrics() -> Dictionary:
 #  CONTENT
 # ==========================================================================
 
+## Adapts every resource in game/content/enemies/ into the director's own view
+## of it. The folder is SHARED with [P07], which authors the creatures against a
+## much richer combat schema; ThreatUnit reads whichever fields are there and
+## derives the rest, so neither part has to own the other's classes and the game
+## ships one roster instead of two.
 func _load_defs() -> void:
 	_defs.clear()
+	_by_id.clear()
 	for res: Resource in Registry.all(CATEGORY):
-		var d: EnemyDef = res as EnemyDef
+		var d: ThreatUnit = ThreatUnit.from_resource(res, _profile)
 		if d == null:
-			Log.warn(TAG, "ignoring %s in game/content/enemies/: not an EnemyDef" % res.resource_path)
+			Log.warn(TAG, "ignoring %s in game/content/enemies/: no id to compose it by"
+				% res.resource_path)
 			continue
 		var problems: PackedStringArray = d.validate()
 		if not problems.is_empty():
 			Log.error(TAG, "enemy '%s' is malformed: %s" % [d.id, ", ".join(problems)])
 			continue
 		_defs.append(d)
-	_defs.sort_custom(func(a: EnemyDef, b: EnemyDef) -> bool: return String(a.id) < String(b.id))
+		_by_id[d.id] = d
+	_defs.sort_custom(func(a: ThreatUnit, b: ThreatUnit) -> bool: return String(a.id) < String(b.id))
 	if _defs.is_empty():
 		Log.warn(TAG, "no enemies in game/content/enemies/ — every night will be empty")
+	else:
+		var names: PackedStringArray = PackedStringArray()
+		for d2: ThreatUnit in _defs:
+			names.append("%s(%s t%d, %s pts, day %d%s)" % [d2.id, d2.role, d2.tier,
+				String.num(d2.cost, 1), d2.min_wave, ", placed only" if d2.weight <= 0.0 else ""])
+		Log.info(TAG, "roster: %s" % ", ".join(names))
+
+
+## The roster, as the director understands it. Tests and the bestiary read this.
+func roster() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for d: ThreatUnit in _defs:
+		out.append(d.to_dict())
+	return out
+
+
+func units() -> Array[ThreatUnit]:
+	return _defs
 
 
 func _load_profile() -> ThreatProfile:

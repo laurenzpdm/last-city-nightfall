@@ -35,14 +35,20 @@ const LOG_EVERY: int = 600
 ## Which lens a --harness --visual run shows at which tick, so the reference
 ## scenario's own screenshots walk through the whole system instead of
 ## photographing the resting state seven times.
+## The thresholds are chosen against what the reference run actually DOES: the
+## grid splits into three networks around t6800, the deficit peaks and five
+## buildings freeze after t9000. Showing the bottleneck lens while nothing is
+## choking would be a screenshot of an empty claim.
 const HARNESS_SCRIPT: Array[Dictionary] = [
 	{"tick": 0, "mode": LcnOverlayDefs.Mode.NONE, "alt": false},
 	{"tick": 1200, "mode": LcnOverlayDefs.Mode.HEAT_NETWORK, "alt": false},
 	{"tick": 3000, "mode": LcnOverlayDefs.Mode.THERMAL, "alt": false},
-	{"tick": 4800, "mode": LcnOverlayDefs.Mode.BOTTLENECK, "alt": false},
-	{"tick": 6600, "mode": LcnOverlayDefs.Mode.FREEZE, "alt": true},
-	{"tick": 8200, "mode": LcnOverlayDefs.Mode.COVERAGE, "alt": false},
-	{"tick": 9400, "mode": LcnOverlayDefs.Mode.LOGISTICS, "alt": true},
+	{"tick": 4600, "mode": LcnOverlayDefs.Mode.COVERAGE, "alt": false},
+	{"tick": 6400, "mode": LcnOverlayDefs.Mode.HEAT_NETWORK, "alt": true},
+	{"tick": 7600, "mode": LcnOverlayDefs.Mode.LOGISTICS, "alt": false},
+	{"tick": 8600, "mode": LcnOverlayDefs.Mode.FREEZE, "alt": true},
+	{"tick": 9400, "mode": LcnOverlayDefs.Mode.BOTTLENECK, "alt": false},
+	{"tick": 10400, "mode": LcnOverlayDefs.Mode.FREEZE, "alt": true},
 ]
 
 static var _instance: LcnOverlayRoot = null
@@ -138,7 +144,6 @@ func _add_lens(m: int, lens: LcnOverlayLayer) -> void:
 func _claim_hotkeys() -> void:
 	_keys.resize(LcnOverlayDefs.MODE_COUNT)
 	_plain_keys.clear()
-	var fkeys: Array[int] = [0, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6]
 	var numbers: Array[int] = [0, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6]
 	_keys[0] = ""
 	for m: int in range(1, LcnOverlayDefs.MODE_COUNT):

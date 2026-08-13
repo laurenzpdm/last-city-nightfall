@@ -159,7 +159,7 @@ func _ordered_categories(raw_keys: Array) -> Array[StringName]:
 			out.append(c)
 			present.erase(c)
 	var rest: Array = present.keys()
-	rest.sort()
+	rest = LcnUiFormat.sorted_names(rest)
 	for c2: Variant in rest:
 		out.append(StringName(String(c2)))
 	return out

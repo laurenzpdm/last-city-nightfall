@@ -257,6 +257,17 @@ func from_json(data: Dictionary) -> void:
 	outputs = _items(data.get("outputs", {}))
 	produced = _items(data.get("produced", {}))
 	waste_bank = float(data.get("waste_bank", 0.0))
+	# Environment factors are recomputed on the next tick, but a save that came
+	# back with them zeroed would make the first frame after a load report every
+	# machine as freezing — so they round-trip like everything else.
+	rate = float(data.get("rate", 0.0))
+	power = float(data.get("power", 1.0))
+	cold = float(data.get("cold", 1.0))
+	heat_factor = float(data.get("heat_factor", 1.0))
+	staffing = float(data.get("staffing", 1.0))
+	felt_c = float(data.get("felt_c", 0.0))
+	waste_given = float(data.get("waste_given", 0.0))
+	waste_taken = float(data.get("waste_taken", 0.0))
 	var s: Variant = data.get("seam", [-1, -1])
 	if typeof(s) == TYPE_ARRAY and (s as Array).size() >= 2:
 		seam = Vector2i(int((s as Array)[0]), int((s as Array)[1]))

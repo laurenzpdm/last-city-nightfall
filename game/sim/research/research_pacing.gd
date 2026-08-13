@@ -293,32 +293,50 @@ func _sample_heat() -> void:
 		"%d burner(s) running on fumes" % starved, &"measured")
 
 
+## Scales here are calibrated against the reference run (first_night), not
+## guessed: a signal that saturates at 1.0 by minute three is a signal that
+## stops ranking anything.
+const SPRAWL_FULL: float = 14.0     ## things that need supplying, not tiles
+const TANGLE_CONDUITS: float = 140.0
+const TANGLE_MACHINES: float = 6.0
+const MATERIALS_COMFORTABLE: float = 500.0
+const LABOUR_FLOOR_SITES: float = 10.0
+const LABOUR_SHARE: float = 0.35    ## queue as a share of the city that is a problem
+
 func _sample_build() -> void:
 	var b: Object = _live(_build)
 	if b == null:
 		return
 	var total: int = int(b.call("building_count"))
-	_put(ResearchDefs.SIG_SPRAWL, clampf(float(total) / 70.0, 0.0, 1.0),
-		"%d buildings to keep supplied" % total, &"measured")
-
-	# Tangle is density, not size: pipes and machines competing for the same
-	# tiles is what makes a player want to route underneath.
-	var conduits: int = (b.call("buildings_with_tag", &"conduit") as Array).size()
+	# Sprawl is not tile count — a hundred pipe segments are one decision. What
+	# makes a base hard to run is the number of things that have to be SUPPLIED.
 	var machines: int = (b.call("buildings_with_tag", &"machine") as Array).size()
-	var tangle: float = clampf((float(conduits) / 60.0) * (0.4 + 0.6 * clampf(float(machines) / 8.0, 0.0, 1.0)), 0.0, 1.0)
+	var extractors: int = (b.call("buildings_with_tag", &"extractor") as Array).size()
+	var stores: int = (b.call("buildings_with_tag", &"storage") as Array).size()
+	var supplied: int = machines + extractors + stores
+	_put(ResearchDefs.SIG_SPRAWL, clampf(float(supplied) / SPRAWL_FULL, 0.0, 1.0),
+		"%d machines, drills and stores to keep fed" % supplied, &"measured")
+
+	# Tangle needs BOTH: a lot of pipe, and a lot of things the pipe has to get
+	# around. Either one on its own is just a big base.
+	var conduits: int = (b.call("buildings_with_tag", &"conduit") as Array).size()
+	var tangle: float = clampf(float(conduits) / TANGLE_CONDUITS, 0.0, 1.0) \
+			* clampf(float(machines + extractors) / TANGLE_MACHINES, 0.0, 1.0)
 	_put(ResearchDefs.SIG_TANGLE, tangle,
-		"%d conduit tiles around %d machines" % [conduits, machines], &"measured")
+		"%d conduit tiles crossing %d machines" % [conduits, machines + extractors], &"measured")
 
 	var m: Dictionary = b.call("metrics")
 	var materials: int = int(m.get("materials", -1))
 	if materials >= 0:
-		# 400 units in the yard is comfortable; empty is a five-alarm reading.
-		_put(ResearchDefs.SIG_MATERIALS, clampf(1.0 - float(materials) / 400.0, 0.0, 1.0),
+		_put(ResearchDefs.SIG_MATERIALS,
+			clampf(1.0 - float(materials) / MATERIALS_COMFORTABLE, 0.0, 1.0),
 			"%d units left in the yard" % materials, &"measured")
+	# A backlog only means "not enough hands" relative to the city that has to
+	# build it. Ten sites is a lot on day one and nothing on day nine.
 	var queued: int = int(m.get("queued", 0))
-	var ghosts: int = int(m.get("ghosts", 0))
-	_put(ResearchDefs.SIG_LABOUR, clampf(float(queued + ghosts) / 12.0, 0.0, 1.0),
-		"%d site(s) waiting on hands" % (queued + ghosts), &"measured")
+	var reference: float = maxf(LABOUR_FLOOR_SITES, float(total) * LABOUR_SHARE)
+	_put(ResearchDefs.SIG_LABOUR, clampf(float(queued) / reference, 0.0, 1.0),
+		"%d site(s) waiting on hands" % queued, &"measured")
 
 
 func _sample_threat() -> void:

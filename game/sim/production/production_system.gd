@@ -430,6 +430,19 @@ func set_output_accepting(on: bool) -> void:
 	store.accepting = on
 
 
+## Runs every machine fully crewed, ignoring [P05]'s labour market. Set
+## automatically while no citizens system exists — the same idea as [P02]'s fuel
+## autarky, and for the same reason: a half-built dependency must not make this
+## system look dead. A suite that means to measure PRODUCTION rather than the job
+## board turns it on explicitly; play never does.
+func set_staffing_autarky(on: bool) -> void:
+	_staff_autarky = on
+
+
+func staffing_autarky() -> bool:
+	return _staff_autarky
+
+
 ## City-wide production totals, the same numbers metrics() reports.
 func totals() -> Dictionary:
 	return {
@@ -473,6 +486,10 @@ func handle_command(cmd: Dictionary) -> void:
 			var cid: int = _target_id(cmd)
 			if cid >= 0:
 				set_recipe(cid, &"")
+		"set_staffing_autarky":
+			set_staffing_autarky(bool(cmd.get("on", true)))
+		"set_output_accepting":
+			set_output_accepting(bool(cmd.get("on", true)))
 		"dump":
 			_dump()
 		"ratios":
@@ -538,6 +555,14 @@ func _craft(m: ProdMachine, tick: int) -> void:
 		return
 
 	var r: RecipeDef = m.recipe
+	# The cold and the grid are checked BEFORE anything is consumed: a furnace
+	# that ate its charge and then discovered it had no heat is a furnace that
+	# threw the charge away.
+	var rate: float = _work_rate(m, r)
+	if rate < MIN_RATE:
+		_park(m, ProdMachine.State.STALLED, _cold_or_dark(m), &"", tick)
+		return
+
 	if not m.committed:
 		# Nothing is consumed until a whole craft can start AND its result will
 		# fit. That is what makes "output_full" a real, recoverable state rather
@@ -557,11 +582,6 @@ func _craft(m: ProdMachine, tick: int) -> void:
 		m.consume_inputs()
 		m.committed = true
 		m.progress = 0.0
-
-	var rate: float = _work_rate(m, r)
-	if rate < MIN_RATE:
-		_park(m, ProdMachine.State.STALLED, _cold_or_dark(m), &"", tick)
-		return
 
 	m.rate = rate
 	m.state = ProdMachine.State.RUNNING

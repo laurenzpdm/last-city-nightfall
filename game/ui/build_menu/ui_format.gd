@@ -95,12 +95,28 @@ static func title_case(text: String) -> String:
 	return " ".join(out)
 
 
+## Alphabetical order for a set of ids.
+##
+## THIS IS NOT PEDANTRY: Godot compares StringName by internal POINTER, not by
+## text, so `dictionary.keys().sort()` on a StringName-keyed dictionary is not
+## alphabetical and is not even stable between two processes. Every ordered walk
+## over ids in this part goes through here, which is why two players reading the
+## same tooltip see the same line.
+static func sorted_names(keys: Array) -> Array[StringName]:
+	var text: Array[String] = []
+	for k: Variant in keys:
+		text.append(String(k))
+	text.sort()
+	var out: Array[StringName] = []
+	for s: String in text:
+		out.append(StringName(s))
+	return out
+
+
 ## "20 Iron Plate, 45 Scrap" — sorted, so the same cost always reads the same.
 static func items(bill: Dictionary, separator: String = ", ") -> String:
-	var keys: Array = bill.keys()
-	keys.sort()
 	var parts: PackedStringArray = PackedStringArray()
-	for k: Variant in keys:
+	for k: StringName in sorted_names(bill.keys()):
 		var amount: int = int(bill[k])
 		if amount == 0:
 			continue

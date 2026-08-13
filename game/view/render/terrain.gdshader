@@ -166,7 +166,7 @@ void fragment() {
 	ndl = ndl * ndl * (3.0 - 2.0 * ndl);
 	float city = texture(city_tex, muv).r;
 
-	vec3 light = sun_col * (sun_energy * (0.30 + 0.85 * ndl));
+	vec3 light = sun_col * (sun_energy * (0.12 + 1.05 * ndl));
 	light += sky_col * (sky_energy * (0.72 + 0.28 * N.z));
 	light += bounce_col * (bounce * clamp(city * 1.25, 0.0, 1.0) * 0.55);
 	// Beyond the settlement the night is allowed to be a night.

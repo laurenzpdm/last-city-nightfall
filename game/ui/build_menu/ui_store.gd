@@ -124,11 +124,11 @@ func flush() -> bool:
 		return false
 	var cfg := ConfigFile.new()
 	var panel_keys: Array = open.keys()
-	panel_keys.sort()
+	panel_keys = LcnUiFormat.sorted_names(panel_keys)
 	for k: Variant in panel_keys:
 		cfg.set_value(SECTION_PANELS, String(k), bool(open[k]))
 	var place_keys: Array = placement.keys()
-	place_keys.sort()
+	place_keys = LcnUiFormat.sorted_names(place_keys)
 	for k2: Variant in place_keys:
 		cfg.set_value(SECTION_PANELS, "%s_at" % String(k2), placement[k2])
 	cfg.set_value(SECTION_PALETTE, "state", palette)

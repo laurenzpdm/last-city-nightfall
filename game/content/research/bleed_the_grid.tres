@@ -25,3 +25,4 @@ effects = Dictionary[StringName, float]({
 answers = &"heat_deficit"
 answer_weight = 2.3
 urgency_line = "You can hold four districts through the night, and you have five."
+player_decision = true

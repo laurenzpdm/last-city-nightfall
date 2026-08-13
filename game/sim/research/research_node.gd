@@ -70,6 +70,11 @@ extends Resource
 ## Nudges a node up or down the auto-pick order without touching its answer
 ## weights. Use sparingly; the signals should be doing this work.
 @export var priority_bias: float = 0.0
+## The city's engineers will NEVER start this on their own, however loudly its
+## signal is being asked. Every node in the desperate branch is one of these by
+## rule: a law is signed by the player or it is not signed at all. The pacing
+## engine may still recommend it, and says so in different words when it does.
+@export var player_decision: bool = false
 
 # ---------------------------------------------------------- view hints ------
 

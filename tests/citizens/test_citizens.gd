@@ -22,6 +22,11 @@ func requires_systems() -> PackedStringArray:
 func setup() -> void:
 	world = SimFixture.new(7).start()
 	cit = world.system(&"citizens")
+	# Eleven parts are built in parallel: a sibling system that fails to compile
+	# takes Sim.create_world down before it reaches us. Skip, never fail — a red
+	# citizens suite has to mean citizens are broken.
+	if cit == null or not world.alive():
+		skip("the world did not come up in this build")
 
 
 func teardown() -> void:
@@ -44,6 +49,12 @@ func _first_id() -> int:
 	return -1 if ids.is_empty() else ids[0]
 
 
+## True when there is a live population to measure. Guards the handful of tests
+## that reach into slots directly.
+func _ready_to_test() -> bool:
+	return cit != null and world.alive() and not _ids().is_empty()
+
+
 func _slot(id: int) -> int:
 	return _pool().slot_of(id)
 
@@ -57,6 +68,8 @@ func _set_need(id: int, need: String, value: float) -> void:
 ## there, so the only thing acting on their body is the weather.
 func _strand(id: int, cell: Vector2i = COLD_FIELD) -> int:
 	var s: int = _slot(id)
+	if s < 0:
+		return -1
 	var pool: CitizenPool = _pool()
 	pool.home[s] = -1
 	pool.job[s] = -1

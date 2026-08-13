@@ -55,6 +55,19 @@ const BRANCH_COLORS: Dictionary = {
 }
 
 
+## Branches the engineers may never start on their own. A law is signed by the
+## player or it is not signed: an auto-picker that walks into child labour on
+## day one because the labour signal was loud has misunderstood the whole game.
+const CONSENT_BRANCHES: Array[StringName] = [BRANCH_DESPERATE]
+
+
+## True when a node is the player's decision rather than the engineers'.
+static func needs_consent(node: ResearchNode) -> bool:
+	if node == null:
+		return false
+	return node.player_decision or CONSENT_BRANCHES.has(node.branch)
+
+
 static func branch_title(branch: StringName) -> String:
 	return String(BRANCH_TITLES.get(branch, String(branch).capitalize()))
 

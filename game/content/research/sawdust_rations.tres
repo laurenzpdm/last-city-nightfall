@@ -25,3 +25,4 @@ effects = Dictionary[StringName, float]({
 answers = &"hunger"
 answer_weight = 2.2
 urgency_line = "The granary will not reach the thaw and you both know it."
+player_decision = true

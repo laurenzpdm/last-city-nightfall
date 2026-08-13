@@ -24,3 +24,4 @@ effects = Dictionary[StringName, float]({
 answers = &"labour"
 answer_weight = 1.8
 urgency_line = "You are three hours short and the storm is four hours out."
+player_decision = true

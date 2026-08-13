@@ -272,7 +272,7 @@ class _Graph extends Control:
 		if b == null or not b.pressed or b.button_index != MOUSE_BUTTON_LEFT:
 			return
 		var keys: Array = _rects.keys()
-		keys.sort()
+		keys = LcnUiFormat.sorted_names(keys)
 		for k: Variant in keys:
 			if (_rects[k] as Rect2).has_point(b.position):
 				node_clicked.emit(StringName(String(k)))

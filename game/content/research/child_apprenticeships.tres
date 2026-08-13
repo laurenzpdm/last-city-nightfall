@@ -25,3 +25,4 @@ effects = Dictionary[StringName, float]({
 answers = &"labour"
 answer_weight = 1.9
 urgency_line = "There are two hundred pairs of hands in this city that you have decided are not hands."
+player_decision = true

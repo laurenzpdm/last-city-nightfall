@@ -28,3 +28,4 @@ answers = &"heat_deficit"
 answer_weight = 2.0
 urgency_line = "There is one more furnace and it runs on the city."
 priority_bias = -0.8
+player_decision = true

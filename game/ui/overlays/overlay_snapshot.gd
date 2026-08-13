@@ -127,6 +127,12 @@ var _dirty: bool = true
 ## empty, so a snapshot created before the world exists heals itself.
 func bind() -> void:
 	heat = Sim.get_system(&"heat") as HeatSystem
+	# A system exists in Sim.by_name from the moment it is constructed, which is
+	# BEFORE setup() has built its graph. A view that samples in that window
+	# crashes on a null field, so the overlay treats "present but not set up" as
+	# absent and simply tries again next frame.
+	if heat != null and (heat.graph() == null or heat.warmth_field() == null):
+		heat = null
 	build = Sim.get_system(&"build") as BuildSystem
 	climate = Sim.get_system(&"climate") as ClimateSystem
 	grid = Sim.get_system(&"grid") as GridSystem
@@ -181,6 +187,10 @@ func _sample_heat(tick: int) -> void:
 		totals = {}
 		return
 
+	if heat.graph() == null:
+		heat = null
+		totals = {}
+		return
 	totals = heat.totals()
 	ambient_c = float(totals.get("ambient", -18.0))
 
@@ -465,7 +475,7 @@ func _sample_buildings() -> void:
 ## step — the field is drawn through a linear filter, so a 2x step is invisible
 ## and a full-map query is never issued.
 func sample_warmth(view: Rect2, force: bool = false) -> void:
-	if heat == null:
+	if heat == null or heat.warmth_field() == null:
 		warm_w = 0
 		warm_h = 0
 		return

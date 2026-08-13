@@ -217,7 +217,7 @@ func _from_buildings(build_system: Object) -> bool:
 		bucket.append(StringName(String(def.get(&"id"))))
 		by_unlock[unlock] = bucket
 	var keys: Array = by_unlock.keys()
-	keys.sort()
+	keys = LcnUiFormat.sorted_names(keys)
 	for k: Variant in keys:
 		var id := StringName(String(k))
 		var n := TechNode.new()

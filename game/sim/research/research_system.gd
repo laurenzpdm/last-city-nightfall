@@ -793,8 +793,10 @@ func _park_active(why: String) -> void:
 	_pull_next()
 
 
+## Idle is a decision point, not a bug — and it happens under auto as well, when
+## the only things left need the player's signature.
 func _nudge_if_idle() -> void:
-	if _auto or _tick - _last_idle_nudge < IDLE_NUDGE_TICKS:
+	if _tick - _last_idle_nudge < IDLE_NUDGE_TICKS:
 		return
 	_ensure_available()
 	if _available.is_empty():
@@ -803,35 +805,70 @@ func _nudge_if_idle() -> void:
 	var s: Dictionary = _suggestion
 	if s.is_empty():
 		return
-	_alert(1, ResearchDefs.KEY_IDLE, "Your engineers have nothing to do. %s" % String(s.get("reason", "")))
+	var lead: String = "Your engineers have nothing to do."
+	if bool(s.get("consent", false)):
+		lead = "Your engineers will not start this one without you."
+	_alert(1, ResearchDefs.KEY_IDLE, "%s %s" % [lead, String(s.get("reason", ""))])
 
 
 # ==========================================================================
 #  PACING
 # ==========================================================================
 
+## How much better a law has to look than the best honest answer before the
+## tree will mention it at all. The dark branch is offered when the honest
+## branches have visibly run out, not whenever its signal is loud.
+const DARK_MARGIN: float = 2.5
+
+
 ## Recomputes the recommendation from the freshest sample.
+##
+## Two candidates are ranked separately: the best thing the engineers would do
+## on their own, and the best thing that needs the player's signature. The
+## honest one is the recommendation. The other is offered as an ALTERNATIVE, and
+## only when it is decisively better — that is the difference between a game
+## that tempts you and a game that nags you.
 func _refresh_suggestion() -> void:
 	_ensure_available()
 	_suggestion = {}
 	var best: StringName = &""
-	var best_score: float = -1.0
+	var best_score: float = -1.0e9
+	var dark: StringName = &""
+	var dark_score: float = -1.0e9
 	for id: StringName in _available:
 		var s: float = _score_of(id)
-		if s > best_score + 0.0001:
+		if ResearchDefs.needs_consent(_graph.node(id)):
+			if s > dark_score + 0.0001:
+				dark_score = s
+				dark = id
+		elif s > best_score + 0.0001:
 			best_score = s
 			best = id
+
+	var chosen: StringName = best
+	var chosen_score: float = best_score
 	if String(best) == "" or best_score < ResearchPacing.SUGGEST_FLOOR:
+		chosen = dark
+		chosen_score = dark_score
+	if String(chosen) == "" or chosen_score < ResearchPacing.SUGGEST_FLOOR:
 		return
-	var n: ResearchNode = _graph.node(best)
-	_suggestion = {
-		"id": String(best),
+
+	_suggestion = _suggestion_row(chosen, chosen_score)
+	if chosen == best and String(dark) != "" and dark_score > best_score + DARK_MARGIN:
+		_suggestion["alternative"] = _suggestion_row(dark, dark_score)
+
+
+func _suggestion_row(id: StringName, score: float) -> Dictionary:
+	var n: ResearchNode = _graph.node(id)
+	return {
+		"id": String(id),
 		"title": n.title,
 		"branch": String(n.branch),
-		"score": snappedf(best_score, 0.01),
+		"score": snappedf(score, 0.01),
 		"signal": String(n.answers),
 		"signal_value": snappedf(_pacing.value(n.answers), 0.001),
 		"reason": _pacing.reason_for(n),
+		"consent": ResearchDefs.needs_consent(n),
 	}
 
 
@@ -850,6 +887,9 @@ func _auto_pick() -> StringName:
 		var best: StringName = &""
 		var best_score: float = -1.0e9
 		for id: StringName in _available:
+			# The engineers never sign a law. See ResearchDefs.CONSENT_BRANCHES.
+			if ResearchDefs.needs_consent(_graph.node(id)):
+				continue
 			if round_i == 0 and not _can_open(id):
 				continue
 			var s: float = _score_of(id)

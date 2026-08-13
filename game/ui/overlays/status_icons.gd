@@ -70,17 +70,26 @@ func problem_of(i: int) -> int:
 	var worst: int = LcnOverlayDefs.Problem.NONE
 	var flags: int = snap.bld_flags[i]
 
+	# A construction site is not a damaged building and not an understaffed one:
+	# a fresh ghost starts at a fraction of full hp and has no crew by
+	# definition. Badging it red was the difference between a base that reads
+	# and a base covered in false alarms.
 	if (flags & LcnOverlaySnapshot.B_GHOST) != 0:
-		worst = maxi(worst, LcnOverlayDefs.Problem.BUILDING)
+		return LcnOverlayDefs.Problem.BUILDING if alt else LcnOverlayDefs.Problem.NONE
 	if snap.bld_hp[i] < 0.55:
 		worst = maxi(worst, LcnOverlayDefs.Problem.DAMAGED)
-	if snap.bld_need[i] > 0 and snap.bld_workers[i] < snap.bld_need[i]:
+	# bld_workers is -1 until [P05] actually staffs anything.
+	if snap.bld_need[i] > 0 and snap.bld_workers[i] >= 0 and snap.bld_workers[i] < snap.bld_need[i]:
 		worst = maxi(worst, LcnOverlayDefs.Problem.NO_WORKER)
 
 	var reason: String = _stall_reason.get(snap.bld_id[i], "")
 	if reason != "":
-		if reason.contains("output") or reason.contains("full"):
+		if reason.contains("output") or reason.contains("full") or reason.contains("blocked"):
 			worst = maxi(worst, LcnOverlayDefs.Problem.OUTPUT_FULL)
+		elif reason.contains("cold") or reason.contains("heat") or reason.contains("power"):
+			pass   # the heat read below says it better, and says which pipe
+		elif reason.contains("crew") or reason.contains("staff") or reason.contains("worker"):
+			worst = maxi(worst, LcnOverlayDefs.Problem.NO_WORKER)
 		else:
 			worst = maxi(worst, LcnOverlayDefs.Problem.NO_INPUT)
 

@@ -154,7 +154,7 @@ static func _subtitle(def: Resource) -> String:
 static func _cost_block(def: Resource, ctx: Ctx, warnings: Array, link_items: Array) -> Dictionary:
 	var bill: Dictionary = def.get(&"cost") if typeof(def.get(&"cost")) == TYPE_DICTIONARY else {}
 	var keys: Array = bill.keys()
-	keys.sort()
+	keys = LcnUiFormat.sorted_names(keys)
 	var rows: Array = []
 	var affordable: bool = true
 	var short: PackedStringArray = PackedStringArray()
@@ -212,7 +212,7 @@ static func short_items(bill: Dictionary, stock: Object) -> Dictionary:
 	if stock == null:
 		return out
 	var keys: Array = bill.keys()
-	keys.sort()
+	keys = LcnUiFormat.sorted_names(keys)
 	for k: Variant in keys:
 		var item := StringName(String(k))
 		var missing: int = int(bill[k]) - int(stock.call(&"count", item))
@@ -244,7 +244,7 @@ static func _unproduced(missing: Dictionary, ctx: Ctx) -> PackedStringArray:
 				for produced: StringName in _recipe_outputs(StringName(String(r))):
 					made[produced] = true
 	var keys: Array = missing.keys()
-	keys.sort()
+	keys = LcnUiFormat.sorted_names(keys)
 	for k: Variant in keys:
 		var item := StringName(String(k))
 		if not made.has(item):
@@ -261,7 +261,7 @@ static func _recipe_outputs(recipe_id: StringName) -> Array[StringName]:
 		var v: Variant = res.get(field)
 		if typeof(v) == TYPE_DICTIONARY:
 			var keys: Array = (v as Dictionary).keys()
-			keys.sort()
+			keys = LcnUiFormat.sorted_names(keys)
 			for k: Variant in keys:
 				out.append(StringName(String(k)))
 			return out
@@ -393,7 +393,7 @@ static func _work_section(def: Resource, ctx: Ctx, link_items: Array) -> Diction
 	if typeof(upkeep) == TYPE_DICTIONARY and not (upkeep as Dictionary).is_empty():
 		_row(rows, "Upkeep", "%s per minute" % LcnUiFormat.items(upkeep), LcnUiStyle.Tone.WARN)
 		var ukeys: Array = (upkeep as Dictionary).keys()
-		ukeys.sort()
+		ukeys = LcnUiFormat.sorted_names(ukeys)
 		for k: Variant in ukeys:
 			link_items.append(String(k))
 	return {"heading": "Work", "rows": rows}

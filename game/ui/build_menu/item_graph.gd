@@ -112,7 +112,7 @@ func _ingest_recipes(registry: Object) -> void:
 			continue
 		_recipes[r.id] = r
 		var out_keys: Array = r.outputs.keys()
-		out_keys.sort()
+		out_keys = LcnUiFormat.sorted_names(out_keys)
 		for k: Variant in out_keys:
 			var item := StringName(String(k))
 			_node(item).made_by.append({
@@ -123,7 +123,7 @@ func _ingest_recipes(registry: Object) -> void:
 					LcnUiFormat.duration(r.seconds)],
 			})
 		var in_keys: Array = r.inputs.keys()
-		in_keys.sort()
+		in_keys = LcnUiFormat.sorted_names(in_keys)
 		for k2: Variant in in_keys:
 			var item2 := StringName(String(k2))
 			_node(item2).used_by.append({
@@ -175,7 +175,7 @@ func _ingest_buildings(build_system: Object) -> void:
 		var cost: Variant = def.get(&"cost")
 		if typeof(cost) == TYPE_DICTIONARY:
 			var ck: Array = (cost as Dictionary).keys()
-			ck.sort()
+			ck = LcnUiFormat.sorted_names(ck)
 			for k: Variant in ck:
 				var item := StringName(String(k))
 				_node(item).used_by.append({
@@ -188,7 +188,7 @@ func _ingest_buildings(build_system: Object) -> void:
 		var upkeep: Variant = def.get(&"upkeep")
 		if typeof(upkeep) == TYPE_DICTIONARY:
 			var uk: Array = (upkeep as Dictionary).keys()
-			uk.sort()
+			uk = LcnUiFormat.sorted_names(uk)
 			for k2: Variant in uk:
 				var item2 := StringName(String(k2))
 				var per_min: int = int((upkeep as Dictionary)[k2])
@@ -335,7 +335,7 @@ func _walk(start: StringName, max_depth: int, upstream: bool) -> Array[Dictionar
 					continue
 				var side: Dictionary = r.inputs if upstream else r.outputs
 				var keys: Array = side.keys()
-				keys.sort()
+				keys = LcnUiFormat.sorted_names(keys)
 				for k: Variant in keys:
 					var item_id := StringName(String(k))
 					if seen.has(item_id):
@@ -430,7 +430,7 @@ static func _amounts(res: Resource, fields: Array[StringName]) -> Dictionary[Str
 		var v: Variant = res.get(field)
 		if typeof(v) == TYPE_DICTIONARY:
 			var keys: Array = (v as Dictionary).keys()
-			keys.sort()
+			keys = LcnUiFormat.sorted_names(keys)
 			for k: Variant in keys:
 				out[StringName(String(k))] = int((v as Dictionary)[k])
 			return out

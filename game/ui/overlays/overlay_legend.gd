@@ -81,7 +81,7 @@ func _draw_rail() -> void:
 		return
 	var x: float = size.x - MARGIN
 	var y: float = MARGIN + 108.0     # under the [P17]/play HUD strip
-	for m: int in range(LcnOverlayDefs.MODE_COUNT - 1, 0, -1):
+	for m: int in range(1, LcnOverlayDefs.MODE_COUNT):
 		var active: bool = m == mode
 		var key: String = keys[m] if m < keys.size() else "?"
 		var text: String = "%s  %s" % [key, LcnOverlayDefs.MODE_TITLES[m]]
@@ -310,11 +310,11 @@ func _rows_coverage() -> void:
 		_row("no turrets built", pal.warn())
 	else:
 		_row("%d turret(s), longest reach %.0f tiles" % [turrets, reach], pal.good())
-	if not snap.probe.has_turret_ranges():
-		_row("no combat system yet — reach falls back to vision radius",
+	if not snap.probe.has_combat():
+		_row("no combat system yet — reach is the weapon definition, unverified",
 			LcnOverlayPalette.INK_DIM)
-	if not snap.probe.has_walk_radius():
-		_row("no citizen system yet — walking distance unavailable",
+	if not snap.probe.has_citizens():
+		_row("no citizen system yet — crew coverage unavailable",
 			LcnOverlayPalette.INK_DIM)
 	var unpowered: int = 0
 	for j: int in snap.node_count:

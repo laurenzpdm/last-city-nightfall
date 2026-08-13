@@ -88,7 +88,7 @@ func _draw_buildings() -> void:
 				plate(r.position + Vector2(0.0, -px(20.0)),
 					"freezes in %ds" % maxi(1, int(round(eta))), 14.0, c)
 		elif alt:
-			label(r.position + Vector2(px(2.0), -px(6.0)), "%.0f C" % temp, 13.0, pal.ink_dim())
+			label(r.position + Vector2(px(2.0), -px(6.0)), "%.0f C" % temp, 13.0, LcnOverlayPalette.INK_DIM)
 
 
 ## A vertical thermometer against the building's own freeze line. The tick mark
@@ -119,7 +119,9 @@ func _draw_damage() -> void:
 		if shown >= 60:
 			break
 		var hp: float = snap.bld_hp[i]
-		if hp >= 0.999:
+		# A ghost is not a wreck: construction sites start below full hp on
+		# purpose, and a damage bar on every one of them is a lie.
+		if hp >= 0.999 or (snap.bld_flags[i] & LcnOverlaySnapshot.B_GHOST) != 0:
 			continue
 		var r: Rect2 = snap.bld_rect(i)
 		if not visible_rect(r):

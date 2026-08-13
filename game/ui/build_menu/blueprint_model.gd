@@ -49,7 +49,7 @@ class Card extends RefCounted:
 
 	func contents_label() -> String:
 		var keys: Array = kind_counts.keys()
-		keys.sort()
+		keys = LcnUiFormat.sorted_names(keys)
 		var parts: PackedStringArray = PackedStringArray()
 		for k: Variant in keys:
 			parts.append("%d x %s" % [int(kind_counts[k]), LcnUiFormat.item_name(StringName(String(k)))])
@@ -96,13 +96,13 @@ func rebuild(build_system: Object, overrides: Dictionary = {}) -> void:
 		if bp.has_method(&"kind_counts"):
 			var counts: Dictionary = bp.call(&"kind_counts")
 			var ck: Array = counts.keys()
-			ck.sort()
+			ck = LcnUiFormat.sorted_names(ck)
 			for k: Variant in ck:
 				c.kind_counts[StringName(String(k))] = int(counts[k])
 		if bp.has_method(&"total_cost"):
 			var bill: Dictionary = bp.call(&"total_cost")
 			var bk: Array = bill.keys()
-			bk.sort()
+			bk = LcnUiFormat.sorted_names(bk)
 			for k2: Variant in bk:
 				c.cost[StringName(String(k2))] = int(bill[k2])
 		if bp.has_method(&"missing_kinds"):
@@ -111,7 +111,7 @@ func rebuild(build_system: Object, overrides: Dictionary = {}) -> void:
 		if stock != null and stock.has_method(&"missing"):
 			var short: Dictionary = stock.call(&"missing", c.cost)
 			var sk: Array = short.keys()
-			sk.sort()
+			sk = LcnUiFormat.sorted_names(sk)
 			for k3: Variant in sk:
 				c.missing[StringName(String(k3))] = int(short[k3])
 			c.affordable = c.missing.is_empty()

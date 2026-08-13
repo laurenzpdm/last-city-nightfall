@@ -484,12 +484,26 @@ static func audit_research() -> Array[Dictionary]:
 			EconomyDefs.MIN_TIER, EconomyDefs.MAX_TIER)
 		per_tier[tier] = float(per_tier.get(tier, 0.0)) + points_of(cost)
 		counted[tier] = int(counted.get(tier, 0)) + 1
+
+	var previous_avg: float = -1.0
+	var previous_tier: int = 0
 	for tier: Variant in EconomyDefs.sorted_keys(per_tier):
 		var i: int = int(tier) - 1
-		_band(out, StringName("research_tier_%d" % int(tier)), &"research_tier_points",
-			float(per_tier[tier]),
-			float(t.research_tier_points_min[i]), float(t.research_tier_points_max[i]),
-			"material points across all %d tier-%d unlocks" % [int(counted[tier]), int(tier)])
+		var n: int = maxi(1, int(counted[tier]))
+		var avg: float = float(per_tier[tier]) / float(n)
+		_band(out, StringName("research_tier_%d" % int(tier)), &"research_unlock_points", avg,
+			float(t.research_unlock_points_min[i]), float(t.research_unlock_points_max[i]),
+			"average material points across the %d tier-%d unlocks" % [n, int(tier)])
+		# Progression has to cost more as it goes. A tier that is cheaper than
+		# the one before it means the tree can be skipped, and a skippable tree
+		# is not a progression gate.
+		if previous_avg >= 0.0 and avg <= previous_avg:
+			out.append(_finding(StringName("research_tier_%d" % int(tier)),
+				&"research_tier_regresses", avg, previous_avg, INF,
+				"tier %d averages %.0f points, cheaper than tier %d at %.0f"
+				% [int(tier), avg, previous_tier, previous_avg]))
+		previous_avg = avg
+		previous_tier = int(tier)
 	return out
 
 

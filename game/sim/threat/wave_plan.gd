@@ -47,6 +47,13 @@ var locked: bool = false
 ## Composition as the composer produced it, before it was split across vectors.
 ## Kept so a re-lock can redistribute without re-rolling the night.
 var composition: Array[Dictionary] = []
+## The roster this plan was composed from, for the phrases below. Set by the
+## director; a plan restored from a save is re-linked the same way.
+var units: Dictionary[StringName, ThreatUnit] = {}
+
+
+func unit_of(id: StringName) -> ThreatUnit:
+	return units.get(id)
 
 
 func unit_count() -> int:
@@ -143,7 +150,7 @@ func band_label() -> String:
 func role_phrase() -> String:
 	var by_role: Dictionary = {}
 	for g: WaveGroup in groups:
-		var def: EnemyDef = Registry.get_item("enemies", g.enemy) as EnemyDef
+		var def: ThreatUnit = unit_of(g.enemy)
 		var r: String = String(def.role) if def != null else "line"
 		by_role[r] = int(by_role.get(r, 0)) + g.count
 	if by_role.is_empty():
@@ -163,9 +170,12 @@ func detail_phrase() -> String:
 	var keys: Array = counts.keys()
 	keys.sort()
 	for k: String in keys:
-		var def: EnemyDef = Registry.get_item("enemies", StringName(k)) as EnemyDef
-		var name: String = def.plural() if def != null else k
-		parts.append("%d %s" % [int(counts[k]), name])
+		var def: ThreatUnit = unit_of(StringName(k))
+		var n: int = int(counts[k])
+		var name: String = k
+		if def != null:
+			name = def.plural() if n != 1 else def.display_name
+		parts.append("%d %s" % [n, name])
 	if parts.is_empty():
 		return "nothing that stayed to be counted"
 	return ", ".join(parts)
@@ -230,6 +240,8 @@ static func from_dict(d: Dictionary) -> WavePlan:
 	p.precision = int(d.get("precision", -1))
 	p.notice_fired = bool(d.get("notice_fired", false))
 	p.locked = bool(d.get("locked", false))
+	# The composition is rebuilt from the groups so a restored plan can still be
+	# re-distributed (e.g. a re-lock right after a load) without re-rolling it.
 	for g: WaveGroup in p.groups:
 		var seen: bool = false
 		for c: Dictionary in p.composition:
@@ -239,6 +251,12 @@ static func from_dict(d: Dictionary) -> WavePlan:
 				seen = true
 				break
 		if not seen:
-			p.composition.append({"enemy": g.enemy, "count": g.count, "cost": g.cost,
-				"def": Registry.get_item("enemies", g.enemy) as EnemyDef})
+			p.composition.append({"enemy": g.enemy, "count": g.count, "cost": g.cost, "def": null})
 	return p
+
+
+## Re-links a restored plan to the live roster.
+func bind_units(roster: Dictionary[StringName, ThreatUnit]) -> void:
+	units = roster
+	for c: Dictionary in composition:
+		c["def"] = roster.get(StringName(String(c.get("enemy", ""))))
