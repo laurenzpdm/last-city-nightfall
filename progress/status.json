@@ -1,0 +1,157 @@
+{
+ "round": 0,
+ "phase": "Foundation",
+ "state": "contract locked, fanning out",
+ "agents_live": 0,
+ "critic_score": null,
+ "blind_wins": 0,
+ "blind_total": 0,
+ "parts": [
+  {
+   "id": "P01",
+   "name": "Grid & world",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P02",
+   "name": "Heat & power network",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P03",
+   "name": "Logistics / belts",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P04",
+   "name": "Production & recipes",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P05",
+   "name": "Citizens",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P06",
+   "name": "Society: hope, laws",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P07",
+   "name": "Combat & turrets",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P08",
+   "name": "Threat director",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P09",
+   "name": "Climate & nightfall",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P10",
+   "name": "Research",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P11",
+   "name": "Build & blueprints",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P12",
+   "name": "Economy tuning",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P13",
+   "name": "Render & art direction",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P14",
+   "name": "VFX & weather",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P15",
+   "name": "Feel & juice",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P16",
+   "name": "Camera & input",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P17",
+   "name": "HUD",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P18",
+   "name": "Build menu & tooltips",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P19",
+   "name": "Readability overlays",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P20",
+   "name": "Stats & graphs",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P21",
+   "name": "Tutorial",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P22",
+   "name": "Narrative & events",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P23",
+   "name": "Audio",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "P24",
+   "name": "Meta / Steam",
+   "status": "todo",
+   "score": null
+  }
+ ],
+ "shots": [],
+ "verdict": null
+}
