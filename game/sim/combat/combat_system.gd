@@ -50,6 +50,8 @@ const WEAK_AT: float = CombatTypes.BREACH_HEALTH
 const ALERT_EVERY_TICKS: int = 100
 ## Ticks between checks of whether the wall is actually armed.
 const DEFENCE_CHECK_TICKS: int = 200
+## Ticks between the self-profiling log line. Log only — see step().
+const PROFILE_TICKS: int = 1000
 ## Tags always indexed, plus whatever the loaded roster actually asks for — see
 ## _indexed_tags. An unlisted preference would otherwise be a silent no-op.
 const INDEXED_TAGS: Array[StringName] = [
@@ -99,6 +101,8 @@ var _last_alert_tick: Dictionary[StringName, int] = {}
 var _defended: bool = false
 var _defended_tick: int = -1
 var _step_us: int = 0
+var _prof_total: int = 0
+var _prof_max: int = 0
 var _content_ok: bool = false
 ## Last tick something outside combat drove a spawn. While this is recent the
 ## fallback director keeps its hands off the night.
@@ -236,6 +240,16 @@ func step(tick: int) -> void:
 		swarm.compact()
 	_flush_discontent()
 	_step_us = Time.get_ticks_usec() - t0   # lint:allow never reaches serialize()/metrics()
+	# Wall clock is read here and NOWHERE else, and it goes to the log only —
+	# never to metrics() or serialize(), because tools/determinism.sh diffs those.
+	_prof_total += _step_us
+	_prof_max = maxi(_prof_max, _step_us)
+	if tick % PROFILE_TICKS == 0:
+		Log.debug(TAG, "step avg %.1f us, max %d us over %d ticks (%d bodies, %d guns)" % [
+			float(_prof_total) / float(PROFILE_TICKS), _prof_max, PROFILE_TICKS,
+			swarm.count, battery.count()])
+		_prof_total = 0
+		_prof_max = 0
 
 
 # =========================================================================

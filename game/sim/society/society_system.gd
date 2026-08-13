@@ -370,6 +370,15 @@ func _sample_world() -> void:
 
 func _rebuild_pressures() -> void:
 	_pressures.compute(_reading, populace, book, council, hope_value, discontent_value)
+	# A force that stopped acting must stop reporting a rate, or every tooltip in
+	# the game slowly fills with problems the player already solved.
+	var active: Dictionary[StringName, bool] = {}
+	for i: int in _pressures.size():
+		active[SocietyLedger.slot_of(
+			SocietyDefs.METER_HOPE if _pressures.meters[i] == SocietyPressures.HOPE
+				else SocietyDefs.METER_DISCONTENT,
+			_pressures.keys[i])] = true
+	ledger.silence_absent(active)
 
 
 func _roll_day(new_day: int) -> void:

@@ -83,6 +83,27 @@ func silence(meter: StringName, key: StringName) -> void:
 		rec["rate"] = 0.0
 
 
+## Zeroes the live rate of every reason that is NOT in `active`, which is the
+## set of "<meter>/<key>" slots being pushed this sample.
+##
+## Without this a reason keeps whatever rate it last had, forever: a tooltip
+## would go on reporting "Cold houses, -2.2/h" hours after the last stove was
+## lit, which is worse than saying nothing. History is untouched, so the reason
+## stays in the record of the run with what it actually cost.
+func silence_absent(active: Dictionary) -> void:
+	for slot: StringName in _sorted_keys():
+		if active.has(slot):
+			continue
+		var rec: Dictionary = _entries[slot]
+		if float(rec["rate"]) != 0.0:
+			rec["rate"] = 0.0
+
+
+## The slot key a caller builds to feed silence_absent().
+static func slot_of(meter: StringName, key: StringName) -> StringName:
+	return _slot(meter, key)
+
+
 func has(meter: StringName, key: StringName) -> bool:
 	return _entries.has(_slot(meter, key))
 

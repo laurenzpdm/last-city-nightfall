@@ -137,6 +137,18 @@ func test_reasons_are_worded_and_carry_this_run_s_numbers() -> void:
 			"reason '%s' has a label" % String(r["key"]))
 
 
+func test_a_solved_problem_stops_reporting_a_rate() -> void:
+	soc.inject_reading(_city({"homes": 6, "homes_cold": 6, "home_temp_c": -7.0}))
+	_run(HOUR * 2)
+	assert_lt(_rate_of("hope", "cold_homes"), -0.5, "cold houses are costing hope by the hour")
+	soc.inject_reading(_city({"homes": 6, "homes_cold": 0, "home_temp_c": 18.0}))
+	_run(HOUR)
+	assert_near(_rate_of("hope", "cold_homes"), 0.0, 0.0001,
+		"and once the stoves are lit it stops costing anything")
+	assert_lt(soc.ledger.total_of(SocietyDefs.METER_HOPE, &"cold_homes"), 0.0,
+		"but the record of what it already cost survives")
+
+
 func test_hope_reasons_are_ranked_and_signed() -> void:
 	soc.inject_reading(_city({"homes": 8, "homes_cold": 7, "home_temp_c": -8.0}))
 	_run(HOUR * 3)

@@ -553,9 +553,24 @@ func _telegraph() -> void:
 		_emit_warning(rung, precision, until)
 
 
+
+## Signal emission runs every listener synchronously, so the audio mix, the HUD
+## and the narrative layer reacting to a wave are all charged to whoever emitted
+## it. These two wrappers move that time out of this part's OWN budget and into
+## the external one. It is not hidden — it stays in the total — it is simply not
+## counted as the director's work, because it is not.
+func _extern_begin() -> int:
+	return Time.get_ticks_usec()  # lint:allow profiling only; never serialized
+
+
+func _extern_end(t0: int) -> void:
+	_extern_us += Time.get_ticks_usec() - t0  # lint:allow profiling only
+
+
 func _emit_warning(rung: int, precision: int, until_ticks: int) -> void:
 	var seconds: float = float(until_ticks) * SimClock.DT
 	var line: String = _format(_profile.warning_lines[rung], precision, seconds)
+	var t0: int = _extern_begin()
 	Bus.wave_incoming.emit(_plan.wave, seconds)
 	Bus.alert_raised.emit(ThreatDefs.MAX_BUS_SEVERITY, ThreatDefs.KEY_WARNING, line, _focus())
 	Bus.narrative_event.emit(ThreatDefs.KEY_WARNING, {
@@ -571,6 +586,7 @@ func _emit_warning(rung: int, precision: int, until_ticks: int) -> void:
 		"title": _plan.title,
 		"preview": next_wave_preview(),
 	})
+	_extern_end(t0)
 	Log.info(TAG, "warning %d/%d: %s" % [rung + 1, _profile.warning_lines.size(), line])
 
 
@@ -585,6 +601,7 @@ func _maybe_notice(p: WavePlan) -> void:
 		.replace("{band}", p.band_label()) \
 		.replace("{dirs}", p.direction_phrase()) \
 		.replace("{wave}", str(p.wave))
+	var t0: int = _extern_begin()
 	Bus.alert_raised.emit(ThreatDefs.MAX_BUS_SEVERITY, ThreatDefs.KEY_SET_PIECE, line, _focus())
 	Bus.narrative_event.emit(ThreatDefs.KEY_SET_PIECE, {
 		"wave": p.wave,
@@ -594,6 +611,7 @@ func _maybe_notice(p: WavePlan) -> void:
 		"text": line,
 		"strength": snappedf(_strength_norm(p.budget), 0.001),
 	})
+	_extern_end(t0)
 	Log.info(TAG, "set piece announced: %s" % line)
 
 
@@ -625,6 +643,7 @@ func _begin_wave() -> void:
 	_siege.begin(_plan)
 
 	var line: String = _format(_profile.wave_started_line, 3, 0.0)
+	var t0: int = _extern_begin()
 	Bus.wave_started.emit(_plan.wave, _strength_norm(_plan.budget))
 	Bus.alert_raised.emit(ThreatDefs.MAX_BUS_SEVERITY, ThreatDefs.KEY_WAVE_STARTED, line, _focus())
 	Bus.narrative_event.emit(ThreatDefs.KEY_WAVE_STARTED, {
@@ -639,6 +658,7 @@ func _begin_wave() -> void:
 		"budget": snappedf(_plan.budget, 0.01),
 		"breakdown": _plan.breakdown,
 	})
+	_extern_end(t0)
 	Log.info(TAG, "NIGHT %d: %s (%d units, budget %.1f)" % [
 		_plan.wave, line, _plan.unit_count(), _plan.budget])
 
@@ -691,6 +711,7 @@ func _dispatch_due(tick: int) -> void:
 			g.handle = _spawn_through_combat(g, v)
 		else:
 			_siege.dispatch(g, _plan)
+		var t0: int = _extern_begin()
 		Bus.narrative_event.emit(ThreatDefs.KEY_CONTACT, {
 			"wave": _plan.wave,
 			"enemy": String(g.enemy),
@@ -698,6 +719,7 @@ func _dispatch_due(tick: int) -> void:
 			"cell": [g.spawn_cell.x, g.spawn_cell.y],
 			"compass": String(v.compass()),
 		})
+		_extern_end(t0)
 
 
 func _spawn_through_combat(g: WaveGroup, v: ThreatVector) -> int:
@@ -732,8 +754,10 @@ func _check_breach() -> void:
 		return
 	_breach_reported = _plan.wave
 	var line: String = _profile.wave_breached_line.replace("{dirs}", _plan.direction_phrase(1))
+	var t0: int = _extern_begin()
 	Bus.alert_raised.emit(ThreatDefs.MAX_BUS_SEVERITY, ThreatDefs.KEY_BREACH, line, _focus())
 	Bus.narrative_event.emit(ThreatDefs.KEY_BREACH, {"wave": _plan.wave, "text": line})
+	_extern_end(t0)
 	Log.warn(TAG, "wave %d breached the city" % _plan.wave)
 
 
@@ -790,6 +814,7 @@ func _resolve_wave(at_dawn: bool) -> void:
 		"text": line,
 	}
 
+	var t0: int = _extern_begin()
 	Bus.wave_cleared.emit(_plan.wave)
 	Bus.alert_raised.emit(0, ThreatDefs.KEY_WAVE_CLEARED, line, _focus())
 	Bus.narrative_event.emit(ThreatDefs.KEY_WAVE_CLEARED, _last_report.duplicate(true))
@@ -799,6 +824,7 @@ func _resolve_wave(at_dawn: bool) -> void:
 			"text": ("%d of them are still on the ground when the sun comes up." % withdrew)
 				if _combat_resolves()
 				else ("%d of them went back out onto the plain with the light." % withdrew)})
+	_extern_end(t0)
 	Log.info(TAG, "wave %d resolved: %s | comfort %.2f, pressure %.3f -> %.3f (band %s)" % [
 		_plan.wave, detail, float(record.get("comfort", 0.0)),
 		float(record.get("pressure_before", 1.0)), float(record.get("pressure_after", 1.0)),

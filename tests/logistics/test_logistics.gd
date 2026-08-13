@@ -179,7 +179,10 @@ func test_belt_tiers_carry_fifteen_thirty_and_forty_five_items_a_second() -> voi
 		_line(kind, entry, O + Vector2i(11, 0))
 		var chest: int = _place("bunker_chest", O + Vector2i(12, 0))
 		assert_gt(float(chest), 0.0, "%s: the chest at the end exists" % kind)
-		_run_saturated(entry, 100)          # fill the line first
+		# Fill first, and for longer than the line takes to cross: measuring
+		# through the ramp-up would have quietly reported thirteen a second for a
+		# belt that was carrying fifteen the whole time.
+		_run_saturated(entry, 300)
 		var store: LogiStore = logi.world.stores[chest]
 		var before: int = store.total()
 		_run_saturated(entry, 200)          # then measure ten seconds
@@ -235,11 +238,13 @@ func test_a_corner_is_two_lines_and_carries_both_lanes_round_it() -> void:
 		"a corner splits the transport line, because the two lanes travel different distances")
 	assert_eq(_segment(O).sink, LogiTypes.Sink.BELT,
 		"but a corner is a hand-over, not a side-load: both lanes go round")
-	_run_saturated(O, 400)
+	_run_saturated(O, 300)                     # cross the whole L first
 	var store: LogiStore = logi.world.stores[chest]
+	var before: int = store.total()
+	_run_saturated(O, 200)
 	assert_gt(float(store.total()), 200.0, "and the items go round the corner")
-	assert_between(float(store.total()) / 20.0, 13.0, 16.0,
-		"at very nearly the full fifteen a second, because nothing was lost to the bend")
+	assert_between(float(store.total() - before) / 10.0, 14.0, 16.0,
+		"at the full fifteen a second, because nothing is lost to the bend")
 
 
 func test_side_loading_merges_onto_the_near_lane_only() -> void:
@@ -377,16 +382,20 @@ func test_a_filter_pulls_one_item_off_a_mixed_line() -> void:
 	var right: int = _place("bunker_chest", O + Vector2i(8, 0))
 	world.cmd_now({"system": &"logistics", "op": "set_filter", "id": sp,
 		"item": "iron_ore", "side": LogiSplitter.Side.LEFT})
-	var flip: bool = false
+	# Strictly alternating: the counter only moves when an item actually got on,
+	# so the mixed line really is half and half.
+	var n: int = 0
 	for _i: int in 500:
 		for lane: int in 2:
 			var guard: int = 0
 			while guard < 4:
-				flip = not flip
-				if not logi.world.push_onto_belt(O, lane, &"iron_ore" if flip else &"coal"):
+				var kind: StringName = &"iron_ore" if n % 2 == 0 else &"coal"
+				if not logi.world.push_onto_belt(O, lane, kind):
 					break
+				n += 1
 				guard += 1
 		world.run(1)
+	assert_gt(float(n), 200.0, "a real mixed load went down the line")
 	var a: LogiStore = logi.world.stores[left]
 	var b: LogiStore = logi.world.stores[right]
 	assert_gt(float(a.count(&"iron_ore")), 50.0, "the ore all went left")
