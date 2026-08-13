@@ -96,7 +96,6 @@ func _execute() -> int:
 	var measured_us: int = wall_us - warm_wall_us
 	var measured_ticks: int = maxi(1, ticks - warmup)
 
-	var r_ticks: int = measured_ticks
 	var report: Dictionary = sim.call("profile_report")
 	report["scenario"] = String(scenario.get("name", scenario_name))
 	report["seed"] = world_seed
@@ -106,14 +105,6 @@ func _execute() -> int:
 	report["ticks_per_second"] = snappedf(float(measured_ticks) * 1.0e6 / float(maxi(1, measured_us)), 0.1)
 	report["buildings"] = _building_count(sim)
 
-	var hf: Script = load("res://game/sim/heat/heat_flow.gd")
-	if hf != null:
-		var prof: Dictionary = hf.get("PROF")
-		var pk: Array = prof.keys(); pk.sort()
-		print("")
-		print("── heat flow phases (us total, %d measured ticks) ──" % int(r_ticks))
-		for k: String in pk:
-			print("   %-18s %12d" % [k, int(prof[k])])
 	_print(report)
 	if out_path == "":
 		out_path = "artifacts/profile/%s.json" % String(report["scenario"])
