@@ -163,13 +163,15 @@ func ancestors(id: StringName) -> Array[StringName]:
 func descendants(id: StringName) -> Array[StringName]:
 	var seen: Dictionary[StringName, bool] = {}
 	var stack: Array[StringName] = []
-	stack.append_array(dependents.get(id, [] as Array[StringName]))
+	for d0: StringName in dependents.get(id, []):
+		stack.append(d0)
 	while not stack.is_empty():
 		var cur: StringName = stack.pop_back()
 		if seen.has(cur):
 			continue
 		seen[cur] = true
-		stack.append_array(dependents.get(cur, [] as Array[StringName]))
+		for d: StringName in dependents.get(cur, []):
+			stack.append(d)
 	var out: Array = seen.keys()
 	out.sort()
 	var typed: Array[StringName] = []
@@ -298,8 +300,9 @@ func _break_cycles() -> void:
 ## Iterative DFS returning the node chain that closes a cycle, or [].
 ## state: 0/absent = unvisited, 1 = on the stack, 2 = finished.
 func _cycle_from(start: StringName, state: Dictionary[StringName, int]) -> Array[StringName]:
+	var none: Array[StringName] = []
 	if int(state.get(start, 0)) != 0:
-		return [] as Array[StringName]
+		return none
 	var path: Array[StringName] = []
 	var stack: Array = [[start, 0]]
 	while not stack.is_empty():
@@ -328,7 +331,7 @@ func _cycle_from(start: StringName, state: Dictionary[StringName, int]) -> Array
 		state[id] = 2
 		path.pop_back()
 		stack.pop_back()
-	return [] as Array[StringName]
+	return none
 
 
 ## Branches become horizontal bands, depth becomes the column. Inside a band a

@@ -16,6 +16,15 @@ extends RefCounted
 ##   cold  #0b1220 -> #1d2c44
 ##   warm  #ff8a3d -> #ffd9a0
 ##   snow  #e8eef7
+##
+## LIGHTING MODEL (second pass). A grade is no longer a colour filter over the
+## frame. It is a *light rig*: a directional key (`sun_dir`/`sun_col`/`sun_energy`),
+## a sky fill (`sky_col`/`sky_energy`), and a snow-bounce term that only exists
+## where the city is (`bounce`/`bounce_col`), with the wilderness pushed down by
+## `wild`. The ground shader and the entity tint both evaluate the same three
+## terms, which is why dusk now reads as low orange light *falling on* drifts
+## instead of an orange wash over everything, and why deep night can be genuinely
+## dark 60 tiles out while the city stays readable in silhouette.
 
 # ---------------------------------------------------------------- cold ramp --
 ## Void behind everything. Also the outline colour that gives sprites silhouette.
@@ -146,95 +155,167 @@ static func terrain_takes_snow(kind: int) -> bool:
 ##   bloom         float, bloom strength multiplier
 ##   chroma        float, cold chromatic split (also scaled by temperature)
 ##   star_amt      float, how visible the cold star field is
+##
+## Light-rig keys (second pass — these are what make light *fall on* things):
+##   sun_dir       Vector2, unit direction TOWARD the key light in screen space
+##   sun_col       Color, colour of the key light (sun, or the moon after dark)
+##   sun_energy    float, key intensity
+##   sky_col       Color, colour of the sky fill on unlit faces
+##   sky_energy    float, fill intensity
+##   bounce        float, snow-bounce/lamp-spill lift that exists ONLY over the
+##                 city — the night legibility floor
+##   bounce_col    Color, colour of that lift
+##   wild          float, 0..1 extra darkening applied where the city is not.
+##                 Deep night is dark *out there*, never over your own streets.
+const _GRADE_COLORS: Array[String] = [
+	"sky", "ambient", "shadow", "lift", "gain", "fog", "sun_col", "sky_col", "bounce_col",
+]
+const _GRADE_FLOATS: Array[String] = [
+	"shadow_alpha", "shadow_len", "sat", "fog_amt",
+	"light_energy", "bloom", "chroma", "star_amt",
+	"sun_energy", "sky_energy", "bounce", "wild",
+]
+
+## Built once. `grade_at` used to allocate nine dictionaries per call and it is
+## called every frame by the renderer and by three UI parts.
+static var _keys_cache: Array[Dictionary] = []
+static var _grade_cache: Dictionary[int, Dictionary] = {}
+
+
 static func _keyframes() -> Array[Dictionary]:
-	return [
+	if not _keys_cache.is_empty():
+		return _keys_cache
+	_keys_cache = [
 		{
+			# Moonlight on snow: a cold key from high left, a deep blue fill, and
+			# a bounce term that keeps the settlement legible while the plain
+			# beyond it goes properly black.
 			"t": 0.00, "name": &"deep_night",
-			"sky": Color(0.115, 0.150, 0.255), "ambient": Color(0.090, 0.130, 0.230),
-			"shadow": Color(0.030, 0.050, 0.100), "shadow_alpha": 0.30,
+			"sky": Color(0.300, 0.350, 0.470), "ambient": Color(0.090, 0.130, 0.230),
+			"shadow": Color(0.030, 0.050, 0.100), "shadow_alpha": 0.34,
 			"shadow_dir": Vector2(0.05, 0.55), "shadow_len": 0.9,
 			"lift": Color(0.010, 0.018, 0.040), "gain": Color(0.86, 0.92, 1.10),
 			"sat": 0.78, "fog": Color(0.075, 0.106, 0.192), "fog_amt": 0.30,
-			"light_energy": 1.60, "bloom": 1.30, "chroma": 1.00, "star_amt": 1.00,
+			"light_energy": 1.05, "bloom": 0.80, "chroma": 1.00, "star_amt": 1.00,
+			"sun_dir": Vector2(-0.42, -0.55), "sun_col": Color(0.60, 0.72, 1.00), "sun_energy": 0.20,
+			"sky_col": Color(0.150, 0.210, 0.380), "sky_energy": 0.30,
+			"bounce": 0.95, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.62,
 		},
 		{
 			"t": 0.19, "name": &"night",
-			"sky": Color(0.150, 0.195, 0.320), "ambient": Color(0.120, 0.165, 0.290),
-			"shadow": Color(0.035, 0.055, 0.110), "shadow_alpha": 0.34,
+			"sky": Color(0.330, 0.385, 0.510), "ambient": Color(0.120, 0.165, 0.290),
+			"shadow": Color(0.035, 0.055, 0.110), "shadow_alpha": 0.36,
 			"shadow_dir": Vector2(-0.35, 0.60), "shadow_len": 1.2,
 			"lift": Color(0.008, 0.015, 0.034), "gain": Color(0.90, 0.95, 1.10),
 			"sat": 0.82, "fog": Color(0.086, 0.118, 0.208), "fog_amt": 0.26,
-			"light_energy": 1.45, "bloom": 1.20, "chroma": 0.85, "star_amt": 0.85,
+			"light_energy": 1.00, "bloom": 0.75, "chroma": 0.85, "star_amt": 0.85,
+			"sun_dir": Vector2(0.30, -0.60), "sun_col": Color(0.62, 0.74, 1.00), "sun_energy": 0.23,
+			"sky_col": Color(0.160, 0.225, 0.395), "sky_energy": 0.32,
+			"bounce": 0.88, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.56,
 		},
 		{
+			# Dawn: a long low key from the east, still a cold fill behind it.
 			"t": 0.27, "name": &"dawn",
-			"sky": Color(0.420, 0.500, 0.660), "ambient": Color(0.330, 0.420, 0.600),
-			"shadow": Color(0.075, 0.102, 0.180), "shadow_alpha": 0.44,
+			"sky": Color(0.560, 0.615, 0.735), "ambient": Color(0.330, 0.420, 0.600),
+			"shadow": Color(0.075, 0.102, 0.180), "shadow_alpha": 0.46,
 			"shadow_dir": Vector2(-0.86, 0.51), "shadow_len": 2.7,
 			"lift": Color(0.004, 0.010, 0.026), "gain": Color(0.95, 0.99, 1.12),
 			"sat": 0.88, "fog": Color(0.290, 0.360, 0.490), "fog_amt": 0.42,
-			"light_energy": 1.10, "bloom": 0.85, "chroma": 0.55, "star_amt": 0.25,
+			"light_energy": 0.80, "bloom": 0.62, "chroma": 0.55, "star_amt": 0.25,
+			"sun_dir": Vector2(0.90, -0.44), "sun_col": Color(1.00, 0.74, 0.58), "sun_energy": 0.52,
+			"sky_col": Color(0.320, 0.420, 0.620), "sky_energy": 0.40,
+			"bounce": 0.32, "bounce_col": Color(0.70, 0.80, 1.00), "wild": 0.20,
 		},
 		{
 			"t": 0.37, "name": &"morning",
-			"sky": Color(0.720, 0.780, 0.880), "ambient": Color(0.600, 0.670, 0.790),
-			"shadow": Color(0.110, 0.140, 0.220), "shadow_alpha": 0.42,
+			"sky": Color(0.800, 0.840, 0.915), "ambient": Color(0.600, 0.670, 0.790),
+			"shadow": Color(0.110, 0.140, 0.220), "shadow_alpha": 0.44,
 			"shadow_dir": Vector2(-0.52, 0.62), "shadow_len": 1.6,
 			"lift": Color(0.002, 0.006, 0.018), "gain": Color(0.99, 1.00, 1.06),
 			"sat": 0.90, "fog": Color(0.470, 0.540, 0.650), "fog_amt": 0.26,
-			"light_energy": 0.75, "bloom": 0.60, "chroma": 0.35, "star_amt": 0.0,
+			"light_energy": 0.62, "bloom": 0.50, "chroma": 0.35, "star_amt": 0.0,
+			"sun_dir": Vector2(0.58, -0.64), "sun_col": Color(1.00, 0.955, 0.895), "sun_energy": 0.78,
+			"sky_col": Color(0.480, 0.560, 0.720), "sky_energy": 0.40,
+			"bounce": 0.08, "bounce_col": Color(0.80, 0.86, 1.00), "wild": 0.05,
 		},
 		{
 			"t": 0.50, "name": &"noon",
-			"sky": Color(0.925, 0.950, 0.995), "ambient": Color(0.820, 0.860, 0.930),
-			"shadow": Color(0.150, 0.185, 0.270), "shadow_alpha": 0.38,
+			"sky": Color(0.955, 0.970, 1.000), "ambient": Color(0.820, 0.860, 0.930),
+			"shadow": Color(0.150, 0.185, 0.270), "shadow_alpha": 0.40,
 			"shadow_dir": Vector2(-0.10, 0.56), "shadow_len": 0.75,
 			"lift": Color(0.000, 0.003, 0.012), "gain": Color(1.02, 1.02, 1.03),
 			"sat": 0.72, "fog": Color(0.640, 0.690, 0.770), "fog_amt": 0.16,
-			"light_energy": 0.45, "bloom": 0.45, "chroma": 0.22, "star_amt": 0.0,
+			"light_energy": 0.42, "bloom": 0.40, "chroma": 0.22, "star_amt": 0.0,
+			"sun_dir": Vector2(0.10, -0.86), "sun_col": Color(1.00, 0.985, 0.955), "sun_energy": 0.90,
+			"sky_col": Color(0.560, 0.630, 0.780), "sky_energy": 0.42,
+			"bounce": 0.0, "bounce_col": Color(0.85, 0.90, 1.00), "wild": 0.0,
 		},
 		{
 			"t": 0.63, "name": &"afternoon",
-			"sky": Color(0.880, 0.845, 0.815), "ambient": Color(0.760, 0.740, 0.740),
-			"shadow": Color(0.140, 0.150, 0.230), "shadow_alpha": 0.42,
+			"sky": Color(0.930, 0.915, 0.900), "ambient": Color(0.760, 0.740, 0.740),
+			"shadow": Color(0.140, 0.150, 0.230), "shadow_alpha": 0.44,
 			"shadow_dir": Vector2(0.46, 0.60), "shadow_len": 1.5,
 			"lift": Color(0.002, 0.005, 0.016), "gain": Color(1.04, 1.00, 0.98),
 			"sat": 0.82, "fog": Color(0.610, 0.610, 0.660), "fog_amt": 0.22,
-			"light_energy": 0.70, "bloom": 0.60, "chroma": 0.30, "star_amt": 0.0,
+			"light_energy": 0.58, "bloom": 0.52, "chroma": 0.30, "star_amt": 0.0,
+			"sun_dir": Vector2(-0.50, -0.70), "sun_col": Color(1.00, 0.930, 0.830), "sun_energy": 0.82,
+			"sky_col": Color(0.520, 0.590, 0.740), "sky_energy": 0.40,
+			"bounce": 0.06, "bounce_col": Color(0.80, 0.86, 1.00), "wild": 0.04,
 		},
 		{
+			# Dusk. The orange belongs to the KEY, not to the frame: lit faces go
+			# copper, everything the sun cannot reach falls into a blue fill. The
+			# old flat multiply tinted snow forty tiles from any light source.
 			"t": 0.74, "name": &"dusk",
-			"sky": Color(0.720, 0.505, 0.395), "ambient": Color(0.540, 0.410, 0.380),
-			"shadow": Color(0.090, 0.085, 0.150), "shadow_alpha": 0.50,
+			"sky": Color(0.845, 0.790, 0.760), "ambient": Color(0.540, 0.410, 0.380),
+			"shadow": Color(0.090, 0.085, 0.150), "shadow_alpha": 0.52,
 			"shadow_dir": Vector2(0.86, 0.50), "shadow_len": 2.9,
-			"lift": Color(0.008, 0.008, 0.024), "gain": Color(1.12, 0.97, 0.90),
-			"sat": 0.98, "fog": Color(0.520, 0.360, 0.320), "fog_amt": 0.40,
-			"light_energy": 1.05, "bloom": 0.95, "chroma": 0.40, "star_amt": 0.10,
+			"lift": Color(0.008, 0.008, 0.024), "gain": Color(1.08, 0.98, 0.94),
+			"sat": 0.98, "fog": Color(0.420, 0.330, 0.330), "fog_amt": 0.36,
+			"light_energy": 0.90, "bloom": 0.75, "chroma": 0.40, "star_amt": 0.10,
+			"sun_dir": Vector2(-0.93, -0.37), "sun_col": Color(1.00, 0.560, 0.300), "sun_energy": 0.72,
+			"sky_col": Color(0.290, 0.360, 0.560), "sky_energy": 0.38,
+			"bounce": 0.14, "bounce_col": Color(0.90, 0.78, 0.72), "wild": 0.14,
 		},
 		{
 			"t": 0.83, "name": &"twilight",
-			"sky": Color(0.330, 0.295, 0.400), "ambient": Color(0.250, 0.250, 0.370),
-			"shadow": Color(0.055, 0.060, 0.115), "shadow_alpha": 0.42,
+			"sky": Color(0.520, 0.500, 0.580), "ambient": Color(0.250, 0.250, 0.370),
+			"shadow": Color(0.055, 0.060, 0.115), "shadow_alpha": 0.44,
 			"shadow_dir": Vector2(0.55, 0.58), "shadow_len": 1.8,
 			"lift": Color(0.010, 0.014, 0.032), "gain": Color(1.00, 0.96, 1.02),
 			"sat": 0.88, "fog": Color(0.250, 0.240, 0.330), "fog_amt": 0.34,
-			"light_energy": 1.30, "bloom": 1.10, "chroma": 0.65, "star_amt": 0.55,
+			"light_energy": 1.00, "bloom": 0.85, "chroma": 0.65, "star_amt": 0.55,
+			"sun_dir": Vector2(-0.80, -0.60), "sun_col": Color(0.86, 0.62, 0.62), "sun_energy": 0.34,
+			"sky_col": Color(0.230, 0.270, 0.450), "sky_energy": 0.36,
+			"bounce": 0.55, "bounce_col": Color(0.72, 0.78, 0.98), "wild": 0.36,
 		},
 		{
 			"t": 1.00, "name": &"deep_night",
-			"sky": Color(0.115, 0.150, 0.255), "ambient": Color(0.090, 0.130, 0.230),
-			"shadow": Color(0.030, 0.050, 0.100), "shadow_alpha": 0.30,
+			"sky": Color(0.300, 0.350, 0.470), "ambient": Color(0.090, 0.130, 0.230),
+			"shadow": Color(0.030, 0.050, 0.100), "shadow_alpha": 0.34,
 			"shadow_dir": Vector2(0.05, 0.55), "shadow_len": 0.9,
 			"lift": Color(0.010, 0.018, 0.040), "gain": Color(0.86, 0.92, 1.10),
 			"sat": 0.78, "fog": Color(0.075, 0.106, 0.192), "fog_amt": 0.30,
-			"light_energy": 1.60, "bloom": 1.30, "chroma": 1.00, "star_amt": 1.00,
+			"light_energy": 1.05, "bloom": 0.80, "chroma": 1.00, "star_amt": 1.00,
+			"sun_dir": Vector2(-0.42, -0.55), "sun_col": Color(0.60, 0.72, 1.00), "sun_energy": 0.20,
+			"sky_col": Color(0.150, 0.210, 0.380), "sky_energy": 0.30,
+			"bounce": 0.95, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.62,
 		},
 	]
+	return _keys_cache
 
 
 ## Interpolated colour grade for a normalised time of day (0..1, wraps).
+##
+## Memoised at 1/2048 of a day — finer than one rendered frame can show and far
+## finer than one 20 Hz tick moves — so calling this per frame from four parts
+## costs one dictionary lookup instead of nine dictionary allocations.
 static func grade_at(day_t: float) -> Dictionary:
 	var t: float = fposmod(day_t, 1.0)
+	var q: int = int(t * 2048.0)
+	var hit: Dictionary = _grade_cache.get(q, {})
+	if not hit.is_empty():
+		return hit
 	var keys: Array[Dictionary] = _keyframes()
 	var i: int = 0
 	for k: int in range(keys.size() - 1):
@@ -245,7 +326,11 @@ static func grade_at(day_t: float) -> Dictionary:
 	var b: Dictionary = keys[i + 1]
 	var span: float = maxf(0.0001, float(b["t"]) - float(a["t"]))
 	var f: float = smoothstep(0.0, 1.0, clampf((t - float(a["t"])) / span, 0.0, 1.0))
-	return blend(a, b, f)
+	var out: Dictionary = blend(a, b, f)
+	if _grade_cache.size() > 4096:
+		_grade_cache.clear()
+	_grade_cache[q] = out
+	return out
 
 
 ## Linear blend of two grade dictionaries. Public so a storm/event system can
@@ -253,15 +338,36 @@ static func grade_at(day_t: float) -> Dictionary:
 static func blend(a: Dictionary, b: Dictionary, f: float) -> Dictionary:
 	var out: Dictionary = {}
 	out["name"] = a["name"] if f < 0.5 else b["name"]
-	for key: String in ["sky", "ambient", "shadow", "lift", "gain", "fog"]:
+	for key: String in _GRADE_COLORS:
 		out[key] = (a[key] as Color).lerp(b[key] as Color, f)
-	for key: String in [
-		"shadow_alpha", "shadow_len", "sat", "fog_amt",
-		"light_energy", "bloom", "chroma", "star_amt",
-	]:
+	for key: String in _GRADE_FLOATS:
 		out[key] = lerpf(float(a[key]), float(b[key]), f)
 	out["shadow_dir"] = ((a["shadow_dir"] as Vector2).lerp(b["shadow_dir"] as Vector2, f)).normalized()
+	out["sun_dir"] = ((a["sun_dir"] as Vector2).lerp(b["sun_dir"] as Vector2, f)).normalized()
 	return out
+
+
+## The light landing on a surface at `city` (0..1 civilisation presence) and
+## `warm` (0..1 local heat), as a multiplier on its albedo.
+##
+## This is the CPU twin of the ground shader's lighting term: entities are tinted
+## with it so a building and the snow it stands on agree about what is lighting
+## them. `up` biases the sky fill for a face pointing at the sky (a roof) versus
+## one facing the camera (a wall).
+static func light_at(grade: Dictionary, city: float, warm: float, up: float = 0.75) -> Color:
+	var key: float = float(grade["sun_energy"]) * (0.62 + 0.38 * up)
+	var sun: Color = grade["sun_col"]
+	var sky: Color = grade["sky_col"]
+	var bc: Color = grade["bounce_col"]
+	var fill: float = float(grade["sky_energy"]) * (0.70 + 0.30 * up)
+	var b: float = float(grade["bounce"]) * clampf(city, 0.0, 1.0) * 0.60
+	var dark: float = 1.0 - float(grade["wild"]) * (1.0 - clampf(city * 1.7, 0.0, 1.0))
+	var w: float = clampf(warm, 0.0, 1.0) * 0.34
+	return Color(
+		(sun.r * key + sky.r * fill + bc.r * b) * dark + WARM_EDGE.r * w,
+		(sun.g * key + sky.g * fill + bc.g * b) * dark + WARM_EDGE.g * w,
+		(sun.b * key + sky.b * fill + bc.b * b) * dark + WARM_EDGE.b * w,
+		1.0)
 
 
 ## Phase name for a time of day, e.g. &"dusk". Cheap; safe to call per frame.
@@ -281,12 +387,45 @@ static func temperature_tint(celsius: float) -> Color:
 	return Color(1.0, 1.0, 1.0).lerp(Color(1.25, 0.86, 0.66), g)
 
 
-## Warm light colour for a heat source, hotter sources shifting toward white.
+## Warm light colour for a heat source. Hotter sources get *brighter*, never
+## whiter: the radiator lights used to climb to WARM_CORE (#ffd9a0), which after
+## the additive glow pass and bloom landed on screen as a pure white disc and
+## read as a rendering fault rather than as warmth. The ramp now tops out at
+## amber, and intensity is expressed by energy, which is what fire actually does.
 static func heat_light_color(intensity01: float) -> Color:
 	var f: float = clampf(intensity01, 0.0, 1.0)
-	if f < 0.5:
-		return EMBER.lerp(WARM_EDGE, f * 2.0)
-	return WARM_EDGE.lerp(WARM_CORE, (f - 0.5) * 2.0)
+	if f < 0.55:
+		return EMBER.lerp(WARM_EDGE, f / 0.55)
+	return WARM_EDGE.lerp(WARM_MID, (f - 0.55) / 0.45)
+
+
+# ------------------------------------------------------------ terrain params --
+## Extra per-terrain shading parameters the ground shader needs, packed so the
+## whole table can be uploaded as a 4-row palette texture instead of as shader
+## uniform arrays (which the GL Compatibility backend is fussy about).
+##
+## x grain      fine speckle amount
+## y ridges     wind-scour ridge amount (snow only)
+## z sparkle    crystalline glint amount
+## w relief     how much this surface deforms the lighting normal
+static func terrain_params(kind: int) -> Color:
+	match kind:
+		Terrain.SNOW_DEEP: return Color(0.055, 1.00, 0.85, 1.00)
+		Terrain.SNOW: return Color(0.070, 0.62, 0.60, 0.80)
+		Terrain.ICE: return Color(0.040, 0.10, 1.00, 0.34)
+		Terrain.ROCK: return Color(0.090, 0.18, 0.05, 1.00)
+		Terrain.GRAVEL: return Color(0.150, 0.10, 0.08, 0.70)
+		Terrain.ASH_FIELD: return Color(0.130, 0.16, 0.02, 0.55)
+		Terrain.PAVED: return Color(0.050, 0.04, 0.04, 0.22)
+		Terrain.WATER_FROZEN: return Color(0.030, 0.05, 0.75, 0.18)
+		Terrain.RUBBLE: return Color(0.170, 0.12, 0.06, 0.90)
+	return Color(0.070, 0.62, 0.60, 0.80)
+
+
+## True when this terrain reads as an already-bare, warm or swept surface, so
+## the ground shader keeps snow off it even when the sim has not melted it yet.
+static func terrain_sheds_snow(kind: int) -> bool:
+	return kind == Terrain.WATER_FROZEN or kind == Terrain.ICE or kind == Terrain.ASH_FIELD
 
 
 ## Ramp used by every readability overlay so heat, power and throughput all
