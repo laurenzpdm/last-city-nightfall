@@ -65,16 +65,19 @@ func bind(model: LcnWorldModel) -> void:
 	_rebuild_in = 0.0
 
 
-## Once per frame. `dt` is world time: the city's pulse belongs to the world and
-## should stop when the world does.
-func refresh(dt: float, view: Rect2, day_grade: Dictionary, camera_zoom: float,
-		night: float) -> void:
+## Once per frame. `dt` is WORLD time — the city's pulse belongs to the world and
+## stops when the world does — while `ui_dt` is interface time and drives the
+## anchor rebuild timer. Using world time for both meant a paused session (and a
+## harness run, where the clock is manual and never "running") rebuilt the anchor
+## list on every single frame instead of twice a second.
+func refresh(dt: float, ui_dt: float, view: Rect2, day_grade: Dictionary,
+		camera_zoom: float, night: float) -> void:
 	grade = day_grade
 	zoom = maxf(0.01, camera_zoom)
 	night01 = clampf(night, 0.0, 1.0)
 	_view = view
 	_t += dt
-	_rebuild_in -= dt
+	_rebuild_in -= maxf(ui_dt, dt)
 	if _rebuild_in <= 0.0:
 		_rebuild_in = REBUILD_EVERY
 		_rebuild()

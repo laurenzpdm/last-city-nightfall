@@ -24,8 +24,11 @@ mkdir -p "$ROOT/artifacts" && : > "$ROOT/artifacts/.gdignore"
 # invisible to Log.errors and therefore to the harness's exit code.
 # LCN_NO_ERROR_GATE=1 opts out.
 LOG="$(mktemp "${TMPDIR:-/tmp}/lcn_run_visual.XXXXXX")"
-"$GODOT" --path "$ROOT" --resolution 1920x1080 -- --harness --visual "$@" 2> >(tee "$LOG" >&2)
+"$GODOT" --path "$ROOT" --resolution 1920x1080 -- --harness --visual "$@" 2>"$LOG"
 code=$?
+cat "$LOG" >&2   # replayed, not tee'd: a process substitution can still be
+                 # writing when the scan below reads the file, and a gate that
+                 # races the stream it grades is a gate that misses errors.
 if [ "${LCN_NO_ERROR_GATE:-0}" != "1" ]; then
   if ! "${PYTHON:-python3}" "$ROOT/tools/scan_errors.py" "$LOG" --label "engine errors (run_visual)"; then
     echo "run_visual: the run exited $code but the engine printed errors — see above" >&2

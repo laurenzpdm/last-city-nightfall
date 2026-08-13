@@ -269,6 +269,14 @@ func _apply_layer_table() -> void:
 	for row: Dictionary in bad:
 		Log.error("boot", "canvas layer %s (%s) still violates the table at %d" % [
 			String(row["key"]), String(row["owner"]), int(row["actual"])])
+	# A table that quietly falls behind the build is the same disease one step
+	# later, so every canvas layer nobody has claimed gets named on every launch.
+	var unclaimed: PackedStringArray = PackedStringArray()
+	for row2: Dictionary in LcnLayers.audit(get_tree()):
+		if not bool(row2["known"]):
+			unclaimed.append("%s@%d" % [String(row2["key"]), int(row2["actual"])])
+	if not unclaimed.is_empty():
+		Log.info("boot", "canvas layers not in LcnLayers.SLOTS yet: %s" % " ".join(unclaimed))
 
 
 ## One line per subsystem, and a ready line that can only name things that are

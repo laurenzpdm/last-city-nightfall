@@ -525,12 +525,19 @@ func _serve_requests() -> void:
 func _return_items(_cell: Vector2i, kind: StringName, amount: int) -> void:
 	if amount <= 0:
 		return
+	var back: Dictionary[StringName, int] = {}
+	back[kind] = amount
+	_return_stock(back)
+
+
+## Hands a whole bundle back to the city stockpile.
+func _return_stock(items: Dictionary[StringName, int]) -> void:
+	if items.is_empty():
+		return
 	var st: BuildStock = _stock()
 	if st == null:
 		return
-	var back: Dictionary[StringName, int] = {}
-	back[kind] = amount
-	st.give(back)
+	st.give(items)
 
 
 # =========================================================================
@@ -781,7 +788,18 @@ func _resync_entity(b: Object, id: int) -> void:
 
 func _release(id: int) -> void:
 	_reserve_cache.erase(id)
-	if world.entities.has(id):
+	var e: LogiEntity = world.entities.get(id)
+	if e != null:
+		# What was riding on that tile goes back to the city, not into the void.
+		# [P11] refunds the belt; nobody refunds the coal that was on it.
+		if e.is_transport():
+			_return_stock(world.take_items_on(e.cell, e.is_underground()))
+		if e.store != null and not e.store.is_empty():
+			var back: Dictionary[StringName, int] = {}
+			for k: StringName in e.store.kinds():
+				back[k] = e.store.count(k)
+			_return_stock(back)
+			e.store.clear()
 		world.remove_entity(id)
 		_removed_total += 1
 		_adopted_transport.erase(id)
@@ -1468,6 +1486,8 @@ func metrics() -> Dictionary:
 		"lines_dry": _line_dry,
 		"line_fed_burners": _line_fed.size(),
 		"placed_by_player": _adopted_transport.size(),
+		"runs_dragged": link.runs_resolved,
+		"corners_turned": link.corners_turned,
 		"porters": haul.porters,
 		"spilled": world.spilled,
 	}

@@ -225,6 +225,31 @@ const FACTS: Dictionary = {
 }
 
 
+## Named strings the writing may splice in, and what they say before the part
+## that owns them has said anything. Declared here rather than accumulated in
+## NarrativeWorld.text, because a token that exists only once some system has
+## filled it is a token that renders as a raw {brace} on day one.
+const TEXTS: Dictionary = {
+	&"era": "The first winter",
+	&"weather": "Clear",
+	&"phase": "Dawn",
+	&"storm": "the next Great Frost",
+	&"angriest": "nobody in particular",
+	&"demand": "nothing, yet",
+	&"demand_faction": "Nobody",
+	&"researching": "nothing",
+}
+
+
+static func text_keys() -> Array[StringName]:
+	var keys: Array = TEXTS.keys()
+	keys.sort()
+	var out: Array[StringName] = []
+	for k: StringName in keys:
+		out.append(k)
+	return out
+
+
 static func has_fact(key: StringName) -> bool:
 	return FACTS.has(key)
 

@@ -15,10 +15,13 @@ extends RefCounted
 ##
 ##   0   WORLD          [P13] terrain, entities, lights (a plain Node2D canvas)
 ##   60  POST           [P13] grade, bloom, vignette, grain, cold split
+##   61  FEEL_SCREEN    [P15] hit flashes, freeze frames, screen impulses
 ##   62  OVERLAY_WORLD  [P19] readability lenses + world badges  ← WORLD SPACE
 ##   65  HUD            [P17] clock, vitals, stocks, alerts, selection
 ##   72  OVERLAY_UI     [P19] the lens legend and key rail       ← SCREEN SPACE
 ##   74  BUILD_MENU     [P18] palette, recipes, tech, blueprints, laws
+##   76  STATS          [P20] production graphs, flow history, the night report
+##   78  NARRATIVE      [P22] the dilemma card — it is answered, so it is on top
 ##   80  MODAL          reserved: [P21] tutorial gates, [P24] settings, pause
 ##   90  DEBUG          reserved: profiler HUDs, harness annotations
 ##
@@ -66,11 +69,13 @@ extends RefCounted
 
 const WORLD: int = 0
 const POST: int = 60
+const FEEL_SCREEN: int = 61
 const OVERLAY_WORLD: int = 62
 const HUD: int = 65
 const OVERLAY_UI: int = 72
 const BUILD_MENU: int = 74
 const STATS: int = 76
+const NARRATIVE: int = 78
 const MODAL: int = 80
 const DEBUG: int = 90
 
@@ -92,6 +97,8 @@ const PENDING: Array[Dictionary] = [
 const SLOTS: Array[Dictionary] = [
 	{"key": &"post", "layer": POST, "owner": "P13 render",
 		"names": ["Post", "PostProcess", "LcnPostProcess"]},
+	{"key": &"feel_screen", "layer": FEEL_SCREEN, "owner": "P15 feel",
+		"names": ["FeelScreen", "LcnScreenFx"]},
 	{"key": &"overlay_world", "layer": OVERLAY_WORLD, "owner": "P19 overlays",
 		"names": ["OverlayWorld"]},
 	{"key": &"hud", "layer": HUD, "owner": "P17 hud",
@@ -102,6 +109,8 @@ const SLOTS: Array[Dictionary] = [
 		"names": ["LcnBuildMenu", "BuildMenu"]},
 	{"key": &"stats", "layer": STATS, "owner": "P20 stats",
 		"names": ["LcnStatsRoot", "StatsRoot", "LcnStats"]},
+	{"key": &"narrative", "layer": NARRATIVE, "owner": "P22 narrative",
+		"names": ["LcnNarrativeCard", "NarrativeCard"]},
 ]
 
 # --- hotkeys -----------------------------------------------------------------

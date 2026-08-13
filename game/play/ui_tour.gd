@@ -31,7 +31,21 @@ var _done: bool = false
 
 func _ready() -> void:
 	name = "UiTour"
+	# A tour that hangs is worse than one that fails: it holds a window open
+	# forever and every other agent's gate queues behind it.
+	var watchdog := Timer.new()
+	watchdog.wait_time = 180.0
+	watchdog.one_shot = true
+	watchdog.timeout.connect(_on_watchdog)
+	add_child(watchdog)
+	watchdog.start()
 	call_deferred("_run")
+
+
+func _on_watchdog() -> void:
+	Log.error("ui-tour", "timed out after 180 s at step %d — writing what it got" % _steps.size())
+	_write_report()
+	get_tree().quit(1)
 
 
 func _run() -> void:

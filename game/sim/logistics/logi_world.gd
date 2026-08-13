@@ -882,6 +882,42 @@ func give_fuel(building_id: int, kind: StringName, amount: int) -> int:
 	return whole
 
 
+## Lifts everything sitting on one belt tile off the line and hands it back,
+## item id -> count. `whole_line` empties the entire segment instead, which is
+## what an underground pair needs: the items between its two mouths are inside
+## the tunnel and there is no tile to lift them off.
+##
+## Called when a player demolishes a piece of transport. Without it the items on
+## that tile have nowhere to go when the line is rebuilt and are counted as
+## spilled — honest, but it means taking a belt out quietly destroys goods, and
+## an item that disappears is a balance bug nobody will ever find.
+func take_items_on(cell: Vector2i, whole_line: bool = false) -> Dictionary[StringName, int]:
+	var out: Dictionary[StringName, int] = {}
+	var seg: LogiSegment = segment_at(cell)
+	if seg == null:
+		return out
+	var lo: float = 0.0
+	var hi: float = seg.length
+	if not whole_line:
+		var centre: float = _tile_pos_in(seg, cell)
+		if centre < 0.0:
+			return out
+		lo = centre - 0.5
+		hi = centre + 0.5
+	for lane: int in LogiTypes.LANES:
+		var l: LogiLane = seg.lanes[lane]
+		var guard: int = 0
+		while guard < LogiTypes.MAX_SEGMENT_TILES * LogiTypes.ITEMS_PER_TILE:
+			guard += 1
+			var idx: int = l.find_in_span(lo, hi, -1)
+			if idx < 0:
+				break
+			var k: StringName = kind_name(l.kind_at(idx))
+			l.remove_at(idx)
+			out[k] = int(out.get(k, 0)) + 1
+	return out
+
+
 ## Takes up to `amount` of `kind` off whatever stands on `cell`.
 func take_from_cell(cell: Vector2i, kind: StringName, amount: int) -> int:
 	var owner: int = int(store_cells.get(cell, -1))

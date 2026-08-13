@@ -106,9 +106,9 @@ const AFTER_ASSAULT: Array[String] = [
 ## the record so the sentence after a name is never generic.
 const GRIEF: Dictionary = {
 	&"cold": [
-		"They found them sitting up, which is what the cold does, and which is why the ones who find them never get used to it.",
+		"They were sitting up against the pipe run, which is what the frost does, and which is why the ones who find them never get used to it.",
 		"There was no bunk and no canvas and there had been no bunk and no canvas for four days.",
-		"The hands had to be broken to get them straight. The man who did it went outside afterwards and stayed out a while.",
+		"The hands had to be broken to get them straight on the sled. The man who did it went outside afterwards and stayed by the gate a while.",
 	],
 	&"starvation": [
 		"They had been giving half of their bowl to somebody smaller and had told nobody, which is why nobody stopped them.",
@@ -121,7 +121,7 @@ const GRIEF: Dictionary = {
 		"The care house had the bed ready by then. It was ready two days after it was needed.",
 	],
 	&"injury": [
-		"The bandage was clean, which means somebody spent one of the clean bandages, which means somebody thought there was a chance.",
+		"The bandage was clean, which means the care house spent one of the clean bandages, which means somebody thought there was a chance.",
 		"They were carried in from the wall and lasted until the light, and the crew that carried them went straight back out.",
 		"It was a fall on the Ash Stair in the dark, and the Ash Stair has been asking for it since the first week.",
 	],
@@ -160,7 +160,7 @@ const MACHINE: Array[String] = [
 	"There is a valve behind the Survey Hall that somebody keeps opening at night and nobody has caught them.",
 	"The second boiler has a seam that weeps and it has been marked for repair for eleven days.",
 	"Frost is standing on the outside of the trunk main. That is not condensation. That is heat leaving.",
-	"The accumulator went dry at four in the morning and the whole grid felt it in about a minute.",
+	"The accumulator went dry at four in the morning and Kettle Row felt it in about a minute.",
 	"An engineer put a hand flat on the pipe at the far end of Kettle Row and did not say anything, which said it.",
 	"They have cut the pressure to the workshop to hold the houses. The workshop crew found out by the machines slowing down.",
 	"Somebody has wrapped a run of pipe in blankets. It is against every rule and it is working.",
@@ -185,7 +185,7 @@ const SCOUT: Array[String] = [
 	"A scout brought back a child's boot from the frozen column on the road. Just the one. She has not put it down.",
 	"They went out to look at the second vent and it is open and it is breathing and it is nine days of walking from here.",
 	"The old survey maps have four more sites marked on them. Three are crossed out in a hand nobody recognises.",
-	"There is nothing on the horizon in any direction after the third day, which is the report, and which is why the report is short.",
+	"There is nothing on the horizon in any direction after the third day out, which is the whole report, and which is why it fits on one page of the ledger.",
 ]
 
 ## When the city is holding together. Rare, and never triumphant.
@@ -212,7 +212,7 @@ const ANGER: Array[String] = [
 	"The ration queue went quiet when the clerk came out. Not angry. Quiet. Quiet is worse.",
 	"Someone cut the lamp rope on the Ash Stair, which is petty, and which is how it starts.",
 	"The Hearthside have stopped sending their children to the workshop and they have not said why and they do not have to.",
-	"There is a list going round with names on it. Nobody will say what the list is for.",
+	"There is a list going round Kettle Row with names on it. Nobody will say what the list is for.",
 	"A man stood up at the kitchen and said the count out loud, all of it, every name, and then sat down and ate.",
 	"The Watch have started standing in threes. Not against the dark. Against the row.",
 	"They have stopped calling it the Survey Hall. They have started calling it your hall.",

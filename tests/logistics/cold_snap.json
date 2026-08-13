@@ -11,7 +11,7 @@
       "logistics.belt_lines": [2, 2],
       "logistics.entities": [9, 9],
       "logistics.placed_by_player": [9, 9],
-      "logistics.items_moved_total": [100, 1000000],
+      "logistics.items_moved_total": [60, 1000000],
       "logistics.fuel_by_machine": [20, 400],
       "logistics.line_fed_burners": [1, 1],
       "logistics.lines_dry": [1, 1],

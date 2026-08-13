@@ -62,8 +62,19 @@ const MAX_REPAIR_CELLS: int = 256
 ## synchronous path still exists ([method build]) and is taken only when a body
 ## appears on a map that has no surface yet, because a wrong answer now is worse
 ## than a slow one.
+## Measured, not guessed: a settled cell costs about 1.4 us here, so 9000 cells
+## in a slice was still a 13 ms tick. 2500 keeps every slice inside a third of a
+## millisecond of the rest of combat's budget and finishes a 256x256 map in about
+## a second and a half — against two minutes of warning.
 const SETUP_SLICE: int = 16384
-const FLOOD_SLICE: int = 9000
+const FLOOD_SLICE: int = 2500
+## Cells the in-night repair may settle per tick. Same reasoning: repairing a
+## breach in one unbudgeted call cost 24 ms, three times in one night, because
+## `update` only honours its own RAISE_LIMIT escape hatch when it is given a
+## budget. With one, a repair whose shadow is bigger than a fresh flood becomes
+## a budgeted full rebuild behind the shadow buffer, which is exactly what
+## [FlowField] built that buffer for.
+const REPAIR_BUDGET: int = 2500
 
 enum Phase { IDLE, TERRAIN, COST, FLOOD }
 
@@ -381,6 +392,15 @@ func _apply(idx: int, grid_cost: int) -> void:
 ## the cells still waiting are already stale, so nothing is lost by making them
 ## wait one tick longer.
 func _flush() -> void:
+	# A flood still in flight is finished before any new change is fed in:
+	# raising cells on top of a suspended wavefront would leave stale-low
+	# integrations the resumed flood refuses to improve, which is silently wrong
+	# rather than merely late. The cells waiting in _pending are already applied
+	# to `cost`, so nothing is lost by making them wait a tick.
+	if field.unfinished:
+		field.resume(cost, REPAIR_BUDGET)
+		last_visited = field.last_visited
+		return
 	if _pending.is_empty():
 		return
 	var batch: PackedInt32Array = _pending
@@ -389,7 +409,7 @@ func _flush() -> void:
 		_pending = _pending.slice(MAX_REPAIR_CELLS)
 	else:
 		_pending = PackedInt32Array()
-	field.update(cost, batch)
+	field.update(cost, batch, REPAIR_BUDGET)
 	repairs += 1
 	cells_repaired += batch.size()
 	last_visited = field.last_visited

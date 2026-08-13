@@ -42,7 +42,15 @@ var _spec: Dictionary = {}
 var _sr: int = LcnDsp.SR_MID
 var _body: int = 0                 ## samples in the finished stream
 var _xfade: int = 0
-var _render_len: int = 0           ## body + xfade
+## Samples rendered BEFORE the loop body and then thrown away. A filter starts
+## from silence, so the first ~50 ms of any rendered bed is a fade-in that the
+## settled tail does not match — which is a click at the loop point, once every
+## six seconds, forever. Measured on the first bake: the four sustained tonal
+## loops all had a seam three to four times the size of their own largest
+## sample-to-sample step. Rendering a quarter of a second of run-up and cutting
+## it off costs a few per cent of build time and removes the click entirely.
+var _pre: int = 0
+var _render_len: int = 0           ## pre + body + xfade
 var _loop: bool = false
 var _gain: float = 1.0
 var _bed: float = 1.0
@@ -114,7 +122,7 @@ func advance(budget: int) -> bool:
 			Phase.CONTINUOUS:
 				left -= _do_continuous(left)
 			Phase.SEAM:
-				LcnDsp.crossfade_loop(_buf, _body, _xfade)
+				LcnDsp.crossfade_loop(_buf, _body, _xfade, _pre)
 				left -= mini(left, _xfade)
 				_phase = Phase.EVENTS
 			Phase.EVENTS:
@@ -146,7 +154,11 @@ func _prepare() -> void:
 	_body = maxi(16, int(round(seconds * float(_sr))))
 	_xfade = int(round(float(_spec.get("xfade", 0.0)) * float(_sr))) if _loop else 0
 	_xfade = clampi(_xfade, 0, _body / 2)
-	_render_len = _body + _xfade
+	# Only a loop with a bed needs the run-up: a one-shot is SUPPOSED to start
+	# from silence, and an event-only loop has no filter state to settle.
+	var wants_pre: bool = _loop and float(_spec.get("bed", 1.0)) > 0.0
+	_pre = mini(int(0.25 * float(_sr)), _body / 4) if wants_pre else 0
+	_render_len = _pre + _body + _xfade
 	_buf = PackedFloat32Array()
 	_buf.resize(_render_len)
 	_buf.fill(0.0)
@@ -179,7 +191,7 @@ func _prepare() -> void:
 	_bp_mix = clampf(float(_spec.get("bp_mix", 0.0)), 0.0, 1.0)
 	_bp_hz = float(_spec.get("bp_hz", 400.0))
 	_bp_qd = LcnDsp.svf_q(float(_spec.get("bp_q", 1.0)))
-	_bp_lfo = _spec.get("bp_lfo", [])
+	_bp_lfo = _snap_rates(_spec.get("bp_lfo", []), seconds)
 	_bp_ph = PackedFloat32Array()
 	_bp_ph.resize(maxi(1, _bp_lfo.size()))
 	_bp_ph.fill(0.0)
@@ -190,7 +202,9 @@ func _prepare() -> void:
 		sub_hz = LcnDsp.snap_to_loop(sub_hz, seconds)
 	_sub_inc = sub_hz / float(_sr)
 
-	_am = _spec.get("am", [])
+	# Every modulator has to complete a whole number of cycles over the body too,
+	# or the loop point lands mid-swell and the bed breathes with a stutter in it.
+	_am = _snap_rates(_spec.get("am", []), seconds)
 	_am_ph = PackedFloat32Array()
 	_am_ph.resize(maxi(1, _am.size()))
 	_am_ph.fill(0.0)
@@ -239,6 +253,17 @@ func _prepare() -> void:
 	if _bed <= 0.0:
 		# No bed: skip straight past the continuous pass and its seam.
 		_phase = Phase.EVENTS if not _events.is_empty() else Phase.FINISH
+
+
+## [[hz, depth], ...] with every rate snapped to the loop grid. A no-op when the
+## recipe is not a loop.
+func _snap_rates(rows: Array, seconds: float) -> Array:
+	if not _loop or rows.is_empty():
+		return rows
+	var out: Array = []
+	for row: Array in rows:
+		out.append([LcnDsp.snap_to_loop(float(row[0]), seconds), float(row[1])])
+	return out
 
 
 ## Turns every event block into a flat, pre-rolled list. Each event carries its
@@ -528,6 +553,10 @@ func _render_event(e: Dictionary) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(e["seed"])
 
+	# Events are placed relative to the LOOP BODY, which begins after the
+	# discarded run-up. A tail that runs off the end wraps back to the start of
+	# the body, so a rhythm whose last hit rings past the loop point still rings
+	# into the next pass instead of being cut off.
 	var wrap: int = _body if _loop else 0
 	var env: float = 1.0
 	var ph: float = 0.0
@@ -549,9 +578,7 @@ func _render_event(e: Dictionary) -> void:
 			idx = idx % wrap
 			if idx < 0:
 				idx += wrap
-		elif idx < 0 or idx >= _render_len:
-			env *= dec
-			continue
+			idx += _pre
 		if idx < 0 or idx >= _render_len:
 			env *= dec
 			continue
@@ -632,6 +659,11 @@ func _render_event(e: Dictionary) -> void:
 # =================================================================== finish ==
 
 func _finish() -> void:
+	if _pre > 0:
+		# Throw the run-up away. Everything after this point sees a buffer whose
+		# sample zero is the first sample of the loop.
+		_buf = _buf.slice(_pre, _pre + _body)
+		_pre = 0
 	non_finite = LcnDsp.sanitize(_buf, _body)
 	LcnDsp.normalize_to(_buf, _body, LcnDsp.NORMAL_PEAK * clampf(_gain, 0.05, 1.0))
 	stream = LcnDsp.to_wav(_buf, _body, _sr, _loop)

@@ -98,6 +98,7 @@ var _placements_this_tick: int = 0
 var _placement_tick: int = -1
 
 # --- diagnostics ---------------------------------------------------------------
+var _disabled: Dictionary[StringName, bool] = {}
 var _frames: int = 0
 var _cost_us_avg: float = 0.0
 var _events: int = 0
@@ -123,6 +124,8 @@ func _ready() -> void:
 	# hover state has to be resolved in the same frame the cursor moved.
 	process_priority = -40
 
+	_read_disable_flags()
+
 	idle = LcnFeelIdleLife.new()
 	world = LcnFeelWorldFx.new(POOL)
 	hover = LcnFeelHoverFx.new()
@@ -137,6 +140,27 @@ func _ready() -> void:
 		LcnFeelScreenFx.LAYER, POOL])
 
 
+## Bisect switch. `--feel-disable=world,hover,idle,screen,process,bus` (or `all`)
+## turns pieces of this layer off at launch. It exists because "the feel layer
+## broke the harness" is a sentence that has to be turned into "this surface
+## broke the harness" in one run rather than four edits.
+func _read_disable_flags() -> void:
+	for a: String in OS.get_cmdline_user_args():
+		if not a.begins_with("--feel-disable="):
+			continue
+		for part: String in a.substr(15).split(",", false):
+			_disabled[StringName(part.strip_edges())] = true
+	if not _disabled.is_empty():
+		var keys: Array = _disabled.keys()
+		keys.sort()
+		Log.warn("feel", "disabled by command line: %s" % ", ".join(PackedStringArray(
+			keys.map(func(k: Variant) -> String: return String(k)))))
+
+
+func _off(what: StringName) -> bool:
+	return _disabled.has(&"all") or _disabled.has(what)
+
+
 ## World surfaces go under the renderer so the camera transform moves them and
 ## [P13]'s post stack grades them; the screen surface goes on this node, which
 ## is already in the tree, because a CanvasLayer needs no world transform.
@@ -148,11 +172,17 @@ func _attach_surfaces() -> void:
 	var host: Node = get_tree().get_first_node_in_group(WorldRenderer.GROUP)
 	if host == null:
 		host = self
-	host.add_child(idle)
-	host.add_child(world)
-	host.add_child(hover)
-	add_child(screen)
+	if not _off(&"idle"):
+		host.add_child(idle)
+	if not _off(&"world"):
+		host.add_child(world)
+	if not _off(&"hover"):
+		host.add_child(hover)
+	if not _off(&"screen"):
+		add_child(screen)
 	for n: Node in [idle, world, hover, screen]:
+		if n.get_parent() == null:
+			continue
 		if not n.is_inside_tree():
 			Log.error("feel", "%s failed to enter the tree — that surface is dead" % n.name)
 
@@ -167,6 +197,8 @@ func _exit_tree() -> void:
 
 
 func _connect_bus() -> void:
+	if _off(&"bus"):
+		return
 	Bus.world_ready.connect(_on_world_ready)
 	Bus.building_placed.connect(_on_placed)
 	Bus.building_removed.connect(_on_removed)
@@ -205,7 +237,7 @@ func _on_world_ready() -> void:
 # ================================================================== the frame ==
 
 func _process(delta: float) -> void:
-	if not enabled:
+	if not enabled or _off(&"process"):
 		return
 	var t0: int = Time.get_ticks_usec()
 	_frames += 1
@@ -220,10 +252,17 @@ func _process(delta: float) -> void:
 	_update_hover()
 
 	# World effects age on SIM time; the interface ages on frame time.
-	world.refresh(LcnTiming.world_now(), view, grade, zoom)
-	idle.refresh(_sim_dt(ui_dt), view, grade, zoom, _night01)
-	hover.refresh(ui_dt, grade, zoom)
-	screen.refresh(ui_dt)
+	if world.is_inside_tree():
+		world.refresh(LcnTiming.world_now(), view, grade, zoom)
+	if idle.is_inside_tree():
+		# The BREATH runs on world time (it stops when the world does); the
+		# anchor REBUILD runs on interface time, or a paused or harness-driven
+		# session would rebuild the list every single frame.
+		idle.refresh(_sim_dt(ui_dt), ui_dt, view, grade, zoom, _night01)
+	if hover.is_inside_tree():
+		hover.refresh(ui_dt, grade, zoom)
+	if screen.is_inside_tree():
+		screen.refresh(ui_dt)
 
 	var us: float = float(Time.get_ticks_usec() - t0)
 	_cost_us_avg = _cost_us_avg * 0.92 + us * 0.08 if _frames > 1 else us

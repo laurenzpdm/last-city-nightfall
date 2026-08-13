@@ -216,7 +216,7 @@
             "match": "(?P<item>[A-Za-z ]+) runs out in (?P<secs>[0-9]+) ?s",
             "series": "stock.{item}",
             "must_fall_below_fraction": 0.25,
-            "why": "The general form: any alert that names a resource and a horizon is checked against that resource's own series over exactly that horizon."
+            "why": "The general form: any alert that names a resource and a horizon is checked against that resource's own series over exactly that horizon. INERT TODAY, on purpose: the ATTENTION panel builds 'Timber runs out in 20 seconds' inside game/ui/hud/hud_alerts.gd and never routes it through Bus.alert_raised, so a headless gate cannot see the text at all. The rule arms itself the day [P17] emits that claim as an alert, and until then the report says INERT rather than pretending to have checked it."
           }
         ]
       }

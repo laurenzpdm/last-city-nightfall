@@ -823,6 +823,9 @@ def _claim_vs_series(run: Run, rule: Dict[str, Any]) -> List[Finding]:
         return [Finding(FAIL, "alerts tell the truth: %s" % name,
                         "no alert ever matched %r, so the panel this rule guards never fired"
                         % rule["match"], why)]
+    if matched == 0:
+        return [Finding(PASS, "alerts tell the truth: %s" % name,
+                        "INERT: no alert in this build has this shape yet, so the rule bit on nothing", why)]
     return [Finding(PASS, "alerts tell the truth: %s" % name,
                     "%d matching alert(s), none contradicted by the series" % matched, why)]
 
@@ -959,7 +962,10 @@ def print_findings(title: str, findings: Sequence[Finding], show_pass: bool = Fa
     p, f_, u = verdict(findings)
     print(" %s — %d pass, %d FAIL, %d unchecked" % (title, p, f_, u))
     for fi in findings:
-        if fi.status == PASS and not show_pass:
+        # An INERT rule passed because it matched nothing. That is worth reading
+        # every time: a rule nobody can trip is not evidence of anything, and
+        # hiding it behind "pass" is how a green report stops meaning green.
+        if fi.status == PASS and not show_pass and not fi.detail.startswith("INERT"):
             continue
         print(fi.line())
         if fi.why and fi.status != PASS:

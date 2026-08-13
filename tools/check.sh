@@ -58,7 +58,10 @@ mkdir -p artifacts && : > artifacts/.gdignore   # keep the editor from importing
 STAGES=()
 RESULTS=()      # "pass" | "FAIL" | "SKIP"
 DETAILS=()
-GROUPS=()       # for the one-screen summary: pass lines collapse per group
+STAGE_GROUP=()  # for the one-screen summary: pass lines collapse per group
+                # (NOT "GROUPS": bash 3.2 owns that name and an append to it
+                # aborts the enclosing function without a word, which silently
+                # desynced this array from RESULTS the first time it ran)
 fail=0
 skipped=0
 
@@ -66,7 +69,7 @@ skipped=0
 record() {
   STAGES+=("$1")
   DETAILS+=("${4:-}")
-  GROUPS+=("${5:-$1}")
+  STAGE_GROUP+=("${5:-$1}")
   if [ "$3" -ne 0 ]; then
     RESULTS+=("FAIL")
     fail=1
@@ -86,7 +89,7 @@ record_skip() {
   STAGES+=("$1")
   RESULTS+=("SKIP")
   DETAILS+=("${2:-}")
-  GROUPS+=("${3:-$1}")
+  STAGE_GROUP+=("${3:-$1}")
   skipped=$((skipped + 1))
   echo "  ~ $1 — NOT CHECKED: ${2:-}"
 }
@@ -293,7 +296,7 @@ printf ' passed:'
 prev=""
 for i in "${!STAGES[@]}"; do
   [ "${RESULTS[$i]}" != "pass" ] && continue
-  g="${GROUPS[$i]}"
+  g="${STAGE_GROUP[$i]}"
   if [ "$g" != "$prev" ]; then
     printf ' %s' "$g"
     prev="$g"

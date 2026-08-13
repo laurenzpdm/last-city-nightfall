@@ -104,7 +104,9 @@ func _ready() -> void:
 
 	_chrome = Control.new()
 	_chrome.name = "Chrome"
-	_chrome.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# Sized by hand in `_relayout`, NOT anchored: the layer carries the user's
+	# ui_scale, so the logical rectangle is the viewport divided by that scale
+	# and an anchor preset would fight it every frame.
 	_chrome.mouse_filter = Control.MOUSE_FILTER_STOP
 	_chrome.draw.connect(_draw_chrome)
 	_chrome.gui_input.connect(_on_chrome_input)

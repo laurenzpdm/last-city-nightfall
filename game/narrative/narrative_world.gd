@@ -252,10 +252,13 @@ func tokens() -> Dictionary:
 	}
 	for k: StringName in NarrativeDefs.fact_keys():
 		out[String(k)] = NarrativeDefs.fact_value_text(k, fact(k))
-	var tkeys: Array = text.keys()
-	tkeys.sort()
-	for k: StringName in tkeys:
-		out[String(k) + "_text"] = text[k]
+	# Every declared text token, always, whether or not the part that fills it
+	# has said anything yet. A token that only exists once some system has
+	# spoken is a token that renders as a raw brace on day one.
+	for k: StringName in NarrativeDefs.text_keys():
+		var value: String = String(text.get(k, ""))
+		out[String(k) + "_text"] = value if value.strip_edges() != "" \
+			else String(NarrativeDefs.TEXTS[k])
 	return out
 
 

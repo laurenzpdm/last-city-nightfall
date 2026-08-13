@@ -94,15 +94,16 @@ static func snap_to_loop(hz: float, loop_seconds: float) -> float:
 
 # --- buffers -----------------------------------------------------------------
 
-## Folds `xf` samples of overrun back over the head of the loop. `buf` must hold
-## `body + xf` samples; afterwards the first `body` of them loop seamlessly.
-## This is what makes a noise bed loop without a tick every N seconds.
-static func crossfade_loop(buf: PackedFloat32Array, body: int, xf: int) -> void:
-	if body <= 0 or xf <= 0 or buf.size() < body + xf:
+## Folds `xf` samples of overrun back over the head of the loop body that starts
+## at `start`. `buf` must hold `start + body + xf` samples; afterwards the body
+## loops seamlessly. This is what makes a noise bed loop without a tick every N
+## seconds.
+static func crossfade_loop(buf: PackedFloat32Array, body: int, xf: int, start: int = 0) -> void:
+	if body <= 0 or xf <= 0 or buf.size() < start + body + xf:
 		return
 	for i: int in xf:
 		var t: float = float(i) / float(xf)
-		buf[i] = buf[i] * t + buf[body + i] * (1.0 - t)
+		buf[start + i] = buf[start + i] * t + buf[start + body + i] * (1.0 - t)
 
 
 static func peak_of(buf: PackedFloat32Array, count: int) -> float:

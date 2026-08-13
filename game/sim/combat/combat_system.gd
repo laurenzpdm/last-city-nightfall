@@ -1091,8 +1091,8 @@ func _prebuild_field(tick: int) -> void:
 		return
 	if assault.building:
 		if assault.advance():
-			Log.info(TAG, "siege surface ready — %d cells flooded over %d slice(s), dig cost %d" % [
-				assault.last_visited, assault.build_slices, AssaultField.DIG_COST])
+			Log.info(TAG, "siege surface ready — prepared over %d slice(s), dig cost %d" % [
+				assault.build_slices, AssaultField.DIG_COST])
 		return
 	if tick % PREBUILD_CHECK_TICKS != 0 or _grid == null:
 		return
