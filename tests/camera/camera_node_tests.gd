@@ -108,8 +108,13 @@ func _tick(seconds: float) -> void:
 		_camera._process(DT)
 
 
+## `in_local_coords = true` is load-bearing. With the default, Viewport.push_input
+## re-maps an InputEventMouse through the live canvas transform — i.e. through the
+## very camera under test — so a click at (600, 400) arrives somewhere else and
+## every anchoring assertion measures the transform instead of the camera. Real OS
+## input arrives already in viewport space, which is what `true` reproduces.
 func _push(event: InputEvent) -> void:
-	get_viewport().push_input(event)
+	get_viewport().push_input(event, true)
 
 
 func _mouse_button(button: int, pos: Vector2, is_pressed: bool) -> InputEventMouseButton:
@@ -368,10 +373,13 @@ func _test_keyboard_pan() -> void:
 	_tick(DT)
 	Input.parse_input_event(_key_event(KEY_D, true))
 	if not Input.is_action_pressed(&"cam_pan_right"):
-		# Synthetic key state is not observable in this build; drive the rig instead so
-		# the assertion below still measures real panning rather than nothing.
-		_camera.rig.set_pan_input(Vector2.RIGHT)
-		_tick(0.2)
+		# Synthetic key state is not observable in this build, so drive the rig's own
+		# integration loop directly. It cannot go through _camera._process(): that
+		# re-reads the (empty) input state every step and would wipe the pan input
+		# before it ever moved anything.
+		for _i: int in int(round(0.2 / DT)):
+			_camera.rig.set_pan_input(Vector2.RIGHT)
+			_camera.rig.advance(DT)
 		_camera.rig.set_pan_input(Vector2.ZERO)
 	else:
 		_tick(0.2)

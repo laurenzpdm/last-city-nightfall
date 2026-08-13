@@ -74,6 +74,8 @@ var _sinks: PackedInt32Array = PackedInt32Array()
 var _tiers: Array[int] = []
 var _tier_members: Dictionary[int, PackedInt32Array] = {}
 var _loss_acc: float = 0.0
+## Hash of every routing-relevant gate this tick. See solve().
+var _route_sig: int = 0
 
 
 ## Solves one network for one tick and writes the result back onto its nodes.
@@ -88,7 +90,11 @@ func solve(net: HeatNetwork, members: PackedInt32Array, nodes: Dictionary[int, H
 	_classify(members, cold_mult, autarky)
 
 	var live: PackedInt32Array = _live_sources(_producers)
-	var sig: int = _source_signature(live)
+	# The cache key has to cover EVERYTHING the router branches on, not just which
+	# generators are lit: a switched-off pipe, a frozen trunk and a starved booster
+	# pump all change the routes. Keying on sources alone made identical world
+	# state produce two different answers depending on cache history.
+	var sig: int = _route_sig
 	if net.route_dirty or net.route_version != graph_version or net.route_sig != sig:
 		_route(live, false)
 		net.route_version = graph_version
@@ -126,6 +132,7 @@ func _reset() -> void:
 	_tiers = []
 	_tier_members.clear()
 	_loss_acc = 0.0
+	_route_sig = 1469598103
 	_net.bottlenecks = []
 	_net.charge = 0.0
 	_net.discharge = 0.0
@@ -149,7 +156,17 @@ func _classify(members: PackedInt32Array, cold_mult: float, autarky: bool) -> vo
 		n.throughput = 0.0
 		n.bottleneck_node = -1
 		n.bottleneck_kind = &""
-		_cap_full[id] = d.capacity if d.conducts() else BIG
+		if d.conducts():
+			# A conduit that is switched off or frozen carries nothing. Without this
+			# the player-facing switch was inert for every pipe, buffer and pump in
+			# the game, and a frozen trunk kept conducting at full throughput.
+			_cap_full[id] = d.capacity if (n.enabled and not n.frozen) else 0.0
+			if _cap_full[id] > EPS:
+				_route_sig = ((_route_sig * 31) ^ (id * 4 + 1)) & 0x7FFFFFFF
+				if d.repeater and n.repeater_live:
+					_route_sig = ((_route_sig * 31) ^ (id * 4 + 2)) & 0x7FFFFFFF
+		else:
+			_cap_full[id] = BIG
 		_cap[id] = _cap_full[id]
 
 		if d.is_producer():
@@ -164,6 +181,7 @@ func _classify(members: PackedInt32Array, cold_mult: float, autarky: bool) -> vo
 				_prod_avail[id] = avail
 				_avail[id] = avail
 				_producers.append(id)
+				_route_sig = ((_route_sig * 31) ^ (id * 4 + 3)) & 0x7FFFFFFF
 			supply += avail
 		if d.is_buffer():
 			buffer += n.stored
