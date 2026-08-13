@@ -27,6 +27,23 @@ var alive: bool = false
 
 var _commands: Array[Dictionary] = []
 
+# --- per-system tick profiling ------------------------------------------------
+# Nobody could attribute a millisecond of the tick budget to a system, so every
+# optimisation argument was a guess. This measures it. It is wall-clock and it
+# NEVER reaches serialize(), metrics() or any decision the sim makes, so a replay
+# stays byte-identical with it on — tools/determinism.sh is the proof, not this
+# comment. Cost is two Time.get_ticks_usec() calls per system per tick, ~0.5 us
+# against a 24 ms tick, which is why it is on by default: attribution that is
+# always there beats a knob nobody turns.
+var profile_enabled: bool = true
+
+var _prof_us: PackedInt64Array = PackedInt64Array()
+var _prof_peak_us: PackedInt64Array = PackedInt64Array()
+var _prof_calls: PackedInt64Array = PackedInt64Array()
+var _prof_ticks: int = 0
+var _prof_cmd_us: int = 0
+var _prof_total_us: int = 0
+
 
 ## Creates a fresh world. Everything before this point is inert.
 func create_world(world_seed: int) -> void:
@@ -58,6 +75,7 @@ func create_world(world_seed: int) -> void:
 	_sort_by_order()
 
 	alive = true
+	profile_reset()
 	Log.info("sim", "world created, seed=%d, systems=%d" % [world_seed, systems.size()])
 	Bus.world_ready.emit()
 
@@ -94,6 +112,7 @@ func submit_command(cmd: Dictionary) -> void:
 func _advance(tick: int) -> void:
 	if not alive:
 		return
+	var t_tick0: int = Time.get_ticks_usec() if profile_enabled else 0
 	if not _commands.is_empty():
 		var pending: Array[Dictionary] = _commands.duplicate()
 		_commands.clear()
@@ -107,9 +126,81 @@ func _advance(tick: int) -> void:
 				# is how a scenario ends up three-quarters no-op and still exit 0.
 				Log.error("sim", "command for absent system '%s' (op '%s') was dropped" % [
 					str(c.get("system", "?")), str(c.get("op", "?"))])
-	for s: SimSystem in systems:
-		if s.enabled:
-			s.step(tick)
+	if not profile_enabled:
+		for s: SimSystem in systems:
+			if s.enabled:
+				s.step(tick)
+		return
+
+	var n: int = systems.size()
+	if _prof_us.size() != n:
+		_prof_resize(n)
+	_prof_cmd_us += Time.get_ticks_usec() - t_tick0
+	_prof_ticks += 1
+	for i: int in n:
+		var s: SimSystem = systems[i]
+		if not s.enabled:
+			continue
+		var t0: int = Time.get_ticks_usec()
+		s.step(tick)
+		var used: int = Time.get_ticks_usec() - t0
+		_prof_us[i] += used
+		_prof_calls[i] += 1
+		if used > _prof_peak_us[i]:
+			_prof_peak_us[i] = used
+	_prof_total_us += Time.get_ticks_usec() - t_tick0
+
+
+func _prof_resize(n: int) -> void:
+	_prof_us.resize(n)
+	_prof_peak_us.resize(n)
+	_prof_calls.resize(n)
+
+
+## Clears the profile counters. Called on world creation; call it again after a
+## warm-up stretch when you only want the steady state measured.
+func profile_reset() -> void:
+	_prof_resize(systems.size())
+	_prof_us.fill(0)
+	_prof_peak_us.fill(0)
+	_prof_calls.fill(0)
+	_prof_ticks = 0
+	_prof_cmd_us = 0
+	_prof_total_us = 0
+
+
+## Per-system tick cost since the last profile_reset(). Wall clock, in
+## milliseconds, plus each system's share of the measured tick. Never feed this
+## back into simulation state — it is an observation of the machine, not of the
+## world.
+func profile_report() -> Dictionary:
+	var ticks: int = maxi(1, _prof_ticks)
+	var rows: Array[Dictionary] = []
+	var sum_us: int = 0
+	for i: int in mini(systems.size(), _prof_us.size()):
+		sum_us += _prof_us[i]
+	var denom: float = float(maxi(1, sum_us + _prof_cmd_us))
+	for i: int in mini(systems.size(), _prof_us.size()):
+		var s: SimSystem = systems[i]
+		rows.append({
+			"system": String(s.system_name()),
+			"order": s.order,
+			"ms_per_tick": snappedf(float(_prof_us[i]) / float(ticks) / 1000.0, 0.0001),
+			"peak_ms": snappedf(float(_prof_peak_us[i]) / 1000.0, 0.0001),
+			"total_ms": snappedf(float(_prof_us[i]) / 1000.0, 0.1),
+			"share": snappedf(float(_prof_us[i]) / denom, 0.0001),
+			"ticked": _prof_calls[i],
+		})
+	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a["ms_per_tick"]) > float(b["ms_per_tick"]))
+	return {
+		"ticks": _prof_ticks,
+		"sim_ms_per_tick": snappedf(float(_prof_total_us) / float(ticks) / 1000.0, 0.0001),
+		"systems_ms_per_tick": snappedf(float(sum_us) / float(ticks) / 1000.0, 0.0001),
+		"commands_ms_per_tick": snappedf(float(_prof_cmd_us) / float(ticks) / 1000.0, 0.0001),
+		"budget_ms": 1000.0 / float(SimClock.TICK_HZ),
+		"systems": rows,
+	}
 
 
 func serialize() -> Dictionary:
