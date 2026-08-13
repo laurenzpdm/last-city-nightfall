@@ -25,7 +25,11 @@ extends CanvasLayer
 ## real number and the harness screenshot run prints it.
 
 const GROUP: StringName = &"lcn_build_menu"
-const LAYER: int = 20
+## Above [P13]'s post (60), [P17]'s HUD (65) and [P19]'s overlay layers (70/72).
+## A screen the player is reading has to be the front-most thing on the glass:
+## at layer 20 the world's own status badges drew straight through the Book of
+## Laws. The panels are laid out to clear the HUD bar rather than cover it.
+const LAYER: int = 74
 const REFRESH_HZ: float = 6.0
 const TOOLTIP_MARGIN: float = 18.0
 

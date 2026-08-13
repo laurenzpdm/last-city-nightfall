@@ -427,6 +427,30 @@ func test_the_output_buffer_backs_up_when_nothing_will_take_the_goods() -> void:
 	assert_eq(_machine(id).output_total(), 0, "and the backlog goes to the city")
 
 
+func test_every_stall_in_the_city_is_listable_worst_first() -> void:
+	_world()
+	if not _city():
+		return
+	# One machine with nothing to smelt, one switched off by the player. The
+	# overlay should put the real problem above the deliberate one.
+	world.cmd_now({"system": &"build", "op": "set_stock", "items": {"iron_ore": 0}})
+	var starved: int = _place("smelter", _at("smelter"))
+	var off: int = _place("workshop", _at("workshop"))
+	world.run(20)
+	world.cmd_now({"system": &"build", "op": "set_enabled", "id": off, "on": false})
+	world.run(20)
+
+	var list: Array[Dictionary] = prod.stalled_machines()
+	assert_ge(float(list.size()), 2.0, "both machines are on the list")
+	assert_eq(int(list[0]["id"]), starved, "the starved smelter outranks the idle workshop")
+	assert_eq(list[0]["reason"], "missing_input", "with the reason attached")
+	assert_eq(list[0]["item"], "iron_ore", "and the item it wants")
+	assert_has(list[0], "pos", "and a world position for the overlay to draw at")
+	assert_has(list[0], "cell", "and a cell for the map")
+	for entry: Dictionary in list:
+		assert_ne(entry["reason"], "", "nothing without a reason is ever on this list")
+
+
 func test_a_switched_off_machine_is_idle_not_broken() -> void:
 	_world()
 	if not _city():

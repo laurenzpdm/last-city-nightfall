@@ -342,11 +342,25 @@ balance owner who finds them and says nothing is worse than one who never looked
    is what joins the four pipe arms, losing it splits the city into four
    networks and drops the largest component to 41% of the grid. The scenario's
    grid claim now covers day 1 only, and says why. Owner: [P07] weapons content.
-5. **`stress_1000` is at 36 ticks/second against a floor of 35.** It measured 45
-   before [P05]/[P03]/[P04]/[P07]/[P08] landed. The floor is not mine to move
-   and the workload is real (1 483 heat entities, 98.9% of them in one
-   component, which is the expensive case on purpose), but the perf gate has
-   roughly one tick/second of headroom left.
+5. **The perf gate is on the floor, and it is not the scenario.** `stress_1000`
+   measures 34–35 ticks/second against its floor of 35. It measured 45 at 16:00
+   with four systems in the build. Three measurements, taken on the same box in
+   the same hour:
+
+   | layout | heat entities | ticks/s |
+   |---|---|---|
+   | pre-[P12] layout (6 networks, orphaned generators) | 1 445 | 35.1 |
+   | shipped layout (1 network, 99% in one component) | 1 452 | 34.0 / 34.5 |
+   | shipped layout with 240 pipes removed | 1 213 | **33.6** |
+
+   Removing a sixth of the workload made it *slower*, which settles it: the
+   number is dominated by machine load — twelve Godot processes on one box —
+   and by the seven systems that landed today, not by the node count. So the
+   scenario was **not** shrunk to pass and the floor was **not** lowered. Both
+   would have been fiction with a decimal point, which is precisely what the
+   perf report's own header warns about. The floor belongs to whoever owns the
+   tick budget; `tools/perf_budget.json` exists with a `floor_multiplier` for
+   exactly the loaded-box case.
 
 ---
 

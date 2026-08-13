@@ -153,6 +153,8 @@ var _heat_autarky: bool = true
 
 var _last_sync_tick: int = -1000
 var _not_ours_pruned: int = 0
+## Bound once. Building it inside step() allocated a Callable every tick.
+var _deliver_waste_cb: Callable = Callable()
 var _unlock_cache: Dictionary[StringName, bool] = {}
 var _unlock_checked: int = -1000
 
@@ -229,6 +231,7 @@ func post_setup() -> void:
 	_logistics = Sim.get_system(&"logistics")
 
 	store.bind(_build)
+	_deliver_waste_cb = Callable(self, "_deliver_waste")
 	_has_temperature = _heat != null and _heat.has_method("temperature_at")
 	_has_power = _heat != null and _heat.has_method("power_factor")
 	_has_served = _heat != null and _heat.has_method("served_of")
@@ -264,7 +267,7 @@ func step(tick: int) -> void:
 		_advance(machines[id], tick)
 
 	waste.relink(ids, machines)
-	waste.distribute(ids, machines, SimClock.DT, _deliver_waste)
+	waste.distribute(ids, machines, SimClock.DT, _deliver_waste_cb)
 	_roll_rates(tick)
 
 
@@ -377,6 +380,49 @@ func stall_of(building_id: int) -> Dictionary:
 		"felt_c": snappedf(m.felt_c, 0.01),
 		"progress": snappedf(m.progress_ratio(), 0.001),
 	}
+
+
+## Every machine that is not doing its job, worst first (a hard stall before an
+## idle switch), each with the reason and the numbers behind it. This is the
+## whole list [P19]'s production overlay draws and [P17]'s alert row counts —
+## one call, no walking of private state.
+func stalled_machines() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for id: int in _sorted_ids():
+		var m: ProdMachine = machines[id]
+		if m.reason == ProdMachine.REASON_NONE:
+			continue
+		var entry: Dictionary = stall_of(id)
+		entry["id"] = id
+		entry["kind"] = String(m.kind)
+		entry["cell"] = [m.cell.x, m.cell.y]
+		entry["pos"] = [m.world_pos.x, m.world_pos.y]
+		out.append(entry)
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var sa: int = _severity(StringName(String(a["reason"])))
+		var sb: int = _severity(StringName(String(b["reason"])))
+		if sa != sb:
+			return sa > sb
+		return int(a["id"]) < int(b["id"]))
+	return out
+
+
+## How loudly a stall should shout. A machine the player switched off is not a
+## problem; a frozen one is the city dying.
+func _severity(reason: StringName) -> int:
+	match reason:
+		ProdMachine.REASON_FROZEN:
+			return 5
+		ProdMachine.REASON_NO_HEAT, ProdMachine.REASON_TOO_COLD:
+			return 4
+		ProdMachine.REASON_DEPLETED:
+			return 3
+		ProdMachine.REASON_MISSING_INPUT, ProdMachine.REASON_OUTPUT_FULL:
+			return 2
+		ProdMachine.REASON_UNSTAFFED, ProdMachine.REASON_LOCKED, ProdMachine.REASON_NO_RECIPE:
+			return 1
+		_:
+			return 0
 
 
 func has_machine(building_id: int) -> bool:
@@ -670,11 +716,15 @@ func _work_rate(m: ProdMachine, r: RecipeDef) -> float:
 	m.cold = clampf((m.felt_c - floor_c) / COLD_BAND_C, 0.0, 1.0)
 
 	m.heat_factor = 1.0
-	if r != null and r.heat_cost > 0.0:
+	if m.def.heat_rating <= 0.0:
+		# A machine that asks the grid for nothing cannot be browned out by it,
+		# whatever its recipe costs. Hand-work does not stop when the pipes do.
+		m.heat_factor = 1.0
+	elif r != null and r.heat_cost > 0.0:
 		var need: float = r.heat_rate()
 		var have: float = m.def.heat_rating * m.power
-		m.heat_factor = clampf(have / maxf(need, 0.0001), 0.0, 1.0) if need > 0.0 else 1.0
-	elif m.def.heat_rating > 0.0:
+		m.heat_factor = clampf(have / maxf(need, 0.0001), 0.0, 1.0)
+	else:
 		m.heat_factor = m.power
 
 	return m.staffing * m.cold * m.heat_factor * m.def.craft_speed
@@ -899,6 +949,12 @@ func _seam_alive(m: ProdMachine) -> bool:
 func _acquire_seam(m: ProdMachine, tick: int) -> bool:
 	if _grid == null:
 		return false
+	# The cooldown is stamped only when the search comes back EMPTY, so a drill
+	# that has just worked one seam out looks for the next one on the very next
+	# tick, and a drill on genuinely dead ground stops asking twenty times a
+	# second. Deposits only ever shrink, so a failed search stays failed.
+	if tick - m.last_seam_search < SEAM_SEARCH_EVERY:
+		return false
 	m.seam = Vector2i(-1, -1)
 	var wanted: int = _ore_kind(m.def.extracts)
 	var best: Vector2i = Vector2i(-1, -1)
@@ -921,15 +977,12 @@ func _acquire_seam(m: ProdMachine, tick: int) -> bool:
 		m.seam_item = ORE_ITEMS[best_kind]
 		return true
 
-	if m.def.reach <= 0 or wanted <= 0:
-		return false
-	if tick - m.last_seam_search < SEAM_SEARCH_EVERY:
-		return false
-	m.last_seam_search = tick
-	if not _grid.has_method("nearest_resource"):
+	if m.def.reach <= 0 or wanted <= 0 or not _grid.has_method("nearest_resource"):
+		m.last_seam_search = tick
 		return false
 	var found: Vector2i = _grid.call("nearest_resource", m.center_cell, wanted, m.def.reach)
 	if found.x < 0:
+		m.last_seam_search = tick
 		return false
 	m.seam = found
 	m.seam_kind = wanted

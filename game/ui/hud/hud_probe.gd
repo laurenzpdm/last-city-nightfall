@@ -23,6 +23,8 @@ extends RefCounted
 const REFRESH_HZ: float = 10.0
 const SHORTFALL_MEMORY_TICKS: int = 60      ## 3 s — a grid stays "short" this long
 const MAX_SHORT_NETWORKS: int = 6
+const MAX_SCAN_NETWORKS: int = 48           ## ceiling on the fallback sweep
+const SCAN_EVERY: int = 20                  ## and it runs at most once a second
 
 ## Materials the rail shows first, when the city has them. Anything else the
 ## registry knows about is appended alphabetically.
@@ -149,6 +151,7 @@ var _shortfalls: Dictionary[int, Array] = {}      ## nid -> [deficit, tick]
 var _net_titles: Dictionary[int, String] = {}
 var _net_title_version: int = -1
 var _buffer_version: int = -1
+var _scanned_tick: int = -1000
 var _item_ids: Array[StringName] = []
 var _items_scanned: bool = false
 var _bus_wave: Array = []                          ## [wave, seconds, tick] from Bus
@@ -354,7 +357,40 @@ func _read_heat(tick: int) -> void:
 	for s: Dictionary in live:
 		if short_networks.size() < MAX_SHORT_NETWORKS:
 			short_networks.append(s)
+	# The signal-driven path only learns about a grid when [P02] next announces
+	# it — at most once a second per network, and never at all while the clock is
+	# paused. When the totals say heat is missing and no announcement has arrived,
+	# go and look. Bounded, throttled, and only on the unhappy path.
+	if short_networks.is_empty() and heat_deficit > 0.5 \
+			and tick - _scanned_tick >= SCAN_EVERY:
+		_scanned_tick = tick
+		_scan_for_shortfalls()
 	_read_buffer_capacity()
+
+
+## One sweep of the network list, worst first. Runs only when the city is short
+## of heat and nothing has said which grid it is.
+func _scan_for_shortfalls() -> void:
+	if not _heat.has_method("network_ids"):
+		return
+	var ids: PackedInt32Array = _heat.call("network_ids")
+	var found: Array[Dictionary] = []
+	var looked: int = 0
+	for nid: int in ids:
+		looked += 1
+		if looked > MAX_SCAN_NETWORKS:
+			break
+		var stats: Dictionary = _heat.call("network_stats", nid)
+		if stats.is_empty() or float(stats.get("deficit", 0.0)) <= 0.05:
+			continue
+		stats["title"] = network_title(nid)
+		found.append(stats)
+	found.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a.get("deficit", 0.0)) > float(b.get("deficit", 0.0)))
+	for f: Dictionary in found:
+		if short_networks.size() >= MAX_SHORT_NETWORKS:
+			break
+		short_networks.append(f)
 
 
 ## Total thermal storage the city owns, summed from the heat definitions. Only

@@ -271,11 +271,11 @@
         "op": "place_line",
         "kind": "heat_pipe",
         "from": [
-          104,
+          96,
           98
         ],
         "to": [
-          104,
+          96,
           158
         ],
         "free": true,
@@ -289,11 +289,11 @@
         "op": "place_line",
         "kind": "heat_pipe",
         "from": [
-          120,
+          104,
           98
         ],
         "to": [
-          120,
+          104,
           158
         ],
         "free": true,
@@ -307,11 +307,11 @@
         "op": "place_line",
         "kind": "heat_pipe",
         "from": [
-          136,
+          112,
           98
         ],
         "to": [
-          136,
+          112,
           158
         ],
         "free": true,
@@ -325,6 +325,78 @@
         "op": "place_line",
         "kind": "heat_pipe",
         "from": [
+          120,
+          98
+        ],
+        "to": [
+          120,
+          158
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 58,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          128,
+          98
+        ],
+        "to": [
+          128,
+          158
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 61,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          136,
+          98
+        ],
+        "to": [
+          136,
+          158
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 64,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          144,
+          98
+        ],
+        "to": [
+          144,
+          158
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 67,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
           152,
           98
         ],
@@ -337,7 +409,25 @@
       }
     },
     {
-      "tick": 58,
+      "tick": 70,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          160,
+          98
+        ],
+        "to": [
+          160,
+          158
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 73,
       "cmd": {
         "system": "build",
         "op": "place_line",
@@ -355,7 +445,7 @@
       }
     },
     {
-      "tick": 61,
+      "tick": 76,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -369,7 +459,7 @@
       }
     },
     {
-      "tick": 63,
+      "tick": 78,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -383,7 +473,7 @@
       }
     },
     {
-      "tick": 65,
+      "tick": 80,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -397,7 +487,7 @@
       }
     },
     {
-      "tick": 67,
+      "tick": 82,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -411,7 +501,7 @@
       }
     },
     {
-      "tick": 69,
+      "tick": 84,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -425,7 +515,7 @@
       }
     },
     {
-      "tick": 71,
+      "tick": 86,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -439,7 +529,7 @@
       }
     },
     {
-      "tick": 73,
+      "tick": 88,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -453,7 +543,7 @@
       }
     },
     {
-      "tick": 75,
+      "tick": 90,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -467,7 +557,7 @@
       }
     },
     {
-      "tick": 77,
+      "tick": 92,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -481,7 +571,7 @@
       }
     },
     {
-      "tick": 79,
+      "tick": 94,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -495,7 +585,7 @@
       }
     },
     {
-      "tick": 81,
+      "tick": 96,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -509,7 +599,7 @@
       }
     },
     {
-      "tick": 83,
+      "tick": 98,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -523,7 +613,7 @@
       }
     },
     {
-      "tick": 85,
+      "tick": 100,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -537,7 +627,7 @@
       }
     },
     {
-      "tick": 87,
+      "tick": 102,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -551,7 +641,7 @@
       }
     },
     {
-      "tick": 89,
+      "tick": 104,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -565,7 +655,7 @@
       }
     },
     {
-      "tick": 91,
+      "tick": 106,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -579,7 +669,7 @@
       }
     },
     {
-      "tick": 93,
+      "tick": 108,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -593,7 +683,7 @@
       }
     },
     {
-      "tick": 95,
+      "tick": 110,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -607,7 +697,7 @@
       }
     },
     {
-      "tick": 97,
+      "tick": 112,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -621,7 +711,7 @@
       }
     },
     {
-      "tick": 99,
+      "tick": 114,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -635,7 +725,7 @@
       }
     },
     {
-      "tick": 101,
+      "tick": 116,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -649,7 +739,7 @@
       }
     },
     {
-      "tick": 103,
+      "tick": 118,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -663,7 +753,7 @@
       }
     },
     {
-      "tick": 105,
+      "tick": 120,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -677,7 +767,7 @@
       }
     },
     {
-      "tick": 107,
+      "tick": 122,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -691,7 +781,7 @@
       }
     },
     {
-      "tick": 109,
+      "tick": 124,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -705,7 +795,7 @@
       }
     },
     {
-      "tick": 111,
+      "tick": 126,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -719,7 +809,7 @@
       }
     },
     {
-      "tick": 113,
+      "tick": 128,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -733,7 +823,7 @@
       }
     },
     {
-      "tick": 115,
+      "tick": 130,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -747,7 +837,7 @@
       }
     },
     {
-      "tick": 117,
+      "tick": 132,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -761,7 +851,7 @@
       }
     },
     {
-      "tick": 119,
+      "tick": 134,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -775,7 +865,7 @@
       }
     },
     {
-      "tick": 121,
+      "tick": 136,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -789,7 +879,7 @@
       }
     },
     {
-      "tick": 123,
+      "tick": 138,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -803,7 +893,7 @@
       }
     },
     {
-      "tick": 125,
+      "tick": 140,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -817,7 +907,7 @@
       }
     },
     {
-      "tick": 127,
+      "tick": 142,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -831,7 +921,7 @@
       }
     },
     {
-      "tick": 129,
+      "tick": 144,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -845,7 +935,7 @@
       }
     },
     {
-      "tick": 131,
+      "tick": 146,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -859,7 +949,7 @@
       }
     },
     {
-      "tick": 133,
+      "tick": 148,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -873,7 +963,7 @@
       }
     },
     {
-      "tick": 135,
+      "tick": 150,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -887,7 +977,7 @@
       }
     },
     {
-      "tick": 137,
+      "tick": 152,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -901,7 +991,7 @@
       }
     },
     {
-      "tick": 139,
+      "tick": 154,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -915,7 +1005,7 @@
       }
     },
     {
-      "tick": 141,
+      "tick": 156,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -929,7 +1019,7 @@
       }
     },
     {
-      "tick": 143,
+      "tick": 158,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -943,7 +1033,7 @@
       }
     },
     {
-      "tick": 145,
+      "tick": 160,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -957,7 +1047,7 @@
       }
     },
     {
-      "tick": 147,
+      "tick": 162,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -971,7 +1061,7 @@
       }
     },
     {
-      "tick": 149,
+      "tick": 164,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -985,7 +1075,7 @@
       }
     },
     {
-      "tick": 151,
+      "tick": 166,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -999,7 +1089,7 @@
       }
     },
     {
-      "tick": 153,
+      "tick": 168,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1013,7 +1103,7 @@
       }
     },
     {
-      "tick": 155,
+      "tick": 170,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1027,7 +1117,7 @@
       }
     },
     {
-      "tick": 157,
+      "tick": 172,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1041,7 +1131,7 @@
       }
     },
     {
-      "tick": 159,
+      "tick": 174,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1055,7 +1145,7 @@
       }
     },
     {
-      "tick": 161,
+      "tick": 176,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1069,7 +1159,7 @@
       }
     },
     {
-      "tick": 163,
+      "tick": 178,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1083,7 +1173,7 @@
       }
     },
     {
-      "tick": 165,
+      "tick": 180,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1097,7 +1187,7 @@
       }
     },
     {
-      "tick": 167,
+      "tick": 182,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1111,7 +1201,7 @@
       }
     },
     {
-      "tick": 169,
+      "tick": 184,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1125,7 +1215,7 @@
       }
     },
     {
-      "tick": 171,
+      "tick": 186,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1139,7 +1229,7 @@
       }
     },
     {
-      "tick": 173,
+      "tick": 188,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1153,7 +1243,7 @@
       }
     },
     {
-      "tick": 175,
+      "tick": 190,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1167,7 +1257,7 @@
       }
     },
     {
-      "tick": 177,
+      "tick": 192,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1181,7 +1271,7 @@
       }
     },
     {
-      "tick": 179,
+      "tick": 194,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1195,7 +1285,7 @@
       }
     },
     {
-      "tick": 181,
+      "tick": 196,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1209,7 +1299,7 @@
       }
     },
     {
-      "tick": 183,
+      "tick": 198,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1223,7 +1313,7 @@
       }
     },
     {
-      "tick": 185,
+      "tick": 200,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1237,7 +1327,7 @@
       }
     },
     {
-      "tick": 187,
+      "tick": 202,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1251,7 +1341,7 @@
       }
     },
     {
-      "tick": 189,
+      "tick": 204,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1265,7 +1355,7 @@
       }
     },
     {
-      "tick": 191,
+      "tick": 206,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1279,7 +1369,7 @@
       }
     },
     {
-      "tick": 193,
+      "tick": 208,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1293,7 +1383,7 @@
       }
     },
     {
-      "tick": 195,
+      "tick": 210,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1307,7 +1397,7 @@
       }
     },
     {
-      "tick": 197,
+      "tick": 212,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1321,7 +1411,7 @@
       }
     },
     {
-      "tick": 199,
+      "tick": 214,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1335,7 +1425,7 @@
       }
     },
     {
-      "tick": 201,
+      "tick": 216,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1349,7 +1439,7 @@
       }
     },
     {
-      "tick": 203,
+      "tick": 218,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1363,7 +1453,7 @@
       }
     },
     {
-      "tick": 205,
+      "tick": 220,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1377,7 +1467,7 @@
       }
     },
     {
-      "tick": 207,
+      "tick": 222,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1391,7 +1481,7 @@
       }
     },
     {
-      "tick": 209,
+      "tick": 224,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1405,7 +1495,7 @@
       }
     },
     {
-      "tick": 211,
+      "tick": 226,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1419,7 +1509,7 @@
       }
     },
     {
-      "tick": 213,
+      "tick": 228,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1433,7 +1523,7 @@
       }
     },
     {
-      "tick": 215,
+      "tick": 230,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1447,7 +1537,7 @@
       }
     },
     {
-      "tick": 217,
+      "tick": 232,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1461,7 +1551,7 @@
       }
     },
     {
-      "tick": 219,
+      "tick": 234,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1475,7 +1565,7 @@
       }
     },
     {
-      "tick": 221,
+      "tick": 236,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1489,7 +1579,7 @@
       }
     },
     {
-      "tick": 223,
+      "tick": 238,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1503,7 +1593,7 @@
       }
     },
     {
-      "tick": 225,
+      "tick": 240,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1517,7 +1607,7 @@
       }
     },
     {
-      "tick": 227,
+      "tick": 242,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1531,7 +1621,7 @@
       }
     },
     {
-      "tick": 229,
+      "tick": 244,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1545,7 +1635,7 @@
       }
     },
     {
-      "tick": 231,
+      "tick": 246,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1559,7 +1649,7 @@
       }
     },
     {
-      "tick": 233,
+      "tick": 248,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1573,7 +1663,7 @@
       }
     },
     {
-      "tick": 235,
+      "tick": 250,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1587,7 +1677,7 @@
       }
     },
     {
-      "tick": 237,
+      "tick": 252,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1601,7 +1691,7 @@
       }
     },
     {
-      "tick": 239,
+      "tick": 254,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1615,7 +1705,7 @@
       }
     },
     {
-      "tick": 241,
+      "tick": 256,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1629,7 +1719,7 @@
       }
     },
     {
-      "tick": 243,
+      "tick": 258,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1643,7 +1733,7 @@
       }
     },
     {
-      "tick": 245,
+      "tick": 260,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1657,7 +1747,7 @@
       }
     },
     {
-      "tick": 247,
+      "tick": 262,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1671,7 +1761,7 @@
       }
     },
     {
-      "tick": 249,
+      "tick": 264,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1685,7 +1775,7 @@
       }
     },
     {
-      "tick": 251,
+      "tick": 266,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1699,7 +1789,7 @@
       }
     },
     {
-      "tick": 253,
+      "tick": 268,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1713,7 +1803,7 @@
       }
     },
     {
-      "tick": 255,
+      "tick": 270,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1727,7 +1817,7 @@
       }
     },
     {
-      "tick": 257,
+      "tick": 272,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1741,7 +1831,7 @@
       }
     },
     {
-      "tick": 259,
+      "tick": 274,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1755,7 +1845,7 @@
       }
     },
     {
-      "tick": 261,
+      "tick": 276,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1769,7 +1859,7 @@
       }
     },
     {
-      "tick": 263,
+      "tick": 278,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1783,7 +1873,7 @@
       }
     },
     {
-      "tick": 265,
+      "tick": 280,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1797,7 +1887,7 @@
       }
     },
     {
-      "tick": 267,
+      "tick": 282,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1811,7 +1901,7 @@
       }
     },
     {
-      "tick": 269,
+      "tick": 284,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1825,7 +1915,7 @@
       }
     },
     {
-      "tick": 271,
+      "tick": 286,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1839,7 +1929,7 @@
       }
     },
     {
-      "tick": 273,
+      "tick": 288,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1853,7 +1943,7 @@
       }
     },
     {
-      "tick": 275,
+      "tick": 290,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1867,7 +1957,7 @@
       }
     },
     {
-      "tick": 277,
+      "tick": 292,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1881,7 +1971,7 @@
       }
     },
     {
-      "tick": 279,
+      "tick": 294,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1895,7 +1985,7 @@
       }
     },
     {
-      "tick": 281,
+      "tick": 296,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1909,7 +1999,7 @@
       }
     },
     {
-      "tick": 283,
+      "tick": 298,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1923,7 +2013,7 @@
       }
     },
     {
-      "tick": 285,
+      "tick": 300,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1937,7 +2027,7 @@
       }
     },
     {
-      "tick": 287,
+      "tick": 302,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1951,7 +2041,7 @@
       }
     },
     {
-      "tick": 289,
+      "tick": 304,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1965,7 +2055,7 @@
       }
     },
     {
-      "tick": 291,
+      "tick": 306,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1979,7 +2069,7 @@
       }
     },
     {
-      "tick": 293,
+      "tick": 308,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -1993,7 +2083,7 @@
       }
     },
     {
-      "tick": 295,
+      "tick": 310,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -2007,7 +2097,7 @@
       }
     },
     {
-      "tick": 297,
+      "tick": 312,
       "cmd": {
         "system": "build",
         "op": "place_line",
@@ -2025,7 +2115,7 @@
       }
     },
     {
-      "tick": 301,
+      "tick": 316,
       "cmd": {
         "system": "build",
         "op": "place_line",
@@ -2043,7 +2133,7 @@
       }
     },
     {
-      "tick": 305,
+      "tick": 320,
       "cmd": {
         "system": "build",
         "op": "place_line",
@@ -2061,7 +2151,7 @@
       }
     },
     {
-      "tick": 309,
+      "tick": 324,
       "cmd": {
         "system": "build",
         "op": "place_line",
@@ -2079,7 +2169,7 @@
       }
     },
     {
-      "tick": 323,
+      "tick": 338,
       "cmd": {
         "system": "grid",
         "op": "snowfall",
@@ -2087,7 +2177,7 @@
       }
     },
     {
-      "tick": 353,
+      "tick": 368,
       "cmd": {
         "system": "climate",
         "op": "skip_to_phase",
@@ -2095,7 +2185,7 @@
       }
     },
     {
-      "tick": 393,
+      "tick": 408,
       "cmd": {
         "system": "heat",
         "op": "dump"

@@ -185,11 +185,11 @@ func _set_day_length(ticks: int) -> void:
 # =========================================================================
 
 func step(tick: int) -> void:
-	# lint:allow - wall clock, and it must stay out of serialize(). This number
-	# reaches metrics() only, which is metrics.csv; state.json never sees it, so
-	# a replay cannot diverge on it. It is here because "society is cheap" is a
-	# claim, and a claim with no measurement in the artifacts is worth nothing.
-	var t0: int = Time.get_ticks_usec()
+	# Self profiling. This number reaches metrics() only, which is metrics.csv;
+	# state.json never sees it, so a replay cannot diverge on it. It is here
+	# because "society is cheap" is a claim, and a claim with no measurement in
+	# the artifacts is worth nothing.
+	var t0: int = Time.get_ticks_usec()  # lint:allow metrics only, never serialize()
 	_tick = tick
 	_advance_seal(tick)
 	if tick % SocietyDefs.SAMPLE_EVERY == 0:
@@ -197,8 +197,7 @@ func step(tick: int) -> void:
 	_integrate()
 	if tick % ANNOUNCE_EVERY == 0:
 		_announce()
-	# lint:allow - see above.
-	_step_us += (float(Time.get_ticks_usec() - t0) - _step_us) * 0.02
+	_step_us += (float(Time.get_ticks_usec() - t0) - _step_us) * 0.02  # lint:allow as above
 
 
 ## Per tick, and only this. Everything expensive happens on the sample.
