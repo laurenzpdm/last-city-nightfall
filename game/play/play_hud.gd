@@ -101,10 +101,12 @@ func refresh(play: PlayController) -> void:
 	if info != "":
 		parts.append(info)
 	if build != null:
-		parts.append("scrap %d  steel %d  stone %d" % [
-			int(build.get("stock").call("count", &"scrap")),
-			int(build.get("stock").call("count", &"steel")),
-			int(build.get("stock").call("count", &"stone")),
+		var stock: Object = build.get("stock")
+		parts.append("scrap %d  iron %d  steel %d  stone %d" % [
+			int(stock.call("count", &"scrap")),
+			int(stock.call("count", &"iron_plate")),
+			int(stock.call("count", &"steel_plate")),
+			int(stock.call("count", &"stone")),
 		])
 	_hands.text = "   |   ".join(parts)
 

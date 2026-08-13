@@ -1,6 +1,6 @@
 {
   "name": "economy_60min",
-  "description": "Sixty in-world minutes \u2014 seven and a half days \u2014 of a base that grows every morning and is attacked every night. This is the run that balance decisions are read off; metrics.csv is the deliverable, not the state dump.",
+  "description": "One hour of simulated city growth on one heat grid, sampled every ten seconds. The balance read: does supply keep up with a city that keeps adding housing, does the deficit curve bend at the right day, and how many nights does the grid survive as the campaign cools.",
   "tags": [
     "balance",
     "long"
@@ -8,58 +8,167 @@
   "seed": 11,
   "ticks": 72000,
   "sample_every": 200,
+  "expects": {
+    "min_ticks_per_second": 400,
+    "max_errors": 0
+  },
   "script": [
     {
-      "tick": 2,
+      "tick": 1,
       "cmd": {
         "system": "build",
         "op": "add_stock",
-        "items": {
-          "scrap": 4000,
-          "stone": 3000,
-          "timber": 2600,
-          "coal": 6000,
-          "iron_plate": 1800,
-          "gear": 900,
-          "copper_coil": 700
-        }
+        "item": "iron_plate",
+        "amount": 30000
       }
     },
     {
-      "tick": 4,
+      "tick": 1,
       "cmd": {
-        "system": "grid",
-        "op": "reveal",
-        "from": [
-          32,
-          32
-        ],
-        "to": [
-          96,
-          96
-        ]
+        "system": "build",
+        "op": "add_stock",
+        "item": "steel_plate",
+        "amount": 20000
       }
     },
     {
-      "tick": 10,
+      "tick": 1,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "item": "stone",
+        "amount": 30000
+      }
+    },
+    {
+      "tick": 1,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "item": "timber",
+        "amount": 20000
+      }
+    },
+    {
+      "tick": 1,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "item": "scrap",
+        "amount": 20000
+      }
+    },
+    {
+      "tick": 1,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "item": "gear",
+        "amount": 8000
+      }
+    },
+    {
+      "tick": 1,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "item": "copper_coil",
+        "amount": 8000
+      }
+    },
+    {
+      "tick": 1,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "item": "coal",
+        "amount": 30000
+      }
+    },
+    {
+      "tick": 3,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "hearth",
+        "kind": "the_hearth",
         "cell": [
-          64,
-          64
+          126,
+          126
         ],
-        "instant": true,
-        "free": true
+        "free": true,
+        "instant": true
       }
     },
     {
-      "tick": 30,
+      "tick": 5,
       "cmd": {
-        "system": "citizens",
-        "op": "add",
-        "count": 20
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          131,
+          128
+        ],
+        "to": [
+          148,
+          128
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 6,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          125,
+          128
+        ],
+        "to": [
+          108,
+          128
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 7,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          128,
+          131
+        ],
+        "to": [
+          128,
+          148
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 8,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          128,
+          125
+        ],
+        "to": [
+          128,
+          108
+        ],
+        "free": true,
+        "instant": true
       }
     },
     {
@@ -67,943 +176,1123 @@
       "cmd": {
         "system": "build",
         "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          112,
+          112
+        ]
+      }
+    },
+    {
+      "tick": 900,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          117,
+          112
+        ]
+      }
+    },
+    {
+      "tick": 1600,
+      "cmd": {
+        "system": "build",
+        "op": "place",
         "kind": "coal_generator",
         "cell": [
-          58,
-          60
+          112,
+          117
         ]
       }
     },
     {
-      "tick": 260,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          60,
-          56
-        ],
-        "to": [
-          68,
-          56
-        ]
-      }
-    },
-    {
-      "tick": 320,
+      "tick": 2300,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "scrap_yard",
+        "kind": "housing_block",
         "cell": [
-          50,
-          50
+          144,
+          112
         ]
       }
     },
     {
-      "tick": 380,
+      "tick": 3000,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "stone_quarry",
+        "kind": "warmth_radiator",
         "cell": [
-          78,
-          50
+          149,
+          112
         ]
       }
     },
     {
-      "tick": 440,
+      "tick": 3700,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "workshop",
+        "kind": "coal_generator",
         "cell": [
-          62,
-          58
+          144,
+          117
         ]
       }
     },
     {
-      "tick": 460,
-      "cmd": {
-        "system": "production",
-        "op": "set_recipe",
-        "cell": [
-          62,
-          58
-        ],
-        "recipe": "iron_plate"
-      }
-    },
-    {
-      "tick": 520,
+      "tick": 4400,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "worker_hut",
+        "kind": "housing_block",
         "cell": [
-          70,
-          68
+          112,
+          144
         ]
       }
     },
     {
-      "tick": 560,
-      "cmd": {
-        "system": "citizens",
-        "op": "add",
-        "count": 6
-      }
-    },
-    {
-      "tick": 640,
+      "tick": 5100,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "warmth_radiator",
         "cell": [
-          52,
-          76
+          117,
+          144
         ]
       }
     },
     {
-      "tick": 700,
+      "tick": 5800,
       "cmd": {
-        "system": "research",
-        "op": "start",
-        "id": "heat_pipes"
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          112,
+          149
+        ]
       }
     },
     {
       "tick": 6500,
       "cmd": {
-        "system": "threat",
-        "op": "force_wave",
-        "strength": 1.0
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          144,
+          144
+        ]
       }
     },
     {
-      "tick": 8000,
+      "tick": 7200,
       "cmd": {
         "system": "build",
-        "op": "add_stock",
-        "items": {
-          "coal": 600
-        }
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          149,
+          144
+        ]
       }
     },
     {
-      "tick": 9800,
+      "tick": 7900,
       "cmd": {
         "system": "build",
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          59,
-          60
+          144,
+          149
         ]
       }
     },
     {
-      "tick": 9860,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          60,
-          58
-        ],
-        "to": [
-          68,
-          58
-        ]
-      }
-    },
-    {
-      "tick": 9920,
+      "tick": 8600,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "scrap_yard",
+        "kind": "housing_block",
         "cell": [
-          52,
-          50
+          120,
+          104
         ]
       }
     },
     {
-      "tick": 9980,
+      "tick": 9300,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "stone_quarry",
+        "kind": "warmth_radiator",
         "cell": [
-          76,
-          50
+          125,
+          104
         ]
       }
     },
     {
-      "tick": 10040,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "workshop",
-        "cell": [
-          62,
-          59
-        ]
-      }
-    },
-    {
-      "tick": 10060,
-      "cmd": {
-        "system": "production",
-        "op": "set_recipe",
-        "cell": [
-          62,
-          59
-        ],
-        "recipe": "gear"
-      }
-    },
-    {
-      "tick": 10120,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "worker_hut",
-        "cell": [
-          71,
-          68
-        ]
-      }
-    },
-    {
-      "tick": 10160,
-      "cmd": {
-        "system": "citizens",
-        "op": "add",
-        "count": 6
-      }
-    },
-    {
-      "tick": 10240,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          55,
-          76
-        ]
-      }
-    },
-    {
-      "tick": 10300,
-      "cmd": {
-        "system": "research",
-        "op": "start",
-        "id": "insulation"
-      }
-    },
-    {
-      "tick": 16100,
-      "cmd": {
-        "system": "threat",
-        "op": "force_wave",
-        "strength": 1.25
-      }
-    },
-    {
-      "tick": 17600,
-      "cmd": {
-        "system": "build",
-        "op": "add_stock",
-        "items": {
-          "coal": 600
-        }
-      }
-    },
-    {
-      "tick": 19400,
+      "tick": 10000,
       "cmd": {
         "system": "build",
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          60,
-          60
+          120,
+          109
         ]
       }
     },
     {
-      "tick": 19460,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          60,
-          60
-        ],
-        "to": [
-          68,
-          60
-        ]
-      }
-    },
-    {
-      "tick": 19520,
+      "tick": 10700,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "scrap_yard",
+        "kind": "housing_block",
         "cell": [
-          54,
-          50
+          136,
+          152
         ]
       }
     },
     {
-      "tick": 19580,
+      "tick": 11400,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "stone_quarry",
+        "kind": "warmth_radiator",
         "cell": [
-          74,
-          50
+          141,
+          152
         ]
       }
     },
     {
-      "tick": 19640,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "workshop",
-        "cell": [
-          62,
-          60
-        ]
-      }
-    },
-    {
-      "tick": 19660,
-      "cmd": {
-        "system": "production",
-        "op": "set_recipe",
-        "cell": [
-          62,
-          60
-        ],
-        "recipe": "iron_plate"
-      }
-    },
-    {
-      "tick": 19720,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "worker_hut",
-        "cell": [
-          72,
-          68
-        ]
-      }
-    },
-    {
-      "tick": 19760,
-      "cmd": {
-        "system": "citizens",
-        "op": "add",
-        "count": 6
-      }
-    },
-    {
-      "tick": 19840,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          58,
-          76
-        ]
-      }
-    },
-    {
-      "tick": 19900,
-      "cmd": {
-        "system": "research",
-        "op": "start",
-        "id": "ballistics"
-      }
-    },
-    {
-      "tick": 25700,
-      "cmd": {
-        "system": "threat",
-        "op": "force_wave",
-        "strength": 1.5
-      }
-    },
-    {
-      "tick": 27200,
-      "cmd": {
-        "system": "build",
-        "op": "add_stock",
-        "items": {
-          "coal": 600
-        }
-      }
-    },
-    {
-      "tick": 29000,
+      "tick": 12100,
       "cmd": {
         "system": "build",
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          61,
-          60
+          136,
+          157
         ]
       }
     },
     {
-      "tick": 29060,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          60,
-          62
-        ],
-        "to": [
-          68,
-          62
-        ]
-      }
-    },
-    {
-      "tick": 29120,
+      "tick": 12800,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "scrap_yard",
+        "kind": "housing_block",
         "cell": [
-          56,
-          50
+          104,
+          136
         ]
       }
     },
     {
-      "tick": 29180,
+      "tick": 13500,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "stone_quarry",
+        "kind": "warmth_radiator",
         "cell": [
-          72,
-          50
+          109,
+          136
         ]
       }
     },
     {
-      "tick": 29240,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "workshop",
-        "cell": [
-          62,
-          61
-        ]
-      }
-    },
-    {
-      "tick": 29260,
-      "cmd": {
-        "system": "production",
-        "op": "set_recipe",
-        "cell": [
-          62,
-          61
-        ],
-        "recipe": "gear"
-      }
-    },
-    {
-      "tick": 29320,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "worker_hut",
-        "cell": [
-          73,
-          68
-        ]
-      }
-    },
-    {
-      "tick": 29360,
-      "cmd": {
-        "system": "citizens",
-        "op": "add",
-        "count": 6
-      }
-    },
-    {
-      "tick": 29440,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          61,
-          76
-        ]
-      }
-    },
-    {
-      "tick": 29500,
-      "cmd": {
-        "system": "research",
-        "op": "start",
-        "id": "deep_mining"
-      }
-    },
-    {
-      "tick": 35300,
-      "cmd": {
-        "system": "threat",
-        "op": "force_wave",
-        "strength": 1.75
-      }
-    },
-    {
-      "tick": 36800,
-      "cmd": {
-        "system": "build",
-        "op": "add_stock",
-        "items": {
-          "coal": 600
-        }
-      }
-    },
-    {
-      "tick": 38600,
+      "tick": 14200,
       "cmd": {
         "system": "build",
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          62,
-          60
+          104,
+          141
         ]
       }
     },
     {
-      "tick": 38660,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          60,
-          64
-        ],
-        "to": [
-          68,
-          64
-        ]
-      }
-    },
-    {
-      "tick": 38720,
+      "tick": 14900,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "scrap_yard",
+        "kind": "housing_block",
         "cell": [
-          58,
-          50
+          152,
+          120
         ]
       }
     },
     {
-      "tick": 38780,
+      "tick": 15600,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "stone_quarry",
+        "kind": "warmth_radiator",
         "cell": [
-          70,
-          50
+          157,
+          120
         ]
       }
     },
     {
-      "tick": 38840,
+      "tick": 16300,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "workshop",
+        "kind": "coal_generator",
         "cell": [
-          62,
-          62
+          152,
+          125
         ]
       }
     },
     {
-      "tick": 38860,
-      "cmd": {
-        "system": "production",
-        "op": "set_recipe",
-        "cell": [
-          62,
-          62
-        ],
-        "recipe": "iron_plate"
-      }
-    },
-    {
-      "tick": 38920,
+      "tick": 17000,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "worker_hut",
+        "kind": "housing_block",
         "cell": [
-          70,
-          69
+          112,
+          118
         ]
       }
     },
     {
-      "tick": 38960,
-      "cmd": {
-        "system": "citizens",
-        "op": "add",
-        "count": 6
-      }
-    },
-    {
-      "tick": 39040,
+      "tick": 17700,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "warmth_radiator",
         "cell": [
-          64,
-          76
+          117,
+          118
         ]
       }
     },
     {
-      "tick": 39100,
+      "tick": 18400,
       "cmd": {
-        "system": "research",
-        "op": "start",
-        "id": "night_shift"
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          112,
+          123
+        ]
       }
     },
     {
-      "tick": 44900,
+      "tick": 19100,
       "cmd": {
-        "system": "threat",
-        "op": "force_wave",
-        "strength": 2.0
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          144,
+          118
+        ]
+      }
+    },
+    {
+      "tick": 19800,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          149,
+          118
+        ]
+      }
+    },
+    {
+      "tick": 20500,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          144,
+          123
+        ]
+      }
+    },
+    {
+      "tick": 21200,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          112,
+          150
+        ]
+      }
+    },
+    {
+      "tick": 21900,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          117,
+          150
+        ]
+      }
+    },
+    {
+      "tick": 22600,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          112,
+          155
+        ]
+      }
+    },
+    {
+      "tick": 23300,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          144,
+          150
+        ]
+      }
+    },
+    {
+      "tick": 24000,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          149,
+          150
+        ]
+      }
+    },
+    {
+      "tick": 24700,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          144,
+          155
+        ]
+      }
+    },
+    {
+      "tick": 25400,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          120,
+          110
+        ]
+      }
+    },
+    {
+      "tick": 26100,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          125,
+          110
+        ]
+      }
+    },
+    {
+      "tick": 26800,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          120,
+          115
+        ]
+      }
+    },
+    {
+      "tick": 27500,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          136,
+          158
+        ]
+      }
+    },
+    {
+      "tick": 28200,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          141,
+          158
+        ]
+      }
+    },
+    {
+      "tick": 28900,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          136,
+          163
+        ]
+      }
+    },
+    {
+      "tick": 29600,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          104,
+          142
+        ]
+      }
+    },
+    {
+      "tick": 30300,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          109,
+          142
+        ]
+      }
+    },
+    {
+      "tick": 31000,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          104,
+          147
+        ]
+      }
+    },
+    {
+      "tick": 31700,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          152,
+          126
+        ]
+      }
+    },
+    {
+      "tick": 32400,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          157,
+          126
+        ]
+      }
+    },
+    {
+      "tick": 33100,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          152,
+          131
+        ]
+      }
+    },
+    {
+      "tick": 33800,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          112,
+          124
+        ]
+      }
+    },
+    {
+      "tick": 34500,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          117,
+          124
+        ]
+      }
+    },
+    {
+      "tick": 35200,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          112,
+          129
+        ]
+      }
+    },
+    {
+      "tick": 35900,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          144,
+          124
+        ]
+      }
+    },
+    {
+      "tick": 36600,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          149,
+          124
+        ]
+      }
+    },
+    {
+      "tick": 37300,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          144,
+          129
+        ]
+      }
+    },
+    {
+      "tick": 38000,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          112,
+          156
+        ]
+      }
+    },
+    {
+      "tick": 38700,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          117,
+          156
+        ]
+      }
+    },
+    {
+      "tick": 39400,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          112,
+          161
+        ]
+      }
+    },
+    {
+      "tick": 40100,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          144,
+          156
+        ]
+      }
+    },
+    {
+      "tick": 40800,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          149,
+          156
+        ]
+      }
+    },
+    {
+      "tick": 41500,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          144,
+          161
+        ]
+      }
+    },
+    {
+      "tick": 42200,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          120,
+          116
+        ]
+      }
+    },
+    {
+      "tick": 42900,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          125,
+          116
+        ]
+      }
+    },
+    {
+      "tick": 43600,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          120,
+          121
+        ]
+      }
+    },
+    {
+      "tick": 44300,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          136,
+          164
+        ]
+      }
+    },
+    {
+      "tick": 45000,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          141,
+          164
+        ]
+      }
+    },
+    {
+      "tick": 45700,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          136,
+          169
+        ]
       }
     },
     {
       "tick": 46400,
       "cmd": {
         "system": "build",
-        "op": "add_stock",
-        "items": {
-          "coal": 600
-        }
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          104,
+          148
+        ]
       }
     },
     {
-      "tick": 48200,
+      "tick": 47100,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          109,
+          148
+        ]
+      }
+    },
+    {
+      "tick": 47800,
       "cmd": {
         "system": "build",
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          63,
-          60
+          104,
+          153
         ]
       }
     },
     {
-      "tick": 48260,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          60,
-          66
-        ],
-        "to": [
-          68,
-          66
-        ]
-      }
-    },
-    {
-      "tick": 48320,
+      "tick": 48500,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "scrap_yard",
+        "kind": "housing_block",
         "cell": [
-          60,
-          50
+          152,
+          132
         ]
       }
     },
     {
-      "tick": 48380,
+      "tick": 49200,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "stone_quarry",
+        "kind": "warmth_radiator",
         "cell": [
-          68,
-          50
+          157,
+          132
         ]
       }
     },
     {
-      "tick": 48440,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "workshop",
-        "cell": [
-          62,
-          63
-        ]
-      }
-    },
-    {
-      "tick": 48460,
-      "cmd": {
-        "system": "production",
-        "op": "set_recipe",
-        "cell": [
-          62,
-          63
-        ],
-        "recipe": "gear"
-      }
-    },
-    {
-      "tick": 48520,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "worker_hut",
-        "cell": [
-          71,
-          69
-        ]
-      }
-    },
-    {
-      "tick": 48560,
-      "cmd": {
-        "system": "citizens",
-        "op": "add",
-        "count": 6
-      }
-    },
-    {
-      "tick": 48640,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          67,
-          76
-        ]
-      }
-    },
-    {
-      "tick": 48700,
-      "cmd": {
-        "system": "research",
-        "op": "start",
-        "id": "steel"
-      }
-    },
-    {
-      "tick": 54500,
-      "cmd": {
-        "system": "threat",
-        "op": "force_wave",
-        "strength": 2.25
-      }
-    },
-    {
-      "tick": 56000,
-      "cmd": {
-        "system": "build",
-        "op": "add_stock",
-        "items": {
-          "coal": 600
-        }
-      }
-    },
-    {
-      "tick": 57800,
+      "tick": 49900,
       "cmd": {
         "system": "build",
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          64,
-          60
+          152,
+          137
         ]
       }
     },
     {
-      "tick": 57860,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          60,
-          68
-        ],
-        "to": [
-          68,
-          68
-        ]
-      }
-    },
-    {
-      "tick": 57920,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "scrap_yard",
-        "cell": [
-          62,
-          50
-        ]
-      }
-    },
-    {
-      "tick": 57980,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "stone_quarry",
-        "cell": [
-          66,
-          50
-        ]
-      }
-    },
-    {
-      "tick": 58040,
+      "tick": 50600,
       "cmd": {
         "system": "build",
         "op": "place",
         "kind": "workshop",
         "cell": [
-          62,
-          64
+          98,
+          158
         ]
       }
     },
     {
-      "tick": 58060,
-      "cmd": {
-        "system": "production",
-        "op": "set_recipe",
-        "cell": [
-          62,
-          64
-        ],
-        "recipe": "iron_plate"
-      }
-    },
-    {
-      "tick": 58120,
+      "tick": 51100,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "worker_hut",
+        "kind": "storage_yard",
         "cell": [
-          72,
-          69
+          98,
+          163
         ]
       }
     },
     {
-      "tick": 58160,
-      "cmd": {
-        "system": "citizens",
-        "op": "add",
-        "count": 6
-      }
-    },
-    {
-      "tick": 58240,
+      "tick": 51600,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "workshop",
         "cell": [
-          70,
-          76
+          110,
+          158
         ]
       }
     },
     {
-      "tick": 58300,
-      "cmd": {
-        "system": "research",
-        "op": "start",
-        "id": "coolant"
-      }
-    },
-    {
-      "tick": 64100,
-      "cmd": {
-        "system": "threat",
-        "op": "force_wave",
-        "strength": 2.5
-      }
-    },
-    {
-      "tick": 65600,
+      "tick": 52100,
       "cmd": {
         "system": "build",
-        "op": "add_stock",
-        "items": {
-          "coal": 600
-        }
+        "op": "place",
+        "kind": "storage_yard",
+        "cell": [
+          110,
+          163
+        ]
+      }
+    },
+    {
+      "tick": 52600,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "workshop",
+        "cell": [
+          122,
+          158
+        ]
+      }
+    },
+    {
+      "tick": 53100,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "storage_yard",
+        "cell": [
+          122,
+          163
+        ]
+      }
+    },
+    {
+      "tick": 53600,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "workshop",
+        "cell": [
+          134,
+          158
+        ]
+      }
+    },
+    {
+      "tick": 54100,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "storage_yard",
+        "cell": [
+          134,
+          163
+        ]
+      }
+    },
+    {
+      "tick": 54600,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "workshop",
+        "cell": [
+          146,
+          158
+        ]
+      }
+    },
+    {
+      "tick": 55100,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "storage_yard",
+        "cell": [
+          146,
+          163
+        ]
+      }
+    },
+    {
+      "tick": 55600,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "workshop",
+        "cell": [
+          158,
+          158
+        ]
+      }
+    },
+    {
+      "tick": 56100,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "storage_yard",
+        "cell": [
+          158,
+          163
+        ]
+      }
+    },
+    {
+      "tick": 56600,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "geothermal_tap",
+        "cell": [
+          152,
+          152
+        ]
+      }
+    },
+    {
+      "tick": 57500,
+      "cmd": {
+        "system": "climate",
+        "op": "skip_to_phase",
+        "phase": "night"
+      }
+    },
+    {
+      "tick": 57560,
+      "cmd": {
+        "system": "heat",
+        "op": "dump"
+      }
+    },
+    {
+      "tick": 57620,
+      "cmd": {
+        "system": "grid",
+        "op": "snowfall",
+        "rate": 0.5
+      }
+    },
+    {
+      "tick": 57680,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "heat_accumulator",
+        "cell": [
+          130,
+          149
+        ]
+      }
+    },
+    {
+      "tick": 58580,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "heat_booster_pump",
+        "cell": [
+          128,
+          141
+        ]
+      }
+    },
+    {
+      "tick": 59480,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "granary",
+        "cell": [
+          102,
+          98
+        ]
+      }
+    },
+    {
+      "tick": 60380,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "field_kitchen",
+        "cell": [
+          108,
+          98
+        ]
+      }
+    },
+    {
+      "tick": 61280,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "ore_drill",
+        "cell": [
+          156,
+          116
+        ]
+      }
+    },
+    {
+      "tick": 62180,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "smelter",
+        "cell": [
+          156,
+          122
+        ]
+      }
+    },
+    {
+      "tick": 63080,
+      "cmd": {
+        "system": "heat",
+        "op": "dump"
       }
     }
   ],
-  "shots": [],
-  "expects": {
-    "max_errors": 0,
-    "min_ticks_per_second": 400
-  }
+  "shots": []
 }

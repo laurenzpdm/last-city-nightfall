@@ -7,11 +7,15 @@ extends Node
 ##
 ##   godot --headless -- --harness --scenario=first_night --ticks=12000 --out=artifacts/a
 ##   godot          -- --harness --visual --scenario=first_night --out=artifacts/vis
+##
+## A visual run QUITS when the last shot is written, exactly like a headless one.
+## Pass --stay-open when a human wants to keep playing the scenario afterwards.
 
 signal finished()
 
 var active: bool = false
 var visual: bool = false
+var stay_open: bool = false
 
 var _scenario: Dictionary = {}
 var _out_dir: String = "res://artifacts/run"
@@ -32,6 +36,7 @@ func _ready() -> void:
 		return
 	active = true
 	visual = args.has("--visual")
+	stay_open = args.has("--stay-open")
 	Log.capture = true
 	Log.min_level = Log.Level.DEBUG
 	for a: String in args:
@@ -79,6 +84,7 @@ func _run() -> void:
 	SimClock.set_manual(true)
 	Sim.create_world(_seed)
 	Bus.alert_raised.connect(_on_alert)
+	var errors_at_start: int = Log.errors
 
 	var checkpoint_every: int = maxi(1, _ticks / 8)
 	for t: int in range(1, _ticks + 1):
@@ -93,11 +99,21 @@ func _run() -> void:
 			await _shoot(_shots_by_tick[t])
 
 	var wall_ms: int = Time.get_ticks_msec() - t0
+	# A logged error IS a run error. Counting only severity>=2 Bus alerts meant
+	# the gate could never fire: nothing in the build emits above severity 1.
+	var logged: int = Log.errors - errors_at_start
+	if logged > 0:
+		_errors.append("%d error(s) written to the log" % logged)
+	var allowed: int = int((_scenario.get("expects", {}) as Dictionary).get("max_errors", 0))
+	var failed: bool = _errors.size() > allowed
 	_write_outputs(wall_ms)
-	Log.info("harness", "done in %d ms (%d ticks)" % [wall_ms, _ticks])
+	Log.info("harness", "done in %d ms (%d ticks), %d error(s), allowed %d" % [
+		wall_ms, _ticks, _errors.size(), allowed])
 	finished.emit()
-	if not visual:
-		get_tree().quit(1 if _errors.size() > 0 else 0)
+	if visual and stay_open:
+		Log.info("harness", "--stay-open: the window is yours")
+		return
+	get_tree().quit(1 if failed else 0)
 
 
 func _sample() -> void:
@@ -113,6 +129,10 @@ func _sample() -> void:
 
 
 func _shoot(name: String) -> void:
+	# Two frames, not one: the first lets _process see the new sim state and
+	# stream in any terrain the camera just moved onto, the second draws it.
+	# Shooting after a single frame photographs the previous tick.
+	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	var img: Image = get_viewport().get_texture().get_image()
 	var path: String = "%s/shots/%s.png" % [_out_dir, name]

@@ -86,7 +86,11 @@ func _advance(tick: int) -> void:
 			if target != null and target.has_method("handle_command"):
 				target.call("handle_command", c)
 			else:
-				Log.warn("sim", "unhandled command: %s" % str(c.get("system", "?")))
+				# ERROR, not warn. A command addressed to a system this build does
+				# not have is a broken script, and a broken script that only warns
+				# is how a scenario ends up three-quarters no-op and still exit 0.
+				Log.error("sim", "command for absent system '%s' (op '%s') was dropped" % [
+					str(c.get("system", "?")), str(c.get("op", "?"))])
 	for s: SimSystem in systems:
 		if s.enabled:
 			s.step(tick)
