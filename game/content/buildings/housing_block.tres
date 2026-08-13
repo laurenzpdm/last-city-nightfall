@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_p0bgi"]
+
+[resource]
+resource_name = "Housing Block"
+script = ExtResource("1_p0bgi")
+id = &"housing_block"
+display_name = "Housing Block"
+description = "Bunks, a stove pipe and a door that shuts. Twelve people live here, and they will tell you exactly how cold it is."
+category = &"housing"
+sort_order = 110
+tags = Array[StringName]([&"housing", &"comfort"])
+size = Vector2i(4, 4)
+cost = Dictionary[StringName, int]({
+&"scrap": 30,
+&"stone": 60,
+&"timber": 80
+})
+build_time_ticks = 1600
+demolish_time_ticks = 200
+refund_ratio = 0.55
+build_priority = 70
+residents = 12
+heat_consumed = 9.0
+heat_buffer = 60.0
+heat_insulation = 0.6
+hp = 900.0
+tint = Color(0.58, 0.62, 0.72, 1)
+light_energy = 0.5

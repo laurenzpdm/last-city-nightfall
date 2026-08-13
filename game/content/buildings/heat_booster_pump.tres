@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" uid="uid://ckp05mjmd0ovf" path="res://game/sim/build/building_def.gd" id="1_pump"]
+
+[resource]
+resource_name = "Booster Pump"
+script = ExtResource("1_pump")
+id = &"heat_booster_pump"
+display_name = "Booster Pump"
+description = "Re-pressurises a line and burns a little heat doing it. Everything downstream of a pump arrives as if it came straight off the plant — the answer to a district that is simply too far away. Starve the pump and the boost dies with it."
+category = &"heat"
+tier = 2
+sort_order = 34
+tags = Array[StringName]([&"conduit", &"network", &"repeater"])
+blocks_movement = false
+walkable = true
+cost = Dictionary[StringName, int]({
+&"copper_coil": 6,
+&"gear": 8,
+&"iron_plate": 18
+})
+build_time_ticks = 300
+demolish_time_ticks = 60
+refund_ratio = 0.7
+build_priority = 80
+heat_consumed = 4.0
+heat_buffer = 20.0
+heat_radius = 2.5
+heat_insulation = 0.85
+is_heat_conduit = true
+conduit_throughput = 140.0
+hp = 260.0
+must_connect = Array[StringName]([&"heat"])
+connects_as = Array[StringName]([&"heat"])
+unlock_id = &"pressurised_mains"
+tint = Color(0.9, 0.64, 0.38, 1)
+light_energy = 0.5
+light_color = Color(1, 0.7, 0.4, 1)

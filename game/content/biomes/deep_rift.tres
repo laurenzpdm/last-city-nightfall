@@ -1,0 +1,82 @@
+[gd_resource type="Resource" script_class="BiomeProfile" format=3]
+
+[ext_resource type="Script" path="res://game/sim/grid/deposit_spec.gd" id="1_kxou1"]
+[ext_resource type="Script" path="res://game/sim/grid/biome_profile.gd" id="2_j8leh"]
+
+[sub_resource type="Resource" id="Resource_8ma2a"]
+script = ExtResource("1_kxou1")
+kind = 1
+clusters = 16
+min_distance = 15
+max_distance = 62
+size_min = 10
+size_max = 24
+base_amount = 165
+spacing = 10
+
+[sub_resource type="Resource" id="Resource_wj1to"]
+script = ExtResource("1_kxou1")
+clusters = 13
+max_distance = 100
+size_min = 14
+spacing = 13
+
+[sub_resource type="Resource" id="Resource_kmpo8"]
+script = ExtResource("1_kxou1")
+kind = 3
+clusters = 12
+min_distance = 30
+max_distance = 104
+size_max = 32
+base_amount = 285
+
+[sub_resource type="Resource" id="Resource_dvh7t"]
+script = ExtResource("1_kxou1")
+kind = 4
+clusters = 8
+min_distance = 46
+max_distance = 106
+size_min = 10
+size_max = 24
+base_amount = 250
+spacing = 16
+
+[sub_resource type="Resource" id="Resource_sarmj"]
+script = ExtResource("1_kxou1")
+kind = 5
+clusters = 5
+min_distance = 58
+max_distance = 108
+size_min = 9
+size_max = 20
+base_amount = 210
+spacing = 18
+
+[resource]
+script = ExtResource("2_j8leh")
+id = &"deep_rift"
+display_name = "Deep Rift"
+description = "The ground here gave out long before the cold did. Chasms, ridges, and three roads that never should have been built."
+width = 224
+height = 224
+rim_height = 1.25
+terrain_roughness = 0.52
+rock_elevation = 178
+ridge_frequency = 0.02
+ridge_threshold = 0.56
+ridge_rings = 3.5
+ridge_ring_strength = 0.2
+chasm_frequency = 0.026
+chasm_threshold = 0.7
+chasm_min_distance = 0.18
+core_clear_radius = 19
+outer_vents = 2
+lane_count = 3
+lane_wobble = 0.42
+chokepoint_max_width = 7
+convoys = 6
+ruin_clusters = 11
+ruin_max_distance = 46
+deposits = Array[ExtResource("1_kxou1")]([SubResource("Resource_8ma2a"), SubResource("Resource_wj1to"), SubResource("Resource_kmpo8"), SubResource("Resource_dvh7t"), SubResource("Resource_sarmj")])
+richness_gain = 5.0
+richness_exponent = 1.55

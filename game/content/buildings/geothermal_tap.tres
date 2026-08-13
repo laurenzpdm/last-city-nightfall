@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_6heq2"]
+
+[resource]
+resource_name = "Geothermal Tap"
+script = ExtResource("1_6heq2")
+id = &"geothermal_tap"
+display_name = "Geothermal Tap"
+description = "Drives a column into a vent and takes the heat straight from the ground. No fuel, no smoke, and it only works where the earth is already angry."
+category = &"power"
+tier = 2
+sort_order = 20
+tags = Array[StringName]([&"heat_source", &"powered", &"clean"])
+size = Vector2i(3, 3)
+cost = Dictionary[StringName, int]({
+&"iron_plate": 45,
+&"pipe_segment": 10,
+&"stone": 60
+})
+build_time_ticks = 1800
+demolish_time_ticks = 240
+build_priority = 70
+workers_required = 2
+heat_produced = 55.0
+heat_buffer = 200.0
+heat_radius = 4.0
+hp = 1100.0
+armor = 2.0
+needs_ore = &"vent"
+needs_flat = true
+connects_as = Array[StringName]([&"heat"])
+unlock_id = &"geothermal_tapping"
+tint = Color(0.94, 0.68, 0.36, 1)
+light_energy = 0.8
+light_color = Color(0.98, 0.72, 0.38, 1)

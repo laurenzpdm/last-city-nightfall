@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_q78t0"]
+
+[resource]
+resource_name = "Turret Mount"
+script = ExtResource("1_q78t0")
+id = &"turret_mount"
+display_name = "Turret Mount"
+description = "A burner cannon on a swivel. It draws from the heat grid to fire, so every shot is warmth taken from someone's home."
+category = &"defense"
+sort_order = 160
+tags = Array[StringName]([&"turret", &"defense", &"powered"])
+size = Vector2i(2, 2)
+rotatable = true
+cost = Dictionary[StringName, int]({
+&"gear": 10,
+&"iron_plate": 30,
+&"scrap": 20
+})
+build_time_ticks = 900
+demolish_time_ticks = 120
+refund_ratio = 0.6
+build_priority = 90
+workers_required = 1
+heat_consumed = 6.0
+heat_buffer = 40.0
+hp = 450.0
+armor = 2.0
+weapon_id = &"burner_cannon"
+vision_radius = 9.0
+storage_capacity = 60
+storage_filter = Array[StringName]([&"ammo_shell"])
+tint = Color(0.8, 0.42, 0.36, 1)
+light_energy = 0.4

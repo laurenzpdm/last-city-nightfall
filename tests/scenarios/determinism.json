@@ -1,0 +1,288 @@
+{
+  "name": "determinism",
+  "description": "The tripwire. Pokes every system that owns an Rng stream at irregular ticks, then tools/determinism.sh runs it twice in two processes and demands byte-identical state. A divergence here is a stop-the-line bug, not a balance note.",
+  "tags": [
+    "determinism",
+    "gate"
+  ],
+  "seed": 1337,
+  "ticks": 4000,
+  "sample_every": 10,
+  "script": [
+    {
+      "tick": 3,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "items": {
+          "scrap": 5000,
+          "stone": 5000,
+          "coal": 5000,
+          "timber": 5000
+        }
+      }
+    },
+    {
+      "tick": 5,
+      "cmd": {
+        "system": "grid",
+        "op": "reveal",
+        "from": [
+          48,
+          48
+        ],
+        "to": [
+          80,
+          80
+        ]
+      }
+    },
+    {
+      "tick": 7,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "hearth",
+        "cell": [
+          64,
+          64
+        ],
+        "instant": true,
+        "free": true
+      }
+    },
+    {
+      "tick": 11,
+      "cmd": {
+        "system": "citizens",
+        "op": "add",
+        "count": 9
+      }
+    },
+    {
+      "tick": 13,
+      "cmd": {
+        "system": "climate",
+        "op": "force_storm",
+        "intensity": 0.85,
+        "duration_ticks": 900,
+        "title": "Test Frost"
+      }
+    },
+    {
+      "tick": 17,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          60,
+          64
+        ],
+        "to": [
+          68,
+          64
+        ]
+      }
+    },
+    {
+      "tick": 23,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          59,
+          62
+        ]
+      }
+    },
+    {
+      "tick": 29,
+      "cmd": {
+        "system": "research",
+        "op": "start",
+        "id": "heat_pipes"
+      }
+    },
+    {
+      "tick": 31,
+      "cmd": {
+        "system": "threat",
+        "op": "spawn",
+        "kind": "crawler",
+        "count": 40,
+        "at": [
+          52,
+          52
+        ]
+      }
+    },
+    {
+      "tick": 37,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          62,
+          60
+        ]
+      }
+    },
+    {
+      "tick": 41,
+      "cmd": {
+        "system": "society",
+        "op": "enact_law",
+        "id": "night_watch"
+      }
+    },
+    {
+      "tick": 43,
+      "cmd": {
+        "system": "build",
+        "op": "place_area",
+        "kind": "floor",
+        "from": [
+          58,
+          58
+        ],
+        "to": [
+          70,
+          70
+        ]
+      }
+    },
+    {
+      "tick": 47,
+      "cmd": {
+        "system": "logistics",
+        "op": "set_filter",
+        "cell": [
+          60,
+          64
+        ],
+        "item": "coal"
+      }
+    },
+    {
+      "tick": 53,
+      "cmd": {
+        "system": "build",
+        "op": "rotate",
+        "cell": [
+          59,
+          62
+        ],
+        "rot": 1
+      }
+    },
+    {
+      "tick": 59,
+      "cmd": {
+        "system": "build",
+        "op": "undo"
+      }
+    },
+    {
+      "tick": 61,
+      "cmd": {
+        "system": "build",
+        "op": "redo"
+      }
+    },
+    {
+      "tick": 400,
+      "cmd": {
+        "system": "climate",
+        "op": "skip_to_phase",
+        "phase": "dusk"
+      }
+    },
+    {
+      "tick": 700,
+      "cmd": {
+        "system": "threat",
+        "op": "force_wave",
+        "strength": 1.7
+      }
+    },
+    {
+      "tick": 1100,
+      "cmd": {
+        "system": "build",
+        "op": "remove",
+        "cell": [
+          62,
+          60
+        ]
+      }
+    },
+    {
+      "tick": 1300,
+      "cmd": {
+        "system": "climate",
+        "op": "skip_to_phase",
+        "phase": "night"
+      }
+    },
+    {
+      "tick": 1700,
+      "cmd": {
+        "system": "threat",
+        "op": "force_wave",
+        "strength": 2.2
+      }
+    },
+    {
+      "tick": 2300,
+      "cmd": {
+        "system": "climate",
+        "op": "set_day",
+        "day": 3
+      }
+    },
+    {
+      "tick": 2900,
+      "cmd": {
+        "system": "build",
+        "op": "capture_blueprint",
+        "from": [
+          58,
+          58
+        ],
+        "to": [
+          66,
+          66
+        ],
+        "name": "core"
+      }
+    },
+    {
+      "tick": 3100,
+      "cmd": {
+        "system": "build",
+        "op": "place_blueprint",
+        "blueprint": "core",
+        "cell": [
+          74,
+          74
+        ]
+      }
+    },
+    {
+      "tick": 3500,
+      "cmd": {
+        "system": "threat",
+        "op": "force_wave",
+        "strength": 2.8
+      }
+    }
+  ],
+  "shots": [],
+  "expects": {
+    "max_errors": 0,
+    "min_ticks_per_second": 300
+  }
+}

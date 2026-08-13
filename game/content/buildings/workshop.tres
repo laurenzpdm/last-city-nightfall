@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_phhvj"]
+
+[resource]
+resource_name = "Workshop"
+script = ExtResource("1_phhvj")
+id = &"workshop"
+display_name = "Workshop"
+description = "Benches, presses and a foreman who never sleeps. Turns plate into the parts everything else is made of."
+category = &"production"
+sort_order = 90
+tags = Array[StringName]([&"crafter", &"machine"])
+size = Vector2i(4, 3)
+cost = Dictionary[StringName, int]({
+&"iron_plate": 35,
+&"scrap": 40,
+&"timber": 60
+})
+build_time_ticks = 1800
+demolish_time_ticks = 200
+build_priority = 55
+workers_required = 4
+staff_capacity = 8
+heat_consumed = 10.0
+hp = 750.0
+recipes = Array[StringName]([&"gear", &"pipe_segment", &"circuit", &"ammo_shell", &"insulation"])
+storage_capacity = 240
+tint = Color(0.62, 0.66, 0.74, 1)
+light_energy = 0.7

@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_chcgq"]
+
+[resource]
+resource_name = "Wall"
+script = ExtResource("1_chcgq")
+id = &"wall"
+display_name = "Wall"
+description = "Stacked stone and frozen mortar. It does not shoot back; it only decides where the shooting happens."
+category = &"defense"
+sort_order = 150
+tags = Array[StringName]([&"wall", &"defense"])
+drag_mode = 1
+cost = Dictionary[StringName, int]({
+&"stone": 6
+})
+build_time_ticks = 60
+demolish_time_ticks = 20
+build_priority = 85
+hp = 500.0
+armor = 4.0
+tint = Color(0.55, 0.58, 0.62, 1)

@@ -1,1 +1,3 @@
 {"t": "2026-08-13T12:55:49.002316", "level": "info", "msg": "Foundation green: Godot 4.7.1, deterministic 20Hz sim, harness produces state.json + metrics.csv + real screenshots"}
+{"t": "2026-08-13T12:58:41.097188", "level": "info", "msg": "Phase A launched: 7 agents building grid, climate, heat, build+blueprints, render, camera, test rig"}
+{"t":"2026-08-13T11:33:13","level":"info","msg":"P09 climate: 20Hz day arc (dawn->deep night, 9600 ticks exact), lagged temperature model, seeded weather planned a day ahead, and a fixed Great Frost calendar that telegraphs each storm four times before it drops ambient ~12C and heat loss to 2.5x — 129 assertions green, replay byte-identical"}

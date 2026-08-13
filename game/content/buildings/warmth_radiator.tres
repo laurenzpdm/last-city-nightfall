@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_j1rhs"]
+
+[resource]
+resource_name = "Warmth Radiator"
+script = ExtResource("1_j1rhs")
+id = &"warmth_radiator"
+display_name = "Warmth Radiator"
+description = "Sheds the grid's heat into the streets around it. Citizens only live where these reach."
+category = &"heat"
+sort_order = 50
+tags = Array[StringName]([&"radiator", &"comfort"])
+size = Vector2i(2, 2)
+cost = Dictionary[StringName, int]({
+&"copper_coil": 4,
+&"iron_plate": 12,
+&"scrap": 20
+})
+build_time_ticks = 400
+demolish_time_ticks = 60
+refund_ratio = 0.7
+build_priority = 75
+heat_consumed = 12.0
+heat_buffer = 40.0
+heat_radius = 6.5
+hp = 350.0
+must_connect = Array[StringName]([&"heat"])
+tint = Color(0.95, 0.6, 0.3, 1)
+light_energy = 0.9
+light_color = Color(1, 0.68, 0.36, 1)

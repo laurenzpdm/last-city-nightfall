@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_phkln"]
+
+[resource]
+resource_name = "Rubble Road"
+script = ExtResource("1_phkln")
+id = &"rubble_road"
+display_name = "Rubble Road"
+description = "Crushed masonry rolled flat. Nothing moves quickly through a metre of snow, and this is the cheapest answer to that."
+sort_order = 140
+tags = Array[StringName]([&"road", &"surface"])
+blocks_movement = false
+walkable = true
+drag_mode = 2
+cost = Dictionary[StringName, int]({
+&"stone": 2
+})
+build_time_ticks = 15
+demolish_time_ticks = 4
+build_priority = 30
+hp = 120.0
+tint = Color(0.48, 0.5, 0.54, 1)

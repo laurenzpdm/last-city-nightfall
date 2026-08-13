@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_dy8hi"]
+
+[resource]
+resource_name = "Heat Pipe"
+script = ExtResource("1_dy8hi")
+id = &"heat_pipe"
+display_name = "Heat Pipe"
+description = "Insulated conduit. Heat only reaches what you connect, so the shape of your pipe run is the shape of your city."
+category = &"heat"
+sort_order = 30
+tags = Array[StringName]([&"conduit", &"network"])
+blocks_movement = false
+walkable = true
+drag_mode = 1
+cost = Dictionary[StringName, int]({
+&"iron_plate": 2
+})
+build_time_ticks = 20
+demolish_time_ticks = 6
+refund_ratio = 0.8
+build_priority = 80
+heat_buffer = 6.0
+heat_insulation = 0.8
+is_heat_conduit = true
+conduit_throughput = 60.0
+hp = 120.0
+connects_as = Array[StringName]([&"heat"])
+tint = Color(0.78, 0.55, 0.35, 1)

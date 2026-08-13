@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_ytqf8"]
+
+[resource]
+resource_name = "Storage Yard"
+script = ExtResource("1_ytqf8")
+id = &"storage_yard"
+display_name = "Storage Yard"
+description = "Racks, tarpaulins and a gate. Everything the city is not using yet ends up here."
+category = &"storage"
+sort_order = 130
+tags = Array[StringName]([&"storage", &"logistics"])
+size = Vector2i(3, 3)
+cost = Dictionary[StringName, int]({
+&"scrap": 20,
+&"timber": 30
+})
+build_time_ticks = 700
+demolish_time_ticks = 90
+refund_ratio = 0.7
+build_priority = 40
+hp = 500.0
+storage_capacity = 1200
+tint = Color(0.6, 0.6, 0.62, 1)

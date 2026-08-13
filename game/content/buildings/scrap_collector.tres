@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_f1g1s"]
+
+[resource]
+resource_name = "Scrap Collector"
+script = ExtResource("1_f1g1s")
+id = &"scrap_collector"
+display_name = "Scrap Collector"
+description = "A crew shed and a winch. Pulls usable metal out of the frozen rubble field around the city."
+category = &"extraction"
+sort_order = 60
+tags = Array[StringName]([&"extractor", &"salvage"])
+size = Vector2i(2, 2)
+cost = Dictionary[StringName, int]({
+&"iron_plate": 8,
+&"timber": 25
+})
+build_time_ticks = 500
+demolish_time_ticks = 60
+build_priority = 65
+workers_required = 2
+staff_capacity = 4
+heat_consumed = 2.0
+hp = 300.0
+extracts = &"scrap"
+extract_rate = 0.55
+storage_capacity = 100
+storage_filter = Array[StringName]([&"scrap"])
+tint = Color(0.66, 0.64, 0.6, 1)

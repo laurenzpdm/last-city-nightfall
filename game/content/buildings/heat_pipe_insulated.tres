@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" uid="uid://ckp05mjmd0ovf" path="res://game/sim/build/building_def.gd" id="1_ipipe"]
+
+[resource]
+resource_name = "Lagged Pipe"
+script = ExtResource("1_ipipe")
+id = &"heat_pipe_insulated"
+display_name = "Lagged Pipe"
+description = "The same bore, wrapped in slag wool. Loses almost nothing over distance, which is what makes an outlying district worth connecting at all."
+category = &"heat"
+tier = 2
+sort_order = 31
+tags = Array[StringName]([&"conduit", &"network"])
+blocks_movement = false
+walkable = true
+drag_mode = 1
+cost = Dictionary[StringName, int]({
+&"iron_plate": 2,
+&"insulation_wool": 1
+})
+build_time_ticks = 30
+demolish_time_ticks = 8
+refund_ratio = 0.8
+build_priority = 80
+heat_buffer = 6.0
+heat_insulation = 0.97
+is_heat_conduit = true
+conduit_throughput = 60.0
+hp = 130.0
+connects_as = Array[StringName]([&"heat"])
+unlock_id = &"pipe_lagging"
+tint = Color(0.7, 0.66, 0.58, 1)

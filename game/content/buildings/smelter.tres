@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_3cytv"]
+
+[resource]
+resource_name = "Smelter"
+script = ExtResource("1_3cytv")
+id = &"smelter"
+display_name = "Smelter"
+description = "Ore in, plate out, and a great deal of heat lost to the sky. The whole metal economy hangs off this building."
+category = &"production"
+sort_order = 80
+tags = Array[StringName]([&"crafter", &"machine", &"hot"])
+size = Vector2i(3, 3)
+cost = Dictionary[StringName, int]({
+&"iron_plate": 20,
+&"scrap": 30,
+&"stone": 80
+})
+build_time_ticks = 1400
+demolish_time_ticks = 180
+build_priority = 60
+workers_required = 3
+staff_capacity = 6
+heat_produced = 4.0
+heat_consumed = 14.0
+heat_radius = 2.5
+fuel_items = Array[StringName]([&"coal"])
+fuel_burn_rate = 0.2
+hp = 800.0
+recipes = Array[StringName]([&"iron_plate", &"steel_plate", &"copper_coil"])
+storage_capacity = 200
+tint = Color(0.88, 0.5, 0.28, 1)
+light_energy = 1.4

@@ -1,0 +1,82 @@
+[gd_resource type="Resource" script_class="BiomeProfile" format=3]
+
+[ext_resource type="Script" path="res://game/sim/grid/deposit_spec.gd" id="1_h5s3f"]
+[ext_resource type="Script" path="res://game/sim/grid/biome_profile.gd" id="2_dk8ls"]
+
+[sub_resource type="Resource" id="Resource_6fdik"]
+script = ExtResource("1_h5s3f")
+kind = 1
+clusters = 12
+min_distance = 20
+max_distance = 80
+size_min = 10
+size_max = 20
+base_amount = 140
+
+[sub_resource type="Resource" id="Resource_skgmn"]
+script = ExtResource("1_h5s3f")
+clusters = 18
+min_distance = 30
+max_distance = 150
+size_min = 18
+size_max = 46
+base_amount = 360
+spacing = 18
+
+[sub_resource type="Resource" id="Resource_xjinq"]
+script = ExtResource("1_h5s3f")
+kind = 3
+clusters = 16
+min_distance = 40
+max_distance = 152
+size_min = 16
+size_max = 42
+spacing = 18
+
+[sub_resource type="Resource" id="Resource_jyen2"]
+script = ExtResource("1_h5s3f")
+kind = 4
+clusters = 11
+min_distance = 62
+max_distance = 154
+size_max = 30
+base_amount = 280
+spacing = 20
+
+[sub_resource type="Resource" id="Resource_pcxu2"]
+script = ExtResource("1_h5s3f")
+kind = 5
+clusters = 8
+min_distance = 78
+max_distance = 156
+size_min = 10
+size_max = 24
+base_amount = 240
+spacing = 22
+
+[resource]
+script = ExtResource("2_dk8ls")
+id = &"shattered_flats"
+display_name = "Shattered Flats"
+description = "Glacier plain, flat to the horizon. Nothing out here will stop anything for you."
+width = 320
+height = 320
+rim_height = 0.72
+terrain_roughness = 0.3
+rock_elevation = 205
+ridge_threshold = 0.8
+ridge_rings = 1.5
+ridge_ring_strength = 0.07
+chasm_threshold = 0.9
+lake_threshold = -0.18
+drift_threshold = 0.24
+snow_base = 62
+core_clear_radius = 24
+outer_vents = 4
+lane_count = 7
+chokepoint_max_width = 13
+convoys = 11
+ruin_clusters = 6
+deposits = Array[ExtResource("1_h5s3f")]([SubResource("Resource_6fdik"), SubResource("Resource_skgmn"), SubResource("Resource_xjinq"), SubResource("Resource_jyen2"), SubResource("Resource_pcxu2")])
+richness_gain = 8.5
+richness_exponent = 1.85

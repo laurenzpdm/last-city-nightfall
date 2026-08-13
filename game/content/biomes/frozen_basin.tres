@@ -1,0 +1,63 @@
+[gd_resource type="Resource" script_class="BiomeProfile" format=3]
+
+[ext_resource type="Script" path="res://game/sim/grid/deposit_spec.gd" id="1_ajy07"]
+[ext_resource type="Script" path="res://game/sim/grid/biome_profile.gd" id="2_kkrjd"]
+
+[sub_resource type="Resource" id="Resource_hixmr"]
+script = ExtResource("1_ajy07")
+kind = 1
+clusters = 14
+min_distance = 18
+max_distance = 74
+size_min = 10
+size_max = 22
+base_amount = 150
+spacing = 12
+
+[sub_resource type="Resource" id="Resource_kcatj"]
+script = ExtResource("1_ajy07")
+clusters = 16
+min_distance = 26
+max_distance = 118
+size_min = 16
+size_max = 40
+base_amount = 340
+spacing = 15
+
+[sub_resource type="Resource" id="Resource_7gkru"]
+script = ExtResource("1_ajy07")
+kind = 3
+clusters = 14
+min_distance = 34
+max_distance = 122
+size_min = 14
+size_max = 36
+base_amount = 300
+spacing = 16
+
+[sub_resource type="Resource" id="Resource_2cyu4"]
+script = ExtResource("1_ajy07")
+kind = 4
+clusters = 9
+min_distance = 52
+max_distance = 124
+size_max = 28
+base_amount = 260
+spacing = 18
+
+[sub_resource type="Resource" id="Resource_f0dvj"]
+script = ExtResource("1_ajy07")
+kind = 5
+clusters = 6
+min_distance = 66
+max_distance = 126
+size_min = 10
+size_max = 22
+base_amount = 220
+spacing = 20
+
+[resource]
+script = ExtResource("2_kkrjd")
+description = "A dead caldera on the northern plain. The vents at its heart are the last warm ground for two hundred miles, and the ore that could save the city is all on the wrong side of the ridges."
+rock_elevation = 196
+deposits = Array[ExtResource("1_ajy07")]([SubResource("Resource_hixmr"), SubResource("Resource_kcatj"), SubResource("Resource_7gkru"), SubResource("Resource_2cyu4"), SubResource("Resource_f0dvj")])

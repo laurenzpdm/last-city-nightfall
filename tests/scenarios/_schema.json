@@ -1,0 +1,143 @@
+{
+  "$about": [
+    "Machine-readable contract for tests/scenarios/*.json, enforced by",
+    "tests/p00/test_scenarios.gd. The consumer is game/core/harness.gd, which",
+    "reads name, seed, ticks, sample_every, script and shots and ignores the",
+    "rest. The rest is here so tools/ and critics have something to read.",
+    "",
+    "A scenario is a script of Sim.submit_command payloads on a timeline. It is",
+    "the only way a headless run makes anything happen, so the command vocabulary",
+    "below is a contract between [P00] and the part that owns each system.",
+    "Files starting with an underscore are not scenarios."
+  ],
+
+  "scenario": {
+    "required": {
+      "name": "string, must equal the file basename",
+      "seed": "int, the world seed handed to Sim.create_world",
+      "ticks": "int >= 1, simulation ticks to run at 20 Hz"
+    },
+    "optional": {
+      "description": "string, why this scenario exists and what to read off it",
+      "tags": "array of string: fast | gate | reference | balance | perf | determinism | visual | long",
+      "sample_every": "int >= 1, ticks between metrics.csv rows (default 20)",
+      "script": "array of {tick, cmd}",
+      "shots": "array of {tick, name}, only used by tools/run_visual.sh",
+      "expects": "dict of thresholds tools/ assert against"
+    }
+  },
+
+  "script_entry": {
+    "tick": "int, 1 <= tick <= scenario.ticks. Tick 0 never fires: the harness loop starts at 1.",
+    "cmd": "dict, the Sim.submit_command payload"
+  },
+
+  "command": {
+    "required": {
+      "system": "string, must be one of scenario_systems below; Sim routes on it",
+      "op": "string, the verb the owning system switches on"
+    },
+    "note": "Everything else is op-specific. Vector2i cannot be expressed in JSON, so cells travel as [x, y] and are converted by the receiving system.",
+    "cell_encoding": "[x, y]",
+    "region_encoding": "from: [x, y], to: [x, y] — inclusive corners, any order"
+  },
+
+  "shot": {
+    "tick": "int, 1 <= tick <= scenario.ticks",
+    "name": "string, [a-z0-9_] only; becomes <out>/shots/<name>.png"
+  },
+
+  "expects": {
+    "max_errors": "int, allowed entries in state.json.errors (Bus.alert_raised severity >= 2)",
+    "min_ticks_per_second": "float, hard floor for tools/perf.sh; below this the build fails",
+    "target_ticks_per_second": "float, soft target; below this tools/perf.sh warns"
+  },
+
+  "scenario_systems": [
+    "climate", "grid", "heat", "logistics", "production", "citizens",
+    "society", "threat", "combat", "research", "build"
+  ],
+
+  "command_vocabulary": {
+    "$note": [
+      "Verified against the shipped systems where they exist, proposed where the",
+      "part has not landed yet. An unknown system is a Log.warn from Sim and an",
+      "unknown op is a refusal from the system, so a scenario written ahead of a",
+      "part degrades to a no-op instead of breaking the run."
+    ],
+    "build": {
+      "$status": "verified against game/sim/build/build_system.gd",
+      "place": {"kind": "str", "cell": "[x,y]", "rot": "int 0-3", "free": "bool", "instant": "bool", "ghost": "bool", "meta": "dict"},
+      "place_line": {"kind": "str", "from": "[x,y]", "to": "[x,y]", "rot": "int", "free": "bool", "instant": "bool"},
+      "place_area": {"kind": "str", "from": "[x,y]", "to": "[x,y]", "free": "bool", "instant": "bool"},
+      "remove": {"cell": "[x,y]", "id": "int", "instant": "bool"},
+      "remove_area": {"from": "[x,y]", "to": "[x,y]", "kinds": "array of str", "instant": "bool"},
+      "cancel": {"cell": "[x,y]"},
+      "rotate": {"cell": "[x,y]", "rot": "int"},
+      "set_enabled": {"cell": "[x,y]", "enabled": "bool"},
+      "set_priority": {"cell": "[x,y]", "priority": "int"},
+      "repair": {"cell": "[x,y]", "all": "bool"},
+      "capture_blueprint": {"from": "[x,y]", "to": "[x,y]", "name": "str"},
+      "place_blueprint": {"blueprint": "str", "cell": "[x,y]", "rot": "int"},
+      "delete_blueprint": {"blueprint": "str"},
+      "undo": {},
+      "redo": {},
+      "add_stock": {"items": "dict item_id -> int"},
+      "set_stock": {"items": "dict item_id -> int"},
+      "grant_unlock": {"unlock": "str"}
+    },
+    "climate": {
+      "$status": "verified against game/sim/climate/climate_system.gd",
+      "skip_to_phase": {"phase": "dawn|morning|afternoon|dusk|night|deep_night"},
+      "set_day": {"day": "int >= 1"},
+      "force_storm": {"intensity": "float 0-1", "duration_ticks": "int", "title": "str"}
+    },
+    "grid": {
+      "$status": "proposed for [P01]",
+      "reveal": {"from": "[x,y]", "to": "[x,y]"}
+    },
+    "heat": {
+      "$status": "proposed for [P02]",
+      "set_output": {"cell": "[x,y]", "value": "float 0-1"}
+    },
+    "logistics": {
+      "$status": "proposed for [P03]",
+      "set_filter": {"cell": "[x,y]", "item": "str"}
+    },
+    "production": {
+      "$status": "proposed for [P04]",
+      "set_recipe": {"cell": "[x,y]", "recipe": "str"}
+    },
+    "citizens": {
+      "$status": "proposed for [P05]",
+      "add": {"count": "int"},
+      "set_shift": {"shift": "day|night"}
+    },
+    "society": {
+      "$status": "proposed for [P06]",
+      "enact_law": {"id": "str"}
+    },
+    "threat": {
+      "$status": "proposed for [P08]",
+      "force_wave": {"strength": "float"},
+      "spawn": {"kind": "str", "count": "int", "at": "[x,y]"},
+      "set_pressure": {"value": "float 0-1"}
+    },
+    "research": {
+      "$status": "proposed for [P10]",
+      "start": {"id": "str"},
+      "complete": {"id": "str"}
+    }
+  },
+
+  "content_hint": {
+    "$note": "Building kinds the scenarios reference. game/content/buildings/ is [P11]'s to fill; tests/p00/test_scenarios.gd fails if none of these ever resolve once buildings exist.",
+    "buildings": [
+      "hearth", "coal_generator", "heat_pipe", "radiator", "worker_hut",
+      "scrap_yard", "stone_quarry", "workshop", "belt", "storage_yard",
+      "wall", "watchtower", "flame_turret", "floor"
+    ]
+  },
+
+  "required_scenarios": ["smoke", "first_night", "economy_60min", "stress_1000", "determinism"]
+}

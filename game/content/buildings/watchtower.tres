@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_2otqm"]
+
+[resource]
+resource_name = "Watchtower"
+script = ExtResource("1_2otqm")
+id = &"watchtower"
+display_name = "Watchtower"
+description = "Timber frame, a brazier and someone with good eyes. You cannot shoot what you cannot see coming."
+category = &"defense"
+sort_order = 170
+tags = Array[StringName]([&"vision", &"defense"])
+size = Vector2i(2, 2)
+cost = Dictionary[StringName, int]({
+&"iron_plate": 10,
+&"timber": 30
+})
+build_time_ticks = 600
+demolish_time_ticks = 60
+refund_ratio = 0.7
+build_priority = 80
+workers_required = 1
+heat_consumed = 1.0
+hp = 300.0
+vision_radius = 16.0
+tint = Color(0.7, 0.6, 0.45, 1)
+light_energy = 0.5

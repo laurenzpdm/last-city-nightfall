@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_4sq27"]
+
+[resource]
+resource_name = "Coal Generator"
+script = ExtResource("1_4sq27")
+id = &"coal_generator"
+display_name = "Coal Generator"
+description = "A riveted furnace that turns coal into heat and soot. Cheap, loud, and the reason the first night is survivable."
+category = &"power"
+sort_order = 10
+tags = Array[StringName]([&"heat_source", &"powered", &"burner"])
+size = Vector2i(3, 2)
+rotatable = true
+cost = Dictionary[StringName, int]({
+&"iron_plate": 20,
+&"scrap": 45
+})
+build_time_ticks = 900
+demolish_time_ticks = 120
+refund_ratio = 0.6
+build_priority = 60
+workers_required = 1
+heat_produced = 30.0
+heat_buffer = 120.0
+heat_radius = 3.0
+fuel_items = Array[StringName]([&"coal"])
+fuel_burn_rate = 0.35
+hp = 600.0
+connects_as = Array[StringName]([&"heat"])
+tint = Color(0.86, 0.47, 0.24, 1)
+light_energy = 1.1

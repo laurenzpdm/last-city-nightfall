@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" uid="uid://ckp05mjmd0ovf" path="res://game/sim/build/building_def.gd" id="1_trunk"]
+
+[resource]
+resource_name = "Trunk Main"
+script = ExtResource("1_trunk")
+id = &"heat_trunk_main"
+display_name = "Trunk Main"
+description = "A wide bore line that moves four times what a pipe can. Expensive per tile, and the only way to feed a district off one plant."
+category = &"heat"
+tier = 2
+sort_order = 32
+tags = Array[StringName]([&"conduit", &"network", &"trunk"])
+blocks_movement = false
+walkable = true
+drag_mode = 1
+cost = Dictionary[StringName, int]({
+&"iron_plate": 6,
+&"steel_plate": 2
+})
+build_time_ticks = 45
+demolish_time_ticks = 12
+refund_ratio = 0.8
+build_priority = 80
+heat_buffer = 14.0
+heat_radius = 2.0
+heat_insulation = 0.6
+is_heat_conduit = true
+conduit_throughput = 220.0
+hp = 220.0
+connects_as = Array[StringName]([&"heat"])
+unlock_id = &"pressurised_mains"
+tint = Color(0.84, 0.58, 0.32, 1)
+light_energy = 0.25
+light_color = Color(1, 0.66, 0.34, 1)

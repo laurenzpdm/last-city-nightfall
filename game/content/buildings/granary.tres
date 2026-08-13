@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_v2446"]
+
+[resource]
+resource_name = "Granary"
+script = ExtResource("1_v2446")
+id = &"granary"
+display_name = "Granary"
+description = "Sealed bins on stilts, above the drift line. Keeps grain from freezing and rats from voting."
+category = &"storage"
+sort_order = 120
+tags = Array[StringName]([&"storage", &"food"])
+size = Vector2i(3, 3)
+cost = Dictionary[StringName, int]({
+&"stone": 30,
+&"timber": 55
+})
+build_time_ticks = 1000
+demolish_time_ticks = 120
+build_priority = 45
+workers_required = 1
+heat_consumed = 3.0
+heat_insulation = 0.75
+hp = 600.0
+storage_capacity = 500
+storage_filter = Array[StringName]([&"grain", &"ration"])
+tint = Color(0.72, 0.68, 0.5, 1)

@@ -1,0 +1,560 @@
+{
+  "name": "first_night",
+  "description": "Build a small self-sufficient base through day one and survive the first night with it. The reference run: if this scenario reads wrong in metrics.csv, the game is wrong.",
+  "tags": [
+    "reference",
+    "gate",
+    "visual"
+  ],
+  "seed": 7,
+  "ticks": 11000,
+  "sample_every": 20,
+  "script": [
+    {
+      "tick": 2,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "items": {
+          "scrap": 600,
+          "stone": 400,
+          "timber": 360,
+          "coal": 500,
+          "iron_plate": 240,
+          "gear": 80,
+          "copper_coil": 60
+        }
+      }
+    },
+    {
+      "tick": 4,
+      "cmd": {
+        "system": "build",
+        "op": "grant_unlock",
+        "unlock": "starting_kit"
+      }
+    },
+    {
+      "tick": 6,
+      "cmd": {
+        "system": "grid",
+        "op": "reveal",
+        "from": [
+          40,
+          40
+        ],
+        "to": [
+          88,
+          88
+        ]
+      }
+    },
+    {
+      "tick": 20,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "hearth",
+        "cell": [
+          64,
+          64
+        ],
+        "instant": true,
+        "free": true
+      }
+    },
+    {
+      "tick": 40,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          60,
+          62
+        ],
+        "rot": 0
+      }
+    },
+    {
+      "tick": 60,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          68,
+          62
+        ],
+        "rot": 2
+      }
+    },
+    {
+      "tick": 80,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          62,
+          64
+        ],
+        "to": [
+          58,
+          64
+        ]
+      }
+    },
+    {
+      "tick": 100,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          66,
+          64
+        ],
+        "to": [
+          70,
+          64
+        ]
+      }
+    },
+    {
+      "tick": 120,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "radiator",
+        "cell": [
+          58,
+          66
+        ]
+      }
+    },
+    {
+      "tick": 140,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "radiator",
+        "cell": [
+          70,
+          66
+        ]
+      }
+    },
+    {
+      "tick": 300,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "worker_hut",
+        "cell": [
+          60,
+          68
+        ]
+      }
+    },
+    {
+      "tick": 340,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "worker_hut",
+        "cell": [
+          63,
+          68
+        ]
+      }
+    },
+    {
+      "tick": 380,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "worker_hut",
+        "cell": [
+          66,
+          68
+        ]
+      }
+    },
+    {
+      "tick": 420,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "worker_hut",
+        "cell": [
+          69,
+          68
+        ]
+      }
+    },
+    {
+      "tick": 520,
+      "cmd": {
+        "system": "citizens",
+        "op": "add",
+        "count": 12
+      }
+    },
+    {
+      "tick": 560,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "scrap_yard",
+        "cell": [
+          56,
+          58
+        ]
+      }
+    },
+    {
+      "tick": 600,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "stone_quarry",
+        "cell": [
+          72,
+          58
+        ]
+      }
+    },
+    {
+      "tick": 660,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "belt",
+        "from": [
+          57,
+          59
+        ],
+        "to": [
+          61,
+          63
+        ],
+        "rot": 1
+      }
+    },
+    {
+      "tick": 700,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "workshop",
+        "cell": [
+          62,
+          60
+        ]
+      }
+    },
+    {
+      "tick": 740,
+      "cmd": {
+        "system": "production",
+        "op": "set_recipe",
+        "cell": [
+          62,
+          60
+        ],
+        "recipe": "iron_plate"
+      }
+    },
+    {
+      "tick": 780,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "storage_yard",
+        "cell": [
+          66,
+          60
+        ]
+      }
+    },
+    {
+      "tick": 3100,
+      "cmd": {
+        "system": "research",
+        "op": "start",
+        "id": "heat_pipes"
+      }
+    },
+    {
+      "tick": 3200,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "wall",
+        "from": [
+          54,
+          54
+        ],
+        "to": [
+          74,
+          54
+        ]
+      }
+    },
+    {
+      "tick": 3260,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "wall",
+        "from": [
+          74,
+          54
+        ],
+        "to": [
+          74,
+          74
+        ]
+      }
+    },
+    {
+      "tick": 3320,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "wall",
+        "from": [
+          74,
+          74
+        ],
+        "to": [
+          54,
+          74
+        ]
+      }
+    },
+    {
+      "tick": 3380,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "wall",
+        "from": [
+          54,
+          74
+        ],
+        "to": [
+          54,
+          54
+        ]
+      }
+    },
+    {
+      "tick": 3600,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          59,
+          54
+        ]
+      }
+    },
+    {
+      "tick": 3630,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          69,
+          54
+        ]
+      }
+    },
+    {
+      "tick": 3660,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          54,
+          59
+        ]
+      }
+    },
+    {
+      "tick": 3690,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          54,
+          69
+        ]
+      }
+    },
+    {
+      "tick": 3720,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          74,
+          59
+        ]
+      }
+    },
+    {
+      "tick": 3750,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          74,
+          69
+        ]
+      }
+    },
+    {
+      "tick": 3780,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          59,
+          74
+        ]
+      }
+    },
+    {
+      "tick": 3810,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          69,
+          74
+        ]
+      }
+    },
+    {
+      "tick": 4200,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "flame_turret",
+        "cell": [
+          64,
+          55
+        ],
+        "rot": 0
+      }
+    },
+    {
+      "tick": 4240,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "flame_turret",
+        "cell": [
+          64,
+          73
+        ],
+        "rot": 2
+      }
+    },
+    {
+      "tick": 5400,
+      "cmd": {
+        "system": "society",
+        "op": "enact_law",
+        "id": "night_watch"
+      }
+    },
+    {
+      "tick": 5500,
+      "cmd": {
+        "system": "citizens",
+        "op": "set_shift",
+        "shift": "night"
+      }
+    },
+    {
+      "tick": 5600,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "items": {
+          "coal": 400
+        }
+      }
+    },
+    {
+      "tick": 6400,
+      "cmd": {
+        "system": "threat",
+        "op": "force_wave",
+        "strength": 1.0
+      }
+    },
+    {
+      "tick": 7600,
+      "cmd": {
+        "system": "threat",
+        "op": "force_wave",
+        "strength": 1.3
+      }
+    },
+    {
+      "tick": 9700,
+      "cmd": {
+        "system": "build",
+        "op": "repair",
+        "all": true
+      }
+    },
+    {
+      "tick": 9800,
+      "cmd": {
+        "system": "citizens",
+        "op": "set_shift",
+        "shift": "day"
+      }
+    }
+  ],
+  "shots": [
+    {
+      "tick": 30,
+      "name": "opening"
+    },
+    {
+      "tick": 1500,
+      "name": "build"
+    },
+    {
+      "tick": 5500,
+      "name": "dusk"
+    },
+    {
+      "tick": 7200,
+      "name": "assault"
+    },
+    {
+      "tick": 9800,
+      "name": "dawn"
+    }
+  ],
+  "expects": {
+    "max_errors": 0,
+    "min_ticks_per_second": 300
+  }
+}

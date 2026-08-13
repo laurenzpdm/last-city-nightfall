@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ClimateProfile" load_steps=2 format=3]
+
+; [P09] Climate & Nightfall — the shipped campaign climate.
+; Every curve, storm date and temperature in the game is tuned from here or from
+; the script defaults in res://game/sim/climate/climate_profile.gd. Drop another
+; .tres beside this one with a higher `priority` to override it for a new biome.
+
+[ext_resource type="Script" uid="uid://dbr3esaw4v72w" path="res://game/sim/climate/climate_profile.gd" id="1_climate"]
+
+[resource]
+resource_name = "Frozen Plain"
+script = ExtResource("1_climate")
+id = &"default"
+display_name = "The Frozen Plain"
+priority = 0

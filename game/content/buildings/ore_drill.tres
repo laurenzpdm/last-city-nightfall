@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_bu277"]
+
+[resource]
+resource_name = "Ore Drill"
+script = ExtResource("1_bu277")
+id = &"ore_drill"
+display_name = "Ore Drill"
+description = "Chews through permafrost into the seam below. It must sit directly on a vein, and it is loud enough to be heard from the dark."
+category = &"extraction"
+sort_order = 70
+tags = Array[StringName]([&"extractor", &"machine"])
+size = Vector2i(3, 3)
+rotatable = true
+cost = Dictionary[StringName, int]({
+&"gear": 8,
+&"iron_plate": 25,
+&"scrap": 55
+})
+build_time_ticks = 1100
+demolish_time_ticks = 150
+build_priority = 65
+workers_required = 3
+staff_capacity = 6
+heat_consumed = 8.0
+hp = 700.0
+extracts = &"*"
+extract_rate = 0.8
+storage_capacity = 120
+needs_ore = &"*"
+ore_coverage = 2
+tint = Color(0.7, 0.66, 0.58, 1)

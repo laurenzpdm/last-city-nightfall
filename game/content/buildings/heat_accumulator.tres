@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_u0f0w"]
+
+[resource]
+resource_name = "Heat Accumulator"
+script = ExtResource("1_u0f0w")
+id = &"heat_accumulator"
+display_name = "Heat Accumulator"
+description = "A pressure tank of superheated brine. Charges while the generators are ahead, and carries the grid through the worst hour of the night."
+category = &"heat"
+tier = 2
+sort_order = 40
+tags = Array[StringName]([&"buffer", &"network"])
+size = Vector2i(2, 2)
+cost = Dictionary[StringName, int]({
+&"copper_coil": 12,
+&"iron_plate": 30
+})
+build_time_ticks = 800
+demolish_time_ticks = 90
+build_priority = 50
+heat_buffer = 900.0
+heat_insulation = 0.9
+is_heat_conduit = true
+conduit_throughput = 40.0
+hp = 400.0
+must_connect = Array[StringName]([&"heat"])
+connects_as = Array[StringName]([&"heat"])
+unlock_id = &"thermal_storage"
+tint = Color(0.72, 0.62, 0.52, 1)

@@ -1,1 +1,42 @@
-{"name":"smoke","seed":7,"ticks":600,"sample_every":20,"script":[],"shots":[]}
+{
+  "name": "smoke",
+  "description": "Thirty seconds of an empty world. Proves the engine boots, the clock ticks, every system serializes and the harness writes its artifacts. The cheapest possible red light.",
+  "tags": [
+    "fast",
+    "gate"
+  ],
+  "seed": 7,
+  "ticks": 600,
+  "sample_every": 20,
+  "script": [],
+  "shots": [
+    {
+      "tick": 40,
+      "name": "p13_dawn_wide"
+    },
+    {
+      "tick": 150,
+      "name": "p13_morning_industry"
+    },
+    {
+      "tick": 300,
+      "name": "p13_afternoon_housing"
+    },
+    {
+      "tick": 420,
+      "name": "p13_dusk_city"
+    },
+    {
+      "tick": 520,
+      "name": "p13_night_perimeter"
+    },
+    {
+      "tick": 585,
+      "name": "p13_night_zoomout"
+    }
+  ],
+  "expects": {
+    "max_errors": 0,
+    "min_ticks_per_second": 200
+  }
+}

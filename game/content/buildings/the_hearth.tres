@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/build/building_def.gd" id="1_nsvuu"]
+
+[resource]
+resource_name = "The Hearth"
+script = ExtResource("1_nsvuu")
+id = &"the_hearth"
+display_name = "The Hearth"
+description = "The generator the first survivors built around. It burns anything and it never stops. If it goes out, the city does."
+category = &"power"
+tags = Array[StringName]([&"heat_source", &"unique", &"landmark", &"powered"])
+size = Vector2i(5, 5)
+cost = Dictionary[StringName, int]({
+&"iron_plate": 60,
+&"steel_plate": 40,
+&"stone": 140
+})
+build_time_ticks = 2400
+demolish_time_ticks = 400
+refund_ratio = 0.25
+build_priority = 100
+workers_required = 4
+staff_capacity = 8
+heat_produced = 120.0
+heat_buffer = 600.0
+heat_radius = 14.0
+heat_insulation = 0.7
+fuel_items = Array[StringName]([&"coal", &"timber"])
+fuel_burn_rate = 0.8
+hp = 3000.0
+armor = 6.0
+vision_radius = 18.0
+connects_as = Array[StringName]([&"heat", &"power"])
+max_count = 1
+tint = Color(1, 0.62, 0.28, 1)
+light_energy = 2.2
+light_color = Color(1, 0.56, 0.22, 1)
