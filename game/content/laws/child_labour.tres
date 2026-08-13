@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Child Labour"
+script = ExtResource("1_law")
+id = &"child_labour"
+title = "Child Labour"
+branch = &"trunk"
+tier = 1
+section = "The Children"
+sort_order = 31
+prose = "Children over ten work where they are needed, which means where a grown body will not fit: inside the machine housings, at the bottom of the shaft, along the pipe runs. The law does not set a lower age. It sets a height."
+argument_for = "There are gaps in the works a man cannot reach. Somebody has to reach them."
+argument_against = "We came out here so they would have somewhere to grow up. You are going to send them down a hole."
+signed_line = "They went down at first light with the small lamps. One of them came back up asking whether this counted as being grown up now."
+excludes = Array[StringName]([&"child_shelter_duty"])
+hope_on_sign = -6.0
+discontent_on_sign = 9.0
+discontent_rate = 0.5
+policy = Dictionary[StringName, float]({
+&"child_risk": 0.1,
+&"labour_pool": 0.28
+})
+flags = Array[StringName]([&"child_labour"])
+approval = Dictionary[StringName, float]({
+&"families": -40.0,
+&"workers": 8.0
+})
+provokes = Array[StringName]([&"children", &"sickness"])
+tags = Array[StringName]([&"cruel"])

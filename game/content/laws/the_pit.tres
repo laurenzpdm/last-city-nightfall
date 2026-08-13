@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "The Fighting Pit"
+script = ExtResource("1_law")
+id = &"the_pit"
+title = "The Fighting Pit"
+branch = &"order"
+tier = 6
+section = "Discipline"
+sort_order = 131
+prose = "A ring is cut into the ice behind the workshops and disputes may be settled in it by consent, with the Watch keeping time. The law calls this a release of tension, and the law is not wrong."
+argument_for = "They are going to hit each other regardless. Let them do it somewhere we can count them afterwards."
+argument_against = "You will be charging admission by the end of the month and you already know it."
+signed_line = "Two hundred people stood around a hole in the ice and shouted themselves hoarse, and for one hour nobody in this city was thinking about the cold. Somebody lost three fingers."
+requires = Array[StringName]([&"public_penance"])
+min_day = 4
+hope_on_sign = -3.0
+discontent_on_sign = -8.0
+discontent_rate = -0.55
+policy = Dictionary[StringName, float]({
+&"discipline": 0.3,
+&"medical_care": -0.08
+})
+flags = Array[StringName]([&"fighting_pit"])
+approval = Dictionary[StringName, float]({
+&"faithful": -20.0,
+&"families": -12.0,
+&"infirm": -14.0,
+&"workers": 12.0
+})
+provokes = Array[StringName]([&"sickness"])
+tags = Array[StringName]([&"cruel"])

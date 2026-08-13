@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "The Last Warmth"
+script = ExtResource("1_law")
+id = &"last_warmth"
+title = "The Last Warmth"
+branch = &"faith"
+tier = 6
+section = "The Dead"
+sort_order = 131
+prose = "Any person may declare for the Last Warmth: they give up their place at the stove, walk out past the north marker at dusk, and do not come back. The law makes it voluntary. It also makes it public, and it prints the names."
+argument_for = "My hands do not work any more. I am four bowls a day and a bunk and nothing else, and I would like to be the one who chooses."
+argument_against = "Print a list of who is a burden and you will never need to force anybody. That is the whole trick, and you know it is the whole trick."
+signed_line = "Nine walked out at dusk with the congregation behind them as far as the marker. The oldest was sixty one. Every one of them was already on the list before they volunteered."
+requires = Array[StringName]([&"rite_of_ash"])
+min_day = 5
+debate_hours = 6.0
+hope_on_sign = -8.0
+discontent_on_sign = -5.0
+hope_rate = -0.5
+policy = Dictionary[StringName, float]({
+&"medical_care": 0.1,
+&"ration": 0.1,
+&"solace": 0.15
+})
+approval = Dictionary[StringName, float]({
+&"faithful": 20.0,
+&"families": -18.0,
+&"infirm": -40.0,
+&"workers": 10.0
+})
+provokes = Array[StringName]([&"fear"])
+tags = Array[StringName]([&"cruel"])

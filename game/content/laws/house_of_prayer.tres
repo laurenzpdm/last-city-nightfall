@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "House of Prayer"
+script = ExtResource("1_law")
+id = &"house_of_prayer"
+title = "House of Prayer"
+branch = &"faith"
+tier = 5
+section = "Faith"
+sort_order = 120
+prose = "A heated building is given to the congregation. It is also where the sick are taken, because the congregation asked for that and the hall could not think of a reason to refuse that it was willing to say out loud."
+argument_for = "They will sit with the fevered when nobody else will go near them. They have been doing it already, without being asked."
+argument_against = "You have handed them the sick. Think about what that means the next time you want something from them."
+signed_line = "There is a warm room with a roof on it and people inside who are not on the work roster, and every one of them is there because they chose to be."
+requires = Array[StringName]([&"evening_prayer"])
+min_day = 3
+hope_on_sign = 5.0
+discontent_on_sign = -4.0
+policy = Dictionary[StringName, float]({
+&"labour_pool": -0.05,
+&"medical_care": 0.35,
+&"solace": 0.3
+})
+approval = Dictionary[StringName, float]({
+&"faithful": 26.0,
+&"infirm": 22.0,
+&"watch": -10.0
+})
+relieves = Array[StringName]([&"sickness", &"faithless"])
+tags = Array[StringName]([&"costly"])

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="LogiDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/logistics/logi_def.gd" id="1_def"]
+
+[resource]
+resource_name = "Sorting Table"
+script = ExtResource("1_def")
+id = &"splitter_mk1"
+display_name = "Sorting Table"
+description = "A sprung paddle that flicks every other thing sideways. Even splits, priority feeds, and one named item pulled off a mixed line."
+role = &"splitter"
+tier = 1
+sort_order = 30
+cost = Dictionary[StringName, int]({
+&"iron_plate": 5,
+&"gear": 4
+})
+speed = 1.875
+size = Vector2i(2, 1)
+tint = Color(0.68, 0.66, 0.5, 1)

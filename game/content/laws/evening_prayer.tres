@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Evening Prayer"
+script = ExtResource("1_law")
+id = &"evening_prayer"
+title = "Evening Prayer"
+branch = &"faith"
+tier = 4
+section = "Faith"
+sort_order = 110
+prose = "An hour is set aside at dusk. Attendance is not required, and is noted. The law is careful about that distinction, and everybody in the congregation understood it immediately."
+argument_for = "People need somewhere to put the day when it is over."
+argument_against = "Attendance is noted. Read that sentence again."
+signed_line = "The hour is kept. People who swore they would not go are going, and the people who go are watching who does not."
+requires = Array[StringName]([&"path_of_faith"])
+hope_on_sign = 4.0
+discontent_on_sign = -3.0
+policy = Dictionary[StringName, float]({
+&"solace": 0.35,
+&"work_hours": -0.5
+})
+flags = Array[StringName]([&"prayer"])
+approval = Dictionary[StringName, float]({
+&"faithful": 22.0,
+&"workers": -6.0
+})
+relieves = Array[StringName]([&"faithless"])

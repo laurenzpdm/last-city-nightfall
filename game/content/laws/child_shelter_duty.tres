@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Child Shelter Duty"
+script = ExtResource("1_law")
+id = &"child_shelter_duty"
+title = "Child Shelter Duty"
+branch = &"trunk"
+tier = 1
+section = "The Children"
+sort_order = 30
+prose = "Every child over ten is assigned indoor work: sorting, mending, carrying, minding the younger ones. They stay warm, they stay watched, and they are useful, and the law is careful to list those three in that order."
+argument_for = "A child with nothing to do in a city like this finds something to do, and it is never good."
+argument_against = "They are ten. In four years they will be fourteen and you will have got used to this."
+signed_line = "The children were counted, given armbands and put to sorting scrap in the lee of the workshop. They thought it was a game for about two days."
+excludes = Array[StringName]([&"child_labour"])
+hope_on_sign = 2.0
+discontent_on_sign = 1.5
+policy = Dictionary[StringName, float]({
+&"crowding": 0.15,
+&"labour_pool": 0.06
+})
+approval = Dictionary[StringName, float]({
+&"families": 16.0,
+&"workers": -4.0
+})
+relieves = Array[StringName]([&"children"])

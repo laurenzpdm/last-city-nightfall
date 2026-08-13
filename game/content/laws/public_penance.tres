@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "The Post"
+script = ExtResource("1_law")
+id = &"public_penance"
+title = "The Post"
+branch = &"order"
+tier = 5
+section = "Discipline"
+sort_order = 120
+prose = "Offenders are bound to a post in the square for a stated number of hours, in the open, in whatever the weather is doing. The law states the hours by offence. It does not state the temperature, and the temperature is what does the work."
+argument_for = "A cell is a warm room and a rest. This is not."
+argument_against = "You are using the cold as a tool. The cold is the enemy. Choose one."
+signed_line = "The first man was up for four hours for stealing coal. Everyone walked past him and everyone looked, and that was the point, and it worked."
+requires = Array[StringName]([&"watch_patrols"])
+min_day = 3
+hope_on_sign = -5.0
+discontent_on_sign = -6.0
+policy = Dictionary[StringName, float]({
+&"discipline": 0.55
+})
+approval = Dictionary[StringName, float]({
+&"faithful": -14.0,
+&"families": -20.0,
+&"infirm": -10.0,
+&"watch": 14.0
+})
+provokes = Array[StringName]([&"fear"])
+tags = Array[StringName]([&"cruel"])

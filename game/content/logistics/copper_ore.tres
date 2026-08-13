@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="LogiItem" format=3]
+
+[ext_resource type="Script" path="res://game/sim/logistics/logi_item.gd" id="1_item"]
+
+[resource]
+resource_name = "Copper Ore"
+script = ExtResource("1_item")
+id = &"copper_ore"
+display_name = "Copper Ore"
+description = "Green-streaked rock. Rarer than iron and worth the walk."
+category = &"raw"
+stack_size = 100
+fuel_value = 0.0
+sort_order = 40
+tint = Color(0.72, 0.46, 0.28, 1)

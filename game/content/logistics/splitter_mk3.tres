@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="LogiDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/logistics/logi_def.gd" id="1_def"]
+
+[resource]
+resource_name = "Sorting Table III"
+script = ExtResource("1_def")
+id = &"splitter_mk3"
+display_name = "Sorting Table III"
+description = "Solenoid gates and a counter that never loses its place."
+role = &"splitter"
+tier = 3
+sort_order = 32
+cost = Dictionary[StringName, int]({
+&"steel_plate": 5,
+&"gear": 4,
+&"circuit": 4
+})
+speed = 5.625
+size = Vector2i(2, 1)
+unlock_id = &"driven_rollers"
+tint = Color(0.78, 0.76, 0.62, 1)

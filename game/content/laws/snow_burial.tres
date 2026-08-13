@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Snow Burial"
+script = ExtResource("1_law")
+id = &"snow_burial"
+title = "Snow Burial"
+branch = &"trunk"
+tier = 1
+section = "The Dead"
+sort_order = 50
+prose = "The dead are carried a mile out past the north marker, laid out and covered. The law specifies the distance. It does not specify what happens after."
+argument_for = "It is clean, it costs nothing, and the cold keeps them better than we ever could."
+argument_against = "A mile out is not a grave. It is a place you cannot bear to walk to."
+signed_line = "There is a line of shapes under the snow past the north marker, and people have started walking out to it on their own."
+excludes = Array[StringName]([&"corpse_pits", &"named_graves"])
+hope_on_sign = -1.0
+discontent_on_sign = -2.0
+policy = Dictionary[StringName, float]({
+&"corpse_capacity": 8.0
+})
+approval = Dictionary[StringName, float]({
+&"faithful": -8.0
+})
+relieves = Array[StringName]([&"dead_unburied"])

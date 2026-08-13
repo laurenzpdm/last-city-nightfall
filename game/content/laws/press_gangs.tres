@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Press Gangs"
+script = ExtResource("1_law")
+id = &"press_gangs"
+title = "Press Gangs"
+branch = &"order"
+tier = 6
+section = "Labour"
+sort_order = 130
+prose = "The Watch may take any able person off any queue and put them on any work detail for the remainder of the day. No notice, no appeal. The law says so in one sentence and then stops."
+argument_for = "We are eleven bodies short on the wall and there are forty people standing in a line for soup."
+argument_against = "You have stopped asking. There is no version of this where you start asking again."
+signed_line = "They took nine men out of the ration queue before it reached the pot. Those nine did not eat that day and everyone else ate in silence."
+requires = Array[StringName]([&"public_penance"])
+min_day = 4
+hope_on_sign = -6.0
+discontent_on_sign = 7.0
+discontent_rate = 0.45
+policy = Dictionary[StringName, float]({
+&"discipline": 0.2,
+&"labour_pool": 0.3,
+&"ration": -0.05
+})
+flags = Array[StringName]([&"press_gangs"])
+approval = Dictionary[StringName, float]({
+&"watch": 10.0,
+&"workers": -34.0
+})
+provokes = Array[StringName]([&"overwork", &"fear"])
+tags = Array[StringName]([&"cruel"])

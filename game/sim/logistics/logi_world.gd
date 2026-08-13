@@ -189,6 +189,8 @@ func register_burner(owner: int, fuel: StringName, cells: Array[Vector2i]) -> vo
 	fuel_item_of[owner] = fuel
 	for c: Vector2i in cells:
 		fuel_cells[c] = owner
+	if not store_origin.has(owner) and not cells.is_empty():
+		store_origin[owner] = cells[0]
 
 
 func unregister_burner(owner: int) -> void:

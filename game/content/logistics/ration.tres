@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="LogiItem" format=3]
+
+[ext_resource type="Script" path="res://game/sim/logistics/logi_item.gd" id="1_item"]
+
+[resource]
+resource_name = "Ration"
+script = ExtResource("1_item")
+id = &"ration"
+display_name = "Ration"
+description = "A day of food for one person, sealed against the cold."
+category = &"component"
+stack_size = 50
+fuel_value = 0.0
+sort_order = 260
+tint = Color(0.86, 0.74, 0.52, 1)

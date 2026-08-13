@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "The Care House"
+script = ExtResource("1_law")
+id = &"care_house"
+title = "The Care House"
+branch = &"trunk"
+tier = 1
+section = "The Sick"
+sort_order = 60
+prose = "One heated building is given over entirely to the sick, staffed off the work roster, and no other use may be made of it. The law is short because the argument was about the heat, not about the words."
+argument_for = "Fever moves through a bunkhouse in a day. Put a door between it and everyone else."
+argument_against = "That is a building, a stove and four pairs of hands doing nothing that keeps the rest of us alive."
+signed_line = "There is a building with a door that shuts and somebody in it who is not also on shift. It is the warmest room in the city and nobody resents it out loud."
+hope_on_sign = 4.0
+discontent_on_sign = -3.0
+policy = Dictionary[StringName, float]({
+&"labour_pool": -0.06,
+&"medical_care": 0.55
+})
+approval = Dictionary[StringName, float]({
+&"families": 14.0,
+&"infirm": 30.0,
+&"workers": -4.0
+})
+relieves = Array[StringName]([&"sickness"])
+tags = Array[StringName]([&"costly"])

@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Martial Law"
+script = ExtResource("1_law")
+id = &"martial_law"
+title = "Martial Law"
+branch = &"order"
+tier = 7
+section = "Discipline"
+sort_order = 140
+prose = "The hall's word is the only word. Assembly of more than four persons requires a chit. Work assignment is not appealable. The law is one page long and eleven of its lines begin with the word no."
+argument_for = "There is a crowd in the square and it has not gone home for two days."
+argument_against = "This is the last page you get to write. After this the book writes you."
+signed_line = "The square was cleared before dawn without anyone being hurt, which the hall considers a success and which nobody who was standing in the square considers anything at all."
+requires = Array[StringName]([&"informers", &"public_penance"])
+min_day = 4
+debate_hours = 6.0
+hope_on_sign = -9.0
+discontent_on_sign = -14.0
+hope_rate = -0.6
+policy = Dictionary[StringName, float]({
+&"discipline": 0.85,
+&"labour_pool": 0.1
+})
+flags = Array[StringName]([&"martial_law"])
+approval = Dictionary[StringName, float]({
+&"faithful": -24.0,
+&"families": -28.0,
+&"watch": 26.0,
+&"workers": -26.0
+})
+provokes = Array[StringName]([&"fear"])
+tags = Array[StringName]([&"cruel"])

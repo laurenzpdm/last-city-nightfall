@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="LogiDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/logistics/logi_def.gd" id="1_def"]
+
+[resource]
+resource_name = "Requisition Post"
+script = ExtResource("1_def")
+id = &"requester_post"
+display_name = "Requisition Post"
+description = "A board, a bell and a standing order. Porters keep it stocked with whatever you ask for, at a price in legs."
+role = &"chest"
+tier = 2
+sort_order = 52
+cost = Dictionary[StringName, int]({
+&"timber": 10,
+&"iron_plate": 6
+})
+capacity = 200
+requests = true
+tint = Color(0.66, 0.58, 0.36, 1)

@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "The Pits"
+script = ExtResource("1_law")
+id = &"corpse_pits"
+title = "The Pits"
+branch = &"trunk"
+tier = 1
+section = "The Dead"
+sort_order = 51
+prose = "The dead go into a trench cut through the permafrost by the north gate, and the trench is worked back over with drill spoil. The law does not require a count, a name or a marker. The absence is deliberate and it is what makes the work fast."
+argument_for = "There is a fever in this city and the dead are part of why."
+argument_against = "You are not going to bury them, you are going to lose them. Nobody will be able to say where their own mother went."
+signed_line = "The trench took four hours and swallowed everything we had been keeping under the tarp. By the afternoon you could not tell it from the rest of the ground."
+excludes = Array[StringName]([&"snow_burial", &"named_graves"])
+hope_on_sign = -4.0
+discontent_on_sign = 2.0
+policy = Dictionary[StringName, float]({
+&"corpse_capacity": 30.0,
+&"medical_care": 0.05
+})
+approval = Dictionary[StringName, float]({
+&"faithful": -26.0,
+&"families": -12.0,
+&"infirm": 6.0
+})
+relieves = Array[StringName]([&"dead_unburied", &"sickness"])
+tags = Array[StringName]([&"cruel"])

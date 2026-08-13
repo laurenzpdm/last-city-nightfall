@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Night Curfew"
+script = ExtResource("1_law")
+id = &"night_curfew"
+title = "Night Curfew"
+branch = &"trunk"
+tier = 1
+section = "Shelter"
+sort_order = 71
+prose = "From dusk the streets are closed and every unit of heat that would have gone to a workshop goes to the housing instead. The machines stand cold until dawn. So does anyone found outside them."
+argument_for = "Nothing we make at night is worth what the night takes out of us to make it."
+argument_against = "The wall does not build itself in daylight only, and the thing out there does not keep office hours."
+signed_line = "The works went quiet at dusk for the first time since we arrived, and the houses were warm enough that you could hear people talking through the walls."
+hope_on_sign = 3.0
+discontent_on_sign = -2.0
+policy = Dictionary[StringName, float]({
+&"heat_priority_housing": 1.0,
+&"labour_pool": -0.08,
+&"work_hours": -1.5
+})
+flags = Array[StringName]([&"curfew"])
+approval = Dictionary[StringName, float]({
+&"families": 20.0,
+&"watch": -8.0,
+&"workers": 8.0
+})
+relieves = Array[StringName]([&"cold"])

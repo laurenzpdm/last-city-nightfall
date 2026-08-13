@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="LogiDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/logistics/logi_def.gd" id="1_def"]
+
+[resource]
+resource_name = "Sunken Belt III"
+script = ExtResource("1_def")
+id = &"underground_mk3"
+display_name = "Sunken Belt III"
+description = "Nine tiles under anything you have built. This is how a factory stops being a knot."
+role = &"underground"
+tier = 3
+sort_order = 22
+cost = Dictionary[StringName, int]({
+&"steel_plate": 4,
+&"gear": 2,
+&"stone": 2
+})
+speed = 5.625
+max_span = 9
+unlock_id = &"driven_rollers"
+tint = Color(0.72, 0.68, 0.54, 1)

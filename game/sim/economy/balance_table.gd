@@ -159,10 +159,23 @@ extends Resource
 ## generator would price its waste heat as if it were a power plant.
 @export var producer_points_per_heat: Vector2 = Vector2(2.5, 11.0)
 
-## Material points a heat CUSTOMER may cost per heat/second it draws. Applied
-## only to the buildings whose product is warmth or habitation — see
+## Material points a heat CUSTOMER may cost per heat/second it draws, at TIER 1.
+## Applied only to buildings whose product is warmth or habitation — see
 ## consumer_audit_categories and consumer_audit_min_demand.
 @export var consumer_points_per_heat: Vector2 = Vector2(4.0, 34.0)
+
+## The ceiling above widens by this factor per tier, because a higher-tier
+## machine buys recipe breadth and throughput with those points, not only
+## warmth. An assembly hall at tier 3 may cost 62 points per heat/second; a
+## workshop at tier 1 may not.
+@export var consumer_points_tier_growth: float = 1.35
+
+## Material points a HEAT-RECOVERY producer may cost per heat/second. Recovered
+## heat needs no fuel, no seam and no supply line, so it is legitimately dearer
+## per unit than a burner — and it is capped by what there is to scavenge rather
+## than by its tier, which is why recovery units skip the tier_output band.
+@export var recovery_points_per_heat: Vector2 = Vector2(6.0, 40.0)
+@export var recovery_tags: Array[StringName] = [&"recovery"]
 
 ## A building drawing less than this is not a heat customer in any meaningful
 ## sense (a watchtower draws 1.0), and cost-per-heat says nothing useful about it.
@@ -194,7 +207,7 @@ extends Resource
 ## below that the number is dominated by the fixed cost of the mechanism inside
 ## and says nothing about the footprint.
 @export var points_per_cell: Vector2 = Vector2(1.0, 62.0)
-@export var points_per_cell_max_from_cells: int = 4
+@export var points_per_cell_max_from_cells: int = 6
 
 ## Heat/second a conduit may carry per material point of its cost. A pipe that
 ## carries the whole city for two iron plates removes the layout game.
@@ -248,11 +261,11 @@ extends Resource
 # cannot know is whether the city can PAY that by the day the tree expects it
 # to. That is an economy question, and these are its numbers.
 
-## Material points a whole tier of research may cost, floor and ceiling. The
-## audit sums every node in a tier and complains when the tier is free or
-## unreachable. Index 0 = tier 1.
-@export var research_tier_points_min: PackedFloat32Array = PackedFloat32Array([40.0, 200.0, 700.0, 1600.0])
-@export var research_tier_points_max: PackedFloat32Array = PackedFloat32Array([1400.0, 5000.0, 16000.0, 48000.0])
+## Material points ONE unlock at each tier may cost, floor and ceiling. Per
+## unlock rather than per tier, because how many technologies a tier holds is
+## [P10]'s decision and this table has no business voting on it. Index 0 = tier 1.
+@export var research_unlock_points_min: PackedFloat32Array = PackedFloat32Array([40.0, 200.0, 600.0, 1500.0])
+@export var research_unlock_points_max: PackedFloat32Array = PackedFloat32Array([400.0, 1200.0, 2600.0, 7000.0])
 
 ## Cost in abstract research points of the first unlock at each tier. Used by
 ## `Balance.research_cost()` when a caller wants a planning figure rather than a
@@ -363,6 +376,8 @@ func validate() -> bool:
 	conduit_throughput_per_point = _ordered(conduit_throughput_per_point)
 	buffer_units_per_point = _ordered(buffer_units_per_point)
 	consumer_audit_min_demand = maxf(0.0, consumer_audit_min_demand)
+	consumer_points_tier_growth = maxf(1.0, consumer_points_tier_growth)
+	recovery_points_per_heat = _ordered(recovery_points_per_heat)
 	points_per_cell_max_from_cells = maxi(1, points_per_cell_max_from_cells)
 	buffer_classification_seconds = maxf(0.0, buffer_classification_seconds)
 
@@ -392,13 +407,13 @@ func validate() -> bool:
 	if research_tier_base.size() < tiers:
 		research_tier_base = PackedFloat32Array([60.0, 220.0, 700.0, 2000.0])
 		ok = false
-	if research_tier_points_min.size() < tiers or research_tier_points_max.size() < tiers:
-		research_tier_points_min = PackedFloat32Array([40.0, 200.0, 700.0, 1600.0])
-		research_tier_points_max = PackedFloat32Array([1400.0, 5000.0, 16000.0, 48000.0])
+	if research_unlock_points_min.size() < tiers or research_unlock_points_max.size() < tiers:
+		research_unlock_points_min = PackedFloat32Array([40.0, 200.0, 600.0, 1500.0])
+		research_unlock_points_max = PackedFloat32Array([400.0, 1200.0, 2600.0, 7000.0])
 		ok = false
 	for i: int in tiers:
-		if research_tier_points_max[i] < research_tier_points_min[i]:
-			research_tier_points_max[i] = research_tier_points_min[i]
+		if research_unlock_points_max[i] < research_unlock_points_min[i]:
+			research_unlock_points_max[i] = research_unlock_points_min[i]
 			ok = false
 	research_tier_growth = maxf(1.0, research_tier_growth)
 	research_points_per_worker = maxf(0.0, research_points_per_worker)

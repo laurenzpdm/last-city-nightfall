@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Rendering"
+script = ExtResource("1_law")
+id = &"rendering"
+title = "Rendering"
+branch = &"trunk"
+tier = 3
+section = "The Dead"
+sort_order = 53
+prose = "Organic matter recovered at the north gate is processed at the kitchens. The law is written entirely in that register and never once uses a plainer word, and every person who signs it understands the omission perfectly."
+argument_for = "We are throwing away the only thing in this valley that is not frozen solid."
+argument_against = "There is a line. You have been walking towards it all week and this is it."
+signed_line = "The soup was thicker. Nobody asked. That is the part that will not leave anyone: nobody asked."
+requires = Array[StringName]([&"corpse_pits", &"sawdust_bread"])
+min_day = 4
+debate_hours = 6.0
+hope_on_sign = -14.0
+discontent_on_sign = 10.0
+hope_rate = -1.1
+policy = Dictionary[StringName, float]({
+&"corpse_capacity": 40.0,
+&"food_yield": 0.55
+})
+flags = Array[StringName]([&"rendering"])
+approval = Dictionary[StringName, float]({
+&"faithful": -50.0,
+&"families": -40.0,
+&"infirm": -25.0,
+&"workers": -18.0
+})
+provokes = Array[StringName]([&"fear", &"faithless"])
+tags = Array[StringName]([&"cruel", &"unforgivable"])

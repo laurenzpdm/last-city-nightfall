@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Triage"
+script = ExtResource("1_law")
+id = &"triage"
+title = "Triage"
+branch = &"trunk"
+tier = 2
+section = "The Sick"
+sort_order = 61
+prose = "The care house is instructed to sort. Those who will recover are treated. Those who will not are moved to the back room, given something for the pain, and are not treated further. The law names the back room."
+argument_for = "We have medicine for eleven people and nineteen people who need it. Somebody has to choose, and it should be written down rather than whispered."
+argument_against = "You have put a door on the far side of that building and everyone already knows what it is for."
+signed_line = "The back room has a stove of its own and a curtain across it. Nobody goes in there twice."
+requires = Array[StringName]([&"care_house"])
+min_day = 2
+hope_on_sign = -5.0
+discontent_on_sign = 5.0
+discontent_rate = 0.3
+policy = Dictionary[StringName, float]({
+&"labour_pool": 0.04,
+&"medical_care": 0.3
+})
+flags = Array[StringName]([&"triage"])
+approval = Dictionary[StringName, float]({
+&"faithful": -14.0,
+&"infirm": -34.0,
+&"workers": 6.0
+})
+provokes = Array[StringName]([&"fear", &"sickness"])
+tags = Array[StringName]([&"cruel"])

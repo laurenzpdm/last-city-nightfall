@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Apprentices"
+script = ExtResource("1_law")
+id = &"apprentices"
+title = "Apprentices"
+branch = &"trunk"
+tier = 2
+section = "The Children"
+sort_order = 32
+prose = "The older children are bound to the engineers. They learn the trade by doing the parts of it nobody senior wants to do, at the hours nobody senior wants to work."
+argument_for = "In ten years somebody will have to know how the generator works. It will not be us."
+argument_against = "You took the indoor promise and you have quietly moved where indoors ends."
+signed_line = "Four of them sign for parts in their own hand now. One has started correcting the foreman, and the foreman has not decided how to feel about it."
+requires = Array[StringName]([&"child_shelter_duty"])
+min_day = 3
+hope_on_sign = 2.0
+discontent_on_sign = 2.0
+policy = Dictionary[StringName, float]({
+&"child_risk": 0.04,
+&"labour_pool": 0.14
+})
+approval = Dictionary[StringName, float]({
+&"families": -8.0,
+&"workers": 10.0
+})

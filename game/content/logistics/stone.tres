@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="LogiItem" format=3]
+
+[ext_resource type="Script" path="res://game/sim/logistics/logi_item.gd" id="1_item"]
+
+[resource]
+resource_name = "Stone"
+script = ExtResource("1_item")
+id = &"stone"
+display_name = "Stone"
+description = "Broken masonry, crushed and graded. Foundations, roads, furnace linings."
+category = &"raw"
+stack_size = 100
+fuel_value = 0.0
+sort_order = 50
+tint = Color(0.5, 0.51, 0.53, 1)

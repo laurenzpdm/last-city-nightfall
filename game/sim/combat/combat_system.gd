@@ -95,6 +95,12 @@ var _defended: bool = false
 var _defended_tick: int = -1
 var _step_us: int = 0
 var _content_ok: bool = false
+## Last tick something outside combat drove a spawn. While this is recent the
+## fallback director keeps its hands off the night.
+var _external_tick: int = -1
+var _handover_logged: bool = false
+## wave number -> {spawned, first_id, last_id, groups}
+var _waves: Dictionary[int, Dictionary] = {}
 
 
 func _init() -> void:
@@ -125,7 +131,9 @@ func setup() -> void:
 	_weakened.clear()
 	_target_index.clear()
 	_last_alert_tick.clear()
+	_waves.clear()
 	_discontent_carry = 0.0
+	_handover_logged = false
 
 	for problem: String in swarm.load_defs():
 		Log.error(TAG, "enemy content rejected — %s" % problem)
@@ -162,8 +170,12 @@ func post_setup() -> void:
 	_resolve_ammo_source()
 	_resolve_society()
 
-	var threat: SimSystem = Sim.get_system(&"threat")
-	director.enabled = threat == null
+	# The fallback director is armed by default and stands down the moment anything
+	# else actually drives a spawn through this system (see _note_external_spawn).
+	# Presence alone is not enough: a threat system that exists but composes
+	# nothing would otherwise leave every night empty and both parts looking dead.
+	director.enabled = true
+	_external_tick = -1
 	Log.info(TAG, "ready — %d enemy kinds, %d weapons, grid=%s build=%s heat=%s climate=%s" % [
 		swarm.def_count, battery.weapons.size(),
 		str(_grid != null), str(_build != null), str(_has_heat), str(_has_night)])
@@ -176,11 +188,12 @@ func post_setup() -> void:
 	else:
 		Log.info(TAG, "ammunition drawn from '%s' via %s()" % [
 			_ammo_source.system_name(), _ammo_method])
-	if director.enabled:
+	if Sim.get_system(&"threat") == null:
 		Log.info(TAG, "no [P08] threat system — combat is driving its own fallback "
 			+ "assault director; it opens a front only once the city has a perimeter")
 	else:
-		Log.info(TAG, "[P08] threat present — the fallback director stays out of the way")
+		Log.info(TAG, "[P08] threat present — the fallback director stands down as soon "
+			+ "as the first wave is actually driven through spawn_group()/spawn()")
 
 
 func step(tick: int) -> void:
@@ -223,20 +236,84 @@ func spawn(kind: StringName, cell: Vector2i, count: int = 1) -> int:
 	if slot < 0:
 		Log.warn(TAG, "no enemy definition '%s'" % kind)
 		return 0
+	_note_external_spawn()
 	return _spawn_slot(slot, Grid.cell_to_world(cell), count, SimClock.tick)
 
 
-## Spawns onto the approach lane nearest `heading`, or a random lane when the
-## map has none. Lanes are [P01]'s record of the old highways into the basin.
+## [P08]'s group handoff: one composed wave group becomes real bodies on the
+## field. Accepts `{wave, enemy, count, cell, vector, compass, path}` and returns
+## a handle the director can ask about later through [method wave_status].
+func spawn_group(spec: Dictionary) -> int:
+	var kind: StringName = StringName(String(spec.get("enemy", "")))
+	var slot: int = swarm.def_slot(kind)
+	if slot < 0:
+		Log.warn(TAG, "spawn_group: no enemy definition '%s'" % kind)
+		return -1
+	_note_external_spawn()
+	var w: int = int(spec.get("wave", wave))
+	wave = maxi(wave, w)
+	var cell: Vector2i = _to_cell(spec.get("cell", []))
+	var at: Vector2 = Grid.cell_to_world(cell) if cell != Vector2i.ZERO else _lane_point(int(spec.get("vector", 0)))
+	var n: int = maxi(1, int(spec.get("count", 1)))
+	var first: int = _next_id
+	var made: int = _spawn_slot(slot, at, n, SimClock.tick)
+	var record: Dictionary = _wave_record(w)
+	record["spawned"] = int(record["spawned"]) + made
+	var groups: Array = record["groups"]
+	groups.append({"enemy": String(kind), "count": made, "first_id": first,
+		"cell": [cell.x, cell.y], "compass": String(spec.get("compass", ""))})
+	return first
+
+
+## Single-body variant of the same handoff, for a director that has no groups.
+func spawn_enemy(kind: StringName, cell: Vector2i, wave_number: int = 0) -> int:
+	var made: int = spawn(kind, cell, 1)
+	if made > 0 and wave_number > 0:
+		wave = maxi(wave, wave_number)
+		var record: Dictionary = _wave_record(wave_number)
+		record["spawned"] = int(record["spawned"]) + made
+	return made
+
+
+## Spawns onto the approach lane chosen by `lane_seed`. Lanes are [P01]'s record
+## of the old highways into the basin.
 func spawn_on_lane(kind: StringName, lane_seed: int, count: int = 1) -> int:
 	var slot: int = swarm.def_slot(kind)
 	if slot < 0:
 		return 0
+	_note_external_spawn()
 	return _spawn_slot(slot, _lane_point(lane_seed), count, SimClock.tick)
 
 
 func enemies_alive() -> int:
 	return swarm.count
+
+
+## Alias [P08] duck-types for.
+func live_enemy_count() -> int:
+	return swarm.count
+
+
+## How one wave is going: how many were put on the field, how many are still on
+## it, and how many the wall has killed. [P08] polls this to decide when a night
+## is over instead of guessing.
+func wave_status(wave_number: int) -> Dictionary:
+	var record: Dictionary = _waves.get(wave_number, {})
+	if record.is_empty():
+		return {"wave": wave_number, "spawned": 0, "live": 0, "killed": 0, "groups": []}
+	var live: int = 0
+	var lowest: int = int(record.get("first_id", 0))
+	for i: int in range(swarm.count):
+		if swarm.e_id[i] >= lowest and swarm.e_id[i] < int(record.get("last_id", _next_id)):
+			live += 1
+	var spawned: int = int(record.get("spawned", 0))
+	return {
+		"wave": wave_number,
+		"spawned": spawned,
+		"live": live,
+		"killed": maxi(0, spawned - live),
+		"groups": record.get("groups", []),
+	}
 
 
 func enemy_kinds() -> Array[StringName]:
@@ -250,7 +327,7 @@ func has_enemy_kind(kind: StringName) -> bool:
 	return swarm.has_kind(kind)
 
 
-func enemy_def(kind: StringName) -> EnemyDef:
+func enemy_def(kind: StringName) -> CombatEnemyDef:
 	return swarm.def_resource(swarm.def_slot(kind))
 
 
@@ -374,7 +451,7 @@ func describe_enemy(enemy_id: int) -> Dictionary:
 	if slot < 0:
 		return {}
 	var d: int = swarm.e_def[slot]
-	var res: EnemyDef = swarm.def_resource(d)
+	var res: CombatEnemyDef = swarm.def_resource(d)
 	return {
 		"id": enemy_id,
 		"kind": String(swarm.d_id[d]),
@@ -650,8 +727,33 @@ func _repair_defences(cmd: Dictionary) -> void:
 # per-tick internals
 # =========================================================================
 
+## Ticks of quiet before the fallback director decides nothing else is driving
+## the night. Two full campaign days, so a director that only acts on some nights
+## is never talked over.
+const EXTERNAL_GRACE_TICKS: int = 19200
+
+
+func _note_external_spawn() -> void:
+	_external_tick = SimClock.tick
+	if not _handover_logged:
+		_handover_logged = true
+		Log.info(TAG, "an external director is driving the assault — combat's fallback "
+			+ "stands down")
+
+
+func _wave_record(wave_number: int) -> Dictionary:
+	var record: Dictionary = _waves.get(wave_number, {})
+	if record.is_empty():
+		record = {"spawned": 0, "first_id": _next_id, "last_id": _next_id, "groups": []}
+		_waves[wave_number] = record
+	record["last_id"] = _next_id
+	return record
+
+
 func _run_director(tick: int) -> void:
 	if not director.enabled or not _content_ok:
+		return
+	if _external_tick >= 0 and tick - _external_tick < EXTERNAL_GRACE_TICKS:
 		return
 	var orders: Array[Dictionary] = director.step(
 		tick, _day(), _is_night(), _is_defended(tick), swarm, swarm.count)
@@ -1026,6 +1128,7 @@ func serialize() -> Dictionary:
 		"projectiles": shells.serialize(),
 		"turrets": battery.serialize(),
 		"director": director.serialize(),
+		"external_tick": _external_tick,
 		"field": assault.stats(),
 		"census": swarm.census(),
 	}
@@ -1051,6 +1154,7 @@ func deserialize(data: Dictionary) -> void:
 	swarm.deserialize(data.get("enemies", []), SimClock.tick)
 	shells.deserialize(data.get("projectiles", []))
 	director.deserialize(data.get("director", {}), swarm)
+	_external_tick = int(data.get("external_tick", -1))
 	_sync_turrets()
 	for entry: Variant in data.get("turrets", []):
 		var t: Dictionary = entry

@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "The Ember Congregation"
+script = ExtResource("1_law")
+id = &"path_of_faith"
+title = "The Ember Congregation"
+branch = &"faith"
+tier = 3
+section = "Faith"
+sort_order = 100
+prose = "The generator hall is opened in the evenings, and what happens there is not the hall's business. The law grants the space, the fuel and the hour, and declines to name what is being done with them."
+argument_for = "You keep the fire and you will not say what it is. Let us give it a name."
+argument_against = "Once they have a name for it they will have rules about it, and the rules will not be yours."
+signed_line = "Two hundred people stood around a generator in the dark and said nothing for a long time, and then went home warmer than the heat alone accounts for."
+requires_any = Array[StringName]([&"emergency_shift", &"soup_ration", &"double_bunks", &"night_curfew", &"child_labour", &"child_shelter_duty", &"care_house"])
+excludes = Array[StringName]([&"path_of_order"])
+min_day = 2
+debate_hours = 5.0
+hope_on_sign = 5.0
+discontent_on_sign = -3.0
+policy = Dictionary[StringName, float]({
+&"solace": 0.5
+})
+flags = Array[StringName]([&"prayer"])
+approval = Dictionary[StringName, float]({
+&"faithful": 36.0,
+&"watch": -12.0
+})
+relieves = Array[StringName]([&"faithless"])
+provokes = Array[StringName]([&"disorder"])

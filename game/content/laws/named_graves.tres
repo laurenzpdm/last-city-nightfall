@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Named Graves"
+script = ExtResource("1_law")
+id = &"named_graves"
+title = "Named Graves"
+branch = &"trunk"
+tier = 1
+section = "The Dead"
+sort_order = 52
+prose = "Every death is dug, marked and recorded by name, and the ground is opened with steam to make that possible. The law sets aside heat for the work. That is the whole cost of it and the whole point of it."
+argument_for = "A city that cannot bury its dead is not a city. It is a work site with people on it."
+argument_against = "You are spending heat on the ones who are already gone while the living queue for what is left."
+signed_line = "There are markers past the north gate now and each one has a name cut into it. People walk out there in weather they would not walk out in for anything else."
+excludes = Array[StringName]([&"snow_burial", &"corpse_pits"])
+hope_on_sign = 5.0
+discontent_on_sign = -3.0
+hope_rate = 0.25
+policy = Dictionary[StringName, float]({
+&"corpse_capacity": 6.0,
+&"solace": 0.3
+})
+approval = Dictionary[StringName, float]({
+&"faithful": 26.0,
+&"families": 18.0,
+&"workers": -6.0
+})
+relieves = Array[StringName]([&"dead_unburied"])
+tags = Array[StringName]([&"costly"])

@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Whispers"
+script = ExtResource("1_law")
+id = &"informers"
+title = "Whispers"
+branch = &"order"
+tier = 5
+section = "Discipline"
+sort_order = 121
+prose = "Any person may report any other person to the Watch, and the report is heard without the reporter being named. The law provides a box by the hall door for the purpose."
+argument_for = "Half the theft in this city happens in rooms we are never invited into."
+argument_against = "You have just turned every conversation in the city into a risk somebody is taking."
+signed_line = "The box was full by the second morning. Most of it was about food. Some of it was about nothing at all, from people who wanted to be seen using the box."
+requires = Array[StringName]([&"watch_patrols"])
+min_day = 3
+hope_on_sign = -4.0
+discontent_on_sign = -5.0
+hope_rate = -0.35
+policy = Dictionary[StringName, float]({
+&"discipline": 0.45
+})
+flags = Array[StringName]([&"informers"])
+approval = Dictionary[StringName, float]({
+&"families": -22.0,
+&"watch": 16.0,
+&"workers": -16.0
+})
+provokes = Array[StringName]([&"fear"])
+tags = Array[StringName]([&"cruel"])

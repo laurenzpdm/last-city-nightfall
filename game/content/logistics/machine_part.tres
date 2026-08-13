@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="LogiItem" format=3]
+
+[ext_resource type="Script" path="res://game/sim/logistics/logi_item.gd" id="1_item"]
+
+[resource]
+resource_name = "Machine Part"
+script = ExtResource("1_item")
+id = &"machine_part"
+display_name = "Machine Part"
+description = "A crated assembly of gears, shafts and bearings. What a new building is mostly made of."
+category = &"component"
+stack_size = 50
+fuel_value = 0.0
+sort_order = 240
+tint = Color(0.7, 0.6, 0.4, 1)

@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Sawdust in the Bread"
+script = ExtResource("1_law")
+id = &"sawdust_bread"
+title = "Sawdust in the Bread"
+branch = &"trunk"
+tier = 2
+section = "Food"
+sort_order = 41
+prose = "Wood flour, bone meal and whatever else the mill will grind are added to the bread at up to a third by weight. The law requires that this be done. It does not require that it be announced."
+argument_for = "It fills them. It stops the shaking. It gets us to the thaw."
+argument_against = "It gives them nothing. You are feeding people the idea of food and charging their bodies for it."
+signed_line = "The bread came out heavier and darker and it did not go stale, because there was nothing in it that could. Everyone knew by the second morning."
+requires = Array[StringName]([&"soup_ration"])
+min_day = 2
+hope_on_sign = -4.0
+discontent_on_sign = 3.0
+hope_rate = -0.25
+policy = Dictionary[StringName, float]({
+&"food_yield": 0.35,
+&"medical_care": -0.1
+})
+flags = Array[StringName]([&"sawdust"])
+approval = Dictionary[StringName, float]({
+&"families": -10.0,
+&"infirm": -14.0,
+&"workers": -12.0
+})
+provokes = Array[StringName]([&"sickness"])
+tags = Array[StringName]([&"cruel"])

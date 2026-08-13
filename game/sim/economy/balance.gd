@@ -336,9 +336,15 @@ static func economics_of(def: BuildingDef) -> Dictionary:
 	var is_tank: bool = def.heat_buffer > 0.0 and (throughput <= 0.0
 		or def.heat_buffer > throughput * t.buffer_classification_seconds)
 
+	var recovery: bool = false
+	for tag: StringName in t.recovery_tags:
+		if def.has_tag(tag):
+			recovery = true
+			break
+
 	var role: StringName = &"passive"
 	if net > 0.0:
-		role = &"producer"
+		role = &"recovery" if recovery else &"producer"
 	elif throughput > 0.0 and not is_tank:
 		role = &"conduit"
 	elif is_tank and def.has_tag(&"buffer"):
@@ -421,11 +427,17 @@ static func _run_audit() -> Array[Dictionary]:
 					_band(out, id, &"buffer_value", float(e["storage_per_point"]),
 						t.buffer_units_per_point.x, t.buffer_units_per_point.y,
 						"units of stored heat per material point")
+			&"recovery":
+				_band(out, id, &"recovery_cost", float(e["points_per_heat_out"]),
+					t.recovery_points_per_heat.x, t.recovery_points_per_heat.y,
+					"material points per heat/second of recovered heat")
 			&"consumer":
 				if points > 0.0:
+					var ceiling_in: float = t.consumer_points_per_heat.y \
+						* pow(t.consumer_points_tier_growth, float(int(e["tier"]) - 1))
 					_band(out, id, &"consumer_cost", float(e["points_per_heat_in"]),
-						t.consumer_points_per_heat.x, t.consumer_points_per_heat.y,
-						"material points per heat/second drawn")
+						t.consumer_points_per_heat.x, ceiling_in,
+						"material points per heat/second drawn at tier %d" % int(e["tier"]))
 
 		_band(out, id, &"build_time", float(e["build_seconds"]),
 			float(t.tier_build_seconds_min[tier_i]), float(t.tier_build_seconds_max[tier_i]),
@@ -439,6 +451,126 @@ static func _run_audit() -> Array[Dictionary]:
 				t.heat_per_resident * 0.35, t.heat_per_resident * 1.20,
 				"heat/second per resident housed")
 	return out
+
+
+## Cross-system audit: is [P10]'s tech tree priced in materials this economy has
+## heard of, and does each tier sit inside its affordability band?
+##
+## Returns the same {kind, rule, value, low, high, note, text} shape as audit().
+## Empty when game/content/research/ is absent — a part that has not landed
+## cannot be wrong yet.
+static func audit_research() -> Array[Dictionary]:
+	var t: BalanceTable = table()
+	var out: Array[Dictionary] = []
+	var ids: Array[StringName] = Registry.ids("research")
+	if ids.is_empty():
+		return out
+	var per_tier: Dictionary[int, float] = {}
+	var counted: Dictionary[int, int] = {}
+	for id: StringName in ids:
+		var node: Resource = Registry.get_item("research", id)
+		if node == null or not ("cost" in node):
+			continue
+		var raw: Variant = node.get("cost")
+		if typeof(raw) != TYPE_DICTIONARY:
+			continue
+		var cost: Dictionary = raw
+		for item: Variant in EconomyDefs.sorted_keys(cost):
+			if not t.prices(StringName(String(item))):
+				out.append(_finding(id, &"unpriced_research_material", 0.0, 0.0, 0.0,
+					"research '%s' is bought with '%s', which material_value does not price"
+					% [String(id), String(item)]))
+		var tier: int = clampi(int(node.get("tier")) if "tier" in node else 1,
+			EconomyDefs.MIN_TIER, EconomyDefs.MAX_TIER)
+		per_tier[tier] = float(per_tier.get(tier, 0.0)) + points_of(cost)
+		counted[tier] = int(counted.get(tier, 0)) + 1
+	for tier: Variant in EconomyDefs.sorted_keys(per_tier):
+		var i: int = int(tier) - 1
+		_band(out, StringName("research_tier_%d" % int(tier)), &"research_tier_points",
+			float(per_tier[tier]),
+			float(t.research_tier_points_min[i]), float(t.research_tier_points_max[i]),
+			"material points across all %d tier-%d unlocks" % [int(counted[tier]), int(tier)])
+	return out
+
+
+## Cross-system audit: can a player who followed the intended build order afford
+## the nights [P08]'s director plans?
+##
+## Reads whatever ThreatProfile the registry holds, defensively — a shape check
+## and an affordability line, never a second copy of the curve. Empty when [P08]
+## has not shipped a profile.
+static func audit_threat() -> Array[Dictionary]:
+	var t: BalanceTable = table()
+	var out: Array[Dictionary] = []
+	var curve_points: PackedFloat32Array = _threat_curve()
+	if curve_points.is_empty():
+		return out
+	for i: int in range(1, curve_points.size()):
+		if curve_points[i] < curve_points[i - 1]:
+			out.append(_finding(StringName("night_%d" % (i + 1)), &"threat_curve_dips",
+				float(curve_points[i]), float(curve_points[i - 1]), INF,
+				"night %d asks for less than night %d — pressure that goes backwards "
+				% [i + 1, i] + "reads as the game losing interest"))
+			break
+	# Affordability: what the night asks for, against what the city could have
+	# built by then if it spent everything on defence.
+	var built: float = 0.0
+	var affordable_line: float = _city_points_by_night(1)
+	for i: int in curve_points.size():
+		var night: int = i + 1
+		built = _city_points_by_night(night)
+		var needed: float = float(curve_points[i]) * t.defence_points_per_threat_point
+		var ceiling: float = built * t.defence_share_of_city_max * t.defence_affordability_slack
+		if needed > ceiling and ceiling > 0.0:
+			out.append(_finding(StringName("night_%d" % night), &"threat_unaffordable",
+				needed, 0.0, ceiling,
+				"night %d wants %.0f points of defence; a city of %.0f points may only "
+				% [night, needed, built] + "spend %.0f on it" % ceiling))
+			break
+	affordable_line = built
+	if affordable_line <= 0.0:
+		out.append(_finding(&"economy", &"no_city_growth_model", 0.0, 1.0, INF,
+			"the affordability line evaluated to zero, so this audit proved nothing"))
+	return out
+
+
+## Material points a city following the intended curve has standing on night N.
+## Deliberately crude and deliberately here rather than in a system: it is a
+## DESIGN assumption (the starting stock plus a district a day), and the whole
+## point of the audit is to state that assumption out loud where it can be argued
+## with, instead of leaving it implicit in a threat curve nobody cross-checked.
+static func _city_points_by_night(night: int) -> float:
+	var t: BalanceTable = table()
+	var start: float = points_of(t.starting_stock)
+	# One district a day: two generators, a radiator, two homes, one workshop.
+	var per_day: float = 0.0
+	for kind: StringName in [&"coal_generator", &"coal_generator", &"warmth_radiator",
+			&"housing_block", &"housing_block"]:
+		var def: BuildingDef = Registry.get_item("buildings", kind) as BuildingDef
+		if def != null:
+			per_day += points_of(def.cost)
+	if per_day <= 0.0:
+		per_day = start * 0.5
+	return start + per_day * float(maxi(0, night - 1))
+
+
+static func _threat_curve() -> PackedFloat32Array:
+	for id: StringName in Registry.ids("threat"):
+		var res: Resource = Registry.get_item("threat", id)
+		if res != null and "budget_table" in res:
+			var raw: Variant = res.get("budget_table")
+			if typeof(raw) == TYPE_PACKED_FLOAT32_ARRAY:
+				return raw
+	var threat: SimSystem = Sim.get_system(&"threat")
+	if threat != null and threat.has_method("budget_for_night"):
+		var out := PackedFloat32Array()
+		for night: int in range(1, 13):
+			var v: Variant = threat.call("budget_for_night", night)
+			if typeof(v) != TYPE_FLOAT and typeof(v) != TYPE_INT:
+				return PackedFloat32Array()
+			out.append(float(v))
+		return out
+	return PackedFloat32Array()
 
 
 ## Which economic rules each definition is actually covered by, {kind: [rule]}.
@@ -459,6 +591,8 @@ static func audit_coverage() -> Dictionary[StringName, PackedStringArray]:
 				rules.append("producer_cost")
 				if not bool(e["exempt"]):
 					rules.append("tier_output")
+			&"recovery":
+				rules.append("recovery_cost")
 			&"conduit":
 				rules.append("conduit_value")
 			&"buffer":

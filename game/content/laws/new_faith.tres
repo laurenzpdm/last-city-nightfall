@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "The New Faith"
+script = ExtResource("1_law")
+id = &"new_faith"
+title = "The New Faith"
+branch = &"faith"
+tier = 7
+section = "Faith"
+sort_order = 140
+prose = "The fire is declared the centre of the city in the ordinary legal sense: the hall serves it, the roster serves it, and the wording is chosen so that a future hall cannot say otherwise. The final clause makes the congregation the interpreter of the law. The reading passed over that clause quickly."
+argument_for = "They will die for it. Do you understand what you are being handed?"
+argument_against = "Yes. That is exactly the problem."
+signed_line = "The generator has a name now. Nobody voted on it and everybody uses it, and the hall found out what it was from a child."
+requires = Array[StringName]([&"faith_keepers", &"last_warmth"])
+min_day = 6
+debate_hours = 8.0
+hope_on_sign = 6.0
+discontent_on_sign = -16.0
+hope_rate = 0.3
+policy = Dictionary[StringName, float]({
+&"discipline": 0.55,
+&"labour_pool": 0.15,
+&"solace": 0.85
+})
+flags = Array[StringName]([&"new_faith"])
+approval = Dictionary[StringName, float]({
+&"faithful": 40.0,
+&"families": -14.0,
+&"watch": -30.0,
+&"workers": -12.0
+})
+provokes = Array[StringName]([&"disorder", &"fear"])
+tags = Array[StringName]([&"unforgivable"])

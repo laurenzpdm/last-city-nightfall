@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "The New Order"
+script = ExtResource("1_law")
+id = &"new_order"
+title = "The New Order"
+branch = &"order"
+tier = 8
+section = "Discipline"
+sort_order = 150
+prose = "The city is reconstituted as a single work company under the hall. Housing, food, labour and movement are assigned. There is no clause covering how this ends. The omission was raised during the reading and was not addressed."
+argument_for = "It works. Look out of the window. It works."
+argument_against = "Yes. That is what everyone is afraid of."
+signed_line = "Everyone has a number now and the numbers are painted on the doors. The city runs better than it has ever run, and nobody has said a single unnecessary word in a week."
+requires = Array[StringName]([&"martial_law", &"press_gangs"])
+min_day = 6
+debate_hours = 8.0
+hope_on_sign = -12.0
+discontent_on_sign = -20.0
+hope_rate = -1.0
+policy = Dictionary[StringName, float]({
+&"discipline": 1.0,
+&"labour_pool": 0.25,
+&"work_hours": 2.0
+})
+flags = Array[StringName]([&"new_order"])
+approval = Dictionary[StringName, float]({
+&"faithful": -34.0,
+&"families": -30.0,
+&"latecomers": -20.0,
+&"watch": 30.0,
+&"workers": -20.0
+})
+provokes = Array[StringName]([&"fear", &"faithless"])
+tags = Array[StringName]([&"cruel", &"unforgivable"])

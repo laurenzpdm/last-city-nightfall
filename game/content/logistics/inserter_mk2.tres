@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="LogiDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/logistics/logi_def.gd" id="1_def"]
+
+[resource]
+resource_name = "Quick Arm"
+script = ExtResource("1_def")
+id = &"inserter_mk2"
+display_name = "Quick Arm"
+description = "Shorter throw, stiffer spring, nearly three swings a second."
+role = &"inserter"
+tier = 2
+sort_order = 41
+cost = Dictionary[StringName, int]({
+&"gear": 3,
+&"iron_plate": 3,
+&"circuit": 1
+})
+swings_per_second = 2.31
+stack_size = 1
+reach = 1
+unlock_id = &"belt_gearing"
+tint = Color(0.64, 0.7, 0.78, 1)

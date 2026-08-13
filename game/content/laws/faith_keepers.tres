@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "The Kindled"
+script = ExtResource("1_law")
+id = &"faith_keepers"
+title = "The Kindled"
+branch = &"faith"
+tier = 6
+section = "Faith"
+sort_order = 130
+prose = "The congregation may appoint keepers to hold order at the hour and at the ration line. They carry no weapon. The law is specific about that and silent about everything else they carry."
+argument_for = "They do not need telling twice and they do not need paying."
+argument_against = "You have made a second Watch and you are not the one who commands it."
+signed_line = "They stand at the doors now, at prayer and at the kitchen both, and people have begun deciding what to say before they reach the front of the queue."
+requires = Array[StringName]([&"house_of_prayer"])
+min_day = 4
+hope_on_sign = -2.0
+discontent_on_sign = -7.0
+hope_rate = -0.2
+policy = Dictionary[StringName, float]({
+&"discipline": 0.55,
+&"solace": 0.2
+})
+flags = Array[StringName]([&"zealots"])
+approval = Dictionary[StringName, float]({
+&"faithful": 28.0,
+&"watch": -20.0,
+&"workers": -10.0
+})
+provokes = Array[StringName]([&"fear", &"disorder"])

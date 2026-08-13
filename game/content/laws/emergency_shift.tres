@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Emergency Shift"
+script = ExtResource("1_law")
+id = &"emergency_shift"
+title = "Emergency Shift"
+branch = &"trunk"
+tier = 1
+section = "Labour"
+sort_order = 10
+prose = "The working day is extended to fourteen hours until further notice. There is no further notice written into this law, and everyone who signs it knows that."
+argument_for = "The wall is not finished. The wall does not care that people are tired."
+argument_against = "Four more hours in this cold is not four more hours of work. It is four more hours of frostbite."
+signed_line = "The whistle went at fourteen hours instead of ten. Nobody argued. Two men had to be helped down off the scaffold."
+hope_on_sign = 1.0
+discontent_on_sign = 3.0
+discontent_rate = 0.35
+policy = Dictionary[StringName, float]({
+&"work_hours": 4.0
+})
+approval = Dictionary[StringName, float]({
+&"watch": 6.0,
+&"workers": -18.0
+})
+provokes = Array[StringName]([&"overwork"])
+tags = Array[StringName]([&"costly"])

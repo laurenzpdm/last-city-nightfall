@@ -101,10 +101,13 @@ func serve(world: LogiWorld, stock: BuildStock, owner: int, target_cell: Vector2
 			moved += n
 
 	hauled_total += moved
-	if moved >= amount:
+	if moved > 0:
 		requests_served += 1
 		_starved.erase(owner)
 	else:
+		# Getting SOME of what you asked for is a rate limit, and the next tick
+		# brings more. Getting none of it means the city has none: that is the
+		# only thing worth calling starvation, and the only thing worth an alert.
 		requests_unmet += 1
 		_mark_short(owner)
 	return moved

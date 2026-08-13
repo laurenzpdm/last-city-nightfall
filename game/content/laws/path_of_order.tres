@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "The Watch"
+script = ExtResource("1_law")
+id = &"path_of_order"
+title = "The Watch"
+branch = &"order"
+tier = 3
+section = "Discipline"
+sort_order = 100
+prose = "A standing body of volunteers is given authority over the streets, the ration line and the work roster. They answer to the hall and to nothing else. They are given armbands, because the law is clear that they must be visible."
+argument_for = "There were three fights at the ration line today and nobody stopped any of them."
+argument_against = "Every one of them is somebody's neighbour, right up until the morning they are not."
+signed_line = "Eleven armbands went out. By the second day people had stopped calling them by their first names."
+requires_any = Array[StringName]([&"emergency_shift", &"soup_ration", &"double_bunks", &"night_curfew", &"child_labour", &"child_shelter_duty", &"care_house"])
+excludes = Array[StringName]([&"path_of_faith"])
+min_day = 2
+debate_hours = 5.0
+hope_on_sign = -1.0
+discontent_on_sign = -4.0
+policy = Dictionary[StringName, float]({
+&"discipline": 0.45
+})
+approval = Dictionary[StringName, float]({
+&"faithful": -12.0,
+&"watch": 34.0,
+&"workers": -6.0
+})
+relieves = Array[StringName]([&"disorder"])
+provokes = Array[StringName]([&"fear", &"faithless"])

@@ -28,15 +28,13 @@ func _initialize() -> void:
 
 func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
-	root.get_viewport().transparent_bg = false
-
 	_boot = (load(BOOT) as PackedScene).instantiate()
 	root.add_child(_boot)
 	await process_frame
 	await process_frame
 
-	_hide_placeholder_hud()
 	_install_hud()
+	_hide_other_ui()
 	# Manual clock: the rig jumps to exact ticks so a frame is reproducible.
 	_node("SimClock").call("set_manual", true)
 
@@ -108,11 +106,19 @@ func _node(n: String) -> Node:
 	return root.get_node_or_null(NodePath(n))
 
 
-func _hide_placeholder_hud() -> void:
-	for child: Node in _boot.get_children():
-		if child is CanvasLayer and child.get_class() == "CanvasLayer" \
-				and String(child.name) == "PlayHud":
+## Hides every other interface layer in the build — the integrator's placeholder
+## HUD, [P18]'s build menu, [P19]'s overlay legends — so these frames show this
+## part and nothing else. They are only hidden inside this rig.
+func _hide_other_ui() -> void:
+	_hide_layers_under(root)
+
+
+func _hide_layers_under(node: Node) -> void:
+	for child: Node in node.get_children():
+		if child is CanvasLayer and child != _hud:
 			(child as CanvasLayer).visible = false
+			continue
+		_hide_layers_under(child)
 
 
 func _install_hud() -> void:

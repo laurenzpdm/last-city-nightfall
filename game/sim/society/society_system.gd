@@ -786,6 +786,7 @@ func serialize() -> Dictionary:
 		"reasons": ledger.serialize(),
 		"forces": _pressures.serialize(),
 		"book": book.serialize(),
+		"pages": _pages(),
 		"council": council.serialize(_tick, _hour_ticks),
 		"people": populace.serialize(),
 		"verdict": verdict.serialize(_tick, _hour_ticks),
@@ -839,6 +840,28 @@ func metrics() -> Dictionary:
 		"despair_stage": verdict.despair_stage,
 		"ended": 1 if verdict.ended else 0,
 	}
+
+
+## Compact standing of every page, for state.json. The prose stays out of the
+## dump on purpose: a critic wants to see WHICH doors are open and which are
+## shut, and the full text of thirty one laws would bury that.
+func _pages() -> Array:
+	var out: Array = []
+	for law: LawDef in book.all():
+		var state: String = "open"
+		if book.is_signed(law.id):
+			state = "signed"
+		elif book.pending_id() == law.id:
+			state = "arguing"
+		else:
+			var av: Dictionary = book.availability(law.id, _day, _tick)
+			if not bool(av.get("ok", false)):
+				state = "blocked: %s" % String(av.get("reason", ""))
+		out.append({
+			"id": String(law.id), "title": law.title, "branch": String(law.branch),
+			"tier": law.tier, "section": law.section, "state": state,
+		})
+	return out
 
 
 func _names(arr: Array[StringName]) -> Array:

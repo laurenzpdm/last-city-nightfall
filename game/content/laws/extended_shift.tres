@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Extended Shift"
+script = ExtResource("1_law")
+id = &"extended_shift"
+title = "Extended Shift"
+branch = &"trunk"
+tier = 2
+section = "Labour"
+sort_order = 20
+prose = "Eighteen hours. The law stops using the word shift, because there is no longer anything to be off duty from. It uses the word duty."
+argument_for = "There is a storm four days out and a wall that is two thirds of a wall."
+argument_against = "You are spending people. Say it plainly. You are spending people to buy time."
+signed_line = "The night crew and the day crew are the same crew now. They sleep where they work and eat standing up."
+requires = Array[StringName]([&"emergency_shift"])
+min_day = 2
+debate_hours = 5.0
+hope_on_sign = -2.0
+discontent_on_sign = 6.0
+discontent_rate = 0.8
+policy = Dictionary[StringName, float]({
+&"labour_pool": 0.1,
+&"work_hours": 4.0
+})
+approval = Dictionary[StringName, float]({
+&"families": -10.0,
+&"workers": -30.0
+})
+provokes = Array[StringName]([&"overwork", &"sickness"])
+tags = Array[StringName]([&"cruel"])

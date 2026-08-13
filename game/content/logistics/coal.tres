@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="LogiItem" format=3]
+
+[ext_resource type="Script" path="res://game/sim/logistics/logi_item.gd" id="1_item"]
+
+[resource]
+resource_name = "Coal"
+script = ExtResource("1_item")
+id = &"coal"
+display_name = "Coal"
+description = "Black rock that remembers a warmer world. Everything that burns in this city burns this."
+category = &"fuel"
+stack_size = 100
+fuel_value = 4.0
+sort_order = 10
+tint = Color(0.16, 0.16, 0.18, 1)

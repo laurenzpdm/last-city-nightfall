@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Foreman's Portion"
+script = ExtResource("1_law")
+id = &"foreman_rations"
+title = "Foreman's Portion"
+branch = &"trunk"
+tier = 2
+section = "Food"
+sort_order = 42
+prose = "Shift leaders, engineers and the generator crew eat first and eat full. The law lists the posts by name. Everyone else can read the list."
+argument_for = "The person who keeps the generator lit should not be light headed while doing it."
+argument_against = "You have just written down, in the book, in ink, who matters."
+signed_line = "The list went up by the kitchen door. People read it on the way in and again on the way out."
+requires = Array[StringName]([&"emergency_shift"])
+hope_on_sign = -2.0
+discontent_on_sign = 5.0
+discontent_rate = 0.25
+policy = Dictionary[StringName, float]({
+&"labour_pool": 0.12,
+&"ration": -0.05
+})
+approval = Dictionary[StringName, float]({
+&"watch": 14.0,
+&"workers": -20.0
+})
+provokes = Array[StringName]([&"hunger", &"disorder"])

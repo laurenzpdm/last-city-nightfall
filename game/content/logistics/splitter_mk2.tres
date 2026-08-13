@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="LogiDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/logistics/logi_def.gd" id="1_def"]
+
+[resource]
+resource_name = "Sorting Table II"
+script = ExtResource("1_def")
+id = &"splitter_mk2"
+display_name = "Sorting Table II"
+description = "The same paddle, driven fast enough to keep up with a geared belt."
+role = &"splitter"
+tier = 2
+sort_order = 31
+cost = Dictionary[StringName, int]({
+&"iron_plate": 5,
+&"gear": 4,
+&"circuit": 2
+})
+speed = 3.75
+size = Vector2i(2, 1)
+unlock_id = &"belt_gearing"
+tint = Color(0.72, 0.7, 0.56, 1)

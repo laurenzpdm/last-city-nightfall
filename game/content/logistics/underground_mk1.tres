@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="LogiDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/logistics/logi_def.gd" id="1_def"]
+
+[resource]
+resource_name = "Sunken Belt"
+script = ExtResource("1_def")
+id = &"underground_mk1"
+display_name = "Sunken Belt"
+description = "A hooded mouth and a trench under the ice. Five tiles of somebody else's problem."
+role = &"underground"
+tier = 1
+sort_order = 20
+cost = Dictionary[StringName, int]({
+&"iron_plate": 4,
+&"stone": 2
+})
+speed = 1.875
+max_span = 5
+tint = Color(0.6, 0.52, 0.36, 1)

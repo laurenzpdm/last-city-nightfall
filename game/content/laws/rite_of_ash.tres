@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "The Rite of Ash"
+script = ExtResource("1_law")
+id = &"rite_of_ash"
+title = "The Rite of Ash"
+branch = &"faith"
+tier = 5
+section = "The Dead"
+sort_order = 121
+prose = "The dead are given to the generator's intake at the turn of the night, with the congregation present, and their ash is kept in the hall. The law grants the fuel and the hour and requires that the names be read aloud."
+argument_for = "They go into the fire that keeps the rest of us alive. There is worse to be than that."
+argument_against = "You are putting people in the furnace and calling it a sacrament, and one day somebody will drop the second half of that sentence."
+signed_line = "The names were read out over the intake and the fire took them one at a time. The hall smelled of it for two days and nobody complained about that either."
+requires = Array[StringName]([&"house_of_prayer"])
+excludes = Array[StringName]([&"corpse_pits", &"snow_burial"])
+min_day = 3
+hope_on_sign = 2.0
+discontent_on_sign = -4.0
+policy = Dictionary[StringName, float]({
+&"corpse_capacity": 25.0,
+&"solace": 0.25
+})
+approval = Dictionary[StringName, float]({
+&"faithful": 24.0,
+&"families": -8.0,
+&"infirm": 8.0
+})
+relieves = Array[StringName]([&"dead_unburied"])

@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="LogiDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/logistics/logi_def.gd" id="1_def"]
+
+[resource]
+resource_name = "Stack Arm"
+script = ExtResource("1_def")
+id = &"inserter_mk3"
+display_name = "Stack Arm"
+description = "Takes three at a time. One of these is worth six loading arms and costs less heat than two."
+role = &"inserter"
+tier = 3
+sort_order = 42
+cost = Dictionary[StringName, int]({
+&"gear": 4,
+&"steel_plate": 3,
+&"circuit": 3
+})
+swings_per_second = 2.31
+stack_size = 3
+reach = 1
+unlock_id = &"driven_rollers"
+tint = Color(0.7, 0.78, 0.86, 1)

@@ -151,8 +151,11 @@ func step(tick: int) -> void:
 	haul.begin_tick(tick, _crew())
 	_sync_from_build()
 	world.step(tick)
+	# Fuel every tick, stock requests every half second: a burner running dry is
+	# the difference between a lit city and a dead one, and the loop is a handful
+	# of early-outs when every bunker is full.
+	_serve_fuel()
 	if tick % REQUEST_EVERY == 0:
-		_serve_fuel()
 		_serve_requests()
 
 
@@ -233,7 +236,7 @@ func _serve_requests() -> void:
 				var placed: int = st.insert(kind, got)
 				if placed < got:
 					_return_items(cell, kind, got - placed)
-			elif not Bus.machine_stalled.is_null():
+			else:
 				Bus.machine_stalled.emit(id, &"no_items")
 
 
@@ -566,6 +569,10 @@ func can_place(kind: StringName, cell: Vector2i, rot: int = 0) -> Dictionary:
 	var def: LogiDef = _defs.get(kind)
 	if def == null:
 		return {"ok": false, "reason": "There is no such thing as '%s'." % String(kind), "cells": []}
+	if String(def.unlock_id) != "" and not _is_unlocked(def.unlock_id):
+		return {"ok": false, "cells": [],
+			"reason": "%s is still locked — research %s first." % [
+				def.display_name, String(def.unlock_id).replace("_", " ")]}
 	var cells: Array[Vector2i] = _cells_for(def, cell, rot)
 	for c: Vector2i in cells:
 		if world.occ.has(c):
@@ -582,6 +589,14 @@ func _cells_for(def: LogiDef, cell: Vector2i, rot: int) -> Array[Vector2i]:
 		var d: Vector2i = LogiTypes.dir_vec(rot)
 		return [cell, cell + LogiTypes.right_of(d)]
 	return def.cells_at(cell, rot)
+
+
+## Research gates are [P10]'s, and [P11] already knows how to answer for them
+## while the tech tree is being built. Nothing is gated until somebody says so.
+func _is_unlocked(unlock: StringName) -> bool:
+	if _build != null and _build.has_method("is_unlocked"):
+		return bool(_build.call("is_unlocked", unlock))
+	return true
 
 
 ## True when neither [P01] nor [P11] objects to us standing on this tile.
@@ -615,7 +630,7 @@ func place(kind: StringName, cell: Vector2i, rot: int = 0, free: bool = false) -
 	e.kind = def.id
 	e.def = def
 	e.cell = cell
-	e.rot = def.normalize_rot(rot) if def.has_method("normalize_rot") else posmod(rot, 4)
+	e.rot = posmod(rot, 4) if def.is_rotatable() else 0
 	e.cells = check["cells"]
 	e.placed_tick = _tick
 	if def.role_id() == LogiTypes.Role.CHEST:
@@ -623,7 +638,10 @@ func place(kind: StringName, cell: Vector2i, rot: int = 0, free: bool = false) -
 		e.store.requesting = def.requests
 	world.add_entity(e)
 	_placed_total += 1
-	Bus.building_placed.emit(e.id, e.kind, e.cell)
+	# No Bus.building_placed: [P13]'s world model is keyed to [P11] building ids
+	# and would try to resolve a belt as a building. Belts reach the view through
+	# belts_for_view() and items_for_view() instead, which is what they need.
+	Log.debug("logistics", "placed %s #%d at %s" % [String(e.kind), e.id, str(e.cell)])
 	return {"ok": true, "reason": "", "id": e.id, "cells": e.cells}
 
 
@@ -672,7 +690,6 @@ func _remove_entity(id: int, refund: bool) -> bool:
 	if refund:
 		_refund(e.def)
 	_removed_total += 1
-	Bus.building_removed.emit(id, e.cell)
 	return true
 
 

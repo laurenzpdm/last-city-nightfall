@@ -406,6 +406,9 @@ func _sample_buildings() -> void:
 	bld_progress.resize(n)
 	bld_reach.resize(n)
 
+	# Without a citizens system every building reports zero crew, and badging the
+	# whole city with "no crew" is noise. -1 means "nobody staffs anything yet".
+	var staffed: bool = probe.has_citizens()
 	var i: int = 0
 	for b: BuildingInstance in list:
 		var d: BuildingDef = b.def
@@ -416,7 +419,7 @@ func _sample_buildings() -> void:
 		bld_w[i] = maxi(1, r.size.x)
 		bld_h[i] = maxi(1, r.size.y)
 		bld_state[i] = b.state
-		bld_workers[i] = b.workers
+		bld_workers[i] = b.workers if staffed else -1
 		bld_need[i] = d.workers_required if d != null else 0
 		bld_hp[i] = b.health_ratio()
 		bld_progress[i] = b.progress_ratio()
@@ -428,7 +431,10 @@ func _sample_buildings() -> void:
 		if d != null:
 			if d.has_tag(&"turret") or String(d.weapon_id) != "":
 				flags |= B_TURRET
-				var probed: float = probe.turret_range(b.id)
+				# The real weapon range, read from the weapon definition. Falling
+				# back to vision radius would draw a defence ring that is not the
+				# ring the guns actually shoot inside, which is worse than none.
+				var probed: float = probe.weapon_range(d.weapon_id)
 				reach = probed if probed > 0.0 else maxf(d.vision_radius, 8.0)
 			elif d.vision_radius > 0.0:
 				reach = d.vision_radius

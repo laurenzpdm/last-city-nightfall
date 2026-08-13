@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="LogiDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/logistics/logi_def.gd" id="1_def"]
+
+[resource]
+resource_name = "Loading Arm"
+script = ExtResource("1_def")
+id = &"inserter_mk1"
+display_name = "Loading Arm"
+description = "A counterweighted arm that takes from behind and puts down in front. Slow, cheap, and the reason anything ever gets into a furnace."
+role = &"inserter"
+tier = 1
+sort_order = 40
+cost = Dictionary[StringName, int]({
+&"gear": 2,
+&"iron_plate": 2
+})
+swings_per_second = 0.83
+stack_size = 1
+reach = 1
+tint = Color(0.6, 0.64, 0.7, 1)

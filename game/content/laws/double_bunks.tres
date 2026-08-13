@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Double Bunks"
+script = ExtResource("1_law")
+id = &"double_bunks"
+title = "Double Bunks"
+branch = &"trunk"
+tier = 1
+section = "Shelter"
+sort_order = 70
+prose = "Two to a bunk, head to foot, in every room in the city. A house built for twelve will hold twenty, and the extra bodies will hold the room a few degrees above whatever the stove manages on its own."
+argument_for = "There are people on the ice tonight who will not be there in the morning."
+argument_against = "Fever moves through a crowded room the way water moves downhill."
+signed_line = "The carpenters worked through the night. By dawn every room had twice as many beds in it and half as much air."
+hope_on_sign = 2.0
+discontent_on_sign = 2.0
+policy = Dictionary[StringName, float]({
+&"crowding": 0.35,
+&"shelter_capacity": 0.65
+})
+approval = Dictionary[StringName, float]({
+&"families": -10.0,
+&"infirm": -12.0,
+&"latecomers": 26.0
+})
+relieves = Array[StringName]([&"homeless"])
+provokes = Array[StringName]([&"sickness"])

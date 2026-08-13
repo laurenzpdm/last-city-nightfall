@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="LogiDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/logistics/logi_def.gd" id="1_def"]
+
+[resource]
+resource_name = "Slat Belt"
+script = ExtResource("1_def")
+id = &"belt_mk1"
+display_name = "Slat Belt"
+description = "Wooden slats on a hand-forged chain, driven off the heat main. Fifteen things a second, forever, without anyone standing there."
+role = &"belt"
+tier = 1
+sort_order = 10
+cost = Dictionary[StringName, int]({
+&"iron_plate": 1
+})
+speed = 1.875
+tint = Color(0.72, 0.62, 0.4, 1)

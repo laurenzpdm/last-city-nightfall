@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Patrols"
+script = ExtResource("1_law")
+id = &"watch_patrols"
+title = "Patrols"
+branch = &"order"
+tier = 4
+section = "Discipline"
+sort_order = 110
+prose = "The Watch walks fixed routes through the night, in pairs, with lamps. Anyone outside without a work chit is walked home. The law does not define walked."
+argument_for = "Somebody has to be awake and looking outward."
+argument_against = "They are not looking outward."
+signed_line = "There are lamps moving between the houses all night now. It is either reassuring or it is not, depending on which house you are standing in."
+requires = Array[StringName]([&"path_of_order"])
+hope_on_sign = -1.0
+discontent_on_sign = -3.0
+discontent_rate = -0.2
+policy = Dictionary[StringName, float]({
+&"discipline": 0.35
+})
+approval = Dictionary[StringName, float]({
+&"families": -10.0,
+&"watch": 18.0
+})
+relieves = Array[StringName]([&"disorder"])
+provokes = Array[StringName]([&"fear"])

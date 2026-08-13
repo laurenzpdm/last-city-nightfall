@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="LogiDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/logistics/logi_def.gd" id="1_def"]
+
+[resource]
+resource_name = "Sunken Belt II"
+script = ExtResource("1_def")
+id = &"underground_mk2"
+display_name = "Sunken Belt II"
+description = "Deeper, longer, and lined so the drift cannot pack it."
+role = &"underground"
+tier = 2
+sort_order = 21
+cost = Dictionary[StringName, int]({
+&"iron_plate": 4,
+&"gear": 2,
+&"stone": 2
+})
+speed = 3.75
+max_span = 7
+unlock_id = &"belt_gearing"
+tint = Color(0.66, 0.6, 0.44, 1)

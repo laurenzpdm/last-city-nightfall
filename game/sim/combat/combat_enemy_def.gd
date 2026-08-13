@@ -1,10 +1,16 @@
-class_name EnemyDef
+class_name CombatEnemyDef
 extends Resource
 ## The definition of one thing that comes out of the dark.
 ##
 ## Drop a .tres of this type into `game/content/enemies/` and Registry finds it —
 ## there is no list to edit. Look one up with
-## `Registry.get_item("enemies", &"drift_hound") as EnemyDef`.
+## `Registry.get_item("enemies", &"drift_hound") as CombatEnemyDef`.
+##
+## [b]It also adopts foreign definitions.[/b] [P08] threat keeps a second, shallower
+## enemy schema for composing waves out of the same folder. Rather than fight over
+## one class name, [method from_resource] reads any resource in `enemies/` that
+## exposes an hp/speed/damage statline and derives the combat-side fields it does
+## not state — so whichever part authored a creature, this one can field it.
 ##
 ## The design rule this schema exists to enforce: **no stat-scaled copies.** A new
 ## enemy earns its place by demanding a different answer, and the fields that
@@ -128,6 +134,73 @@ extends Resource
 @export var render_arch: StringName = &"swarm"
 ## Accent colour for the threat readout and the minimap blip.
 @export var tint: Color = Color(0.72, 0.30, 0.34)
+
+
+## Adopts a definition authored against a different schema. Returns null when the
+## resource is not an enemy statline at all.
+##
+## The rule, mirroring what [HeatDef] does for buildings: read what the resource
+## states, derive the rest, and never hard-code a creature's name. [P08]'s schema
+## spells hit points `hp`, plating `armor`, and gates on `min_wave`/`cost`; it has
+## no damage channels, no resistances and no behaviour, so those are derived from
+## its `role` and `flying` fields. A creature adopted this way fights correctly —
+## it simply has none of the sharper edges an authored combat def can carry.
+static func from_resource(res: Resource) -> CombatEnemyDef:
+	if res == null or res is CombatEnemyDef:
+		return res as CombatEnemyDef
+	if not ("hp" in res and "speed" in res and "damage" in res):
+		return null
+	var d := CombatEnemyDef.new()
+	d.id = StringName(String(res.get("id"))) if "id" in res else StringName(res.resource_path.get_file().get_basename())
+	d.display_name = String(res.get("display_name")) if "display_name" in res else String(d.id)
+	d.description = String(res.get("description")) if "description" in res else "Adopted from a foreign enemy definition."
+	if "tags" in res:
+		for t: Variant in (res.get("tags") as Array):
+			d.tags.append(StringName(String(t)))
+	d.health = maxf(1.0, float(res.get("hp")))
+	d.armour = float(res.get("armor")) if "armor" in res else 0.0
+	d.speed = maxf(0.0, float(res.get("speed")))
+	d.damage = float(res.get("damage"))
+	d.attack_interval = maxf(0.05, float(res.get("attack_interval"))) if "attack_interval" in res else 1.0
+	d.attack_range = float(res.get("attack_range")) if "attack_range" in res else 1.0
+	# Their body radius is authored in pixels; ours is in tiles.
+	d.body_radius = maxf(0.15, float(res.get("body_radius")) / 32.0) if "body_radius" in res else 0.35
+	d.ignores_walls = bool(res.get("flying")) if "flying" in res else false
+	d.pack_size = maxi(1, int(res.get("pack_size"))) if "pack_size" in res else 1
+	d.min_day = maxi(1, int(res.get("min_wave"))) if "min_wave" in res else 1
+	d.wave_weight = float(res.get("weight")) if "weight" in res else 1.0
+	d.threat_value = maxf(0.1, float(res.get("cost"))) if "cost" in res else 1.0
+	if "tint" in res:
+		d.tint = res.get("tint")
+	# Role decides the two things a shallow schema cannot state: what it walks up
+	# to, and how it is drawn.
+	var role: StringName = StringName(String(res.get("role"))) if "role" in res else &"line"
+	match role:
+		&"breaker":
+			d.behaviour = &"breaker"
+			d.target_pref = &"wall"
+			d.preferred_multiplier = 2.0
+			d.seek_radius = 10.0
+			d.render_arch = &"brute"
+		&"stalker":
+			d.behaviour = &"fly" if d.ignores_walls else &"advance"
+			d.target_pref = &"turret"
+			d.preferred_multiplier = 1.6
+			d.seek_radius = 16.0
+		&"siege":
+			d.behaviour = &"siege"
+			d.seek_radius = maxf(d.attack_range + 2.0, 8.0)
+			d.render_arch = &"brute"
+		_:
+			d.behaviour = &"fly" if d.ignores_walls else &"advance"
+	if "heat_drain" in res and float(res.get("heat_drain")) > 0.0:
+		d.behaviour = &"siphon"
+		d.target_pref = &"conduit"
+		d.preferred_multiplier = 4.0
+		d.seek_radius = maxf(d.seek_radius, 18.0)
+		d.siphon_rate = float(res.get("heat_drain"))
+		d.aura_radius = 7.0
+	return d
 
 
 ## Multiplier for one CombatTypes.Damage channel.

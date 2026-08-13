@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="LogiItem" format=3]
+
+[ext_resource type="Script" path="res://game/sim/logistics/logi_item.gd" id="1_item"]
+
+[resource]
+resource_name = "Gear"
+script = ExtResource("1_item")
+id = &"gear"
+display_name = "Gear"
+description = "Stamped, hobbed and hardened. Half the machines in the city are mostly these."
+category = &"component"
+stack_size = 100
+fuel_value = 0.0
+sort_order = 210
+tint = Color(0.66, 0.68, 0.72, 1)

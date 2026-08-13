@@ -34,6 +34,12 @@ func _process(_delta: float) -> bool:
 	for f: Variant in findings:
 		print("  ", String((f as Dictionary)["text"]))
 	print("audit findings: ", findings.size())
+	print("--- research audit")
+	for f: Variant in B.call("audit_research"):
+		print("  ", String((f as Dictionary)["text"]))
+	print("--- threat audit")
+	for f: Variant in B.call("audit_threat"):
+		print("  ", String((f as Dictionary)["text"]))
 	print("--- coverage")
 	var cov: Dictionary = B.call("audit_coverage")
 	var keys: Array = cov.keys(); keys.sort()

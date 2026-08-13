@@ -127,6 +127,7 @@ var _production: SimSystem = null
 var _logistics: SimSystem = null
 
 var _bound_tick: int = -1
+var _bound_seed: int = -1
 var _last_refresh_tick: int = -1000
 var _shortfalls: Dictionary[int, Array] = {}      ## nid -> [deficit, tick]
 var _net_titles: Dictionary[int, String] = {}
@@ -149,9 +150,17 @@ func _init() -> void:
 
 ## Re-resolves every system pointer. Called on world_ready and whenever the tick
 ## counter goes backwards (a load, a new world, a test fixture restarting).
+##
+## A system pointer is only ever taken from a world that finished being built.
+## `Sim.create_world` installs systems one at a time and calls `setup()` on them
+## afterwards, so a world that died halfway (a part mid-edit, a bad content file)
+## leaves half-constructed systems lying in `Sim.by_name` whose methods dereference
+## null internals. Binding only to a live world is what keeps the HUD standing
+## while eleven other parts are being written underneath it.
 func bind() -> void:
 	var sim: Node = _autoload(&"Sim")
-	if sim == null:
+	if sim == null or not bool(sim.get("alive")):
+		_forget()
 		return
 	_climate = sim.call("get_system", &"climate") as SimSystem
 	_heat = sim.call("get_system", &"heat") as SimSystem
@@ -168,15 +177,55 @@ func bind() -> void:
 	_buffer_version = -1
 	_items_scanned = false
 	_shortfalls.clear()
-	trend.reset()
+	# Only a different world invalidates the trends. Re-binding inside the same
+	# world (a system arriving late) must not erase a minute of history.
+	var rng: Node = _autoload(&"Rng")
+	var world_seed: int = 0 if rng == null else int(rng.get("seed_value"))
+	if world_seed != _bound_seed:
+		_bound_seed = world_seed
+		trend.reset()
 	_bound_tick = _tick()
+
+
+## Every system pointer dropped and every reading marked unknown. The HUD hides
+## the panels rather than showing zeroes it cannot stand behind.
+func _forget() -> void:
+	_climate = null
+	_heat = null
+	_build = null
+	_citizens = null
+	_society = null
+	_threat = null
+	_combat = null
+	_research = null
+	_production = null
+	_logistics = null
+	has_climate = false
+	has_heat = false
+	has_build = false
+	has_population = false
+	has_society = false
+	has_threat = false
+	has_combat = false
+	has_research = false
+	short_networks.clear()
+	stock.clear()
+	stock_order.clear()
+	_shortfalls.clear()
+	_bound_tick = 0
 
 
 ## Pulls a fresh reading. Returns true when anything was actually re-read;
 ## `force` ignores the rate limit (used on selection changes and on alerts).
 func refresh(force: bool = false) -> bool:
+	var sim: Node = _autoload(&"Sim")
+	if sim == null or not bool(sim.get("alive")):
+		if has_heat or has_climate or has_build:
+			_forget()
+			return true
+		return false
 	var tick: int = _tick()
-	if tick < _bound_tick:
+	if tick < _bound_tick or (_climate == null and _heat == null and _build == null):
 		bind()
 	var every: int = maxi(1, int(20.0 / REFRESH_HZ))
 	if not force and tick - _last_refresh_tick < every:

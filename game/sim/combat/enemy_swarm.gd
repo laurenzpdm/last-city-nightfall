@@ -7,7 +7,7 @@ extends RefCounted
 ## slice of a 50 ms tick, and in GDScript the cost of a hot loop is dominated by
 ## property lookups and object headers, not by arithmetic. Here the inner loop
 ## touches typed [PackedFloat32Array] elements and local ints, allocates nothing,
-## and calls nothing per enemy. Definitions are read out of [EnemyDef] exactly
+## and calls nothing per enemy. Definitions are read out of [CombatEnemyDef] exactly
 ## once at world creation into a parallel def table, so a Resource property is
 ## never touched while the game is running.
 ##
@@ -105,6 +105,10 @@ var e_rally: PackedFloat32Array = PackedFloat32Array()
 var e_gate: PackedFloat32Array = PackedFloat32Array()
 var e_hidden: PackedByteArray = PackedByteArray()
 var e_born: PackedInt32Array = PackedInt32Array()
+## Ground speed multiplier under this body, resampled on its think tick. Snow
+## depth moves slowly, and asking [WorldGrid] once per enemy per tick is five
+## hundred cross-object calls to answer a question that changed by nothing.
+var e_ground: PackedFloat32Array = PackedFloat32Array()
 
 # ---------------------------------------------------------------- buckets ----
 
@@ -134,16 +138,23 @@ var _spawn_queue: Array[Dictionary] = []
 # definitions
 # =========================================================================
 
-## Reads every EnemyDef in the registry into the def table. Returns the problems
+## Reads every CombatEnemyDef in the registry into the def table. Returns the problems
 ## found, so the caller can put them in the log once instead of per spawn.
 func load_defs() -> PackedStringArray:
 	var problems: PackedStringArray = PackedStringArray()
 	var defs: Array[Resource] = Registry.all("enemies")
-	var pending: Array[EnemyDef] = []
+	var pending: Array[CombatEnemyDef] = []
+	var seen: Dictionary[StringName, bool] = {}
 	for res: Resource in defs:
-		var d := res as EnemyDef
+		# Adopt foreign schemas too — see CombatEnemyDef.from_resource. Registry
+		# already returns "enemies" sorted by id, so this order is stable.
+		var d: CombatEnemyDef = CombatEnemyDef.from_resource(res)
 		if d == null:
 			continue
+		if seen.has(d.id):
+			problems.append("%s: two definitions claim this id" % d.id)
+			continue
+		seen[d.id] = true
 		var bad: PackedStringArray = d.validate()
 		if not bad.is_empty():
 			for b: String in bad:
@@ -171,8 +182,8 @@ func def_slot(kind: StringName) -> int:
 	return int(_def_index.get(kind, -1))
 
 
-func def_resource(slot: int) -> EnemyDef:
-	return d_res[slot] as EnemyDef if slot >= 0 and slot < def_count else null
+func def_resource(slot: int) -> CombatEnemyDef:
+	return d_res[slot] as CombatEnemyDef if slot >= 0 and slot < def_count else null
 
 
 func kind_of_slot(slot: int) -> StringName:
@@ -249,6 +260,7 @@ func spawn(slot_def: int, pos: Vector2, new_id: int, tick: int) -> int:
 	e_gate[i] = d_health[slot_def] * (1.0 - d_spawn_frac[slot_def]) if d_spawn_frac[slot_def] > 0.0 else -1.0
 	e_hidden[i] = 1 if d_surface[slot_def] >= 0.0 else 0
 	e_born[i] = tick
+	e_ground[i] = 1.0
 	return i
 
 
@@ -480,13 +492,6 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 			if e_hp[i] <= 0.0:
 				_kill(i, tick)
 				continue
-		if d_regen[d] > 0.0 and e_hp[i] < d_health[d]:
-			var here: float = -40.0
-			if warm != null:
-				here = float(warm.call("temperature_at", Vector2i(int(px / TILE), int(py / TILE))))
-			if here <= d_regen_c[d]:
-				e_hp[i] = minf(d_health[d], e_hp[i] + d_regen[d] * dt)
-
 		var cell_x: int = clampi(int(px / TILE), 0, w - 1)
 		var cell_y: int = clampi(int(py / TILE), 0, h - 1)
 		var idx: int = cell_y * w + cell_x
@@ -498,20 +503,27 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 			if ddx * ddx + ddy * ddy <= d_surface[d] * d_surface[d]:
 				e_hidden[i] = 0
 
-		# --- deliberate target hunting ------------------------------------
+		# --- the think tick: everything that costs a cross-object call ----
 		var behav: int = d_behaviour[d]
-		if (i + tick) % THINK_PERIOD == think_gate and e_target[i] < 0 and d_seek[d] > 0.0:
-			var found: Dictionary = sys.call("find_enemy_target", Vector2(px, py), d_pref[d], d_seek[d])
-			if not found.is_empty():
-				e_target[i] = int(found["id"])
-				var tp: Vector2 = found["pos"]
-				e_tx[i] = tp.x
-				e_ty[i] = tp.y
+		if (i + tick) % THINK_PERIOD == think_gate:
+			if snow != null and d_ghost[d] == 0:
+				e_ground[i] = float(snow.call("speed_scale", Vector2i(cell_x, cell_y)))
+			if d_regen[d] > 0.0 and e_hp[i] < d_health[d]:
+				var here: float = -40.0
+				if warm != null:
+					here = float(warm.call("temperature_at", Vector2i(cell_x, cell_y)))
+				if here <= d_regen_c[d]:
+					e_hp[i] = minf(d_health[d], e_hp[i] + d_regen[d] * dt * float(THINK_PERIOD))
+			if e_target[i] < 0 and d_seek[d] > 0.0:
+				var found: Dictionary = sys.call("find_enemy_target", Vector2(px, py), d_pref[d], d_seek[d])
+				if not found.is_empty():
+					e_target[i] = int(found["id"])
+					var tp: Vector2 = found["pos"]
+					e_tx[i] = tp.x
+					e_ty[i] = tp.y
 
 		# --- movement ------------------------------------------------------
-		var speed: float = d_speed[d] * (1.0 + e_rally[i])
-		if snow != null and d_ghost[d] == 0:
-			speed *= float(snow.call("speed_scale", Vector2i(cell_x, cell_y)))
+		var speed: float = d_speed[d] * (1.0 + e_rally[i]) * e_ground[i]
 		var dirx: float = 0.0
 		var diry: float = 0.0
 
@@ -850,6 +862,7 @@ func _copy_slot(from: int, to: int) -> void:
 	e_gate[to] = e_gate[from]
 	e_hidden[to] = e_hidden[from]
 	e_born[to] = e_born[from]
+	e_ground[to] = e_ground[from]
 
 
 func _grow(need: int) -> void:
@@ -876,6 +889,7 @@ func _grow(need: int) -> void:
 	e_gate.resize(cap)
 	e_hidden.resize(cap)
 	e_born.resize(cap)
+	e_ground.resize(cap)
 
 
 func _reset_defs(n: int) -> void:
@@ -928,7 +942,7 @@ func _reset_defs(n: int) -> void:
 	d_pref.resize(n)
 
 
-func _install_def(i: int, d: EnemyDef) -> void:
+func _install_def(i: int, d: CombatEnemyDef) -> void:
 	_def_index[d.id] = i
 	d_id[i] = d.id
 	d_name[i] = d.display_name

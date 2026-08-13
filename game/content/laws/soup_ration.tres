@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="LawDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/society/law_def.gd" id="1_law"]
+
+[resource]
+resource_name = "Watered Soup"
+script = ExtResource("1_law")
+id = &"soup_ration"
+title = "Watered Soup"
+branch = &"trunk"
+tier = 1
+section = "Food"
+sort_order = 40
+prose = "The ration is cut to three quarters. The kitchens are instructed to make up the difference with water and to serve it hot, because heat in the bowl reads as food to a body that has not had any."
+argument_for = "Three quarters of a meal every day beats a full meal for three days and then nothing at all."
+argument_against = "You cannot dig on this. Try it yourself for a week and then come back and read us the numbers again."
+signed_line = "The bowls came back the same size and lighter. People stopped talking during meals, which is how you could tell."
+hope_on_sign = -2.5
+discontent_on_sign = 4.0
+discontent_rate = 0.3
+policy = Dictionary[StringName, float]({
+&"ration": -0.25
+})
+approval = Dictionary[StringName, float]({
+&"infirm": -10.0,
+&"workers": -16.0
+})
+provokes = Array[StringName]([&"hunger"])
+tags = Array[StringName]([&"costly"])
