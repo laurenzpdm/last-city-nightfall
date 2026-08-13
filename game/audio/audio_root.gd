@@ -74,6 +74,7 @@ var _ready_logged: bool = false
 var _report_written: bool = false
 var _frames: int = 0
 var _since_summary: float = 0.0
+var _world_seed: int = -0x7FFFFFFF
 ## Peak microseconds per stage of the frame, so a slow frame can be attributed
 ## instead of argued about.
 var _stage_usec: Dictionary[StringName, int] = {&"bake": 0, &"probe": 0, &"layers": 0, &"voices": 0}
@@ -125,6 +126,15 @@ func _ready() -> void:
 	if harness != null and harness.has_signal(&"finished") \
 			and not harness.is_connected(&"finished", _on_harness_finished):
 		harness.connect(&"finished", _on_harness_finished)
+	if harness != null and bool(harness.get("active")) and bool(harness.get("visual")):
+		# A visual harness run pushes eleven thousand ticks through about fourteen
+		# frames, so a per-frame bake budget bakes one stream and the artifact
+		# reports a silent game — which would be a lie about the build rather than
+		# a fact about it. The run is not real time and nobody is listening to it,
+		# so it pays for the whole catalogue up front and the audio.json next to
+		# the screenshots describes a mix that actually exists.
+		bank.eager_budget_usec = 250_000
+		bank.budget_usec = 250_000
 	Log.info("audio", "installed: %d buses, %d/%d streams baked in %.0f ms, %d voice slots" % [
 		AudioServer.bus_count, bank.ready_count(),
 		bank.ready_count() + bank.pending_count(),
@@ -206,6 +216,7 @@ func _process(delta: float) -> void:
 	var t0: int = Time.get_ticks_usec()
 	_frames += 1
 
+	_watch_for_a_new_world()
 	bank.pump()
 	var t_bake: int = Time.get_ticks_usec()
 	pool.begin_frame()
@@ -248,6 +259,21 @@ func _process(delta: float) -> void:
 	last_update_usec = Time.get_ticks_usec() - t0
 	if last_update_usec > peak_update_usec:
 		peak_update_usec = last_update_usec
+
+
+## A load, a restart or a test fixture replaces every SimSystem in the world.
+## The probe notices on its own; the machine chorus holds direct references and
+## would otherwise keep playing the previous city's factory over the new one.
+func _watch_for_a_new_world() -> void:
+	var rng: Node = _autoload(&"Rng")
+	var seed_now: int = 0 if rng == null else int(rng.get("seed_value"))
+	if seed_now == _world_seed:
+		return
+	_world_seed = seed_now
+	_pending.clear()
+	if pool != null:
+		pool.stop_all()
+	_bind_world()
 
 
 ## The listener is the camera, and the camera is found through the viewport

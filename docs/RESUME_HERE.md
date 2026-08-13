@@ -1,5 +1,9 @@
 # Resume here — state at end of day, 2026-08-13
 
+> **STANDING INSTRUCTION FROM MAXIMILIAN (2026-08-13, 21:56):**
+> **Stop after Phase C. Do NOT launch Phase D or any further wave without asking him first.**
+> Report the Phase C result and wait.
+
 The machine was shut down with Phase C mid-flight. Everything below is verified, not claimed.
 
 ## Where the project stands

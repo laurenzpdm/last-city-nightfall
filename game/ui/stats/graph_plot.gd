@@ -360,7 +360,10 @@ func _draw_marks(t: LcnStatsTheme, r: Rect2) -> void:
 		if not found:
 			lane = best_lane
 		lane_right[lane] = tx + w + 8.0
-		var ty: float = r.position.y + 12.0 + float(lane) * (float(small) + 4.0)
+		# Below the night captions, never across them: the band label says WHICH
+		# night, and a technology name printed through it turns both into noise.
+		var top: float = r.position.y + (26.0 if not bands.is_empty() else 12.0)
+		var ty: float = top + float(lane) * (float(small) + 4.0)
 		t.pill(self, Rect2(Vector2(tx - 3.0, ty - float(small)),
 			Vector2(w + 6.0, float(small) + 5.0)),
 			Color(t.PANEL.r, t.PANEL.g, t.PANEL.b, 0.86),
