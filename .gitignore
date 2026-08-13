@@ -1,4 +1,4 @@
 .godot/
 artifacts/
-build/
+/build/
 *.import
