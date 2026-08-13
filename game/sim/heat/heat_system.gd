@@ -82,6 +82,11 @@ var _has_ambient: bool = false
 var _has_loss_mult: bool = false
 var _has_set_frozen: bool = false
 var _has_resource_amount: bool = false
+## [P10]. Null in a build without research; then every modifier stays 1.0.
+var _research: SimSystem = null
+var _tech_fuel: float = 1.0
+var _tech_radius: float = 1.0
+var _tech_buffer: float = 1.0
 
 var _total_supply: float = 0.0
 var _total_demand: float = 0.0
@@ -132,9 +137,12 @@ func post_setup() -> void:
 	# Nobody hauls fuel yet: burners run on faith so the network is still
 	# testable in isolation. The moment [P03] or [P04] exists, fuel is real.
 	_fuel_autarky = logistics == null and production == null
-	Log.info("heat", "ready — %d heat definitions, climate=%s build=%s grid=%s fuel=%s" % [
+	_research = Sim.get_system(&"research")
+	if _research != null and not _research.has_method("multiplier"):
+		_research = null
+	Log.info("heat", "ready — %d heat definitions, climate=%s build=%s grid=%s fuel=%s research=%s" % [
 		_defs.size(), str(_climate != null), str(_build != null), str(_grid != null),
-		"autarky" if _fuel_autarky else "metered"])
+		"autarky" if _fuel_autarky else "metered", str(_research != null)])
 
 
 func step(tick: int) -> void:
@@ -149,6 +157,7 @@ func step(tick: int) -> void:
 
 	_ambient_c = _read_ambient()
 	_cold_mult = _read_loss_multiplier()
+	_read_tech()
 
 	_total_supply = 0.0
 	_total_demand = 0.0
@@ -661,6 +670,28 @@ func _read_ambient() -> float:
 ## Wind, storms and a deepening winter all make the same building cost more heat
 ## to keep alive. [P09] owns that curve; without it we fall back to a plain
 ## linear one so the system still behaves in isolation.
+## Six research keys, read once a tick and handed to the solver. A finished node
+## has to change what the city ALREADY BUILT does — before this, completing
+## "Pressurised Mains" changed what you could place and nothing else.
+func _read_tech() -> void:
+	if _research == null:
+		return
+	_flow.tech_output = _mult(ResearchDefs.E_HEAT_OUTPUT_MULT)
+	_flow.tech_demand = _mult(ResearchDefs.E_HEAT_DEMAND_MULT)
+	_flow.tech_loss = _mult(ResearchDefs.E_HEAT_LOSS_MULT)
+	_flow.tech_throughput = _mult(ResearchDefs.E_HEAT_THROUGHPUT_MULT)
+	_tech_fuel = _mult(ResearchDefs.E_HEAT_FUEL_MULT)
+	_tech_radius = _mult(ResearchDefs.E_HEAT_RADIUS_MULT)
+	_tech_buffer = _mult(ResearchDefs.E_HEAT_BUFFER_MULT)
+
+
+func _mult(key: StringName) -> float:
+	var v: Variant = _research.call("multiplier", key)
+	if typeof(v) != TYPE_FLOAT and typeof(v) != TYPE_INT:
+		return 1.0
+	return clampf(float(v), 0.05, 20.0)
+
+
 func _read_loss_multiplier() -> float:
 	if _has_loss_mult:
 		var v: Variant = _climate.call("heat_loss_multiplier")
@@ -692,7 +723,7 @@ func _burn_fuel() -> void:
 			continue
 		# A lit hearth burns coal for the warmth it throws into the street even
 		# when nothing draws from it — self_burn is what radiance actually costs.
-		var burned: float = (n.output + n.def.self_burn) * n.def.fuel_per_unit * dt
+		var burned: float = (n.output + n.def.self_burn) * n.def.fuel_per_unit * _tech_fuel * dt
 		if burned <= 0.0:
 			continue
 		n.fuel_stock = maxf(0.0, n.fuel_stock - burned)
@@ -792,7 +823,8 @@ func _radiate(tick: int) -> void:
 			continue
 		var target: float = n.def.radiance * n.radiance_factor()
 		n.radiance_cur += (target - n.radiance_cur) * RADIANCE_SMOOTH
-		_warmth.set_source(id, n.bbox_origin, n.bbox_size, n.def.radius, n.radiance_cur)
+		_warmth.set_source(id, n.bbox_origin, n.bbox_size, n.def.radius * _tech_radius,
+			n.radiance_cur)
 	if tick % WARMTH_REFRESH_TICKS == 0:
 		_warmth.flush()
 

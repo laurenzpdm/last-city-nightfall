@@ -92,6 +92,15 @@ var turrets: Dictionary[int, Turret] = {}
 var weapons: Dictionary[StringName, WeaponDef] = {}
 var default_weapon: StringName = &""
 
+# --- [P10] research modifiers -------------------------------------------------
+# CombatSystem refreshes these once per tick from ResearchSystem.multiplier().
+# All default to 1.0, so a build with no tech tree fires exactly as before.
+# A finished node has to change what the guns ALREADY BOLTED DOWN do.
+var tech_damage: float = 1.0
+var tech_rate: float = 1.0        ## rate of fire (shortens reload and burst gap)
+var tech_range: float = 1.0
+var tech_pierce_add: float = 0.0
+
 var shots_fired: int = 0
 var heat_spent: float = 0.0
 var heat_stolen: float = 0.0
@@ -274,7 +283,7 @@ func step(tick: int, sys: Object, swarm: EnemySwarm, shells: ProjectilePool,
 			t.burst_timer -= dt
 
 		# --- target ------------------------------------------------------
-		var range_px: float = w.range_tiles * TILE
+		var range_px: float = w.range_tiles * tech_range * TILE
 		if t.target_slot >= 0:
 			if not swarm.alive_at(t.target_slot) or swarm.id_at(t.target_slot) != t.target_id:
 				t.target_slot = -1
@@ -338,9 +347,9 @@ func step(tick: int, sys: Object, swarm: EnemySwarm, shells: ProjectilePool,
 		_fire_one(t, w, swarm, shells, sys, rng, target_pos, tick)
 		t.burst_left -= 1
 		if t.burst_left > 0:
-			t.burst_timer = w.burst_interval
+			t.burst_timer = w.burst_interval / maxf(0.05, tech_rate)
 		else:
-			t.reload_left = w.reload
+			t.reload_left = w.reload / maxf(0.05, tech_rate)
 		t.idle = CombatTypes.Idle.FIRING
 		t.last_fired_tick = tick
 		_bank(t)
@@ -434,11 +443,11 @@ func _fire_one(t: Turret, w: WeaponDef, swarm: EnemySwarm, shells: ProjectilePoo
 	Bus.turret_fired.emit(t.id, muzzle, aim_point)
 
 	if w.delivery_index() == CombatTypes.Delivery.HITSCAN:
-		var d: float = swarm.hurt(t.target_slot, t.target_id, w.damage,
-			w.damage_channel(), w.pierce, tick)
+		var d: float = swarm.hurt(t.target_slot, t.target_id, w.damage * tech_damage,
+			w.damage_channel(), w.pierce + tech_pierce_add, tick)
 		if w.splash_radius > 0.0:
-			d += swarm.splash(target_pos, w.splash_radius * TILE, w.damage,
-				w.damage_channel(), w.pierce, w.splash_falloff, tick)
+			d += swarm.splash(target_pos, w.splash_radius * TILE, w.damage * tech_damage,
+				w.damage_channel(), w.pierce + tech_pierce_add, w.splash_falloff, tick)
 		if w.burn_dps > 0.0:
 			swarm.ignite(t.target_slot, t.target_id, w.burn_dps, w.burn_seconds)
 		t.damage_dealt += d
@@ -446,7 +455,8 @@ func _fire_one(t: Turret, w: WeaponDef, swarm: EnemySwarm, shells: ProjectilePoo
 		sys.call("note_hit", t.id, target_pos, d)
 		return
 
-	shells.launch(muzzle, aim_point, speed_px, w.damage, w.damage_channel(), w.pierce,
+	shells.launch(muzzle, aim_point, speed_px, w.damage * tech_damage, w.damage_channel(),
+		w.pierce + tech_pierce_add,
 		w.splash_radius * TILE, w.splash_falloff, w.burn_dps, w.burn_seconds,
 		t.target_slot, t.target_id, t.id)
 
@@ -468,7 +478,7 @@ func _burn_cone(t: Turret, w: WeaponDef, swarm: EnemySwarm, sys: Object,
 	t.charge -= cost
 	t.heat_spent += cost
 	heat_spent += cost
-	var reach: float = w.range_tiles * TILE
+	var reach: float = w.range_tiles * tech_range * TILE
 	var half: float = deg_to_rad(w.cone_degrees)
 	var total: float = 0.0
 	for slot: int in swarm.targetable(t.centre, reach):
@@ -476,8 +486,8 @@ func _burn_cone(t: Turret, w: WeaponDef, swarm: EnemySwarm, sys: Object,
 		var rel: Vector2 = p - t.centre
 		if absf(wrapf(atan2(rel.y, rel.x) - t.facing, -PI, PI)) > half:
 			continue
-		total += swarm.hurt(slot, swarm.id_at(slot), w.damage * dt,
-			w.damage_channel(), w.pierce, tick)
+		total += swarm.hurt(slot, swarm.id_at(slot), w.damage * tech_damage * dt,
+			w.damage_channel(), w.pierce + tech_pierce_add, tick)
 		if w.burn_dps > 0.0:
 			swarm.ignite(slot, swarm.id_at(slot), w.burn_dps, w.burn_seconds)
 	t.damage_dealt += total

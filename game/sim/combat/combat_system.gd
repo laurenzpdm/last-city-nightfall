@@ -76,6 +76,8 @@ var _build: SimSystem = null
 var _heat: SimSystem = null
 var _climate: SimSystem = null
 var _society: SimSystem = null
+## [P10]. Null in a build without research; then every gun keeps its sheet value.
+var _research: SimSystem = null
 var _ammo_source: SimSystem = null
 var _ammo_method: String = ""
 var _has_withdraw: bool = false
@@ -189,6 +191,9 @@ func post_setup() -> void:
 	_resolve_ammo_source()
 	_resolve_society()
 	_rebuild_target_index()
+	_research = Sim.get_system(&"research")
+	if _research != null and not _research.has_method("multiplier"):
+		_research = null
 
 	# The fallback director is armed by default and stands down the moment anything
 	# else actually drives a spawn through this system (see _note_external_spawn).
@@ -220,6 +225,7 @@ func step(tick: int) -> void:
 	var t0: int = Time.get_ticks_usec()   # lint:allow log + metrics-free profiling only
 	if tick % TURRET_SYNC_TICKS == 0:
 		_sync_turrets()
+		_read_tech()
 	# Nothing on the field means nothing is seeking, and the index is rebuilt on
 	# demand the moment something is (see find_enemy_target).
 	if swarm.count > 0 and tick - _index_tick >= TARGET_INDEX_TICKS:
@@ -1027,6 +1033,36 @@ func _ensure_field() -> bool:
 		for gid: int in ids:
 			set_gate_open(gid, bool(orders[gid]))
 	return true
+
+
+## Four research keys, refreshed on the turret sync tick. A completed weapons
+## node has to change what the guns already bolted down do, not only what a new
+## mount would cost.
+func _read_tech() -> void:
+	if _research == null:
+		return
+	battery.tech_damage = _mult(ResearchDefs.E_TURRET_DAMAGE_MULT)
+	battery.tech_rate = _mult(ResearchDefs.E_TURRET_RATE_MULT)
+	battery.tech_range = _mult(ResearchDefs.E_TURRET_RANGE_MULT)
+	battery.tech_pierce_add = maxf(0.0, _add(ResearchDefs.E_TURRET_PIERCE_ADD))
+
+
+func _mult(key: StringName) -> float:
+	var v: Variant = _research.call("multiplier", key)
+	if typeof(v) != TYPE_FLOAT and typeof(v) != TYPE_INT:
+		return 1.0
+	return clampf(float(v), 0.05, 20.0)
+
+
+## The *_add keys are a plain sum in the unit of the thing, not a multiplier.
+## See the suffix contract in ResearchDefs.
+func _add(key: StringName) -> float:
+	if not _research.has_method("modifier"):
+		return 0.0
+	var v: Variant = _research.call("modifier", key)
+	if typeof(v) != TYPE_FLOAT and typeof(v) != TYPE_INT:
+		return 0.0
+	return float(v)
 
 
 func _sync_turrets() -> void:

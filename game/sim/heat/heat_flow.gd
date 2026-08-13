@@ -77,6 +77,18 @@ var _loss_acc: float = 0.0
 ## Hash of every routing-relevant gate this tick. See solve().
 var _route_sig: int = 0
 
+# --- [P10] research modifiers -------------------------------------------------
+# Set by HeatSystem once per tick from ResearchSystem.multiplier(). All default
+# to 1.0, so a build with no research system, or a run before anything is
+# finished, behaves exactly as it did before the tree existed. They live here
+# rather than being baked into HeatDef because a completed node has to change
+# what a building ALREADY STANDING does, not only what a new one costs.
+var tech_output: float = 1.0        ## generator output
+var tech_demand: float = 1.0        ## consumer draw
+var tech_loss: float = 1.0          ## per-tile transmission loss
+var tech_throughput: float = 1.0    ## conduit capacity
+var tech_buffer: float = 1.0        ## accumulator storage
+
 
 ## Solves one network for one tick and writes the result back onto its nodes.
 func solve(net: HeatNetwork, members: PackedInt32Array, nodes: Dictionary[int, HeatNode],
@@ -160,7 +172,7 @@ func _classify(members: PackedInt32Array, cold_mult: float, autarky: bool) -> vo
 			# A conduit that is switched off or frozen carries nothing. Without this
 			# the player-facing switch was inert for every pipe, buffer and pump in
 			# the game, and a frozen trunk kept conducting at full throughput.
-			_cap_full[id] = d.capacity if (n.enabled and not n.frozen) else 0.0
+			_cap_full[id] = d.capacity * tech_throughput if (n.enabled and not n.frozen) else 0.0
 			if _cap_full[id] > EPS:
 				_route_sig = ((_route_sig * 31) ^ (id * 4 + 1)) & 0x7FFFFFFF
 				if d.repeater and n.repeater_live:
@@ -172,7 +184,7 @@ func _classify(members: PackedInt32Array, cold_mult: float, autarky: bool) -> vo
 		if d.is_producer():
 			producers += 1
 			n.fuel_factor = _fuel_factor(n, autarky)
-			var peak: float = d.output * n.site_bonus
+			var peak: float = d.output * n.site_bonus * tech_output
 			var ramp_cap: float = n.output + peak * d.ramp * _dt
 			var avail: float = minf(peak, maxf(0.0, ramp_cap)) * n.fuel_factor
 			if not n.enabled or n.frozen:
@@ -185,13 +197,14 @@ func _classify(members: PackedInt32Array, cold_mult: float, autarky: bool) -> vo
 			supply += avail
 		if d.is_buffer():
 			buffer += n.stored
-			buffer_cap += d.storage
+			buffer_cap += d.storage * tech_buffer
 			if n.enabled and not n.frozen:
 				_buffers.append(id)
 
 		if d.is_consumer():
 			consumers += 1
-			var base: float = d.demand * (1.0 + (cold_mult - 1.0) * d.cold_sensitivity)
+			var base: float = d.demand * tech_demand \
+				* (1.0 + (cold_mult - 1.0) * d.cold_sensitivity)
 			if n.frozen:
 				# A frozen building still asks for a trickle so it can thaw once
 				# the network recovers. Otherwise every cascade would be final.
@@ -331,7 +344,7 @@ func _route(seeds: PackedInt32Array, residual: bool) -> void:
 					if nv.def.repeater and nv.repeater_live:
 						ev = 1.0
 					else:
-						ev = eu * (1.0 - nv.def.loss_per_tile)
+						ev = eu * (1.0 - clampf(nv.def.loss_per_tile * tech_loss, 0.0, 0.95))
 				var have: float = cand_eta.get(v, -1.0)
 				if ev > have + EPS or (absf(ev - have) <= EPS and u < cand_par.get(v, 0x7FFFFFFF)):
 					cand_eta[v] = ev
@@ -531,7 +544,7 @@ func _phase_charge(members: PackedInt32Array) -> void:
 			continue
 		if _buf_avail.get(id, 0.0) > 0.0:
 			continue  # it discharged this tick; do not turn around and refill it
-		var room: float = maxf(0.0, n.def.storage - n.stored) / _dt
+		var room: float = maxf(0.0, n.def.storage * tech_buffer - n.stored) / _dt
 		var want: float = minf(n.def.charge_rate, room)
 		if want <= EPS:
 			continue
@@ -548,7 +561,7 @@ func _phase_charge(members: PackedInt32Array) -> void:
 	for id: int in tier:
 		var n2: HeatNode = _nodes[id]
 		var got: float = _got.get(id, 0.0)
-		n2.stored = minf(n2.def.storage, n2.stored + got * _dt)
+		n2.stored = minf(n2.def.storage * tech_buffer, n2.stored + got * _dt)
 		_net.charge += got
 		# Charging is not demand: it must never show up as a deficit.
 		_rem[id] = saved_rem.get(id, 0.0)

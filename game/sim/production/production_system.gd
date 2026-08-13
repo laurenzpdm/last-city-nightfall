@@ -136,6 +136,10 @@ var _grid: SimSystem = null
 var _citizens: SimSystem = null
 var _climate: SimSystem = null
 var _logistics: SimSystem = null
+## [P10]. Null in a build without research; then both stay 1.0.
+var _research: SimSystem = null
+var _tech_craft: float = 1.0
+var _tech_yield: float = 1.0
 
 var _has_temperature: bool = false
 var _has_power: bool = false
@@ -243,6 +247,9 @@ func post_setup() -> void:
 	_has_staffing_of = _citizens != null and _citizens.has_method("staffing_of")
 	_staff_autarky = _citizens == null
 	_heat_autarky = _heat == null
+	_research = Sim.get_system(&"research")
+	if _research != null and not _research.has_method("multiplier"):
+		_research = null
 
 	_load_defs()
 	Log.info("production", "ready — %d recipes (depth %d), %d machine definitions, store '%s', heat=%s grid=%s staffing=%s" % [
@@ -258,6 +265,7 @@ func step(tick: int) -> void:
 	if tick - _unlock_checked >= UNLOCK_RECHECK_TICKS:
 		_unlock_checked = tick
 		_unlock_cache.clear()
+		_read_tech()
 
 	_active = 0
 	_stalled = 0
@@ -685,7 +693,7 @@ func _extract(m: ProdMachine, tick: int) -> void:
 	m.reason_item = &""
 	_active += 1
 
-	m.extract_acc += m.def.extract_rate * m.def.craft_speed * rate * SimClock.DT
+	m.extract_acc += m.def.extract_rate * m.def.craft_speed * _tech_yield * rate * SimClock.DT
 	var whole: int = int(floor(m.extract_acc))
 	if whole <= 0:
 		return
@@ -711,6 +719,19 @@ func _extract(m: ProdMachine, tick: int) -> void:
 ##   power     — 0..1 of the heat it asked for and got ([P02])
 ##   cold      — how far above the recipe's freezing point the machine feels
 ##   heat      — whether the recipe's heat rate fits inside what the grid gives
+## [P10]. Refreshed on the same slow timer as the unlock cache — a research node
+## finishes once a minute at best, and this is read by every machine every tick.
+func _read_tech() -> void:
+	if _research == null:
+		return
+	var craft: Variant = _research.call("multiplier", ResearchDefs.E_CRAFT_SPEED_MULT)
+	var yield_v: Variant = _research.call("multiplier", ResearchDefs.E_MINE_YIELD_MULT)
+	if typeof(craft) == TYPE_FLOAT or typeof(craft) == TYPE_INT:
+		_tech_craft = clampf(float(craft), 0.05, 20.0)
+	if typeof(yield_v) == TYPE_FLOAT or typeof(yield_v) == TYPE_INT:
+		_tech_yield = clampf(float(yield_v), 0.05, 20.0)
+
+
 func _work_rate(m: ProdMachine, r: RecipeDef) -> float:
 	var floor_c: float = r.min_temperature_c if r != null else -30.0
 	m.cold = clampf((m.felt_c - floor_c) / COLD_BAND_C, 0.0, 1.0)
@@ -727,7 +748,7 @@ func _work_rate(m: ProdMachine, r: RecipeDef) -> float:
 	else:
 		m.heat_factor = m.power
 
-	return m.staffing * m.cold * m.heat_factor * m.def.craft_speed
+	return m.staffing * m.cold * m.heat_factor * m.def.craft_speed * _tech_craft
 
 
 ## Which of the two soft failures actually stopped it — the player needs to know
