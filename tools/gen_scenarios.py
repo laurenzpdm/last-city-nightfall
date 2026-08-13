@@ -484,7 +484,7 @@ def stress():
     for dy in range(-30, 31, 6):
         L.line(t, "heat_pipe", (-40, dy), (41, dy), free=True, instant=True)
         t += 3
-    for dx in range(-40, 41, 8):
+    for dx in range(-40, 41, 16):
         L.line(t, "heat_pipe", (dx, -30), (dx, 30), free=True, instant=True)
         t += 3
     # Every plot sits in the pocket between one trunk and the next, one tile in

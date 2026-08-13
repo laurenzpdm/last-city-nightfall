@@ -42,10 +42,11 @@ const WEAK_COST: int = 15
 ## every wall around it and to every detour.
 const GATE_OPEN_COST: int = 10
 ## Cells compared against the live grid per tick while a sweep is running. A
-## 256x256 map is eight ticks end to end, so a wall the PLAYER takes down is in
-## the field within half a second; a wall COMBAT takes down is in it immediately,
-## through note_cells.
-const SCAN_SLICE: int = 8192
+## 256x256 map is sixteen ticks end to end, so a wall the PLAYER takes down is in
+## the field within a second; a wall COMBAT takes down is in it immediately,
+## through note_cells. Kept modest because a district going up keeps the cost
+## counter moving, and a sweep that never completes runs every tick.
+const SCAN_SLICE: int = 4096
 ## Cells repaired into the flow field per tick. Bounds the worst case when a
 ## whole district is placed or flattened on one tick.
 const MAX_REPAIR_CELLS: int = 256

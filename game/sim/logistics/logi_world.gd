@@ -10,13 +10,15 @@ extends RefCounted
 ## answer to "who moved this item".
 ##
 ## TICK ORDER AND WHY
-##   1. belts advance and hand off. A line pushes into whatever is in front of
-##      it, except a splitter, which pulls.
-##   2. splitters pull from the lines that end at them and push into the lines
-##      that start after them. Pulling is what makes input priority possible:
-##      the splitter, not the belt, decides whose turn it is.
-##   3. arms swing. They act last so that an arm sees the belt as it is at the
-##      end of the tick, which is what a player sees on screen.
+##   1. EVERY line advances. All of them, before any of them hands anything over
+##      — see _move_belts for why a single pass costs a third of the throughput
+##      at every corner.
+##   2. every line hands off the front of its lanes into whatever is in front of
+##      it: another line, a chest, or nothing. A splitter is the exception; it
+##      pulls instead, which is what makes input priority possible.
+##   3. splitters pull, sort and push.
+##   4. arms swing. They act last, so an arm sees the belt as it is at the end of
+##      the tick, which is what the player sees on screen.
 ##
 ## Nothing in here reads the frame, the clock or an input. Every dictionary that
 ## is iterated is iterated over a sorted key list.
@@ -26,8 +28,6 @@ const EPS: float = LogiTypes.EPS
 ## above 2 is head-room; the cap only exists so a pathological graph cannot
 ## spin.
 const MAX_HANDOFF: int = 8
-## Ticks between the sweeps that check whether [P11] built over a belt.
-const OVERBUILD_CHECK_EVERY: int = 20
 ## Ticks an arm must have been idle before it starts polling less often.
 const IDLE_POLL_AFTER: int = 20
 const IDLE_POLL_EVERY: int = 4

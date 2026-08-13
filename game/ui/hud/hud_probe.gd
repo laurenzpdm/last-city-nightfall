@@ -152,6 +152,8 @@ var _buffer_version: int = -1
 var _item_ids: Array[StringName] = []
 var _items_scanned: bool = false
 var _bus_wave: Array = []                          ## [wave, seconds, tick] from Bus
+## instance id -> metrics(), valid for one refresh only.
+var _metrics_cache: Dictionary[int, Dictionary] = {}
 
 
 func _init() -> void:
@@ -247,6 +249,7 @@ func refresh(force: bool = false) -> bool:
 	if not force and tick - _last_refresh_tick < every:
 		return false
 	_last_refresh_tick = tick
+	_metrics_cache.clear()
 	_read_climate()
 	_read_heat(tick)
 	_read_population()
@@ -265,28 +268,27 @@ func _read_climate() -> void:
 	has_climate = _climate != null
 	if not has_climate:
 		return
-	var m: Dictionary = _metrics(_climate)
-	day = int(_ask(_climate, [&"day"], m, ["day"], float(day)))
-	phase = StringName(String(_ask_str(_climate, [&"phase_of_day", &"phase"], m, ["phase"], "dawn")))
-	phase_label = String(_ask_str(_climate, [&"phase_label"], m, [], LcnHudFormat.titleize(String(phase))))
+	day = int(_ask(_climate, [&"day"], ["day"], float(day)))
+	phase = StringName(String(_ask_str(_climate, [&"phase_of_day", &"phase"], ["phase"], "dawn")))
+	phase_label = String(_ask_str(_climate, [&"phase_label"], [], LcnHudFormat.titleize(String(phase))))
 	is_night = bool(_call_or(_climate, &"is_night", phase == &"night" or phase == &"deep_night"))
-	seconds_to_night = _ask(_climate, [&"seconds_until_night"], m, ["seconds_to_night"], -1.0)
-	seconds_to_dawn = _ask(_climate, [&"seconds_until_dawn"], m, [], -1.0)
-	day_progress = _ask(_climate, [&"day_progress"], m, [], 0.0)
-	light_level = _ask(_climate, [&"light_level"], m, ["light"], 0.0)
-	ambient_c = _ask(_climate, [&"ambient_temperature"], m, ["ambient_temp"], ambient_c)
-	weather = StringName(_ask_str(_climate, [&"weather"], m, ["weather"], "clear"))
-	weather_label = _ask_str(_climate, [&"weather_label"], m, [], LcnHudFormat.titleize(String(weather)))
-	wind = _ask(_climate, [&"wind"], m, ["wind"], 0.0)
-	storm_intensity = _ask(_climate, [&"storm_intensity"], m, ["storm_intensity"], 0.0)
+	seconds_to_night = _ask(_climate, [&"seconds_until_night"], ["seconds_to_night"], -1.0)
+	seconds_to_dawn = _ask(_climate, [&"seconds_until_dawn"], [], -1.0)
+	day_progress = _ask(_climate, [&"day_progress"], [], 0.0)
+	light_level = _ask(_climate, [&"light_level"], ["light"], 0.0)
+	ambient_c = _ask(_climate, [&"ambient_temperature"], ["ambient_temp"], ambient_c)
+	weather = StringName(_ask_str(_climate, [&"weather"], ["weather"], "clear"))
+	weather_label = _ask_str(_climate, [&"weather_label"], [], LcnHudFormat.titleize(String(weather)))
+	wind = _ask(_climate, [&"wind"], ["wind"], 0.0)
+	storm_intensity = _ask(_climate, [&"storm_intensity"], ["storm_intensity"], 0.0)
 	storm_active = bool(_call_or(_climate, &"is_storm_active", storm_intensity > 0.01))
-	storm_title = _ask_str(_climate, [&"storm_title"], m, [], "")
-	seconds_to_storm = _ask(_climate, [&"seconds_until_storm"], m, [], -1.0)
-	era_title = _ask_str(_climate, [&"era_title"], m, [], "")
-	climate_severity = _ask(_climate, [&"severity"], m, [], 0.0)
-	heat_loss_multiplier = _ask(_climate, [&"heat_loss_multiplier"], m, ["heat_loss_mult"], 1.0)
-	var daylight: float = _ask(_climate, [&"daylight_seconds"], m, [], 0.0)
-	var whole_day: float = _ask(_climate, [&"day_length_seconds"], m, [], 0.0)
+	storm_title = _ask_str(_climate, [&"storm_title"], [], "")
+	seconds_to_storm = _ask(_climate, [&"seconds_until_storm"], [], -1.0)
+	era_title = _ask_str(_climate, [&"era_title"], [], "")
+	climate_severity = _ask(_climate, [&"severity"], [], 0.0)
+	heat_loss_multiplier = _ask(_climate, [&"heat_loss_multiplier"], ["heat_loss_mult"], 1.0)
+	var daylight: float = _ask(_climate, [&"daylight_seconds"], [], 0.0)
+	var whole_day: float = _ask(_climate, [&"day_length_seconds"], [], 0.0)
 	if whole_day > 1.0:
 		night_start_fraction = clampf(daylight / whole_day, 0.05, 0.98)
 
@@ -436,30 +438,29 @@ func _read_population() -> void:
 	has_population = _citizens != null
 	if not has_population:
 		return
-	var m: Dictionary = _metrics(_citizens)
-	population = int(_ask(_citizens, [&"population", &"alive", &"citizen_count"], m,
+	population = int(_ask(_citizens, [&"population", &"alive", &"citizen_count"],
 		["population", "alive", "citizens", "pop"], 0.0))
-	sick = int(_ask(_citizens, [&"sick_count", &"sick"], m, ["sick", "ill"], 0.0))
-	injured = int(_ask(_citizens, [&"injured_count"], m, ["injured"], 0.0))
-	dead = int(_ask(_citizens, [&"dead_total", &"dead_count", &"dead", &"deaths"], m,
+	sick = int(_ask(_citizens, [&"sick_count", &"sick"], ["sick", "ill"], 0.0))
+	injured = int(_ask(_citizens, [&"injured_count"], ["injured"], 0.0))
+	dead = int(_ask(_citizens, [&"dead_total", &"dead_count", &"dead", &"deaths"],
 		["dead_total", "dead", "deaths", "died"], 0.0))
-	homeless = int(_ask(_citizens, [&"homeless_count", &"homeless"], m, ["homeless"], 0.0))
-	var employed: int = int(_ask(_citizens, [&"employed_count"], m, ["employed"], -1.0))
-	idle = int(_ask(_citizens, [&"idle_count", &"unemployed"], m,
+	homeless = int(_ask(_citizens, [&"homeless_count", &"homeless"], ["homeless"], 0.0))
+	var employed: int = int(_ask(_citizens, [&"employed_count"], ["employed"], -1.0))
+	idle = int(_ask(_citizens, [&"idle_count", &"unemployed"],
 		["idle", "unemployed", "jobless"], -1.0))
 	if idle < 0:
 		idle = maxi(0, population - employed) if employed >= 0 else 0
-	warmth01 = _normal01(_ask(_citizens, [&"average_warmth"], m, ["avg_warmth"], 100.0))
-	morale01 = _normal01(_ask(_citizens, [&"average_morale"], m, ["avg_morale"], 100.0))
-	health01 = _normal01(_ask(_citizens, [&"average_health"], m, ["avg_health"], 100.0))
-	unrest01 = _normal01(_ask(_citizens, [&"unrest_pressure"], m, ["unrest"], 0.0))
-	food_days = _ask(_citizens, [&"food_days_remaining"], m, ["food_days"], -1.0)
+	warmth01 = _normal01(_ask(_citizens, [&"average_warmth"], ["avg_warmth"], 100.0))
+	morale01 = _normal01(_ask(_citizens, [&"average_morale"], ["avg_morale"], 100.0))
+	health01 = _normal01(_ask(_citizens, [&"average_health"], ["avg_health"], 100.0))
+	unrest01 = _normal01(_ask(_citizens, [&"unrest_pressure"], ["unrest"], 0.0))
+	food_days = _ask(_citizens, [&"food_days_remaining"], ["food_days"], -1.0)
 	# [P05] tracks warmth as a need, not as a headcount, so the "how many are
 	# freezing" number only exists when a part actually offers one. Without it
 	# the city-wide average carries the same warning — see `city_is_cold()`.
-	freezing = int(_ask(_citizens, [&"freezing_count", &"cold_count"], m,
+	freezing = int(_ask(_citizens, [&"freezing_count", &"cold_count"],
 		["freezing", "cold"], 0.0))
-	hungry = int(_ask(_citizens, [&"hungry_count", &"starving_count"], m,
+	hungry = int(_ask(_citizens, [&"hungry_count", &"starving_count"],
 		["hungry", "starving"], 0.0))
 
 
@@ -478,9 +479,8 @@ func _read_society() -> void:
 	has_society = _society != null
 	if not has_society:
 		return
-	var m: Dictionary = _metrics(_society)
-	hope = _normal01(_ask(_society, [&"hope"], m, ["hope"], 0.5))
-	discontent = _normal01(_ask(_society, [&"discontent"], m, ["discontent"], 0.0))
+	hope = _normal01(_ask(_society, [&"hope"], ["hope"], 0.5))
+	discontent = _normal01(_ask(_society, [&"discontent"], ["discontent"], 0.0))
 	hope_reasons.clear()
 	if _society.has_method("reasons"):
 		var raw: Array = _society.call("reasons", 3)
@@ -555,12 +555,11 @@ func _read_threat(tick: int) -> void:
 		wave_number = int(_bus_wave[0])
 		wave_seconds = maxf(0.0, float(_bus_wave[1]) - elapsed)
 	if has_threat and wave_seconds < 0.0:
-		var m: Dictionary = _metrics(_threat)
-		wave_number = int(_ask(_threat, [&"wave", &"wave_number"], m, ["wave", "wave_number"],
+		wave_number = int(_ask(_threat, [&"wave", &"wave_number"], ["wave", "wave_number"],
 			float(wave_number)))
-		wave_seconds = _ask(_threat, [&"seconds_until_wave"], m,
+		wave_seconds = _ask(_threat, [&"seconds_until_wave"],
 			["seconds_to_wave", "next_wave_seconds"], -1.0)
-		wave_strength = _ask(_threat, [&"wave_strength", &"pressure"], m,
+		wave_strength = _ask(_threat, [&"wave_strength", &"pressure"],
 			["strength", "pressure"], wave_strength)
 
 
@@ -593,13 +592,12 @@ func _read_combat() -> void:
 	has_combat = _combat != null
 	if not has_combat:
 		return
-	var m: Dictionary = _metrics(_combat)
-	enemies_alive = int(_ask(_combat, [&"enemy_count", &"enemies_alive"], m,
+	enemies_alive = int(_ask(_combat, [&"enemy_count", &"enemies_alive"],
 		["enemies_alive", "enemies", "alive"], 0.0))
-	turrets_total = int(_ask(_combat, [&"turret_count"], m, ["turrets"], 0.0))
-	turret_uptime = clampf(_ask(_combat, [&"turret_uptime"], m, ["turret_uptime"], 1.0),
+	turrets_total = int(_ask(_combat, [&"turret_count"], ["turrets"], 0.0))
+	turret_uptime = clampf(_ask(_combat, [&"turret_uptime"], ["turret_uptime"], 1.0),
 		0.0, 1.0)
-	turrets_online = int(_ask(_combat, [&"turrets_online"], m, ["turrets_online"],
+	turrets_online = int(_ask(_combat, [&"turrets_online"], ["turrets_online"],
 		roundf(float(turrets_total) * turret_uptime)))
 	if enemies_alive > 0:
 		wave_active = true
@@ -611,11 +609,10 @@ func _read_build() -> void:
 	has_build = _build != null
 	if not has_build:
 		return
-	var m: Dictionary = _metrics(_build)
-	buildings_total = int(_ask(_build, [&"building_count"], m, ["buildings"], 0.0))
-	sites_pending = int(m.get("sites", m.get("pending", 0)))
+	buildings_total = int(_ask(_build, [&"building_count"], ["buildings"], 0.0))
+	sites_pending = int(_ask(_build, [], ["sites", "pending"], 0.0))
 	if _production != null:
-		stalled_machines = int(_metrics(_production).get("stalled", 0))
+		stalled_machines = int(_ask(_production, [], ["stalled"], 0.0))
 	_read_stock()
 
 
@@ -672,10 +669,9 @@ func _read_research() -> void:
 	has_research = _research != null
 	if not has_research:
 		return
-	var m: Dictionary = _metrics(_research)
 	research_title = LcnHudFormat.titleize(_ask_str(_research,
-		[&"current_title", &"current_research"], m, ["current", "research"], ""))
-	research_progress = clampf(_ask(_research, [&"research_progress", &"progress"], m,
+		[&"current_title", &"current_research"], ["current", "research"], ""))
+	research_progress = clampf(_ask(_research, [&"research_progress", &"progress"],
 		["progress"], 0.0), 0.0, 1.0)
 
 
@@ -964,22 +960,42 @@ static func _compass_vector(word: String) -> Vector2:
 	return (v as Vector2).normalized()
 
 
+## A system's metrics(), built at most once per refresh and only if something
+## actually had to fall back to it. `metrics()` is not free — [P04] rebuilds a
+## per-item rate table inside it — so a system that answers its own accessors
+## never pays for one.
 func _metrics(sys: SimSystem) -> Dictionary:
 	if sys == null:
 		return {}
-	return sys.metrics()
+	var key: int = sys.get_instance_id()
+	var cached: Variant = _metrics_cache.get(key)
+	if cached != null:
+		return cached
+	var m: Dictionary = sys.metrics()
+	_metrics_cache[key] = m
+	return m
+
+
+## Whether a system answers to a name. Measured against a memoised version and
+## kept: Object.has_method is a native table lookup, and building a cache key
+## for it costs more than the lookup does.
+func _answers(sys: SimSystem, name: StringName) -> bool:
+	return sys.has_method(name)
 
 
 ## Ask a system for a number: its own method first, then its metrics, then the
-## fallback. This is the whole compatibility strategy in six lines.
-func _ask(sys: SimSystem, methods: Array, m: Dictionary, keys: Array, fallback: float) -> float:
+## fallback. This is the whole compatibility strategy in ten lines.
+func _ask(sys: SimSystem, methods: Array, keys: Array, fallback: float) -> float:
 	if sys == null:
 		return fallback
 	for name: StringName in methods:
-		if sys.has_method(name):
+		if _answers(sys, name):
 			var v: Variant = sys.call(name)
 			if typeof(v) == TYPE_FLOAT or typeof(v) == TYPE_INT or typeof(v) == TYPE_BOOL:
 				return float(v)
+	if keys.is_empty():
+		return fallback
+	var m: Dictionary = _metrics(sys)
 	for k: String in keys:
 		if m.has(k):
 			var mv: Variant = m[k]
@@ -988,15 +1004,17 @@ func _ask(sys: SimSystem, methods: Array, m: Dictionary, keys: Array, fallback: 
 	return fallback
 
 
-func _ask_str(sys: SimSystem, methods: Array, m: Dictionary, keys: Array,
-		fallback: String) -> String:
+func _ask_str(sys: SimSystem, methods: Array, keys: Array, fallback: String) -> String:
 	if sys == null:
 		return fallback
 	for name: StringName in methods:
-		if sys.has_method(name):
+		if _answers(sys, name):
 			var v: Variant = sys.call(name)
 			if typeof(v) == TYPE_STRING or typeof(v) == TYPE_STRING_NAME:
 				return String(v)
+	if keys.is_empty():
+		return fallback
+	var m: Dictionary = _metrics(sys)
 	for k: String in keys:
 		if m.has(k):
 			var mv: Variant = m[k]
@@ -1006,7 +1024,7 @@ func _ask_str(sys: SimSystem, methods: Array, m: Dictionary, keys: Array,
 
 
 func _call_or(sys: SimSystem, method: StringName, fallback: Variant) -> Variant:
-	if sys != null and sys.has_method(method):
+	if sys != null and _answers(sys, method):
 		return sys.call(method)
 	return fallback
 
