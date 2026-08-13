@@ -208,7 +208,10 @@ func _process(delta: float) -> void:
 			_bench_done = true
 			_run_perf_proof()
 
-	var us: float = float(Time.get_ticks_usec() - t0)
+	# The entity pass draws deferred, so its cost is NOT inside _process. Add it in
+	# or the line below reports a frame cost ~90x better than the cost it prints
+	# two fields later on the same line.
+	var us: float = float(Time.get_ticks_usec() - t0) + float(entities.stats()["draw_us"])
 	_frame_us_avg = _frame_us_avg * 0.92 + us * 0.08 if _frames > 1 else us
 	if _frames % 120 == 0 or (Harness.visual and _frames % 4 == 0):
 		_log_frame_cost()
