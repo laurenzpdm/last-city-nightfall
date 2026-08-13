@@ -42,19 +42,32 @@ var _cache: Dictionary[StringName, Dictionary] = {}
 # ------------------------------------------------------------------ catalog --
 
 ## Footprint and apparent height of every archetype the renderer can draw.
+##
+## `lift` is per TILE of depth, not absolute, so a 5x5 hearth and a 3x2 coal
+## generator are drawn at the same detail density instead of one being a
+## rubber-stamped enlargement of the other — which is exactly what a critic
+## caught in the first pass: two structurally identical hearths at two scales in
+## one frame. `lift_min` keeps a 1x1 mast tall.
 static func spec(arch: StringName) -> Dictionary:
 	match arch:
-		&"generator": return {"tiles": Vector2i(3, 3), "lift": 82.0, "warm": 1.0}
-		&"heat_plant": return {"tiles": Vector2i(2, 2), "lift": 62.0, "warm": 0.9}
-		&"foundry": return {"tiles": Vector2i(3, 2), "lift": 50.0, "warm": 0.8}
-		&"workshop": return {"tiles": Vector2i(2, 2), "lift": 40.0, "warm": 0.45}
-		&"habitat": return {"tiles": Vector2i(2, 2), "lift": 44.0, "warm": 0.55}
-		&"greenhouse": return {"tiles": Vector2i(2, 2), "lift": 34.0, "warm": 0.7}
-		&"depot": return {"tiles": Vector2i(3, 2), "lift": 34.0, "warm": 0.15}
+		&"hearth": return {"tiles": Vector2i(5, 5), "lift": 108.0, "warm": 1.0}
+		&"generator": return {"tiles": Vector2i(3, 2), "lift": 66.0, "warm": 0.85}
+		&"heat_plant": return {"tiles": Vector2i(3, 3), "lift": 62.0, "warm": 0.9}
+		&"radiator": return {"tiles": Vector2i(2, 2), "lift": 54.0, "warm": 0.75}
+		&"accumulator": return {"tiles": Vector2i(2, 2), "lift": 46.0, "warm": 0.30}
+		&"foundry": return {"tiles": Vector2i(3, 3), "lift": 50.0, "warm": 0.8}
+		&"workshop": return {"tiles": Vector2i(4, 3), "lift": 40.0, "warm": 0.45}
+		&"kitchen": return {"tiles": Vector2i(3, 2), "lift": 36.0, "warm": 0.65}
+		&"habitat": return {"tiles": Vector2i(4, 4), "lift": 52.0, "warm": 0.55}
+		&"greenhouse": return {"tiles": Vector2i(3, 2), "lift": 34.0, "warm": 0.7}
+		&"depot": return {"tiles": Vector2i(3, 3), "lift": 30.0, "warm": 0.15}
+		&"silo": return {"tiles": Vector2i(3, 3), "lift": 66.0, "warm": 0.10}
 		&"mine": return {"tiles": Vector2i(2, 2), "lift": 60.0, "warm": 0.25}
-		&"turret": return {"tiles": Vector2i(1, 1), "lift": 38.0, "warm": 0.2}
+		&"drill": return {"tiles": Vector2i(3, 3), "lift": 84.0, "warm": 0.20}
+		&"collector": return {"tiles": Vector2i(2, 2), "lift": 28.0, "warm": 0.12}
+		&"turret": return {"tiles": Vector2i(2, 2), "lift": 40.0, "warm": 0.2}
 		&"pylon": return {"tiles": Vector2i(1, 1), "lift": 70.0, "warm": 0.3}
-		&"watchtower": return {"tiles": Vector2i(1, 1), "lift": 56.0, "warm": 0.35}
+		&"watchtower": return {"tiles": Vector2i(2, 2), "lift": 76.0, "warm": 0.35}
 		&"wall": return {"tiles": Vector2i(1, 1), "lift": 15.0, "warm": 0.0}
 		&"pipe": return {"tiles": Vector2i(1, 1), "lift": 9.0, "warm": 0.35}
 		&"belt": return {"tiles": Vector2i(1, 1), "lift": 6.0, "warm": 0.0}
@@ -63,15 +76,17 @@ static func spec(arch: StringName) -> Dictionary:
 		&"dead_tree": return {"tiles": Vector2i(1, 1), "lift": 46.0, "warm": 0.0}
 		&"rock": return {"tiles": Vector2i(1, 1), "lift": 20.0, "warm": 0.0}
 		&"wreck": return {"tiles": Vector2i(2, 1), "lift": 22.0, "warm": 0.0}
-	return {"tiles": Vector2i(1, 1), "lift": 20.0, "warm": 0.0}
+	return {"tiles": Vector2i(2, 2), "lift": 34.0, "warm": 0.0}
 
 
 ## Every archetype, sorted. Used by tests and by the art-sheet dump.
 static func archetypes() -> Array[StringName]:
 	return [
-		&"belt", &"dead_tree", &"depot", &"foundry", &"generator", &"greenhouse",
-		&"habitat", &"heat_plant", &"mine", &"pipe", &"pylon", &"road", &"rock",
-		&"ruin", &"turret", &"wall", &"watchtower", &"workshop", &"wreck",
+		&"accumulator", &"belt", &"collector", &"dead_tree", &"depot", &"drill",
+		&"foundry", &"generator", &"greenhouse", &"habitat", &"hearth",
+		&"heat_plant", &"kitchen", &"mine", &"pipe", &"pylon", &"radiator",
+		&"road", &"rock", &"ruin", &"silo", &"turret", &"wall", &"watchtower",
+		&"workshop", &"wreck",
 	]
 
 
@@ -97,25 +112,39 @@ static func archetype_for(kind: StringName) -> StringName:
 		return &"watchtower"
 	if k.contains("pylon") or k.contains("mast") or k.contains("relay") or k.contains("antenna"):
 		return &"pylon"
-	if k.contains("generator") or k.contains("core") or k.contains("hearth") or k.contains("reactor"):
+	# The Hearth is the one building in the game with its own silhouette. It is the
+	# thing every road points at, so it must never share a shape with anything.
+	if k.contains("hearth") or k.contains("great_") or k.contains("reactor"):
+		return &"hearth"
+	if k.contains("generator") or k.contains("engine") or k.contains("dynamo"):
 		return &"generator"
 	if k.contains("foundry") or k.contains("smelt") or k.contains("refin") or k.contains("forge") or k.contains("kiln"):
 		return &"foundry"
+	if k.contains("radiator") or k.contains("warmth") or k.contains("emitter"):
+		return &"radiator"
+	if k.contains("accumulator") or k.contains("buffer") or k.contains("battery") or k.contains("cistern"):
+		return &"accumulator"
 	if k.contains("boiler") or k.contains("furnace") or k.contains("heat") or k.contains("steam") \
-			or k.contains("warmth") or k.contains("radiator") or k.contains("geo") or k.contains("thermal"):
+			or k.contains("geo") or k.contains("thermal") or k.contains("core"):
 		return &"heat_plant"
 	if k.contains("house") or k.contains("home") or k.contains("hab") or k.contains("shelter") \
 			or k.contains("tent") or k.contains("barrack") or k.contains("dorm"):
 		return &"habitat"
+	if k.contains("kitchen") or k.contains("canteen") or k.contains("mess") or k.contains("cook"):
+		return &"kitchen"
 	if k.contains("green") or k.contains("farm") or k.contains("hydro") or k.contains("food") \
-			or k.contains("kitchen") or k.contains("canteen") or k.contains("garden"):
+			or k.contains("garden"):
 		return &"greenhouse"
-	if k.contains("depot") or k.contains("store") or k.contains("silo") or k.contains("warehouse") \
-			or k.contains("stock") or k.contains("granary") or k.contains("yard") or k.contains("tank") \
-			or k.contains("accumulator") or k.contains("buffer"):
+	if k.contains("silo") or k.contains("granary") or k.contains("tank") or k.contains("cylinder"):
+		return &"silo"
+	if k.contains("depot") or k.contains("store") or k.contains("warehouse") \
+			or k.contains("stock") or k.contains("yard"):
 		return &"depot"
-	if k.contains("mine") or k.contains("drill") or k.contains("extract") or k.contains("quarry") \
-			or k.contains("collector") or k.contains("scrap") or k.contains("pump") or k.contains("derrick"):
+	if k.contains("drill") or k.contains("derrick") or k.contains("bore") or k.contains("well"):
+		return &"drill"
+	if k.contains("collector") or k.contains("scrap") or k.contains("salvage") or k.contains("picker"):
+		return &"collector"
+	if k.contains("mine") or k.contains("extract") or k.contains("quarry") or k.contains("pump"):
 		return &"mine"
 	if k.contains("tree") or k.contains("stump") or k.contains("pine"):
 		return &"dead_tree"

@@ -153,32 +153,65 @@ extends Resource
 # around them: a tweak passes, a typo does not. `Balance.audit()` reports every
 # building outside its band, and tests/economy fails the build on it.
 
-## Material points a producer may cost per heat/second it makes. Low = free
+## Material points a producer may cost per heat/second of NET output. Low = free
 ## energy, high = never worth building. Coal at ~4.5, geothermal at ~6.
+## "Net" matters: a smelter vents 4 heat/s while drawing 14, and judging it as a
+## generator would price its waste heat as if it were a power plant.
 @export var producer_points_per_heat: Vector2 = Vector2(2.5, 11.0)
 
-## Material points a pure consumer may cost per heat/second it draws.
+## Material points a heat CUSTOMER may cost per heat/second it draws. Applied
+## only to the buildings whose product is warmth or habitation — see
+## consumer_audit_categories and consumer_audit_min_demand.
 @export var consumer_points_per_heat: Vector2 = Vector2(4.0, 34.0)
+
+## A building drawing less than this is not a heat customer in any meaningful
+## sense (a watchtower draws 1.0), and cost-per-heat says nothing useful about it.
+@export var consumer_audit_min_demand: float = 3.0
+
+## Categories whose economic worth IS measured in heat drawn. Defense is absent
+## on purpose: a turret's cost buys damage, and that band belongs to [P07] once
+## weapons exist. Adding it here without a damage model would be a fence painted
+## on the ground.
+@export var consumer_audit_categories: Array[StringName] = [
+	&"housing", &"heat", &"production", &"extraction", &"storage",
+	&"logistics", &"infrastructure",
+]
 
 ## Heat/second output allowed at each tier, index 0 = tier 1. A producer at the
 ## wrong tier is a progression bug, not a balance one, and shows up here first.
 @export var tier_output_min: PackedFloat32Array = PackedFloat32Array([8.0, 35.0, 70.0, 120.0])
 @export var tier_output_max: PackedFloat32Array = PackedFloat32Array([45.0, 95.0, 190.0, 400.0])
 
-## Seconds of build work allowed at each tier. 20 ticks = 1 second.
-@export var tier_build_seconds_min: PackedFloat32Array = PackedFloat32Array([0.5, 3.0, 8.0, 15.0])
+## Seconds of build work allowed at each tier. 20 ticks = 1 second. The tier
+## gates how complicated a thing is, not how long a metre of pipe takes to lay,
+## so the minima stay low even at tier 4.
+@export var tier_build_seconds_min: PackedFloat32Array = PackedFloat32Array([0.5, 1.0, 3.0, 6.0])
 @export var tier_build_seconds_max: PackedFloat32Array = PackedFloat32Array([130.0, 240.0, 420.0, 900.0])
 
-## Material points per footprint cell. Catches a five-by-five that costs less
-## than a wall segment, which is the cheapest way to break a city builder.
+## Material points per footprint cell. The floor catches a five-by-five that
+## costs less than a wall segment, which is the cheapest way to break a city
+## builder. The ceiling only applies from `points_per_cell_max_from_cells` up:
+## below that the number is dominated by the fixed cost of the mechanism inside
+## and says nothing about the footprint.
 @export var points_per_cell: Vector2 = Vector2(1.0, 62.0)
+@export var points_per_cell_max_from_cells: int = 4
 
 ## Heat/second a conduit may carry per material point of its cost. A pipe that
 ## carries the whole city for two iron plates removes the layout game.
-@export var conduit_throughput_per_point: Vector2 = Vector2(1.0, 14.0)
+@export var conduit_throughput_per_point: Vector2 = Vector2(0.5, 14.0)
+
+## Units of stored heat a buffer may hold per material point. A tank is judged on
+## what it holds, not on what it passes through: the accumulator's 40 throughput
+## is incidental to its 900 units of storage.
+@export var buffer_units_per_point: Vector2 = Vector2(1.5, 15.0)
+
+## A conduit holding more than this many seconds of its own throughput is a tank
+## with a pipe attached, and is audited as a buffer instead.
+@export var buffer_classification_seconds: float = 3.0
 
 ## Tags that opt a definition out of the tier and output bands. A landmark is
-## allowed to break the curve — that is what makes it a landmark.
+## allowed to break the curve — that is what makes it a landmark. It is NOT
+## exempt from cost-per-heat: a landmark may be huge, not free.
 @export var audit_exempt_tags: Array[StringName] = [&"unique", &"landmark"]
 
 # ==========================================================================
@@ -296,13 +329,17 @@ func validate() -> bool:
 	consumer_points_per_heat = _ordered(consumer_points_per_heat)
 	points_per_cell = _ordered(points_per_cell)
 	conduit_throughput_per_point = _ordered(conduit_throughput_per_point)
+	buffer_units_per_point = _ordered(buffer_units_per_point)
+	consumer_audit_min_demand = maxf(0.0, consumer_audit_min_demand)
+	points_per_cell_max_from_cells = maxi(1, points_per_cell_max_from_cells)
+	buffer_classification_seconds = maxf(0.0, buffer_classification_seconds)
 
 	var tiers: int = EconomyDefs.MAX_TIER
 	if tier_output_min.size() < tiers or tier_output_max.size() < tiers \
 			or tier_build_seconds_min.size() < tiers or tier_build_seconds_max.size() < tiers:
 		tier_output_min = PackedFloat32Array([8.0, 35.0, 70.0, 120.0])
 		tier_output_max = PackedFloat32Array([45.0, 95.0, 190.0, 400.0])
-		tier_build_seconds_min = PackedFloat32Array([0.5, 3.0, 8.0, 15.0])
+		tier_build_seconds_min = PackedFloat32Array([0.5, 1.0, 3.0, 6.0])
 		tier_build_seconds_max = PackedFloat32Array([130.0, 240.0, 420.0, 900.0])
 		ok = false
 	for i: int in tiers:

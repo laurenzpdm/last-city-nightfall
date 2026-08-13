@@ -1,232 +1,221 @@
 class_name LcnTerrainRenderer
 extends Node2D
-## Chunk-streaming ground renderer. [P13]
+## The ground, as one shaded quad. [P13], second pass.
 ##
-## Three TileMapLayers — base terrain, snow accumulation, decals (ice fracture /
-## industrial soot / trodden path). TileMapLayer batches and culls internally, so
-## the whole ground is a handful of draw calls no matter how big the map is, and
-## there is never a Node2D per tile.
+## WHAT CHANGED AND WHY. The first pass streamed 32x32 chunks of baked 32px tiles
+## into three TileMapLayers. A critic looking at the actual frames named the two
+## things that produced: the snow read as a mosaic of four repeating tile images,
+## and the map was cut by hard chunk-aligned seams, because snow depth was baked
+## INTO a tile at the moment its chunk happened to load and neighbouring chunks
+## had loaded at different points in the snowfall.
 ##
-## Only chunks inside the padded view rect are resident. On a 500x500 world that
-## is roughly 24 chunks (~25k tiles) instead of 250k, and panning costs one or
-## two chunk loads per frame. `stats()` reports the real numbers and the renderer
-## logs them, so the performance claim is measured rather than asserted.
+## Both defects are structural, so the structure went. There is now exactly one
+## draw call for the entire ground: a quad over the visible rect with
+## `terrain.gdshader` on it, fed by LcnTerrainField's data textures. There is no
+## tile image to repeat and no chunk to seam, and the surface is generated at the
+## pixel the camera is looking at, so it holds up at every zoom.
+##
+## It is also very much cheaper. The old path rebaked up to 30 chunks in a frame
+## whenever the world's snow drifted past a threshold, at ~3 ms per chunk; see
+## `stats()` and the PERF lines in the log for the measured numbers.
 
 const CHUNK: int = 32
 const TILE: int = 32
-## Extra chunks kept resident around the view so panning never shows a gap.
-const MARGIN_CHUNKS: int = 1
-const UNLOAD_SLACK: int = 2
-## Reload a chunk once the world's snow depth has drifted this far from the
-## value it was baked with.
-const SNOW_REBAKE_EPS: float = 0.07
+const SHADER_PATH: String = "res://game/view/render/terrain.gdshader"
+## How much world beyond the camera the quad covers, so a fast pan never shows
+## an unshaded edge for a frame.
+const OVERSCAN: float = 96.0
+## Snow chunks refreshed per frame. Snow moves at a few depth units per second;
+## a full sweep of a 256x256 map at this budget takes about a quarter of a second
+## and costs ~0.05 ms a frame.
+const SNOW_BUDGET: int = 3
 
 var model: LcnWorldModel = null
+var field: LcnTerrainField = null
+var material: ShaderMaterial = null
 
-var base_layer: TileMapLayer = null
-var snow_layer: TileMapLayer = null
-var decal_layer: TileMapLayer = null
+var _quad: Node2D = null
+var _white: ImageTexture = null
+var _rect: Rect2 = Rect2()
+var _detail: float = 1.0
+var _pending_chunks: Array[Vector2i] = []
+var _source_cooldown: int = 0
+var _city_cooldown: int = 0
+var _buildings_stamp: int = -1
+var _ready_ok: bool = false
 
-var atlas: LcnTerrainAtlas = null
+var _update_us: int = 0
+var _frames: int = 0
 
-var _loaded: Dictionary[Vector2i, float] = {}
-var _last_load_ms: float = 0.0
-var _total_load_ms: float = 0.0
-var _chunks_loaded: int = 0
-var _cells_written: int = 0
+
+## Inner node whose only job is to own the shader material and one _draw().
+class Quad extends Node2D:
+	var host: LcnTerrainRenderer = null
+
+	func _draw() -> void:
+		if host != null:
+			host.draw_ground(self)
 
 
 func setup(world_model: LcnWorldModel) -> void:
 	model = world_model
-	atlas = LcnTerrainAtlas.new()
-	atlas.build()
+	field = LcnTerrainField.new()
 
-	base_layer = _make_layer("Base", -100)
-	snow_layer = _make_layer("Snow", -98)
-	decal_layer = _make_layer("Decals", -96)
-	# Slightly translucent decals keep soot and cracks from reading as stickers.
-	decal_layer.modulate = Color(1, 1, 1, 0.92)
-
-
-func _make_layer(layer_name: String, z: int) -> TileMapLayer:
-	var l := TileMapLayer.new()
-	l.name = layer_name
-	l.tile_set = atlas.tile_set
-	l.z_index = z
-	l.z_as_relative = false
-	# Linear filtering with a padded atlas: smooth when zoomed out, no bleeding.
-	l.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	add_child(l)
-	return l
-
-
-# ------------------------------------------------------------------ streaming --
-
-## Keeps the chunks covering `view` resident. `budget` caps loads per call so a
-## camera jump costs a couple of frames instead of one long hitch; pass a large
-## budget (or -1) when a frame must be complete, e.g. before a screenshot.
-func stream(view: Rect2, budget: int = 4) -> void:
-	if model == null:
+	var shader: Shader = load(SHADER_PATH) as Shader
+	if shader == null:
+		Log.error("render", "ground shader missing at %s — the world will not draw" % SHADER_PATH)
 		return
-	var span: float = float(CHUNK * TILE)
-	var c0 := Vector2i(
-		int(floor(view.position.x / span)) - MARGIN_CHUNKS,
-		int(floor(view.position.y / span)) - MARGIN_CHUNKS)
-	var c1 := Vector2i(
-		int(floor(view.end.x / span)) + MARGIN_CHUNKS,
-		int(floor(view.end.y / span)) + MARGIN_CHUNKS)
+	material = ShaderMaterial.new()
+	material.shader = shader
 
-	var world: Vector2i = model.world_size()
-	var max_c := Vector2i(
-		int(ceil(float(world.x) / float(CHUNK))) - 1,
-		int(ceil(float(world.y) / float(CHUNK))) - 1)
-	c0.x = maxi(c0.x, 0)
-	c0.y = maxi(c0.y, 0)
-	c1.x = mini(c1.x, max_c.x)
-	c1.y = mini(c1.y, max_c.y)
+	var img: Image = Image.create(1, 1, false, Image.FORMAT_RGBA8)
+	img.fill(Color(1, 1, 1, 1))
+	_white = ImageTexture.create_from_image(img)
 
-	var snow_now: float = _world_snow_phase()
-	var left: int = budget if budget >= 0 else 1 << 30
+	_quad = Quad.new()
+	(_quad as Quad).host = self
+	_quad.name = "Ground"
+	_quad.z_index = -100
+	_quad.z_as_relative = false
+	_quad.material = material
+	_quad.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	add_child(_quad)
+	_ready_ok = true
+
+
+## Binds the field to the world's actual size. Safe to call again on world reload.
+func bind_world() -> void:
+	if not _ready_ok or model == null:
+		return
+	field.setup(model.world_size(), model.snow_cap())
+	material.set_shader_parameter("kind_tex", field.kind_tex)
+	material.set_shader_parameter("snow_tex", field.snow_tex)
+	material.set_shader_parameter("heat_tex", field.heat_tex)
+	material.set_shader_parameter("soot_tex", field.soot_tex)
+	material.set_shader_parameter("city_tex", field.city_tex)
+	material.set_shader_parameter("noise_tex", field.noise_tex)
+	material.set_shader_parameter("pal_tex", field.palette_tex)
+	material.set_shader_parameter("map_px", Vector2(field.size) * float(TILE))
+	material.set_shader_parameter("snow_scale", field.snow_scale)
+	material.set_shader_parameter("snow_mid", _v3(LcnPalette.SNOW_MID))
+	material.set_shader_parameter("snow_lit", _v3(LcnPalette.SNOW_LIT))
+	material.set_shader_parameter("snow_shadow", _v3(LcnPalette.SNOW_SHADOW))
+	material.set_shader_parameter("ash_col", _v3(LcnPalette.ASH))
+	material.set_shader_parameter("warm_col", _v3(LcnPalette.WARM_EDGE))
+	_buildings_stamp = -1
+	_source_cooldown = 0
+	_city_cooldown = 0
+	var n: int = field.refresh_kind(model)
+	field.refresh_snow(model, 1 << 20, [])
+	Log.info("render", "ground bound: %s tiles, %d terrain chunks read, field %d KB" % [
+		str(field.size), n, int(field.stats()["bytes"]) / 1024])
+
+
+## Per-frame update. `zoom` is the camera's scale (>1 is zoomed in), used to drop
+## detail the player cannot see anyway.
+func render(view: Rect2, grade: Dictionary, zoom: float, full: bool = false) -> void:
+	if not _ready_ok or model == null or field.size == Vector2i.ZERO:
+		return
 	var t0: int = Time.get_ticks_usec()
-	for cy: int in range(c0.y, c1.y + 1):
-		for cx: int in range(c0.x, c1.x + 1):
-			if left <= 0:
-				break
-			var key := Vector2i(cx, cy)
-			var baked: float = _loaded.get(key, -1.0)
-			if baked >= 0.0 and absf(baked - snow_now) < SNOW_REBAKE_EPS:
-				continue
-			_load_chunk(key, snow_now)
-			left -= 1
-	_last_load_ms = float(Time.get_ticks_usec() - t0) / 1000.0
-	_total_load_ms += _last_load_ms
+	_frames += 1
+	_rect = view.grow(OVERSCAN)
+	_detail = clampf(inverse_lerp(0.28, 0.85, zoom), 0.0, 1.0)
 
-	# Drop chunks well outside the view so memory does not creep on a big map.
-	var keep := Rect2i(
-		c0 - Vector2i(UNLOAD_SLACK, UNLOAD_SLACK),
-		(c1 - c0) + Vector2i(1 + UNLOAD_SLACK * 2, 1 + UNLOAD_SLACK * 2))
-	for key2: Vector2i in _loaded.keys():
-		if not keep.has_point(key2):
-			_unload_chunk(key2)
+	if _frames % 240 == 1 or full:
+		field.refresh_kind(model)
+	field.refresh_snow(model, (1 << 20) if full else SNOW_BUDGET, _pending_chunks)
+	_pending_chunks.clear()
 
+	_source_cooldown -= 1
+	if _source_cooldown <= 0 or full:
+		_source_cooldown = 6
+		field.refresh_sources(model.heat_sources(), model.buildings())
 
-func _world_snow_phase() -> float:
-	# One representative sample is enough to notice the field has drifted.
-	return model.snow_at(model.world_size() / 2)
+	var stamp: int = model.building_stamp()
+	_city_cooldown -= 1
+	if (stamp != _buildings_stamp and _city_cooldown <= 0) or full:
+		_buildings_stamp = stamp
+		_city_cooldown = 20
+		field.refresh_city(model.buildings())
 
-
-func _load_chunk(chunk: Vector2i, snow_now: float) -> void:
-	var origin := chunk * CHUNK
-	var terrain: PackedByteArray = model.terrain_chunk(origin)
-	var n: int = CHUNK * CHUNK
-	var snow := PackedFloat32Array()
-	var soot := PackedFloat32Array()
-	var temp := PackedFloat32Array()
-	snow.resize(n)
-	soot.resize(n)
-	temp.resize(n)
-	model.fill_overlay_fields(origin, CHUNK, snow, soot, temp)
-
-	for y: int in CHUNK:
-		for x: int in CHUNK:
-			var i: int = y * CHUNK + x
-			var cell := Vector2i(origin.x + x, origin.y + y)
-			var kind: int = int(terrain[i])
-			var variant: int = int(LcnNoise.hash3(cell.x, cell.y, 1234) * 4.0) & 3
-			base_layer.set_cell(cell, atlas.source_id, LcnTerrainAtlas.base_coords(kind, variant), 0)
-
-			var depth: float = snow[i]
-			if depth > 0.12:
-				var level: int = 1 if depth < 0.42 else (2 if depth < 0.74 else 3)
-				snow_layer.set_cell(cell, atlas.source_id,
-					LcnTerrainAtlas.snow_coords(level, variant + 1), 0)
-			else:
-				snow_layer.erase_cell(cell)
-
-			# Priority: soot beats frost beats footpath. Only one decal per tile,
-			# because two stacked overlays turn the ground to mud.
-			var s: float = soot[i]
-			var t: float = temp[i]
-			if s > 0.18:
-				# Proportional, not binary. The old `if s > 0.22 -> full strength`
-				# stamp meant any cluster of industry read as one solid black disc
-				# with the roads, walls and citizens inside it invisible.
-				var soot_level: int = 1 if s < 0.42 else (2 if s < 0.72 else 3)
-				decal_layer.set_cell(cell, atlas.source_id,
-					LcnTerrainAtlas.soot_coords(soot_level, variant + 2), 0)
-			elif t < -34.0 and (kind == LcnPalette.Terrain.ICE
-					or kind == LcnPalette.Terrain.WATER_FROZEN
-					or kind == LcnPalette.Terrain.ROCK):
-				decal_layer.set_cell(cell, atlas.source_id,
-					LcnTerrainAtlas.crack_coords(variant + 3), 0)
-			elif kind == LcnPalette.Terrain.PAVED and depth < 0.35:
-				decal_layer.set_cell(cell, atlas.source_id,
-					LcnTerrainAtlas.path_coords(variant), 0)
-			else:
-				decal_layer.erase_cell(cell)
-
-	_loaded[chunk] = snow_now
-	_chunks_loaded += 1
-	_cells_written += n
+	material.set_shader_parameter("detail", _detail)
+	material.set_shader_parameter("time_s", SimClock.seconds())
+	material.set_shader_parameter("sun_dir", grade["sun_dir"])
+	material.set_shader_parameter("sun_col", _v3(grade["sun_col"]))
+	material.set_shader_parameter("sun_energy", float(grade["sun_energy"]))
+	material.set_shader_parameter("sky_col", _v3(grade["sky_col"]))
+	material.set_shader_parameter("sky_energy", float(grade["sky_energy"]))
+	material.set_shader_parameter("bounce_col", _v3(grade["bounce_col"]))
+	material.set_shader_parameter("bounce", float(grade["bounce"]))
+	material.set_shader_parameter("wild", float(grade["wild"]))
+	_quad.queue_redraw()
+	_update_us = Time.get_ticks_usec() - t0
 
 
-func _unload_chunk(chunk: Vector2i) -> void:
-	var origin := chunk * CHUNK
-	for y: int in CHUNK:
-		for x: int in CHUNK:
-			var cell := Vector2i(origin.x + x, origin.y + y)
-			base_layer.erase_cell(cell)
-			snow_layer.erase_cell(cell)
-			decal_layer.erase_cell(cell)
-	_loaded.erase(chunk)
+## Compatibility shim for callers that still speak the streaming API.
+func stream(view: Rect2, budget: int = 4) -> void:
+	render(view, LcnPalette.grade_at(model.day_fraction() if model != null else 0.5), 1.0, budget < 0)
 
 
-## Drops every resident chunk. Used when the world is recreated.
+func draw_ground(ci: CanvasItem) -> void:
+	ci.draw_texture_rect(_white, _rect, false, Color(1, 1, 1, 1))
+
+
+## New construction melts snow and lays soot; the ground under it has to catch up
+## this frame, not on the next round-robin sweep.
+func invalidate_near(cell: Vector2i) -> void:
+	var c := Vector2i(cell.x / CHUNK, cell.y / CHUNK)
+	for dy: int in range(-1, 2):
+		for dx: int in range(-1, 2):
+			var k := c + Vector2i(dx, dy)
+			if not _pending_chunks.has(k):
+				_pending_chunks.append(k)
+
+
 func clear_all() -> void:
-	base_layer.clear()
-	snow_layer.clear()
-	decal_layer.clear()
-	_loaded.clear()
+	_pending_chunks.clear()
+	_buildings_stamp = -1
+
+
+func detail_level() -> float:
+	return _detail
+
+
+static func _v3(c: Color) -> Vector3:
+	return Vector3(c.r, c.g, c.b)
 
 
 # ---------------------------------------------------------------- diagnostics --
 
 func stats() -> Dictionary:
+	var f: Dictionary = field.stats() if field != null else {}
 	return {
-		"resident_chunks": _loaded.size(),
-		"resident_cells": _loaded.size() * CHUNK * CHUNK,
-		"last_load_ms": _last_load_ms,
-		"total_load_ms": _total_load_ms,
-		"chunks_loaded": _chunks_loaded,
-		"cells_written": _cells_written,
+		"update_us": _update_us,
+		"detail": _detail,
+		"draw_calls": 1,
+		"field_kb": int(f.get("bytes", 0)) / 1024,
+		"kind_us": int(f.get("kind_us", 0)),
+		"snow_us": int(f.get("snow_us", 0)),
+		"sources_us": int(f.get("sources_us", 0)),
+		"city_us": int(f.get("city_us", 0)),
 	}
 
 
-## Streams the entire world once and reports the cost, then restores the normal
-## resident set. This is the honest answer to "is it fast at 500x500?" —
-## it is the real code path, not an estimate.
-func benchmark_full_map(view: Rect2) -> Dictionary:
-	var world: Vector2i = model.world_size()
-	var cw: int = int(ceil(float(world.x) / float(CHUNK)))
-	var ch: int = int(ceil(float(world.y) / float(CHUNK)))
-	clear_all()
-	var snow_now: float = _world_snow_phase()
+## Rebuilds every field for the whole map once and reports the cost. This is the
+## honest answer to "what does the ground cost at full map size?" — the old
+## renderer's equivalent number was 190 ms for a 256x256 world.
+func benchmark_full_map(_view: Rect2) -> Dictionary:
 	var t0: int = Time.get_ticks_usec()
-	for cy: int in ch:
-		for cx: int in cw:
-			_load_chunk(Vector2i(cx, cy), snow_now)
+	field.refresh_kind(model)
+	field.refresh_snow(model, 1 << 20, [])
+	field.refresh_sources(model.heat_sources(), model.buildings())
+	field.refresh_city(model.buildings())
 	var total_ms: float = float(Time.get_ticks_usec() - t0) / 1000.0
-	var cells: int = cw * ch * CHUNK * CHUNK
-	var out: Dictionary = {
-		"world": "%dx%d" % [world.x, world.y],
-		"chunks": cw * ch,
+	var cells: int = field.size.x * field.size.y
+	return {
+		"world": "%dx%d" % [field.size.x, field.size.y],
 		"cells": cells,
 		"total_ms": total_ms,
-		"ms_per_chunk": total_ms / float(maxi(1, cw * ch)),
 		"us_per_cell": total_ms * 1000.0 / float(maxi(1, cells)),
+		"field_kb": int(field.stats()["bytes"]) / 1024,
 	}
-	clear_all()
-	stream(view, -1)
-	out["resident_chunks_after"] = _loaded.size()
-	out["resident_cells_after"] = _loaded.size() * CHUNK * CHUNK
-	return out

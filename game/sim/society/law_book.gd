@@ -238,6 +238,11 @@ func foreclosed_ids() -> Array[StringName]:
 	return out
 
 
+## True when something already in force has shut this page for good.
+func is_foreclosed(id: StringName) -> bool:
+	return _foreclosed_by(id) != &""
+
+
 func _foreclosed_by(id: StringName) -> StringName:
 	for other: StringName in (_excludes.get(id, []) as Array):
 		if _signed.has(other):

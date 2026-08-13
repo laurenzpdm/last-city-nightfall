@@ -118,6 +118,11 @@ extends Resource
 @export var lane_corridor_radius: int = 5
 ## Path cells behind the chokepoint that the defence envelope covers.
 @export var lane_envelope_cells: int = 34
+## Defence rating that reads as 0.5 on the 0..1 scale. Saturating, so the
+## twentieth turret on one road still counts, just not as much as the second.
+@export var defence_reference: float = 55.0
+## Weight of barrier hit points against turret damage in that rating.
+@export var defence_hp_weight: float = 0.02
 
 # ==========================================================================
 #  TELEGRAPHING — the whole feeling of the game
@@ -279,6 +284,8 @@ func validate() -> bool:
 	vector_share_cap = clampf(vector_share_cap, 0.4, 1.0)
 	lane_corridor_radius = clampi(lane_corridor_radius, 1, 24)
 	lane_envelope_cells = clampi(lane_envelope_cells, 4, 200)
+	defence_reference = maxf(1.0, defence_reference)
+	defence_hp_weight = maxf(0.0, defence_hp_weight)
 
 	if warning_offsets_ticks.is_empty():
 		warning_offsets_ticks = PackedInt32Array([1800, 600])

@@ -297,6 +297,11 @@ static func audit() -> Array[Dictionary]:
 
 
 ## Economic summary of one definition, the numbers the audit reasons about.
+##
+## `role` is the audit's classification and is the whole trick: a smelter vents
+## heat but is a consumer, an accumulator conducts but is a tank, and a
+## watchtower draws a token 1.0 and is neither. Judging a building by what it is
+## FOR instead of by which fields are non-zero is what keeps the bands honest.
 static func economics_of(def: BuildingDef) -> Dictionary:
 	if def == null:
 		return {}
@@ -307,21 +312,40 @@ static func economics_of(def: BuildingDef) -> Dictionary:
 		cells = def.footprint_cells.size()
 	var out: float = def.heat_produced * t.supply_mult
 	var draw: float = def.heat_consumed * t.demand_mult
+	var net: float = out - draw
+	var throughput: float = def.conduit_throughput if def.is_heat_conduit else 0.0
+	var is_tank: bool = def.heat_buffer > 0.0 and (throughput <= 0.0
+		or def.heat_buffer > throughput * t.buffer_classification_seconds)
+
+	var role: StringName = &"passive"
+	if net > 0.0:
+		role = &"producer"
+	elif throughput > 0.0 and not is_tank:
+		role = &"conduit"
+	elif is_tank and def.has_tag(&"buffer"):
+		role = &"buffer"
+	elif draw >= t.consumer_audit_min_demand and t.consumer_audit_categories.has(def.category):
+		role = &"consumer"
+
 	return {
 		"kind": def.id,
 		"tier": clampi(def.tier, EconomyDefs.MIN_TIER, EconomyDefs.MAX_TIER),
 		"category": String(def.category),
+		"role": String(role),
 		"points": points,
 		"cells": cells,
 		"points_per_cell": points / float(cells),
 		"heat_out": out,
 		"heat_in": draw,
-		"net_heat": out - draw,
+		"net_heat": net,
+		"storage": def.heat_buffer,
 		"build_seconds": float(def.build_time_ticks) / float(EconomyDefs.TICKS_PER_SECOND),
-		"throughput": def.conduit_throughput if def.is_heat_conduit else 0.0,
+		"throughput": throughput,
 		"residents": def.residents,
-		"points_per_heat_out": (points / out) if out > 0.0 else 0.0,
+		"points_per_heat_out": (points / net) if net > 0.0 else 0.0,
 		"points_per_heat_in": (points / draw) if draw > 0.0 else 0.0,
+		"throughput_per_point": (throughput / points) if points > 0.0 else 0.0,
+		"storage_per_point": (def.heat_buffer / points) if points > 0.0 else 0.0,
 		"exempt": _is_exempt(def, t),
 	}
 
@@ -336,6 +360,8 @@ static func _run_audit() -> Array[Dictionary]:
 		var e: Dictionary = economics_of(def)
 		var tier_i: int = int(e["tier"]) - 1
 		var exempt: bool = bool(e["exempt"])
+		var points: float = float(e["points"])
+		var role: StringName = StringName(String(e["role"]))
 
 		for item: Variant in EconomyDefs.sorted_keys(def.cost):
 			if not t.prices(StringName(String(item))):
@@ -343,48 +369,86 @@ static func _run_audit() -> Array[Dictionary]:
 					"'%s' has no entry in material_value, so every cost band that "
 					% String(item) + "mentions it is guessing"))
 
-		if float(e["points"]) <= 0.0:
-			out.append(_finding(id, &"free_building", 0.0, 1.0, INF,
-				"costs nothing at all"))
+		if points <= 0.0:
+			out.append(_finding(id, &"free_building", 0.0, 1.0, INF, "costs nothing at all"))
 		else:
-			_band(out, id, &"points_per_cell", float(e["points_per_cell"]),
-				t.points_per_cell.x, t.points_per_cell.y,
+			# The floor is universal: a big cheap building is always a bug. The
+			# ceiling only means something once there is a footprint to divide by.
+			var ppc: float = float(e["points_per_cell"])
+			var ceiling: float = t.points_per_cell.y if int(e["cells"]) >= t.points_per_cell_max_from_cells else INF
+			_band(out, id, &"points_per_cell", ppc, t.points_per_cell.x, ceiling,
 				"material points per footprint cell")
 
-		if float(e["heat_out"]) > 0.0:
-			_band(out, id, &"producer_cost", float(e["points_per_heat_out"]),
-				t.producer_points_per_heat.x, t.producer_points_per_heat.y,
-				"material points per heat/second produced")
-			if not exempt:
-				_band(out, id, &"tier_output", float(e["heat_out"]),
-					float(t.tier_output_min[tier_i]), float(t.tier_output_max[tier_i]),
-					"heat/second at tier %d" % int(e["tier"]))
-				if float(e["heat_out"]) > t.max_ordinary_output:
-					out.append(_finding(id, &"landmark_output", float(e["heat_out"]),
-						0.0, t.max_ordinary_output,
-						"outproduces max_ordinary_output without a unique/landmark tag"))
-		elif float(e["heat_in"]) > 0.0 and float(e["points"]) > 0.0:
-			_band(out, id, &"consumer_cost", float(e["points_per_heat_in"]),
-				t.consumer_points_per_heat.x, t.consumer_points_per_heat.y,
-				"material points per heat/second drawn")
-
-		if float(e["throughput"]) > 0.0 and float(e["points"]) > 0.0:
-			_band(out, id, &"conduit_value", float(e["throughput"]) / float(e["points"]),
-				t.conduit_throughput_per_point.x, t.conduit_throughput_per_point.y,
-				"heat/second carried per material point")
+		match role:
+			&"producer":
+				_band(out, id, &"producer_cost", float(e["points_per_heat_out"]),
+					t.producer_points_per_heat.x, t.producer_points_per_heat.y,
+					"material points per heat/second of net output")
+				if not exempt:
+					_band(out, id, &"tier_output", float(e["net_heat"]),
+						float(t.tier_output_min[tier_i]), float(t.tier_output_max[tier_i]),
+						"net heat/second at tier %d" % int(e["tier"]))
+					if float(e["net_heat"]) > t.max_ordinary_output:
+						out.append(_finding(id, &"landmark_output", float(e["net_heat"]),
+							0.0, t.max_ordinary_output,
+							"outproduces max_ordinary_output without a unique/landmark tag"))
+			&"conduit":
+				if points > 0.0:
+					_band(out, id, &"conduit_value", float(e["throughput_per_point"]),
+						t.conduit_throughput_per_point.x, t.conduit_throughput_per_point.y,
+						"heat/second carried per material point")
+			&"buffer":
+				if points > 0.0:
+					_band(out, id, &"buffer_value", float(e["storage_per_point"]),
+						t.buffer_units_per_point.x, t.buffer_units_per_point.y,
+						"units of stored heat per material point")
+			&"consumer":
+				if points > 0.0:
+					_band(out, id, &"consumer_cost", float(e["points_per_heat_in"]),
+						t.consumer_points_per_heat.x, t.consumer_points_per_heat.y,
+						"material points per heat/second drawn")
 
 		_band(out, id, &"build_time", float(e["build_seconds"]),
 			float(t.tier_build_seconds_min[tier_i]), float(t.tier_build_seconds_max[tier_i]),
 			"seconds of build work at tier %d" % int(e["tier"]))
 
 		if def.residents > 0:
-			var per: float = float(e["heat_in"]) / float(def.residents)
 			# Housing carries roughly two thirds of a citizen's heat bill; the
 			# radiator on the street carries the rest. Both ends checked, because
 			# free-to-heat housing and unheatable housing break the game equally.
-			_band(out, id, &"heat_per_resident", per,
+			_band(out, id, &"heat_per_resident", float(e["heat_in"]) / float(def.residents),
 				t.heat_per_resident * 0.35, t.heat_per_resident * 1.20,
 				"heat/second per resident housed")
+	return out
+
+
+## Which economic rules each definition is actually covered by, {kind: [rule]}.
+## A building covered by nothing is a hole in the fence, and tests/economy says
+## so — that is what stops the audit from being green because it checks nothing.
+static func audit_coverage() -> Dictionary[StringName, PackedStringArray]:
+	var out: Dictionary[StringName, PackedStringArray] = {}
+	for id: StringName in Registry.ids("buildings"):
+		var def: BuildingDef = Registry.get_item("buildings", id) as BuildingDef
+		if def == null:
+			continue
+		var e: Dictionary = economics_of(def)
+		var rules := PackedStringArray(["build_time"])
+		if float(e["points"]) > 0.0:
+			rules.append("points_per_cell")
+		match StringName(String(e["role"])):
+			&"producer":
+				rules.append("producer_cost")
+				if not bool(e["exempt"]):
+					rules.append("tier_output")
+			&"conduit":
+				rules.append("conduit_value")
+			&"buffer":
+				rules.append("buffer_value")
+			&"consumer":
+				rules.append("consumer_cost")
+		if def.residents > 0:
+			rules.append("heat_per_resident")
+		out[id] = rules
 	return out
 
 

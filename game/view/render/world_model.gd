@@ -55,7 +55,14 @@ var _preview_dropped: bool = false
 
 var _terrain_names: Dictionary[String, int] = {}
 var _terrain_remap: Dictionary[int, int] = {}
+var _remap_table: PackedByteArray = PackedByteArray()
 var _has_bulk_terrain: bool = false
+## [P01]'s WorldGrid, when the grid system exposes it. Chunks there hold terrain
+## and snow as PackedByteArrays, which is the difference between reading a
+## 65 536-tile map in one pass and calling terrain_at() 65 536 times.
+var _world_grid: Object = null
+var _snow_stamp: int = -1
+var _building_stamp: int = 0
 var _has_phase_clock: bool = false
 var _has_heat_view: bool = false
 var _agent_providers: Array[SimSystem] = []
@@ -92,6 +99,11 @@ func attach() -> void:
 	_terrain_cache.clear()
 	_terrain_remap.clear()
 	_agent_providers.clear()
+	_world_grid = null
+	if _grid != null and _grid.has_method("world"):
+		var wg: Variant = _grid.call("world")
+		if wg is Object and (wg as Object).has_method("chunk_by_coord"):
+			_world_grid = wg
 	_has_bulk_terrain = _grid != null and _grid.has_method("terrain_chunk")
 	_has_phase_clock = _climate != null and _climate.has_method("phase_of_day") \
 		and _climate.has_method("phase_progress")
@@ -137,6 +149,12 @@ func _map_terrain_ids() -> void:
 					names.append(str(v))
 	for i: int in names.size():
 		_terrain_remap[i] = _terrain_from_name(names[i])
+	# Flat 256-entry lookup: the bulk terrain read hits this once per tile and a
+	# Dictionary probe per tile is 65 536 hash lookups on a map load.
+	_remap_table.resize(256)
+	_remap_table.fill(LcnPalette.Terrain.SNOW)
+	for i: int in mini(names.size(), 256):
+		_remap_table[i] = _terrain_remap.get(i, LcnPalette.Terrain.SNOW)
 
 
 ## Adopts every building the build system already knows about. Bus signals cover
@@ -224,8 +242,68 @@ func world_size() -> Vector2i:
 	return Vector2i(256, 256)
 
 
+## True when [P01] hands out its chunk arrays, which lets the ground read the
+## whole map in one pass instead of one call per tile.
+func has_bulk_chunks() -> bool:
+	return _world_grid != null
+
+
+## Version counter of one 32x32 terrain chunk. Bumped by [P01] whenever anything
+## in it changes; the ground uses it to skip untouched chunks entirely.
+func terrain_chunk_version(chunk: Vector2i) -> int:
+	if _world_grid == null:
+		return 0
+	var c: Object = _world_grid.call("chunk_by_coord", chunk.x, chunk.y)
+	if c == null:
+		return 0
+	return int(c.get("version"))
+
+
+## Raw snow bytes for one 32x32 chunk, row-major. Empty when the sim owns no
+## snow, in which case the caller falls back to the view-side field.
+func snow_chunk(origin: Vector2i) -> PackedByteArray:
+	if _world_grid != null:
+		var c: Object = _world_grid.call("chunk_by_coord", origin.x / CHUNK, origin.y / CHUNK)
+		if c != null:
+			var raw: Variant = c.get("snow")
+			if raw is PackedByteArray and (raw as PackedByteArray).size() >= CHUNK * CHUNK:
+				return raw
+	return _synth_snow_chunk(origin)
+
+
+## View-side snow for one chunk, used when nothing in the sim owns accumulation.
+## Deliberately the same shape as the grid's: 0..255 against snow_cap.
+func _synth_snow_chunk(origin: Vector2i) -> PackedByteArray:
+	var out := PackedByteArray()
+	out.resize(CHUNK * CHUNK)
+	var terrain: PackedByteArray = terrain_chunk(origin)
+	for y: int in CHUNK:
+		for x: int in CHUNK:
+			var i: int = y * CHUNK + x
+			var cell := Vector2i(origin.x + x, origin.y + y)
+			if not LcnPalette.terrain_takes_snow(int(terrain[i])):
+				out[i] = 0
+				continue
+			var base: float = _snow_phase
+			if int(terrain[i]) == LcnPalette.Terrain.PAVED:
+				base *= 0.55
+			var nz: float = LcnNoise.fbm(float(cell.x) * 0.055, float(cell.y) * 0.055, 4242, 3)
+			out[i] = clampi(int(clampf(base * (0.45 + nz * 1.1), 0.0, 1.0) * 255.0), 0, 255)
+	return out
+
+
+func snow_cap() -> float:
+	return _snow_cap
+
+
+## Bumped whenever the set of structures changes. The ground's city-ambience
+## field only rebuilds when this moves.
+func building_stamp() -> int:
+	return _building_stamp
+
+
 ## Terrain ids for a whole chunk, in row-major order. Cached; this is the call
-## the tile streamer makes and the reason 500x500 stays affordable.
+## the ground makes and the reason 500x500 stays affordable.
 func terrain_chunk(origin: Vector2i) -> PackedByteArray:
 	var key: int = origin.x * 100003 + origin.y
 	var hit: PackedByteArray = _terrain_cache.get(key, PackedByteArray())
@@ -233,6 +311,16 @@ func terrain_chunk(origin: Vector2i) -> PackedByteArray:
 		return hit
 	var out := PackedByteArray()
 	out.resize(CHUNK * CHUNK)
+	if _world_grid != null and not _remap_table.is_empty():
+		var c: Object = _world_grid.call("chunk_by_coord", origin.x / CHUNK, origin.y / CHUNK)
+		if c != null:
+			var raw2: Variant = c.get("terrain")
+			if raw2 is PackedByteArray and (raw2 as PackedByteArray).size() >= CHUNK * CHUNK:
+				var src: PackedByteArray = raw2
+				for i: int in CHUNK * CHUNK:
+					out[i] = _remap_table[src[i]]
+				_terrain_cache[key] = out
+				return out
 	if _has_bulk_terrain:
 		var raw: PackedByteArray = _grid.call("terrain_chunk", origin, Vector2i(CHUNK, CHUNK))
 		if raw.size() >= CHUNK * CHUNK:
@@ -494,17 +582,23 @@ func soot_at(cell: Vector2i) -> float:
 func buildings() -> Array[Dictionary]:
 	if not _buildings_dirty:
 		return _cached_buildings
-	_building_order.sort_custom(func(a: int, b: int) -> bool:
-		var ba: Dictionary = _buildings[a]
-		var bb: Dictionary = _buildings[b]
-		var ya: int = (ba["cell"] as Vector2i).y
-		var yb: int = (bb["cell"] as Vector2i).y
-		if ya != yb:
-			return ya < yb
-		return a < b)
+	# Native sort on a packed key array. `sort_custom` with a GDScript lambda was
+	# ~1600 script calls per rebuild at 200 structures and showed up as a
+	# millisecond of frame time every time a building changed state.
+	var keys := PackedInt64Array()
+	keys.resize(_building_order.size())
+	for i: int in _building_order.size():
+		var id: int = _building_order[i]
+		var b: Dictionary = _buildings[id]
+		var y: int = (b["cell"] as Vector2i).y + (b["tiles"] as Vector2i).y
+		keys[i] = (int(y + 4096) << 32) | (id & 0xFFFFFFFF)
+	keys.sort()
+	_building_order.clear()
 	_cached_buildings = []
-	for id: int in _building_order:
-		_cached_buildings.append(_buildings[id])
+	for k: int in keys:
+		var id2: int = k & 0xFFFFFFFF
+		_building_order.append(id2)
+		_cached_buildings.append(_buildings[id2])
 	_buildings_dirty = false
 	return _cached_buildings
 
@@ -563,6 +657,7 @@ func add_building(id: int, kind: StringName, cell: Vector2i) -> void:
 	if not _building_order.has(id):
 		_building_order.append(id)
 	_buildings_dirty = true
+	_building_stamp += 1
 
 
 ## BuildingDef for a kind, straight from the registry so this works whether or
@@ -592,6 +687,7 @@ func drop_preview_buildings() -> void:
 	preview.buildings.clear()
 	_agents.clear()
 	_buildings_dirty = true
+	_building_stamp += 1
 	if removed > 0:
 		Log.info("render", "real construction detected — dropped %d preview structures" % removed)
 
@@ -602,6 +698,7 @@ func remove_building(id: int) -> void:
 	_buildings.erase(id)
 	_building_order.erase(id)
 	_buildings_dirty = true
+	_building_stamp += 1
 
 
 func set_building_state(id: int, state: int) -> void:
