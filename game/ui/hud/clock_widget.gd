@@ -12,7 +12,7 @@ extends LcnHudWidget
 ## [P09], the marker sits at the real day progress, and when the countdown drops
 ## under a minute the number itself starts to burn.
 
-const PANEL := Vector2(500.0, 196.0)
+const WIDTH: float = 500.0
 
 const ARC_RADIUS: float = 200.0
 const ARC_CENTRE_Y: float = 250.0
@@ -23,6 +23,10 @@ var _countdown: String = "—"
 var _label: String = ""
 var _sub: String = ""
 var _urgent: float = 0.0
+var _y_caps: float = 104.0
+var _y_number: float = 150.0
+var _y_sub: float = 180.0
+var _height: float = 196.0
 
 
 func should_show() -> bool:
@@ -30,7 +34,7 @@ func should_show() -> bool:
 
 
 func desired_height() -> float:
-	return PANEL.y
+	return _height
 
 
 func signature() -> String:
@@ -44,8 +48,12 @@ func signature() -> String:
 
 
 func layout() -> void:
-	custom_minimum_size = PANEL
-	size = PANEL
+	_y_caps = 100.0 + float(style.fs(11))
+	_y_number = _y_caps + float(style.fs(46)) * 0.95
+	_y_sub = _y_number + 12.0 + float(style.fs(13))
+	_height = _y_sub + 12.0
+	custom_minimum_size = Vector2(WIDTH, _height)
+	size = custom_minimum_size
 	var seconds: float = probe.countdown_seconds()
 	_countdown = LcnHudFormat.clock(seconds) if seconds >= 0.0 else "—:—"
 	_label = probe.countdown_label()
@@ -56,16 +64,18 @@ func layout() -> void:
 		_urgent = clampf(inverse_lerp(120.0, 15.0, seconds), 0.0, 1.0)
 
 	clear_hot()
-	var centre_x: float = size.x * 0.5
-	add_hot(Rect2(centre_x - 130.0, 36.0, 260.0, 58.0), "The day",
+	var centre_x: float = WIDTH * 0.5
+	add_hot(Rect2(centre_x - 130.0, 40.0, 260.0, 52.0), "The day",
 		"One day is %s long, and %s of that is night. The marker is where you "
 		% [LcnHudFormat.clock(_day_length()), LcnHudFormat.clock(_night_length())]
 		+ "are now; the cold half of the arc is the part you have to survive.")
-	add_hot(Rect2(centre_x - 120.0, 96.0, 240.0, 74.0), _label.to_lower(),
+	add_hot(Rect2(centre_x - 130.0, _y_caps - float(style.fs(11)) - 6.0, 260.0,
+		_y_number - _y_caps + float(style.fs(11)) + 12.0), _label.to_lower(),
 		"Everything gets harder after dark: it is colder, so every building "
 		+ "burns more heat to stay alive, and whatever is out there comes in. "
 		+ "Build for the night while it is still light.")
-	add_hot(Rect2(14.0, 172.0, size.x - 28.0, 22.0), "Outside",
+	add_hot(Rect2(14.0, _y_sub - float(style.fs(13)) - 5.0, WIDTH - 28.0,
+		float(style.fs(13)) + 11.0), "Outside",
 		"Air temperature, and the weather driving it. Cold air raises what every "
 		+ "building has to draw from the grid just to keep itself warm.")
 
@@ -83,13 +93,13 @@ func _draw() -> void:
 	_draw_arc()
 	_draw_speed_chip()
 
-	var centre_x: float = size.x * 0.5
+	var centre_x: float = WIDTH * 0.5
 	var warm: Color = style.ink_warm()
 	var caps_col: Color = style.ink_faint()
 	if _urgent > 0.05:
 		caps_col = style.sev_colour(S.Sev.WARN if _urgent < 0.66 else S.Sev.DANGER)
 	style.draw_caps(self, Vector2(centre_x - style.caps_width(_label, style.fs(11), 3.0) * 0.5,
-		106.0), _label, style.fs(11), caps_col, 3.0)
+		_y_caps), _label, style.fs(11), caps_col, 3.0)
 
 	var number_col: Color = style.ink()
 	if probe.is_night:
@@ -99,7 +109,7 @@ func _draw() -> void:
 		number_col = number_col.lerp(hot_col, _urgent)
 		if _urgent > 0.66:
 			number_col = number_col.lerp(warm, style.pulse(5.0) * 0.5)
-	style.draw_text_centered(self, centre_x, 162.0, _countdown, style.fs(46), number_col)
+	style.draw_text_centered(self, centre_x, _y_number, _countdown, style.fs(46), number_col)
 
 	# Day number rides in the corner like a stamped plate serial.
 	style.draw_caps(self, Vector2(18.0, 30.0), "Day %d" % probe.day, style.fs(12),
@@ -109,13 +119,13 @@ func _draw() -> void:
 			style.ink_faint(), 1.6)
 
 	var temp_col: Color = LcnHudStyle.P.ICE_BLUE if probe.ambient_c < -25.0 else style.ink_dim()
-	style.draw_text_centered(self, centre_x, 186.0, _sub, style.fs(13), temp_col)
+	style.draw_text_centered(self, centre_x, _y_sub, _sub, style.fs(13), temp_col)
 	draw_marks()
 
 
 ## The arc: steel for daylight, deep cold for night, a marker for now.
 func _draw_arc() -> void:
-	var centre := Vector2(size.x * 0.5, ARC_CENTRE_Y)
+	var centre := Vector2(WIDTH * 0.5, ARC_CENTRE_Y)
 	var a0: float = deg_to_rad(ARC_FROM)
 	var a1: float = deg_to_rad(ARC_TO)
 	var night_at: float = clampf(probe.night_start_fraction, 0.05, 0.98)
@@ -167,7 +177,7 @@ func _draw_speed_chip() -> void:
 	if text == "":
 		return
 	var w: float = style.caps_width(text, style.fs(10), 2.0)
-	style.draw_caps(self, Vector2(size.x - 18.0 - w, 30.0), text, style.fs(10), col, 2.0)
+	style.draw_caps(self, Vector2(WIDTH - 18.0 - w, 32.0), text, style.fs(10), col, 2.0)
 
 
 func _speed_state() -> int:

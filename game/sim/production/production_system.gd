@@ -512,11 +512,14 @@ func _advance(m: ProdMachine, tick: int) -> void:
 	if not m.enabled:
 		_park(m, ProdMachine.State.IDLE, ProdMachine.REASON_DISABLED, &"", tick)
 		return
+
+	# Read the world BEFORE the frozen check, so a frozen machine still reports a
+	# live temperature and the overlay can show it thawing rather than stuck on
+	# whatever it happened to feel the moment it died.
+	_read_environment(m)
 	if _is_frozen(m.id):
 		_park(m, ProdMachine.State.FROZEN, ProdMachine.REASON_FROZEN, &"", tick)
 		return
-
-	_read_environment(m)
 
 	if m.def.is_recuperator() and not m.def.is_crafter() and not m.def.is_extractor():
 		# A recuperator does no work of its own; [ProdWasteHeat] drives it below,

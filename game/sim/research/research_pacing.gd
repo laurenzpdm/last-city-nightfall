@@ -69,6 +69,8 @@ func bind() -> void:
 	_combat = _wref(Sim.get_system(&"combat"))
 	_citizens = _wref(Sim.get_system(&"citizens"))
 	_society = _wref(Sim.get_system(&"society"))
+	_roster.clear()
+	_roster_read = false
 
 
 ## Which optional systems actually answered, for the log line at world creation.
@@ -345,40 +347,118 @@ func _sample_build() -> void:
 		"%d site(s) waiting on hands" % queued, &"measured")
 
 
+## Armour that a plain kinetic round stops answering. The hoarfrost breaker
+## carries 14 of it; a drift hound carries none.
+const ARMOUR_HURTS: float = 4.0
+## Pack size at which a unit is a swarm whatever its role says.
+const SWARM_PACK: int = 4
+## Structures lost in one night that reads as "the wall did not hold".
+const LOSSES_SEVERE: float = 4.0
+
+## Cached roster table: one row per enemy kind, [min_wave, weight, armoured, swarm].
+## The roster is content and never changes at runtime, so it is read once.
+var _roster: Array[Array] = []
+var _roster_read: bool = false
+
+
 func _sample_threat() -> void:
 	var t: Object = _live(_threat)
 	var proxy: float = clampf(float(_day - 2) / 5.0, 0.0, 1.0)
+	if t == null:
+		_put(ResearchDefs.SIG_WAVE, proxy, "", &"proxy")
+		_put(ResearchDefs.SIG_ARMOURED, clampf(float(_day - 3) / 4.0, 0.0, 1.0), "", &"proxy")
+		_put(ResearchDefs.SIG_SWARM, proxy * 0.7, "", &"proxy")
+		_put(ResearchDefs.SIG_STRUCTURE_LOSS, proxy * 0.5, "", &"proxy")
+		return
 
-	var wave: float = _probe(t, ["pressure", "threat_level", "wave_strength"], proxy)
-	_put(ResearchDefs.SIG_WAVE, clampf(wave, 0.0, 1.0),
-		"night pressure at %d%%" % int(clampf(wave, 0.0, 1.0) * 100.0),
-		&"measured" if t != null else &"proxy")
+	# NOT "pressure": [P08] uses that name for its adaptive difficulty multiplier,
+	# which sits at 1.0 on a quiet day one. Reading it as an urgency put the whole
+	# defence branch at the front of the tree before anything had attacked.
+	# threat_level() is the one [P08] documents as 0..1.
+	var level: float = _probe(t, ["threat_level", "wave_strength"], proxy)
+	_put(ResearchDefs.SIG_WAVE, clampf(level, 0.0, 1.0),
+		"threat level %d%%" % int(clampf(level, 0.0, 1.0) * 100.0), &"measured")
 
-	var armoured: float = _probe(t, ["armoured_share", "armored_share", "heavy_share"],
-		clampf(float(_day - 3) / 4.0, 0.0, 1.0))
-	_put(ResearchDefs.SIG_ARMOURED, clampf(armoured, 0.0, 1.0),
-		"%d%% of what is coming is armoured" % int(clampf(armoured, 0.0, 1.0) * 100.0),
-		&"measured" if t != null and _has(t, ["armoured_share", "armored_share", "heavy_share"]) else &"proxy")
-
-	var swarm: float = _probe(t, ["swarm_share", "enemy_pressure"], proxy * 0.7)
-	_put(ResearchDefs.SIG_SWARM, clampf(swarm, 0.0, 1.0), "",
-		&"measured" if t != null and _has(t, ["swarm_share", "enemy_pressure"]) else &"proxy")
-
-	var c: Object = _live(_combat)
-	var lost: float = _probe(c, ["structures_lost", "structures_destroyed"], -1.0)
-	if lost >= 0.0:
-		_put(ResearchDefs.SIG_STRUCTURE_LOSS, clampf(lost / 4.0, 0.0, 1.0),
-			"%d structure(s) lost" % int(lost), &"measured")
+	_read_roster(t)
+	var wave_no: int = int(_probe(t, ["wave"], 0.0))
+	if _roster.is_empty():
+		_put(ResearchDefs.SIG_ARMOURED, clampf(float(_day - 3) / 4.0, 0.0, 1.0), "", &"proxy")
+		_put(ResearchDefs.SIG_SWARM, proxy * 0.7, "", &"proxy")
 	else:
-		var b: Object = _live(_build)
-		var destroyed: float = -1.0
-		if b != null:
-			destroyed = float((b.call("metrics") as Dictionary).get("destroyed_total", -1))
-		if destroyed >= 0.0:
-			_put(ResearchDefs.SIG_STRUCTURE_LOSS, clampf(destroyed / 4.0, 0.0, 1.0),
-				"%d structure(s) lost" % int(destroyed), &"measured")
-		else:
-			_put(ResearchDefs.SIG_STRUCTURE_LOSS, proxy * 0.5, "", &"proxy")
+		# What the plain can send TONIGHT, weighted the way [P08] weights it.
+		# The armoured signal turns on the wave a breaker becomes eligible, which
+		# is exactly the night armour-piercing rounds are supposed to arrive.
+		var total: float = 0.0
+		var armoured: float = 0.0
+		var swarm: float = 0.0
+		for row: Array in _roster:
+			if int(row[0]) > wave_no + 1:
+				continue
+			var w: float = float(row[1])
+			total += w
+			if bool(row[2]):
+				armoured += w
+			if bool(row[3]):
+				swarm += w
+		if total > 0.0001:
+			var a: float = clampf(armoured / total * 2.0, 0.0, 1.0)
+			_put(ResearchDefs.SIG_ARMOURED, a,
+				"%d%% of what the plain can send is armoured" % int(armoured / total * 100.0),
+				&"measured")
+			_put(ResearchDefs.SIG_SWARM, clampf(swarm / total * 1.5, 0.0, 1.0),
+				"%d%% of it arrives in packs" % int(swarm / total * 100.0), &"measured")
+
+	var lost: float = _last_night_losses(t)
+	if lost >= 0.0:
+		_put(ResearchDefs.SIG_STRUCTURE_LOSS, clampf(lost / LOSSES_SEVERE, 0.0, 1.0),
+			"%d structure(s) lost last night" % int(lost), &"measured")
+	else:
+		_put(ResearchDefs.SIG_STRUCTURE_LOSS, proxy * 0.5, "", &"proxy")
+
+
+## Structures the city lost in the night in progress, or in the last one that
+## finished. -1.0 when [P08] does not report it.
+func _last_night_losses(t: Object) -> float:
+	for name: String in ["current_wave_report", "last_wave_report"]:
+		if not t.has_method(name):
+			continue
+		var report: Variant = t.call(name)
+		if typeof(report) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = report
+		if d.is_empty() or not d.has("structures_lost"):
+			continue
+		return float(d["structures_lost"])
+	return -1.0
+
+
+## Reads [P08]'s enemy roster once and reduces it to the four numbers this class
+## needs. Content, not state: it cannot change while a world is alive.
+func _read_roster(t: Object) -> void:
+	if _roster_read:
+		return
+	_roster_read = true
+	if not t.has_method("roster"):
+		return
+	var raw: Variant = t.call("roster")
+	if typeof(raw) != TYPE_ARRAY:
+		return
+	for entry: Variant in raw:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = entry
+		var armour: float = float(d.get("armor", d.get("armour", 0.0)))
+		var pack: int = maxi(1, int(d.get("pack_size", 1)))
+		var weight: float = maxf(0.0, float(d.get("weight", 1.0))) * float(pack)
+		if weight <= 0.0:
+			continue
+		var role: String = String(d.get("role", ""))
+		_roster.append([
+			int(d.get("min_wave", 0)),
+			weight,
+			armour >= ARMOUR_HURTS,
+			role == "swarm" or pack >= SWARM_PACK,
+		])
 
 
 func _sample_people() -> void:
@@ -439,15 +519,6 @@ func _probe(obj: Object, candidates: Array, fallback: float) -> float:
 		if t == TYPE_FLOAT or t == TYPE_INT:
 			return float(v)
 	return fallback
-
-
-func _has(obj: Object, candidates: Array) -> bool:
-	if obj == null:
-		return false
-	for c: Variant in candidates:
-		if obj.has_method(StringName(String(c))):
-			return true
-	return false
 
 
 func _wref(o: Object) -> WeakRef:

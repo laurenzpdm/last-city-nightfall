@@ -211,6 +211,7 @@ func step(tick: int) -> void:
 		_rebuild_target_index()
 
 	_run_director(tick)
+	_prebuild_field(tick)
 
 	if swarm.count > 0 or assault.ready:
 		assault.maintain(_grid)
@@ -845,6 +846,26 @@ func _spawn_slot(slot: int, at: Vector2, count: int, tick: int) -> int:
 		made += 1
 		Bus.enemy_spawned.emit(id, swarm.d_id[slot], pos)
 	return made
+
+
+## Seconds of warning before nightfall at which the siege surface is built.
+## Flooding a 256x256 map costs about 80 ms once, and a one-off 80 ms hitch is a
+## non-event in the quiet before dusk and four dropped frames if it lands on the
+## tick the first wave touches the map.
+const PREBUILD_BEFORE_NIGHT: float = 45.0
+const PREBUILD_CHECK_TICKS: int = 40
+
+
+func _prebuild_field(tick: int) -> void:
+	if assault.ready or tick % PREBUILD_CHECK_TICKS != 0:
+		return
+	if _climate == null or not _climate.has_method("seconds_until_night"):
+		return
+	var left: float = float(_climate.call("seconds_until_night"))
+	if left <= 0.0 or left > PREBUILD_BEFORE_NIGHT:
+		return
+	if _ensure_field():
+		Log.info(TAG, "dusk in %.0f s — siege surface prepared ahead of the night" % left)
 
 
 ## Builds the siege surface the first time anything is actually going to walk on

@@ -393,7 +393,7 @@ func _refresh_totals() -> void:
 			continue
 		if s5.comfort > best_comfort:
 			best_comfort = s5.comfort
-			best_id = id
+			best_id = s5.id
 	shelter_building = best_id
 	shelter_cell = sites[best_id].door if best_id >= 0 else Vector2i(-1, -1)
 

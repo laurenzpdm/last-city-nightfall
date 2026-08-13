@@ -376,13 +376,24 @@ static func economics_of(def: BuildingDef) -> Dictionary:
 
 
 static func _run_audit() -> Array[Dictionary]:
-	var t: BalanceTable = table()
 	var out: Array[Dictionary] = []
 	for id: StringName in Registry.ids("buildings"):
 		var def: BuildingDef = Registry.get_item("buildings", id) as BuildingDef
 		if def == null:
 			continue
+		out.append_array(audit_def(def))
+	return out
+
+
+## Every band one definition breaks. Exposed so a test can hand the audit a
+## deliberately broken def and prove the fence has teeth — an audit nobody has
+## ever seen fail is indistinguishable from an audit that checks nothing.
+static func audit_def(def: BuildingDef) -> Array[Dictionary]:
+	var t: BalanceTable = table()
+	var out: Array[Dictionary] = []
+	if def != null:
 		var e: Dictionary = economics_of(def)
+		var id: StringName = def.id
 		var tier_i: int = int(e["tier"]) - 1
 		var exempt: bool = bool(e["exempt"])
 		var points: float = float(e["points"])

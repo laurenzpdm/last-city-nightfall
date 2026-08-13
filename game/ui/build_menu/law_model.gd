@@ -25,6 +25,12 @@ class LawRecord extends RefCounted:
 	var title: String = ""
 	## The authored paragraph. The whole point of the screen.
 	var prose: String = ""
+	## The two sides of the argument, as [P06] wrote them. A law screen that
+	## shows only the case FOR a law is a shop window; both sides is a decision.
+	var argument_for: String = ""
+	var argument_against: String = ""
+	## What the city says afterwards. Shown only once it has been signed.
+	var signed_line: String = ""
 	## One-line mechanical summary, when the content carries one.
 	var summary: String = ""
 	var chapter: StringName = &"the_book"
@@ -49,12 +55,33 @@ class LawRecord extends RefCounted:
 	func is_signed() -> bool:
 		return status == Status.ENACTED
 
+	## Hope gained and discontent earned by signing, plus the hours of argument.
+	## For [P06]'s Book this IS the price — no law in it costs materials.
+	var hope_on_sign: float = 0.0
+	var discontent_on_sign: float = 0.0
+	var hope_rate: float = 0.0
+	var discontent_rate: float = 0.0
+	var debate_hours: float = 0.0
+	var min_day: int = 0
+
 	func cost_label() -> String:
+		var parts: PackedStringArray = PackedStringArray()
 		if not cost.is_empty():
-			return LcnUiFormat.items(cost)
+			parts.append(LcnUiFormat.items(cost))
 		if cost_points > 0.0:
-			return "%s" % LcnUiFormat.num(cost_points)
-		return "nothing but the signature"
+			parts.append(LcnUiFormat.num(cost_points))
+		if absf(hope_on_sign) > 0.01:
+			parts.append("%s hope" % LcnUiFormat.signed(hope_on_sign))
+		if absf(discontent_on_sign) > 0.01:
+			parts.append("%s discontent" % LcnUiFormat.signed(discontent_on_sign))
+		if absf(hope_rate) > 0.001 or absf(discontent_rate) > 0.001:
+			parts.append("%s hope and %s discontent every day it stands" % [
+				LcnUiFormat.signed(hope_rate), LcnUiFormat.signed(discontent_rate)])
+		if debate_hours > 0.0:
+			parts.append("%s hours of argument" % LcnUiFormat.num(debate_hours))
+		if parts.is_empty():
+			return "nothing but the signature"
+		return "   ·   ".join(parts)
 
 	func weight_line() -> String:
 		if forecloses_titles.is_empty():
@@ -157,10 +184,24 @@ func _ingest(registry: Object) -> void:
 			l.title = LcnUiFormat.item_name(l.id)
 		l.prose = _first_string(res, [&"prose", &"text", &"body", &"description", &"flavour"])
 		l.summary = _first_string(res, [&"summary", &"effect_text", &"subtitle"])
+		l.argument_for = _first_string(res, [&"argument_for", &"case_for", &"pro"])
+		l.argument_against = _first_string(res, [&"argument_against", &"case_against", &"con"])
+		l.signed_line = _first_string(res, [&"signed_line", &"aftermath"])
+		l.hope_on_sign = LcnUiFormat.as_number(res.get(&"hope_on_sign"))
+		l.discontent_on_sign = LcnUiFormat.as_number(res.get(&"discontent_on_sign"))
+		l.hope_rate = LcnUiFormat.as_number(res.get(&"hope_rate"))
+		l.discontent_rate = LcnUiFormat.as_number(res.get(&"discontent_rate"))
+		l.debate_hours = LcnUiFormat.as_number(res.get(&"debate_hours"))
+		l.min_day = LcnUiFormat.as_int(res.get(&"min_day"))
+		# `section` is the authored chapter heading ("The Children"); `branch` is
+		# the machine key. Group by the key, show the heading.
+		var section: String = _first_string(res, [&"section", &"chapter_title"])
 		var chapter: String = _first_string(res, [&"chapter", &"branch", &"category", &"book"])
-		if chapter != "":
-			l.chapter = StringName(chapter)
-			l.chapter_title = LcnUiFormat.item_name(l.chapter)
+		if chapter != "" or section != "":
+			l.chapter = StringName(chapter if chapter != "" else section.to_snake_case())
+			l.chapter_title = section if section != "" else LcnUiFormat.item_name(l.chapter)
+		for line: String in _policy_lines(res):
+			l.effects.append(line)
 		l.slot = StringName(_first_string(res, [&"slot", &"exclusive_group", &"group", &"pair"]))
 		l.sort_order = LcnUiFormat.as_int(res.get(&"sort_order"))
 		for field: StringName in [&"cost", &"cost_items", &"price"]:
@@ -180,13 +221,37 @@ func _ingest(registry: Object) -> void:
 		_add(l)
 
 
+## Numeric policy and faction shifts, turned into sentences. A law screen that
+## printed `child_risk: 0.04` would be a debug view.
+static func _policy_lines(res: Resource) -> PackedStringArray:
+	var out: PackedStringArray = PackedStringArray()
+	var policy: Variant = res.get(&"policy")
+	if typeof(policy) == TYPE_DICTIONARY:
+		for k: StringName in LcnUiFormat.sorted_names((policy as Dictionary).keys()):
+			var v: float = LcnUiFormat.as_number((policy as Dictionary)[k])
+			out.append("%s %s" % [LcnUiFormat.item_name(k), LcnUiFormat.signed(v * 100.0) + "%"])
+	var approval: Variant = res.get(&"approval")
+	if typeof(approval) == TYPE_DICTIONARY:
+		for k2: StringName in LcnUiFormat.sorted_names((approval as Dictionary).keys()):
+			var a: float = LcnUiFormat.as_number((approval as Dictionary)[k2])
+			out.append("the %s %s it (%s)" % [
+				LcnUiFormat.item_name(k2).to_lower(),
+				"back" if a >= 0.0 else "resent",
+				LcnUiFormat.signed(a)])
+	var flags: Variant = res.get(&"flags")
+	if typeof(flags) == TYPE_ARRAY:
+		for f: Variant in (flags as Array):
+			out.append(LcnUiFormat.item_name(LcnUiFormat.as_name(f)))
+	return out
+
+
 ## Some society systems keep the book in code rather than in content. If [P06]
 ## publishes one, read it — the screen is about the laws, not about where they
 ## happen to be stored.
 func _ingest_from_system(society: Object) -> void:
 	if society == null:
 		return
-	for method: StringName in [&"book_of_laws", &"all_laws", &"laws"]:
+	for method: StringName in [&"book_view", &"book_of_laws", &"all_laws", &"laws"]:
 		if not society.has_method(method):
 			continue
 		var raw: Variant = society.call(method)
@@ -210,14 +275,21 @@ func _ingest_from_system(society: Object) -> void:
 
 func _from_dict(d: Dictionary) -> LawRecord:
 	var l := LawRecord.new()
-	l.id = StringName(String(d.get("id", "")))
-	l.title = String(d.get("title", d.get("name", LcnUiFormat.item_name(l.id))))
-	l.prose = String(d.get("prose", d.get("text", d.get("description", ""))))
-	l.summary = String(d.get("summary", ""))
-	l.chapter = StringName(String(d.get("chapter", "the_book")))
-	l.chapter_title = LcnUiFormat.item_name(l.chapter)
-	l.slot = StringName(String(d.get("slot", "")))
-	l.sort_order = int(d.get("sort_order", 0))
+	l.id = LcnUiFormat.as_name(d.get("id", ""))
+	l.title = LcnUiFormat.as_text(d.get("title", d.get("name", "")))
+	if l.title == "":
+		l.title = LcnUiFormat.item_name(l.id)
+	l.prose = LcnUiFormat.as_text(d.get("prose", d.get("text", d.get("description", ""))))
+	l.argument_for = LcnUiFormat.as_text(d.get("argument_for", ""))
+	l.argument_against = LcnUiFormat.as_text(d.get("argument_against", ""))
+	l.signed_line = LcnUiFormat.as_text(d.get("signed_line", ""))
+	l.summary = LcnUiFormat.as_text(d.get("summary", ""))
+	var section: String = LcnUiFormat.as_text(d.get("section", ""))
+	l.chapter = LcnUiFormat.as_name(d.get("chapter", d.get("branch", "the_book")))
+	l.chapter_title = section if section != "" else LcnUiFormat.item_name(l.chapter)
+	l.slot = LcnUiFormat.as_name(d.get("slot", ""))
+	l.sort_order = LcnUiFormat.as_int(d.get("sort_order", 0))
+	l.forecloses = _name_list(d.get("excludes", []))
 	var c: Variant = d.get("cost", {})
 	if typeof(c) == TYPE_DICTIONARY:
 		l.cost = c
@@ -273,6 +345,50 @@ func _resolve_foreclosure() -> void:
 		l2.forecloses_titles = titles
 
 
+## [P06] publishes a page-by-page standing for the whole book, including WHY a
+## page is closed and which law closed it. When it does, that is the answer —
+## re-deriving availability here would produce a second, worse one.
+## Returns false when the view was unusable, so the derived path still runs.
+func _apply_book_view(society: Object) -> bool:
+	var raw: Variant = society.call(&"book_view")
+	if typeof(raw) != TYPE_ARRAY or (raw as Array).is_empty():
+		return false
+	var seen: int = 0
+	for entry: Variant in (raw as Array):
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = entry
+		var l: LawRecord = _by_id.get(LcnUiFormat.as_name(d.get("id", "")))
+		if l == null:
+			continue
+		seen += 1
+		l.signed_tick = LcnUiFormat.as_int(d.get("signed_tick", -1))
+		l.blocked_reason = LcnUiFormat.as_text(d.get("reason", ""))
+		if LcnUiFormat.as_flag(d.get("signed", false)):
+			l.status = Status.ENACTED
+			l.blocked_reason = ""
+			continue
+		if LcnUiFormat.as_flag(d.get("pending", false)):
+			l.status = Status.BLOCKED
+			l.blocked_reason = "On the table — the room is still arguing."
+			continue
+		if LcnUiFormat.as_flag(d.get("available", false)):
+			l.status = Status.AVAILABLE
+			l.blocked_reason = ""
+			continue
+		var blocked_by: StringName = LcnUiFormat.as_name(d.get("blocked_by", ""))
+		var other: LawRecord = _by_id.get(blocked_by)
+		if other != null and other.forecloses.has(l.id):
+			l.status = Status.FORECLOSED
+			if l.blocked_reason == "":
+				l.blocked_reason = "%s was signed instead." % other.title
+		else:
+			l.status = Status.BLOCKED
+			if l.blocked_reason == "" and other != null:
+				l.blocked_reason = "Waiting on %s." % other.title
+	return seen > 0
+
+
 static func _law_less(a: LawRecord, b: LawRecord) -> bool:
 	if a.chapter != b.chapter:
 		return String(a.chapter) < String(b.chapter)
@@ -288,9 +404,11 @@ static func _law_less(a: LawRecord, b: LawRecord) -> bool:
 ## Re-reads which laws are signed and which are still open. Called whenever
 ## Bus.law_enacted fires, not per frame.
 func refresh_state(society: Object) -> void:
+	if society != null and society.has_method(&"book_view") and _apply_book_view(society):
+		return
 	var signed: Dictionary[StringName, bool] = {}
 	if society != null:
-		for method: StringName in [&"enacted_laws", &"signed_laws", &"active_laws"]:
+		for method: StringName in [&"laws_signed", &"enacted_laws", &"signed_laws", &"active_laws"]:
 			if not society.has_method(method):
 				continue
 			var raw: Variant = society.call(method)
@@ -341,10 +459,15 @@ func refresh_state(society: Object) -> void:
 				l2.blocked_reason = "Not yet."
 
 
-## The command the panel submits when the player signs. Kept here so the panel
-## never invents a command shape and so a test can assert on it.
+## The command the panel submits when the player puts a law to the room. Kept
+## here so the panel never invents a command shape and a test can assert on it.
 static func enact_command(id: StringName) -> Dictionary:
-	return {"system": &"society", "op": "enact_law", "law": String(id)}
+	return {"system": &"society", "op": "sign", "law": String(id)}
+
+
+## Takes a proposed law back off the table before the room finishes arguing.
+static func withdraw_command() -> Dictionary:
+	return {"system": &"society", "op": "withdraw"}
 
 
 static func status_word(status: int) -> String:

@@ -15,7 +15,19 @@ extends TestCase
 ## board rearranged its shifts. `test_the_labour_market_is_actually_wired_in`
 ## is the one test that leaves the coupling live and proves it is connected.
 
+## The test city. A hearth at ORIGIN, one long pipe spur east along SPUR_Y, and
+## every machine hung directly off that spur — a machine that only touches
+## another machine is NOT on the network, because a smelter does not conduct.
 const ORIGIN: Vector2i = Vector2i(60, 60)
+const SPUR_Y: int = 62
+const SPUR_FROM: Vector2i = Vector2i(65, SPUR_Y)
+const SPUR_TO: Vector2i = Vector2i(110, SPUR_Y)
+const SMELTER_CELL: Vector2i = Vector2i(66, 63)      ## 3x3, touches the spur from below
+const WORKSHOP_CELL: Vector2i = Vector2i(66, 59)     ## 4x3, touches the spur from above
+const WORKSHOP2_CELL: Vector2i = Vector2i(72, 59)
+const REC_NEAR: Vector2i = Vector2i(70, 63)          ## 2x2, two tiles from the smelter
+const REC_FAR: Vector2i = Vector2i(84, 63)           ## on the spur, far out of capture reach
+const OUTLAND: Vector2i = Vector2i(104, 104)         ## nowhere near heat of any kind
 ## Ticks to let [P04]'s throttled rescan of [P11] notice a placement or a removal.
 const SYNC_GRACE: int = 15
 
@@ -95,15 +107,13 @@ func _line(kind: String, from: Vector2i, to: Vector2i) -> void:
 		"from": [from.x, from.y], "to": [to.x, to.y], "free": true, "instant": true})
 
 
-## A lit hearth with a pipe spur, so machines hung off it are actually powered.
-## Returns the cell the spur ends on; the caller builds against it.
-func _grid_at(o: Vector2i) -> Vector2i:
-	var hearth: int = _place("the_hearth", o)
-	_line("heat_pipe", o + Vector2i(5, 2), o + Vector2i(16, 2))
+## A lit hearth and the pipe spur every machine in this suite hangs off.
+func _city() -> void:
+	var hearth: int = _place("the_hearth", ORIGIN)
+	_line("heat_pipe", SPUR_FROM, SPUR_TO)
 	if heat != null and hearth > 0:
-		heat.call("deliver_fuel", hearth, &"coal", 2000.0)
+		heat.call("deliver_fuel", hearth, &"coal", 4000.0)
 	world.run(4)
-	return o + Vector2i(16, 2)
 
 
 func _machine(id: int) -> ProdMachine:

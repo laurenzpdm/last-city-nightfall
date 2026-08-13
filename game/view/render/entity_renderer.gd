@@ -70,6 +70,17 @@ var _vis_rect: PackedVector2Array = PackedVector2Array()
 var _srcs: Array[Dictionary] = []
 var _src_buckets: Dictionary[int, PackedInt32Array] = {}
 var _atlas_stamp: int = -1
+var _logged_sprites: int = -1
+## The frame's light rig, flattened out of the grade dictionary once. Evaluating
+## LcnPalette.light_at per entity meant five dictionary probes per building per
+## frame; at a few hundred entities that is real time for no information.
+var _l_sun: Color = Color.WHITE
+var _l_sky: Color = Color.WHITE
+var _l_bnc: Color = Color.WHITE
+var _l_key: float = 1.0
+var _l_fill: float = 0.0
+var _l_bounce: float = 0.0
+var _l_wild: float = 0.0
 ## Source lookup grid cell, in world px. One bucket is a comfortable superset of
 ## the largest light radius, so _nearest_source only ever scans one bucket.
 const BUCKET_PX: float = 256.0
@@ -111,8 +122,13 @@ func _rebuild_atlas() -> void:
 	_smear_r = _regions.get(&"smear", Rect2())
 	_barrel_r = _regions.get(&"barrel", Rect2())
 	_atlas_stamp = model.building_stamp() if model != null else 0
-	Log.info("render", "draw atlas: %s px, %d sprites — one texture for every entity pass" % [
-		str(a["size"]), _regions.size()])
+	# Only announce a real repack. This runs whenever the building set changes,
+	# and the factory returns the same sheet unless a footprint it has never seen
+	# turned up — logging every call would be one line per placement.
+	if _regions.size() != _logged_sprites:
+		_logged_sprites = _regions.size()
+		Log.info("render", "draw atlas: %s px, %d sprites — one texture for every entity pass" % [
+			str(a["size"]), _regions.size()])
 
 
 func _make_pass(pass_name: String, which: int, z: int, additive: bool) -> Node2D:
@@ -140,10 +156,27 @@ func refresh(day_grade: Dictionary, view: Rect2, interp: float, camera_zoom: flo
 	view_rect = view
 	alpha = interp
 	zoom = camera_zoom
+	_cache_light_rig()
 	_collect()
 	_shadow.queue_redraw()
 	_glow.queue_redraw()
 	_main.queue_redraw()
+
+
+## Flattens the grade's light rig into scalars, once, for the frame. Entities are
+## treated as mostly-upward faces (up = 0.85): a top-down camera sees roofs.
+func _cache_light_rig() -> void:
+	if grade.is_empty():
+		return
+	const UP: float = 0.85
+	var facing: float = lerpf(1.0 - UP, UP, clampf(float(grade["sun_height"]), 0.0, 1.0))
+	_l_sun = grade["sun_col"]
+	_l_sky = grade["sky_col"]
+	_l_bnc = grade["bounce_col"]
+	_l_key = float(grade["sun_energy"]) * (0.28 + 0.80 * facing)
+	_l_fill = float(grade["sky_energy"]) * (0.70 + 0.30 * UP)
+	_l_bounce = float(grade["bounce"]) * 0.60
+	_l_wild = float(grade["wild"])
 
 
 ## One walk over the world per frame instead of three, with the sprite rect and
@@ -231,15 +264,23 @@ func sprite_rect(b: Dictionary) -> Rect2:
 	return Rect2(origin, region.size)
 
 
-## The light landing on a building, from the same rig the ground shader uses.
+## The light landing on a building, from the same rig the ground shader uses —
+## see LcnPalette.light_at, which this is the flattened inline form of.
 func _light_for(centre: Vector2, warm: float) -> Color:
-	var cell := Vector2i(int(centre.x / float(TILE)), int(centre.y / float(TILE)))
 	var city: float = 1.0
 	var heat: float = warm
 	if field != null:
+		var cell := Vector2i(int(centre.x / float(TILE)), int(centre.y / float(TILE)))
 		city = field.city_at(cell)
 		heat = maxf(heat, field.heat_at(cell))
-	return LcnPalette.light_at(grade, city, heat, 0.85)
+	var b: float = _l_bounce * clampf(city, 0.0, 1.0)
+	var dark: float = 1.0 - _l_wild * (1.0 - clampf(city * 1.7, 0.0, 1.0))
+	var w: float = clampf(heat, 0.0, 1.0) * 0.34
+	return Color(
+		(_l_sun.r * _l_key + _l_sky.r * _l_fill + _l_bnc.r * b) * dark + LcnPalette.WARM_EDGE.r * w,
+		(_l_sun.g * _l_key + _l_sky.g * _l_fill + _l_bnc.g * b) * dark + LcnPalette.WARM_EDGE.g * w,
+		(_l_sun.b * _l_key + _l_sky.b * _l_fill + _l_bnc.b * b) * dark + LcnPalette.WARM_EDGE.b * w,
+		1.0)
 
 
 # --- pass 1: shadows ---------------------------------------------------------

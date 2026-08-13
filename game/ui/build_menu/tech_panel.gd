@@ -26,6 +26,7 @@ var selected: StringName = &""
 var _graph: _Graph = null
 var _detail: VBoxContainer = null
 var _footer: Label = null
+var _signature: String = ""
 
 
 func _init() -> void:
@@ -67,20 +68,29 @@ func refresh() -> void:
 		return
 	if String(selected) == "" and not model.nodes.is_empty():
 		selected = model.nodes[0].id
+	# Rebuilding forty labels six times a second for a screen that has not
+	# changed is exactly the kind of cost a UI has no excuse for.
+	var done: int = 0
+	var sig: String = "%d|%s|" % [model.revision(), String(selected)]
+	for n: LcnTechModel.TechNode in model.nodes:
+		if n.is_done():
+			done += 1
+		sig += "%d%d" % [n.state, int(n.progress * 100.0)]
+	if sig == _signature:
+		return
+	_signature = sig
+
 	_graph.model = model
 	_graph.selected = selected
 	_graph.rebuild_layout()
 	_rebuild_detail()
-	var done: int = 0
-	for n: LcnTechModel.TechNode in model.nodes:
-		if n.is_done():
-			done += 1
 	_footer.text = "%d of %d complete   ·   tree read from %s" % [
 		done, model.nodes.size(), String(model.source())]
 
 
 func select(id: StringName) -> void:
 	selected = id
+	_signature = ""
 	if store != null:
 		store.tech_focus = id
 		store.mark_dirty()
@@ -129,26 +139,35 @@ func _rebuild_detail() -> void:
 		return
 
 	_detail.add_child(LcnUiStyle.label(n.display_name, LcnUiStyle.FS_TITLE, LcnUiStyle.TEXT_BRIGHT))
-	_detail.add_child(LcnUiStyle.label(_state_word(n.state), LcnUiStyle.FS_SMALL, _state_colour(n.state)))
+	var badge: String = n.state_word if n.state_word != "" else _state_word(n.state)
+	if String(n.branch) != "":
+		badge = "%s  ·  %s  ·  tier %d" % [badge, LcnUiFormat.item_name(n.branch), n.tier]
+	_detail.add_child(LcnUiStyle.label(badge, LcnUiStyle.FS_SMALL, _state_colour(n.state)))
+	if n.flavour != "":
+		_detail.add_child(_wrapped(n.flavour, LcnUiStyle.ACCENT_SOFT))
 	if n.description != "":
-		var d: Label = LcnUiStyle.label(n.description, LcnUiStyle.FS_SMALL, LcnUiStyle.TEXT_DIM)
-		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		d.custom_minimum_size = Vector2(280.0, 0.0)
-		_detail.add_child(d)
+		_detail.add_child(_wrapped(n.description, LcnUiStyle.TEXT_DIM))
 
-	if n.relevance != "":
-		var why: Label = LcnUiStyle.label(n.relevance, LcnUiStyle.FS_SMALL,
-			LcnUiStyle.tone_color(n.relevance_tone))
-		why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		why.custom_minimum_size = Vector2(280.0, 0.0)
+	var why_text: String = n.why_now()
+	if why_text != "":
 		_detail.add_child(_heading("Why now"))
-		_detail.add_child(why)
+		_detail.add_child(_wrapped(why_text, LcnUiStyle.tone_color(
+			LcnUiStyle.Tone.ACCENT if n.reason != "" or n.urgency != "" else n.relevance_tone)))
+	if model.suggestion.has("id") and LcnUiFormat.as_name(model.suggestion["id"]) == n.id:
+		_detail.add_child(LcnUiStyle.label("Your engineers would pick this next.",
+			LcnUiStyle.FS_SMALL, LcnUiStyle.GOOD))
 
 	_detail.add_child(_heading("Cost"))
 	_detail.add_child(LcnUiStyle.label(n.cost_label(), LcnUiStyle.FS_SMALL, LcnUiStyle.TEXT))
+	var owed: String = n.owed_label()
+	if owed != "":
+		_detail.add_child(LcnUiStyle.label("still owed: %s" % owed, LcnUiStyle.FS_SMALL,
+			LcnUiStyle.GOOD if n.affordable else LcnUiStyle.BAD))
 	if n.state == LcnTechModel.State.ACTIVE:
-		_detail.add_child(LcnUiStyle.label("in progress — %s" % LcnUiFormat.percent(n.progress),
-			LcnUiStyle.FS_SMALL, LcnUiStyle.ACCENT))
+		var line: String = "%s — %s" % [n.state_word, LcnUiFormat.percent(n.progress)]
+		if n.eta_label() != "":
+			line += "   ·   %s left" % n.eta_label()
+		_detail.add_child(LcnUiStyle.label(line, LcnUiStyle.FS_SMALL, LcnUiStyle.ACCENT))
 
 	var missing: PackedStringArray = model.missing_prereqs(n, research_system, build_system)
 	if not missing.is_empty():
@@ -198,6 +217,13 @@ func _rebuild_detail() -> void:
 	elif research_system == null:
 		_detail.add_child(LcnUiStyle.label("No research system in this build — this tree is derived from content.",
 			LcnUiStyle.FS_TINY, LcnUiStyle.TEXT_FAINT))
+
+
+func _wrapped(text: String, colour: Color) -> Label:
+	var l: Label = LcnUiStyle.label(text, LcnUiStyle.FS_SMALL, colour)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(280.0, 0.0)
+	return l
 
 
 func _heading(text: String) -> Control:

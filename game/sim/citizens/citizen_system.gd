@@ -47,6 +47,11 @@ const NIGHT_EVERY: int = 3
 const PRESENCE_TICKS: int = 5
 ## Beds handed out per housing pass.
 const MOVE_INS_PER_PASS: int = 16
+## How many of the unemployed a hiring pass looks at, and how many of the
+## roofless a housing pass looks at. See _collect_free_hands for why these are
+## windows rather than the whole queue.
+const JOBLESS_SAMPLE: int = 96
+const HOMELESS_SAMPLE: int = 64
 ## Deaths reported to the log in full; beyond this per tick it is a summary.
 const DEATH_DETAIL_CAP: int = 6
 
@@ -64,6 +69,7 @@ var _shift_law: StringName = CitizenDefs.LAW_STANDARD
 var _child_labour: bool = false
 var _elder_labour: bool = false
 var _hire_counter: int = 0
+var _queue_cursor: int = 0
 var _roster_version: int = 0
 
 # --- totals ------------------------------------------------------------------
@@ -135,6 +141,7 @@ func setup() -> void:
 	_child_labour = false
 	_elder_labour = false
 	_hire_counter = 0
+	_queue_cursor = 0
 	_roster_version = 0
 	_dead_total = 0
 	_deaths_by_cause = {}
@@ -322,28 +329,42 @@ func _sync_city(tick: int) -> void:
 			Log.debug(TAG, "%d citizens took a job" % hired)
 
 
-## Two sorted slot lists the matcher needs, gathered in one pass.
+## Two slot lists the matcher needs, gathered in one pass.
+##
+## Both are SAMPLES, not the whole queue. Hiring is O(vacancies x candidates),
+## so handing a thousand jobless people to twelve vacancies is an eight
+## millisecond tick; handing it a rotating window of the queue costs a
+## thousandth of that and still reaches everybody, because the window moves
+## every pass. The city hires the nearest of whoever is at the front today —
+## which is also what a foreman would do.
 func _collect_free_hands() -> void:
 	var jobless: PackedInt32Array = PackedInt32Array()
 	var homeless: PackedInt32Array = PackedInt32Array()
 	var builders: int = 0
 	var n: int = pool.alive.size()
-	for i: int in n:
-		var s: int = pool.alive[i]
-		if pool.home[s] < 0:
+	if n == 0:
+		_jobless = jobless
+		_homeless = homeless
+		_idle_builders = 0
+		return
+	var start: int = posmod(_queue_cursor, n)
+	for k: int in n:
+		var s: int = pool.alive[(start + k) % n]
+		if pool.home[s] < 0 and homeless.size() < HOMELESS_SAMPLE:
 			homeless.append(s)
 		if pool.job[s] >= 0:
 			continue
 		var bracket: int = CitizenDefs.age_bracket(pool.age[s])
-		var fit: bool = pool.illness[s] < CitizenDefs.SICK_ONSET \
-			and pool.injury[s] < CitizenDefs.INJURY_CLEAR
-		if not fit:
+		if pool.illness[s] >= CitizenDefs.SICK_ONSET \
+				or pool.injury[s] >= CitizenDefs.INJURY_CLEAR:
 			continue
-		jobless.append(s)
+		if jobless.size() < JOBLESS_SAMPLE:
+			jobless.append(s)
 		# Spare hands raise [P11]'s build power, but only while they are awake
 		# and on the clock — which is why a city visibly builds slower at night.
 		if bracket == CitizenDefs.Age.ADULT and pool.state[s] != CitizenDefs.State.SLEEPING:
 			builders += 1
+	_queue_cursor += JOBLESS_SAMPLE
 	_jobless = jobless
 	_homeless = homeless
 	_idle_builders = builders

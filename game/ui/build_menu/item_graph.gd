@@ -30,14 +30,27 @@ class Recipe extends RefCounted:
 	var seconds: float = 1.0
 	## Building kinds that can run it.
 	var machines: Array[StringName] = []
+	## Heat units the craft burns, and what it gives back as waste. In this game
+	## that is not a footnote: every recipe competes with the radiators.
+	var heat_cost: float = 0.0
+	var waste_heat: float = 0.0
+	## Coldest temperature the craft still runs at, or NAN when it does not care.
+	var min_temperature_c: float = NAN
 	var res: Resource = null
 
 	## "2 Iron Plate + 1 Gear -> 1 Steel Plate, 3 s"
 	func summary() -> String:
-		return "%s  ->  %s,  %s" % [
+		var text: String = "%s  ->  %s,  %s" % [
 			LcnUiFormat.items(inputs, " + "),
 			LcnUiFormat.items(outputs, " + "),
 			LcnUiFormat.duration(seconds)]
+		if heat_cost > 0.0:
+			text += ",  %s heat" % LcnUiFormat.num(heat_cost)
+		return text
+
+	## The per-second heat draw of running this craft continuously.
+	func heat_per_second() -> float:
+		return heat_cost / maxf(0.05, seconds)
 
 	func rate_of(item: StringName) -> float:
 		var amount: int = int(outputs.get(item, 0))
@@ -154,6 +167,11 @@ func _read_recipe(res: Resource) -> Recipe:
 	r.inputs = _amounts(res, [&"inputs", &"ingredients", &"in_items", &"consumes"])
 	r.outputs = _amounts(res, [&"outputs", &"results", &"out_items", &"produces"])
 	r.seconds = _seconds(res)
+	r.heat_cost = LcnUiFormat.as_number(res.get(&"heat_cost"))
+	r.waste_heat = LcnUiFormat.as_number(res.get(&"waste_heat"))
+	var floor_c: Variant = res.get(&"min_temperature_c")
+	if typeof(floor_c) == TYPE_FLOAT or typeof(floor_c) == TYPE_INT:
+		r.min_temperature_c = float(floor_c)
 	for m: StringName in _names(res, [&"machines", &"buildings", &"crafters", &"made_in"]):
 		r.machines.append(m)
 	r.machines.sort_custom(func(a: StringName, b: StringName) -> bool: return String(a) < String(b))

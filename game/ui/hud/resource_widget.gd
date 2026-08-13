@@ -12,12 +12,14 @@ extends LcnHudWidget
 ## in-world samples rather than differencing the last two — one delivery landing
 ## must not read as a boom.
 
-const CHIP := Vector2(122.0, 46.0)
-const PAD: float = 12.0
+const CHIP := Vector2(126.0, 46.0)
+const PAD: float = 13.0
 const MAX_CHIPS: int = 9
 const ALWAYS_SHOW: int = 5
 
 var _shown: Array[StringName] = []
+var _top: float = 34.0
+var _height: float = 96.0
 
 
 func should_show() -> bool:
@@ -25,7 +27,7 @@ func should_show() -> bool:
 
 
 func desired_height() -> float:
-	return CHIP.y + PAD * 2.0 + 14.0
+	return _height
 
 
 func signature() -> String:
@@ -55,14 +57,19 @@ func _pick() -> Array[StringName]:
 
 func layout() -> void:
 	_shown = _pick()
+	_top = content_top() - float(style.fs(9)) - 2.0
+	_height = _top + CHIP.y + 12.0
 	var w: float = PAD * 2.0 + float(_shown.size()) * CHIP.x
-	custom_minimum_size = Vector2(w, desired_height())
+	custom_minimum_size = Vector2(w, _height)
 	size = custom_minimum_size
 	clear_hot()
 	for i: int in _shown.size():
 		var id: StringName = _shown[i]
-		var rect := Rect2(PAD + float(i) * CHIP.x, 20.0, CHIP.x - 6.0, CHIP.y)
-		add_hot(rect, LcnHudFormat.item_title(id), _explain(id))
+		add_hot(_chip_rect(i), LcnHudFormat.item_title(id), _explain(id))
+
+
+func _chip_rect(i: int) -> Rect2:
+	return Rect2(PAD + float(i) * CHIP.x, _top, CHIP.x - 7.0, CHIP.y)
 
 
 func _explain(id: StringName) -> String:
@@ -96,11 +103,11 @@ func _draw() -> void:
 			worst = maxi(worst, S.Sev.WARN)
 	draw_frame("Stores", worst, 0.22)
 	for i: int in _shown.size():
-		_draw_chip(_shown[i], Rect2(PAD + float(i) * CHIP.x, 20.0, CHIP.x - 6.0, CHIP.y))
+		_draw_chip(_shown[i], _chip_rect(i))
 		if i > 0:
 			var scribe: Color = LcnHudStyle.P.COLD_RIM
-			var x: float = PAD + float(i) * CHIP.x - 4.0
-			draw_line(Vector2(x, 26.0), Vector2(x, 26.0 + CHIP.y - 12.0),
+			var x: float = PAD + float(i) * CHIP.x - 5.0
+			draw_line(Vector2(x, _top + 6.0), Vector2(x, _top + CHIP.y - 6.0),
 				Color(scribe.r, scribe.g, scribe.b, 0.45), 1.0)
 	draw_marks()
 
@@ -112,10 +119,10 @@ func _draw_chip(id: StringName, rect: Rect2) -> void:
 	var empty_in: float = probe.trend.seconds_to_zero(id)
 	var alarmed: bool = amount == 0 or (empty_in >= 0.0 and empty_in < 180.0)
 
-	_draw_glyph(id, Vector2(rect.position.x + 9.0, rect.position.y + 13.0), alarmed)
-	style.draw_caps(self, Vector2(rect.position.x + 22.0, rect.position.y + 12.0),
+	_draw_glyph(id, Vector2(rect.position.x + 9.0, rect.position.y + 11.0), alarmed)
+	style.draw_caps(self, Vector2(rect.position.x + 22.0, rect.position.y + 14.0),
 		LcnHudFormat.item_title(id), style.fs(9),
-		style.sev_colour(S.Sev.WARN) if alarmed else style.ink_faint(), 1.2)
+		style.sev_colour(S.Sev.WARN) if alarmed else style.ink_faint(), 1.0)
 
 	var value_col: Color = style.ink()
 	if amount == 0:
@@ -123,7 +130,7 @@ func _draw_chip(id: StringName, rect: Rect2) -> void:
 	elif alarmed:
 		value_col = style.sev_colour(S.Sev.WARN)
 	var x: float = rect.position.x + 8.0
-	var baseline: float = rect.position.y + 36.0
+	var baseline: float = rect.position.y + 20.0 + float(style.fs(17))
 	x += style.draw_text(self, Vector2(x, baseline), LcnHudFormat.stock(amount),
 		style.fs(17), value_col) + 10.0
 

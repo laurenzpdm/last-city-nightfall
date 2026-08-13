@@ -11,7 +11,7 @@ const KEYS_COLOR: Array[String] = [
 ]
 const KEYS_FLOAT: Array[String] = [
 	"shadow_alpha", "shadow_len", "sat", "fog_amt", "light_energy", "bloom", "chroma",
-	"star_amt", "sun_energy", "sky_energy", "bounce", "wild",
+	"star_amt", "sun_energy", "sky_energy", "bounce", "wild", "sun_height",
 ]
 
 
@@ -99,6 +99,14 @@ func test_dusk_is_a_direction_not_a_wash() -> void:
 	var tint: Color = dusk["sky"]
 	var spread: float = maxf(tint.r, maxf(tint.g, tint.b)) - minf(tint.r, minf(tint.g, tint.b))
 	assert_lt(spread, 0.12, "the canvas tint itself is near-neutral: no global orange multiply")
+	# A low key is the mechanism: it grazes the plain instead of shining down it.
+	assert_lt(float(dusk["sun_height"]), 0.30, "the dusk sun is low in the sky")
+	assert_gt(float(LcnPalette.grade_at(0.5)["sun_height"]), 0.80, "and the noon sun is high")
+	# So the same surface takes far less of the warm key at dusk than at noon.
+	var roof_dusk: Color = LcnPalette.light_at(dusk, 0.0, 0.0, 1.0)
+	var wall_dusk: Color = LcnPalette.light_at(dusk, 0.0, 0.0, 0.0)
+	assert_gt(wall_dusk.r, roof_dusk.r,
+		"at dusk an upright face catches more of the key than a flat one")
 
 
 ## DEFECT (critic, defect 3a): "the radiator lights are pure white, which reads as

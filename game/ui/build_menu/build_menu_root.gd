@@ -513,8 +513,10 @@ func _refresh_open_panels(force: bool) -> void:
 	if recipes != null and recipes.is_open() and force:
 		recipes.refresh()
 	if tech_panel != null and tech_panel.is_open():
+		# State every refresh (progress and the pacing recommendation move while
+		# you watch); relevance only on a real change, since it walks the defs.
+		tech.refresh_state(_research, _build)
 		if force:
-			tech.refresh_state(_research, _build)
 			tech.refresh_relevance(_context(false))
 		tech_panel.refresh()
 	if blueprint_panel != null and blueprint_panel.is_open():

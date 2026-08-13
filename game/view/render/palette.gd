@@ -372,7 +372,11 @@ static func blend(a: Dictionary, b: Dictionary, f: float) -> Dictionary:
 ## them. `up` biases the sky fill for a face pointing at the sky (a roof) versus
 ## one facing the camera (a wall).
 static func light_at(grade: Dictionary, city: float, warm: float, up: float = 0.75) -> Color:
-	var key: float = float(grade["sun_energy"]) * (0.30 + 0.72 * up)
+	# A high sun favours anything pointing at the sky, a low one favours anything
+	# standing up in it. Same `sun_height` the ground shader tilts its light with,
+	# so a roof and the snow beside it agree about where dusk is coming from.
+	var facing: float = lerpf(1.0 - up, up, clampf(float(grade["sun_height"]), 0.0, 1.0))
+	var key: float = float(grade["sun_energy"]) * (0.28 + 0.80 * facing)
 	var sun: Color = grade["sun_col"]
 	var sky: Color = grade["sky_col"]
 	var bc: Color = grade["bounce_col"]

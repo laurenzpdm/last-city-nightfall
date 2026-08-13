@@ -143,11 +143,13 @@ func test_signed_count_and_chapters() -> void:
 	assert_size(m.laws_in(&"order"), 3, "and it holds every law")
 
 
-func test_the_enact_command_is_the_only_way_in() -> void:
+func test_the_sign_command_is_the_only_way_in() -> void:
 	var cmd: Dictionary = LcnLawModel.enact_command(&"child_labour")
 	assert_eq(String(cmd["system"]), "society", "addressed to [P06]")
-	assert_eq(String(cmd["op"]), "enact_law", "with the enact op")
+	assert_eq(String(cmd["op"]), "sign", "with the op [P06] actually answers to")
 	assert_eq(String(cmd["law"]), "child_labour", "naming the law")
+	assert_eq(String(LcnLawModel.withdraw_command()["op"]), "withdraw",
+		"and a law can be taken back off the table")
 
 
 func test_an_empty_book_is_honest() -> void:

@@ -229,10 +229,14 @@ func test_a_turret_wired_to_a_hearth_keeps_firing() -> void:
 	var hearth: BuildingInstance = _place(&"the_hearth", _open_cell(Vector2i(-18, -18)))
 	if hearth == null:
 		return
+	# [P02]'s rule: two buildings only share a network through something that
+	# conducts, so the gun hangs off the hearth on a pipe like everything else.
+	_place(&"heat_pipe", Vector2i(hearth.cell.x + 5, hearth.cell.y))
 	var mount: BuildingInstance = _place(&"turret_mount",
-		Vector2i(hearth.cell.x + 5, hearth.cell.y))
+		Vector2i(hearth.cell.x + 6, hearth.cell.y))
 	if mount == null:
 		return
+	_stoke()
 	world.run(60)
 	var t: TurretBattery.Turret = combat.battery.get_turret(mount.id)
 	if t == null:
@@ -272,14 +276,19 @@ func test_a_chill_aura_slows_a_magazine_without_touching_it() -> void:
 	var hearth: BuildingInstance = _place(&"the_hearth", _open_cell(Vector2i(-18, 14)))
 	if hearth == null:
 		return
+	# [P02]'s rule: two buildings only share a network through something that
+	# conducts, so the gun hangs off the hearth on a pipe like everything else.
+	_place(&"heat_pipe", Vector2i(hearth.cell.x + 5, hearth.cell.y))
 	var mount: BuildingInstance = _place(&"turret_mount",
-		Vector2i(hearth.cell.x + 5, hearth.cell.y))
+		Vector2i(hearth.cell.x + 6, hearth.cell.y))
 	if mount == null:
 		return
+	_stoke()
 	world.run(60)
 	var t: TurretBattery.Turret = combat.battery.get_turret(mount.id)
 	if t == null:
 		return
+	assert_gt(t.served, 0.9, "the gun is warm before we chill it")
 	t.charge = 0.0
 	world.run(4)
 	var warm_gain: float = t.charge
@@ -449,6 +458,18 @@ func _mean_distance_to_core() -> float:
 	for i: int in range(combat.swarm.count):
 		total += combat.swarm.position_at(i).distance_to(centre)
 	return total / float(combat.swarm.count)
+
+
+## Fills every burner in the world. [P03] logistics is live in this build, so a
+## generator with no coal in its bunker produces nothing and the whole heat chain
+## downstream of it reads zero — which is correct, and not what these tests are
+## about.
+func _stoke() -> void:
+	var heat: SimSystem = world.system(&"heat")
+	if heat == null:
+		return
+	for item: String in ["coal", "timber"]:
+		heat.call("handle_command", {"op": "fuel_all", "item": item, "amount": 9999.0})
 
 
 func _wall_health_total() -> float:

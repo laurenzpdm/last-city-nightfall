@@ -564,6 +564,7 @@ def stress():
 ECON_SPINE_DX = 3
 ECON_RUNGS = (-16, -8, 8, 16)
 ECON_ARM = 15               # rung reach either side of the spine
+ECON_GENS_PER_LANE = 2      # see THE WARMTH-COVER LAW in economy()
 
 
 class Row:
@@ -576,19 +577,35 @@ class Row:
         self.above = above
         self.cursor = ECON_SPINE_DX + (2 * side)
 
-    def add(self, tick, kind, gap=1, **kw):
+    def _next(self, kind, gap=1):
+        """(origin dx, origin dy, cursor after) for the next plot, or None when
+        the plot would hang off the end of the rung with nothing under it."""
         w, h = DEFS[kind][0], DEFS[kind][1]
-        # Origin row: the building's near edge has to share a border with the
-        # rung, never merely a corner.
         dy = self.dy - h if self.above else self.dy + 1
         if self.side > 0:
-            dx = self.cursor
-            self.cursor = dx + w + gap
+            dx, after = self.cursor, self.cursor + w + gap
+            far = dx + w - 1
         else:
-            dx = self.cursor - w
-            self.cursor = dx - gap
-        assert abs(dx) <= ECON_ARM + ECON_SPINE_DX + 8, \
-            "%s at dx=%d has walked off the rung at dy=%d" % (kind, dx, self.dy)
+            dx, after = self.cursor - w, self.cursor - w - gap
+            far = dx
+        # The rung runs ECON_ARM either side of the spine. A plot whose far edge
+        # is past that end touches bare ground and forms its own network.
+        if self.side > 0 and far > ECON_SPINE_DX + ECON_ARM:
+            return None
+        if self.side < 0 and far < ECON_SPINE_DX - ECON_ARM:
+            return None
+        return dx, dy, after
+
+    def fits(self, kind, gap=1):
+        return self._next(kind, gap) is not None
+
+    def add(self, tick, kind, gap=1, **kw):
+        slot = self._next(kind, gap)
+        assert slot is not None, \
+            "%s does not fit on the %s rung at dy=%d" % (
+                kind, "east" if self.side > 0 else "west", self.dy)
+        dx, dy, after = slot
+        self.cursor = after
         self.L.place(tick, kind, dx, dy, **kw)
         return dx
 
@@ -625,11 +642,70 @@ def economy():
     below = {dy: {s: Row(L, dy, s, above=False) for s in (1, -1)} for dy in ECON_RUNGS}
     above = {dy: {s: Row(L, dy, s, above=True) for s in (1, -1)} for dy in ECON_RUNGS}
 
-    # Two radiators and two housing blocks are the starting settlement.
-    below[-8][1].add(8, "warmth_radiator", free=True, instant=True)
-    below[8][-1].add(9, "warmth_radiator", free=True, instant=True)
-    above[8][1].add(10, "housing_block", free=True, instant=True)
-    above[-8][-1].add(11, "housing_block", free=True, instant=True)
+    # --- THE WARMTH-COVER LAW ------------------------------------------------
+    # A coal generator keeps itself at (outside + 11 C): 1.6 C per unit of
+    # self-heat, 30 output, 15% of it kept, times its 0.35 insulation bonus. It
+    # freezes at -10 C. So it survives only while the ground it stands on is
+    # warmer than about -21 C, and its own 10.5 C of radiance is not enough once
+    # the plain passes -32. Every generator therefore has to stand inside a
+    # radiator's field or the Hearth's, or it freezes solid in the small hours
+    # of day three and never thaws — which is exactly what the previous version
+    # of this scenario measured without noticing: THIRTEEN of fourteen
+    # generators frozen at the final tick, supply pinned at the Hearth's 120.
+    #
+    # So a district here is radiator-first, generators beside it. See
+    # game/content/economy/BALANCE.md, "The law nobody had written down".
+    lanes = [(dy, s) for dy in (-8, 8, -16, 16) for s in (1, -1)]
+    lane_open = []          # lanes that already have a radiator
+    lane_gens = {}          # lane -> generators placed in it
+    house_i = [0]
+
+    def open_lane(tick, **kw):
+        for lane in lanes:
+            if lane not in lane_open:
+                below[lane[0]][lane[1]].add(tick, "warmth_radiator", **kw)
+                lane_open.append(lane)
+                lane_gens[lane] = 0
+                return lane
+        raise AssertionError("economy: out of rungs to open")
+
+    def add_generator(tick):
+        for lane in lane_open:
+            if lane_gens[lane] < ECON_GENS_PER_LANE:
+                below[lane[0]][lane[1]].add(tick, "coal_generator")
+                lane_gens[lane] += 1
+                return lane
+        raise AssertionError("economy: every open district is full of generators; "
+                             "the plan wants a radiator before it wants another burner")
+
+    def add_house(tick):
+        for _ in range(len(lanes) * 2):
+            lane = lanes[house_i[0] % len(lanes)]
+            house_i[0] += 1
+            row = above[lane[0]][lane[1]]
+            if row.fits("housing_block"):
+                row.add(tick, "housing_block")
+                return lane
+        raise AssertionError("economy: nowhere left to put a housing block")
+
+    def add_extra(tick, kind):
+        """Anything that is neither a generator, a radiator nor a home. It still
+        has to touch the rung, so it goes in the first lane with room."""
+        for rows in (above, below):
+            for lane in lanes:
+                row = rows[lane[0]][lane[1]]
+                if row.fits(kind):
+                    row.add(tick, kind)
+                    return lane
+        raise AssertionError("economy: nowhere left for a %s" % kind)
+
+    # The settlement that already stands: four lit streets and four blocks.
+    for i in range(4):
+        open_lane(8 + i, free=True, instant=True)
+    for i in range(4):
+        lane = lanes[i]
+        above[lane[0]][lane[1]].add(12 + i, "housing_block", free=True, instant=True)
+    house_i[0] = 4
 
     # --- the campaign --------------------------------------------------------
     # One entry per day: what an ATTENTIVE, NOT OPTIMAL player gets built during
@@ -648,24 +724,19 @@ def economy():
         # day 3: FIRST FROST at dusk. Thermal storage is the answer and it is
         #        already unlocked; a player who spends the day on housing
         #        instead loses the district.
-        (3, ["coal_generator", "coal_generator", "heat_accumulator",
-             "warmth_radiator"]),
-        (4, ["coal_generator", "coal_generator", "housing_block",
+        (3, ["coal_generator", "coal_generator", "heat_accumulator"]),
+        (4, ["coal_generator", "coal_generator", "warmth_radiator",
              "housing_block", "granary"]),
-        (5, ["coal_generator", "coal_generator", "warmth_radiator",
-             "housing_block", "field_kitchen"]),
-        (6, ["coal_generator", "coal_generator", "coal_generator",
+        (5, ["coal_generator", "coal_generator", "housing_block",
+             "field_kitchen"]),
+        (6, ["warmth_radiator", "coal_generator", "coal_generator",
              "housing_block", "housing_block"]),
         # day 7: SECOND FROST, and the last day the run covers in full. The
         #        booster pump is what keeps the far rungs alive through it.
-        (7, ["coal_generator", "coal_generator", "coal_generator",
+        (7, ["warmth_radiator", "coal_generator", "coal_generator",
              "heat_booster_pump", "housing_block"]),
     ]
 
-    # Rung/side rotation. Radiators and generators go below the rung, housing
-    # above it, so a district reads as street-then-homes rather than as noise.
-    slots = [(dy, s) for dy in (-8, 8, -16, 16) for s in (1, -1)]
-    slot_i = 0
     day_ticks = 9600
     for day, kinds in plan:
         # Spread the day's work across morning and afternoon: the harness
@@ -676,10 +747,14 @@ def economy():
         step = span // max(1, len(kinds))
         for i, kind in enumerate(kinds):
             t = start + i * step
-            dy, side = slots[slot_i % len(slots)]
-            slot_i += 1
-            rows = above if kind == "housing_block" else below
-            rows[dy][side].add(t, kind)
+            if kind == "coal_generator":
+                add_generator(t)
+            elif kind == "warmth_radiator":
+                open_lane(t)
+            elif kind == "housing_block":
+                add_house(t)
+            else:
+                add_extra(t, kind)
 
     # --- what this instrument deliberately holds still -----------------------
     # An instrument measures one variable. These two lines are what keep the

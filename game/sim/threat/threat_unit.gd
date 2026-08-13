@@ -71,6 +71,10 @@ static func from_resource(res: Resource, profile: ThreatProfile) -> ThreatUnit:
 	var u := ThreatUnit.new()
 	u.id = StringName(String(_read(res, ["id"], "")))
 	if u.id == &"":
+		# Registry indexes a resource without an id by its filename. Doing the
+		# same here means a creature can never be registered-but-unfieldable.
+		u.id = StringName(res.resource_path.get_file().get_basename())
+	if u.id == &"":
 		return null
 	u.display_name = String(_read(res, ["display_name", "name"], String(u.id)))
 	u.plural_name = String(_read(res, ["plural_name"], ""))

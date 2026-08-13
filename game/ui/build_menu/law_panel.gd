@@ -153,6 +153,15 @@ func _law_block(law: LcnLawModel.LawRecord) -> Control:
 	if law.summary != "" and law.prose != "":
 		column.add_child(LcnUiStyle.label(law.summary, LcnUiStyle.FS_SMALL, LcnUiStyle.ACCENT))
 
+	# Both sides of the argument, in the author's words. A screen that shows only
+	# the case FOR a law is a shop window; both sides make it a decision.
+	if law.argument_for != "":
+		column.add_child(_argument("FOR", law.argument_for, LcnUiStyle.GOOD))
+	if law.argument_against != "":
+		column.add_child(_argument("AGAINST", law.argument_against, LcnUiStyle.BAD))
+	if law.is_signed() and law.signed_line != "":
+		column.add_child(_argument("SINCE", law.signed_line, LcnUiStyle.ACCENT_SOFT))
+
 	for effect: String in law.effects:
 		column.add_child(LcnUiStyle.label("·  %s" % effect, LcnUiStyle.FS_SMALL, LcnUiStyle.TEXT_DIM))
 
@@ -183,6 +192,23 @@ func _law_block(law: LcnLawModel.LawRecord) -> Control:
 		sign_button.pressed.connect(func() -> void: sign_requested.emit(law.id))
 		column.add_child(sign_button)
 	return frame
+
+
+## One side of the argument, marked and indented so the eye can take the two of
+## them in as a pair rather than as more paragraphs.
+func _argument(mark: String, text: String, colour: Color) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override(&"separation", 8)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tag: Label = LcnUiStyle.label(mark, LcnUiStyle.FS_TINY, colour)
+	tag.custom_minimum_size = Vector2(56.0, 0.0)
+	row.add_child(tag)
+	var body: Label = LcnUiStyle.label(text, LcnUiStyle.FS_SMALL, LcnUiStyle.TEXT_DIM)
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.custom_minimum_size = Vector2(PROSE_W - 64.0, 0.0)
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(body)
+	return row
 
 
 func _prose(text: String, colour: Color) -> Label:
