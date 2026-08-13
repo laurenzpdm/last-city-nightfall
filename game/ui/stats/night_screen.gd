@@ -161,24 +161,32 @@ func _draw_made(t: LcnStatsTheme, report: Dictionary, rect: Rect2) -> void:
 		t.text(self, Vector2(rect.position.x + 14.0, y + 16.0),
 			"Nothing was produced.", t.fs(t.FS_BODY), t.TEXT_FAINT)
 		return
+	var used: Array = report["consumed"]
 	var top: float = maxf(1.0, float((made[0] as Dictionary)["amount"]))
 	var body: int = t.fs(t.FS_BODY)
+	# The bars grow to fill the card. Six thin rules at the top of a tall empty
+	# panel reads as a screen that failed to load; the same six filling it reads
+	# as the night's output.
+	var used_h: float = 0.0 if used.is_empty() else \
+		24.0 + float(used.size()) * (float(t.fs(t.FS_SMALL)) + 6.0)
+	var room: float = rect.position.y + rect.size.y - y - used_h - 18.0
+	var bar_h: float = clampf(room / float(maxi(1, made.size())) - 10.0, BAR_H, 40.0)
 	for entry: Dictionary in made:
 		var f: float = float(entry["amount"]) / top
 		var bar := Rect2(Vector2(rect.position.x + 14.0, y + 4.0),
-			Vector2((rect.size.x - 28.0) * f, BAR_H))
+			Vector2((rect.size.x - 28.0) * f, bar_h))
 		var colour: Color = entry["colour"]
 		draw_rect(Rect2(Vector2(rect.position.x + 14.0, y + 4.0),
-			Vector2(rect.size.x - 28.0, BAR_H)), Color(0.0, 0.0, 0.0, 0.25), true)
+			Vector2(rect.size.x - 28.0, bar_h)), Color(0.0, 0.0, 0.0, 0.25), true)
 		draw_rect(bar, Color(colour.r, colour.g, colour.b, 0.55), true)
 		draw_rect(Rect2(bar.position, Vector2(bar.size.x, 2.0)), colour, true)
-		t.text(self, Vector2(rect.position.x + 20.0, y + BAR_H - 1.0),
+		var label_y: float = y + 4.0 + bar_h * 0.5 + float(body) * 0.36
+		t.text(self, Vector2(rect.position.x + 20.0, label_y),
 			String(entry["label"]), body, t.TEXT_BRIGHT)
-		t.text_right(self, rect.position.x + rect.size.x - 18.0, y + BAR_H - 1.0,
+		t.text_right(self, rect.position.x + rect.size.x - 18.0, label_y,
 			LcnStatsTheme.compact(float(entry["amount"])), body, t.TEXT)
-		y += BAR_H + 10.0
+		y += bar_h + 10.0
 
-	var used: Array = report["consumed"]
 	if used.is_empty():
 		return
 	y += 8.0
@@ -302,7 +310,7 @@ func _draw_nights(t: LcnStatsTheme, rect: Rect2) -> void:
 			vc = t.WARN
 		elif verdict == "HELD":
 			vc = t.COOL
-		var bar_w: float = minf(16.0, (cell - 20.0) / 3.0)
+		var bar_w: float = clampf((cell - 26.0) / 3.0, 5.0, 22.0)
 		var kills: float = float((r2["combat"] as Dictionary)["kills"])
 		var deaths: float = float((r2["society"] as Dictionary)["deaths"])
 		var short_s: float = float((r2["heat"] as Dictionary)["deficit_seconds"])

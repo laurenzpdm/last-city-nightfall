@@ -104,7 +104,11 @@ func _build_session() -> void:
 		Sim.submit_command(cmd)
 	SimClock.advance(2)
 	if _camera != null:
-		_camera.focus_on(Vector2(_core) * 32.0, true)
+		# Aimed ABOVE the city on purpose, so the settlement sits in the lower
+		# half of the frame and [P22]'s day-one chapter card — which opens on
+		# every real session and is centred — does not stand between the camera
+		# and the thing being photographed.
+		_camera.focus_on(Vector2(_core) * 32.0 + Vector2(0.0, -300.0), true)
 		_camera.set_zoom_level(1.15, false)
 	await _frames(3)
 	_check(_feel.is_inside_tree(), "the feel layer is in the scene tree")

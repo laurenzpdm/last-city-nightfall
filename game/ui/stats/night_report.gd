@@ -206,7 +206,9 @@ static func _closest_call(report: Dictionary) -> String:
 
 	var longest: float = float(heat["longest_deficit_seconds"])
 	if longest > 1.0:
-		var score: float = 40.0 + longest
+		# Half-weighted on purpose: a grid that is short for the WHOLE night is
+		# a long number and a small problem next to a meter hitting its ceiling.
+		var score: float = 40.0 + longest * 0.5
 		if score > best_score:
 			best_score = score
 			best = "The grid ran short for %s without a break — the longest stretch of the night." % \

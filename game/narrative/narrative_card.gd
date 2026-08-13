@@ -156,13 +156,25 @@ func _refresh() -> void:
 		_showing = ""
 		_signature = ""
 		return
-	var sig: String = "%s|%d|%.1f" % [String(card.get("id", "")),
-		int(card.get("seq", 0)), float(card.get("hours_left", 0.0))]
+	_panel.visible = true
+	# The countdown moves; the card does not. Rebuilding the whole thing every
+	# time the clock ticks would destroy and recreate the option Buttons under
+	# the player's cursor several times a second, which is both wasteful and a
+	# real way to eat a click on a decision with a deadline on it.
+	_clock_text(card)
+	var sig: String = "%s|%d" % [String(card.get("id", "")), int(card.get("seq", 0))]
 	if sig == _signature:
 		return
 	_signature = sig
-	_panel.visible = true
 	_draw_card(card)
+
+
+func _clock_text(card: Dictionary) -> void:
+	var hours: float = float(card.get("hours_left", 0.0))
+	var has_options: bool = not (card.get("options", []) as Array).is_empty()
+	_clock.visible = hours > 0.0 and has_options
+	if _clock.visible:
+		_clock.text = "%.1f hours before this decides itself." % hours
 
 
 func _draw_card(card: Dictionary) -> void:
@@ -182,12 +194,7 @@ func _draw_card(card: Dictionary) -> void:
 	for line: Variant in card.get("causes", []):
 		_because.add_child(_label("- " + String(line), 12, Color(0.62, 0.68, 0.76)))
 
-	var hours: float = float(card.get("hours_left", 0.0))
 	var opts: Array = card.get("options", [])
-	_clock.visible = hours > 0.0 and not opts.is_empty()
-	if _clock.visible:
-		_clock.text = "%.1f hours before this decides itself." % hours
-
 	for child: Node in _options.get_children():
 		child.queue_free()
 	if opts.is_empty():

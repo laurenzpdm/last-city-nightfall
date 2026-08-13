@@ -344,6 +344,17 @@ func _diff(off: Image, on: Image) -> Dictionary:
 	var cool_added: int = 0
 	var flakes: int = 0
 	var sampled: int = 0
+	# The fire-fight happens at a known place (see _fake_battle), and the whole
+	# frame is a noisy place to look for it: a whiteout veil over a warm hearth
+	# moves thousands of pixels toward red on its own. Counting warm pixels
+	# inside the box the guns are firing in, in two scenes that are identical
+	# apart from the guns, is the measurement that means something.
+	var fx0: int = int(float(w) * 0.58)
+	var fx1: int = int(float(w) * 0.82)
+	var fy0: int = int(float(h) * 0.64)
+	var fy1: int = int(float(h) * 0.90)
+	var warm_focus: int = 0
+	var changed_focus: int = 0
 	for y: int in range(y0, y1, 2):
 		for x: int in range(x0, x1, 2):
 			var a: Color = off.get_pixel(x, y)
@@ -354,10 +365,15 @@ func _diff(off: Image, on: Image) -> Dictionary:
 			var db: float = b.b - a.b
 			if absf(dr) + absf(dg) + absf(db) > 0.045:
 				changed += 1
+			var in_focus: bool = x >= fx0 and x < fx1 and y >= fy0 and y < fy1
 			if dr > 0.055 and dr > db * 1.6:
 				warm_added += 1
+				if in_focus:
+					warm_focus += 1
 			elif db > 0.030 and db >= dr:
 				cool_added += 1
+			if in_focus and absf(dr) + absf(dg) + absf(db) > 0.045:
+				changed_focus += 1
 			# A FLAKE, as distinct from a veil. Both lift the frame; only a flake
 			# lifts it in one place and not four pixels to either side. Without
 			# this separation "there is snow on screen" would be provable by a
@@ -369,7 +385,8 @@ func _diff(off: Image, on: Image) -> Dictionary:
 						and d - _dluma(off, on, x + 4, y) > 0.06:
 					flakes += 1
 	return {"changed": changed, "warm_added": warm_added, "cool_added": cool_added,
-		"flakes": flakes, "diff_sampled": sampled}
+		"flakes": flakes, "warm_focus": warm_focus, "changed_focus": changed_focus,
+		"diff_sampled": sampled}
 
 
 static func _dluma(off: Image, on: Image, x: int, y: int) -> float:
@@ -487,9 +504,20 @@ func _verdict() -> void:
 	_expect(s_snow > maxi(250, c_snow * 4),
 		"snowfall drew %d discrete flakes the control frame does not have (clear: %d)"
 		% [s_snow, c_snow])
-	_expect(b_snow > int(float(s_snow) * 1.25),
-		"a blizzard (%d flakes) was not markedly thicker than ordinary snowfall (%d)"
+	# `flakes` proves discrete snow exists; it saturates once flakes start
+	# landing next to each other, so the SCALING claim is made on how much of the
+	# frame the weather covers instead.
+	var s_cover: int = int(snowfall.get("cool_added", 0))
+	var b_cover: int = int(_measure.get("blizzard", {}).get("cool_added", 0))
+	_expect(b_snow >= s_snow,
+		"a blizzard (%d flakes) had fewer discrete flakes than snowfall (%d)"
 		% [b_snow, s_snow])
+	_expect(b_cover > int(float(s_cover) * 1.4),
+		"a blizzard covered %d px of the frame against snowfall's %d — no escalation"
+		% [b_cover, s_cover])
+	_expect(int(_measure.get("blizzard", {}).get("snow_particles", 0))
+			> int(snowfall.get("snow_particles", 0)),
+		"the blizzard emitted no more flakes than the snowfall did")
 	_expect(int(frost_scene.get("changed", 0)) > noise * 3,
 		"a Great Frost changed %d pixels against a %d-pixel still-frame noise floor"
 		% [int(frost_scene.get("changed", 0)), noise])
@@ -517,9 +545,11 @@ func _verdict() -> void:
 
 	# `battle` and `snowfall` are the same weather, so the extra warm pixels are
 	# the guns and nothing else.
-	_expect(int(battle.get("warm_added", 0)) > int(snowfall.get("warm_added", 0)) + 800,
-		"a fire-fight drew %d warm pixels against %d in the same weather without it" % [
-			int(battle.get("warm_added", -1)), int(snowfall.get("warm_added", -1))])
+	_expect(int(battle.get("warm_focus", 0)) > int(snowfall.get("warm_focus", 0)) + 250,
+		"a fire-fight drew %d warm pixels where the guns are against %d in the same weather without them" % [
+			int(battle.get("warm_focus", -1)), int(snowfall.get("warm_focus", -1))])
+	_expect(int(battle.get("changed_focus", 0)) > int(snowfall.get("changed_focus", 0)),
+		"a fire-fight changed no more of its own corner of the frame than quiet weather did")
 
 	# `frostbite` and `clear` are the same weather, so the extra pale pixels are
 	# the rime on the starved district.

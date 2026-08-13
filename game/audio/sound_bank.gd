@@ -47,6 +47,9 @@ var eager_budget_usec: int = EAGER_BUDGET_USEC
 
 var _pumps: int = 0
 var _peak_pump_usec: int = 0
+## Which recipe was on the bench during the slowest pump. Attribution beats
+## argument: without this the 64 ms frame above took three guesses to find.
+var _peak_pump_key: StringName = &""
 
 var _streams: Dictionary[StringName, AudioStreamWAV] = {}
 var _queue: Array[StringName] = []
@@ -114,6 +117,7 @@ func pump(usec: int = -1) -> int:
 	if allowance <= 0:
 		return 0
 	var finished_now: int = 0
+	var last_key: StringName = _active.key if _active != null else &""
 	var t0: int = Time.get_ticks_usec()
 	while true:
 		var elapsed: int = Time.get_ticks_usec() - t0
@@ -128,13 +132,16 @@ func pump(usec: int = -1) -> int:
 			if _streams.has(key):
 				continue
 			_active = LcnSynthJob.new(key, LcnSynthRecipes.spec(key))
+			last_key = key
 		if _active.advance(SLICE_QUANTUM):
 			_adopt(_active)
 			_active = null
 			finished_now += 1
 	var spent: int = Time.get_ticks_usec() - t0
 	_build_usec += spent
-	_peak_pump_usec = maxi(_peak_pump_usec, spent)
+	if spent > _peak_pump_usec:
+		_peak_pump_usec = spent
+		_peak_pump_key = last_key
 	return finished_now
 
 
@@ -219,6 +226,7 @@ func report() -> Dictionary:
 		"kib": int(round(float(_bytes) / 1024.0)),
 		"build_ms": snappedf(float(_build_usec) / 1000.0, 0.1),
 		"peak_pump_usec": _peak_pump_usec,
+		"peak_pump_key": String(_peak_pump_key),
 		"misses": miss_total,
 		"non_finite_samples": _non_finite,
 	}

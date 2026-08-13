@@ -72,3 +72,17 @@ why: A suite that exercises an error path calls Log.error on purpose, and half a
      mechanism. SCRIPT ERROR and ENGINE ERROR inside a test log stay blocking:
      nothing deliberately raises those.
 expires: 2026-12-01
+
+id: exit_rid_leak
+class: tracked
+kinds: ENGINE_ERROR
+match: ^\d+ RID allocations of type .* were leaked at exit
+owner: integrator, with [P13] for anything that is not a DummyTexture
+why: The third face of the same at-exit report, and in the headless test process
+     it is the dummy renderer's own bookkeeping (PN13RendererDummy...DummyTexture)
+     rather than anything a part allocated. Like the other two it is printed after
+     the last artifact is written and cannot alter a metric, a replay or a
+     screenshot. Tracked and counted rather than silenced, because a RID leak of a
+     REAL texture type would be a genuine renderer regression and this keeps the
+     type name in the report where someone will read it.
+expires: 2026-10-01

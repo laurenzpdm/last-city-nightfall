@@ -102,8 +102,8 @@ static func chapters() -> Array[Chapter]:
 		"It is no longer a bad week",
 		"The city has stopped talking about when this ends. That happened "
 		+ "quietly, over about two days, and nobody marked it.\n\n"
-		+ "{deaths} are dead. The ledger has a column for it now, which it did "
-		+ "not have on the first day, because on the first day nobody thought "
+		+ "The dead now number {deaths}. The ledger has a column for it, which it "
+		+ "did not have on the first day, because on the first day nobody thought "
 		+ "the column would be needed often enough to rule a line for it. The "
 		+ "Hearth runs. The wall holds or it does not. This is the shape of the "
 		+ "rest of it.",
@@ -228,7 +228,7 @@ static func _verdict_line(outcome: StringName, day: int, alive: int, dead: int,
 				+ "%s not, and both of those numbers were produced by the same set "
 				+ "of decisions.") % [day, _people(alive, true), _people(dead, true)]
 		&"lost":
-			return ("Caldera Nine ended on day %d, and it ended because %s. %s "
+			return ("Caldera Nine ended on day %d, and it ended because %s. %s had "
 				+ "already died before that, and %s there to see it.") % [
 					day, _why_it_ended(end_reason), _people(dead, false),
 					_people(alive, true)]
@@ -251,7 +251,6 @@ static func _toll_line(facts: Dictionary, dead: int) -> String:
 		return ("Nobody died. That is not luck and it is not mercy; it is the only "
 			+ "line in this ledger that was entirely a choice, made early, and paid "
 			+ "for in things that do not have names.")
-	var parts: PackedStringArray = PackedStringArray()
 	# [key, what one of them did, what several of them did]
 	var causes: Array = [
 		[&"deaths_cold", "froze", "froze"],
@@ -261,18 +260,26 @@ static func _toll_line(facts: Dictionary, dead: int) -> String:
 		[&"deaths_exhaustion", "was worked until they stopped",
 			"were worked until they stopped"],
 	]
+	var parts: PackedStringArray = PackedStringArray()
+	var only: String = ""
 	for row: Array in causes:
 		var n: int = int(facts.get(row[0] as StringName, 0.0))
-		if n > 0:
-			parts.append("%d %s" % [n, String(row[1] if n == 1 else row[2])])
+		if n <= 0:
+			continue
+		parts.append("%d %s" % [n, String(row[1] if n == 1 else row[2])])
+		if only == "":
+			only = String(row[1])
 	if parts.is_empty():
 		return ("%s died and the ledger does not say of what, which is its own "
 			+ "answer.") % _people(dead, false)
-	var opener: String = "The one: %s." % _join_list(parts) if dead == 1 \
-		else "Of the %d: %s." % [dead, _join_list(parts)]
-	return opener + (" Every one of them has a name written down somewhere in the "
-		+ "Nine, and every one of those names was read out at the kitchen by "
-		+ "somebody who knew them.")
+	# One death is a person, not a row in a table, and the sentence has to be
+	# built as one or the epilogue reads like a spreadsheet at the worst moment.
+	if dead == 1 and parts.size() == 1:
+		return ("The one %s. They have a name, it is written down somewhere in the "
+			+ "Nine, and it was read out at the kitchen by somebody who knew them.") % only
+	return ("Of the %d: %s. Every one of them has a name written down somewhere in "
+		+ "the Nine, and every one of those names was read out at the kitchen by "
+		+ "somebody who knew them.") % [dead, _join_list(parts)]
 
 
 static func _law_line(signed: int, cruel: PackedStringArray, costly: PackedStringArray) -> String:

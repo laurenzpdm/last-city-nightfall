@@ -67,6 +67,21 @@ var _phase: int = Phase.CONTINUOUS
 var _cursor: int = 0
 var _events: Array[Dictionary] = []
 var _event_index: int = 0
+var _ev_i: int = 0
+var _ev_env: float = 1.0
+var _ev_ph: float = 0.0
+var _ev_ph2: float = 0.0
+var _ev_ph3: float = 0.0
+var _ev_ph4: float = 0.0
+var _ev_lp: float = 0.0
+var _ev_bp_low: float = 0.0
+var _ev_bp_band: float = 0.0
+var _ev_f: float = 0.0
+var _ev_dec: float = 1.0
+var _ev_lp_a: float = 0.0
+var _ev_bf: float = 0.0
+var _ev_drop: float = 1.0
+var _ev_rng: RandomNumberGenerator = null
 var _tail_cursor: int = 0
 var _peak: float = 0.0
 var _norm: float = 1.0
@@ -150,7 +165,10 @@ func advance(budget: int) -> bool:
 				left -= _do_encode(left)
 			_:
 				done = true
-	build_usec += Time.get_ticks_usec() - t0
+	var took: int = Time.get_ticks_usec() - t0
+	if took > 1500:
+		print("ADVDEBUG key=%s phase=%d budget=%d took=%d cursor=%d/%d ev=%d/%d tail=%d" % [key, _phase, budget, took, _cursor, _render_len, _event_index, _events.size(), _tail_cursor])
+	build_usec += took
 	return done
 
 
@@ -557,49 +575,84 @@ func _do_events(budget: int) -> int:
 	var spent: int = 0
 	while _event_index < _events.size() and spent < budget:
 		var e: Dictionary = _events[_event_index]
-		_render_event(e)
-		spent += int(e["len"])
-		work_done += int(e["len"])
-		_event_index += 1
+		var length: int = int(e["len"])
+		if _ev_i == 0:
+			_begin_event(e)
+		var count: int = mini(length - _ev_i, budget - spent)
+		if count > 0:
+			_render_event_slice(e, count)
+			spent += count
+			work_done += count
+			_ev_i += count
+		if _ev_i >= length:
+			_ev_i = 0
+			_event_index += 1
 	if _event_index >= _events.size():
 		_phase = Phase.SCRUB
 	return maxi(1, spent)
 
 
-## One transient, written on top of the bed and wrapped around the loop point,
-## so a rhythm whose last hit rings past the end still rings into the next pass.
-func _render_event(e: Dictionary) -> void:
+## Sets up one transient's running state. Split from the render so a long event
+## can be produced across several slices: a single bell partial is 15 876
+## samples, which is six milliseconds of GDScript, and rendering it atomically
+## made one frame cost 17 ms inside a 4 ms budget.
+func _begin_event(e: Dictionary) -> void:
+	_ev_rng = RandomNumberGenerator.new()
+	_ev_rng.seed = int(e["seed"])
+	_ev_env = 1.0
+	_ev_ph = 0.0
+	_ev_ph2 = 0.0
+	_ev_ph3 = 0.0
+	_ev_ph4 = 0.0
+	_ev_lp = 0.0
+	_ev_bp_low = 0.0
+	_ev_bp_band = 0.0
+	var hz: float = float(e["hz"])
+	_ev_f = hz / float(_sr)
+	_ev_dec = LcnDsp.decay_per_sample(float(e["decay"]), _sr)
+	_ev_lp_a = LcnDsp.lp_coeff(hz * 1.6, _sr)
+	_ev_bf = clampf(TAU * minf(hz, float(_sr) * LcnDsp.SVF_MAX_RATIO) / float(_sr),
+		0.001, LcnDsp.SVF_MAX_F)
+	_ev_drop = pow(0.55, 1.0 / float(maxi(1, int(e["len"]))))
+
+
+## One slice of a transient, written on top of the bed and wrapped around the
+## loop point, so a rhythm whose last hit rings past the end still rings into
+## the next pass. All running state lives in fields, so `count` may be any size
+## and the result is identical either way.
+func _render_event_slice(e: Dictionary, count: int) -> void:
 	var kind: StringName = e["kind"]
 	var at: int = int(e["at"])
 	var length: int = int(e["len"])
-	var hz: float = float(e["hz"])
 	var amp: float = float(e["amp"])
 	var noise_mix: float = float(e["noise"])
-	var dec: float = LcnDsp.decay_per_sample(float(e["decay"]), _sr)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = int(e["seed"])
+
+	var rng: RandomNumberGenerator = _ev_rng
+	var env: float = _ev_env
+	var dec: float = _ev_dec
+	var ph: float = _ev_ph
+	var ph2: float = _ev_ph2
+	var ph3: float = _ev_ph3
+	var ph4: float = _ev_ph4
+	var lp: float = _ev_lp
+	var lp_a: float = _ev_lp_a
+	var bp_low: float = _ev_bp_low
+	var bp_band: float = _ev_bp_band
+	var bf: float = _ev_bf
+	var f: float = _ev_f
+	var drop: float = _ev_drop
+	var inv_sr: float = 1.0 / float(_sr)
 
 	# Events are placed relative to the LOOP BODY, which begins after the
-	# discarded run-up. A tail that runs off the end wraps back to the start of
-	# the body, so a rhythm whose last hit rings past the loop point still rings
-	# into the next pass instead of being cut off.
+	# discarded run-up.
 	var wrap: int = _body if _loop else 0
-	var env: float = 1.0
-	var ph: float = 0.0
-	var ph2: float = 0.0
-	var ph3: float = 0.0
-	var ph4: float = 0.0
-	var lp: float = 0.0
-	var lp_a: float = LcnDsp.lp_coeff(hz * 1.6, _sr)
-	var bp_low: float = 0.0
-	var bp_band: float = 0.0
-	var bf: float = clampf(TAU * minf(hz, float(_sr) * LcnDsp.SVF_MAX_RATIO) / float(_sr),
-		0.001, LcnDsp.SVF_MAX_F)
-	var inv_sr: float = 1.0 / float(_sr)
-	var drop: float = pow(0.55, 1.0 / float(maxi(1, length)))
-	var f: float = hz * inv_sr
+	var r2: float = 2.76 if kind == &"metal" else 1.72
+	var r3: float = 5.40 if kind == &"metal" else 2.61
+	var r4: float = 8.93 if kind == &"metal" else 4.17
+	var burst: int = maxi(1, length / 12)
 
-	for i: int in length:
+	for k: int in count:
+		var i: int = _ev_i + k
 		var idx: int = at + i
 		if wrap > 0:
 			idx = idx % wrap
@@ -656,9 +709,6 @@ func _render_event(e: Dictionary) -> void:
 			&"clank", &"metal":
 				# Inharmonic partials. Bell ratios for metal, a tighter, duller
 				# set for a press.
-				var r2: float = 2.76 if kind == &"metal" else 1.72
-				var r3: float = 5.40 if kind == &"metal" else 2.61
-				var r4: float = 8.93 if kind == &"metal" else 4.17
 				ph += f
 				ph2 += f * r2
 				ph3 += f * r3
@@ -675,12 +725,22 @@ func _render_event(e: Dictionary) -> void:
 					+ sin(ph3 * TAU) * 0.14 + sin(ph4 * TAU) * 0.07
 				v *= 1.0 - noise_mix
 				lp += (white - lp) * 0.6
-				v += lp * noise_mix * (1.0 if i < length / 12 else 0.15)
+				v += lp * noise_mix * (1.0 if i < burst else 0.15)
 			_:
 				v = white
 
 		_buf[idx] += v * env * amp
 		env *= dec
+
+	_ev_env = env
+	_ev_ph = ph
+	_ev_ph2 = ph2
+	_ev_ph3 = ph3
+	_ev_ph4 = ph4
+	_ev_lp = lp
+	_ev_bp_low = bp_low
+	_ev_bp_band = bp_band
+	_ev_f = f
 
 
 # =================================================================== finish ==

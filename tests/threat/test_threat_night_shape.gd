@@ -102,28 +102,42 @@ func test_every_body_that_was_promised_still_arrives() -> void:
 func test_a_night_always_ends_and_leaves_nothing_standing() -> void:
 	assert_true(_run_to_night(), "the fixture must reach a night")
 	var combat: SimSystem = world.system(&"combat")
-	# Two full days: the night, the dawn, and the whole day after it.
-	world.run(20000)
-	assert_ne(_state(), "active", "the night is over")
+	# Run to the END of this night — dawn — and no further, because the next one
+	# starts the following evening and "active" would then mean the wrong thing.
+	var ended: bool = false
+	for _i: int in 400:
+		world.run(20)
+		if _state() != "active":
+			ended = true
+			break
+	assert_true(ended, "the night ended without needing another day to force it")
 	if combat == null:
 		skip("no [P07] in this build to hold bodies")
 		return
+	# A survivor is allowed to be walking away; it is not allowed to be fighting.
 	assert_eq(int(combat.call("live_enemy_count")), 0,
-		"and nothing of it is still fighting the day after — that leftover is the "
-		+ "bug that froze the campaign on wave two")
+		"nothing of a finished night is still fighting — that leftover is the bug "
+		+ "that froze the campaign on wave two")
+	world.run(EnemySwarm.RETREAT_TICKS + 40)
+	assert_eq(int(combat.call("bodies_on_map")), 0,
+		"and shortly after, nothing of it is on the map at all")
 
 
 func test_the_hard_timeout_can_end_a_night_nothing_else_can() -> void:
+	# The ceiling normally never fires: dawn and the day roll both end a night
+	# long before it. So the test takes both of those away — a wave forced in
+	# broad daylight, with the ceiling pulled below the length of a day — which
+	# is exactly the shape of the failure it exists for.
 	var p: ThreatProfile = _profile()
 	assert_gt(float(p.wave_hard_timeout_ticks), 0.0, "there is a ceiling at all")
-	world.cmd_now({"system": &"threat", "op": "force_wave"})
-	assert_eq(_state(), "active", "a wave is live")
-	var errors: int = Log.errors
-	# Longer than any night, and the watchdog is the only thing that can act.
-	world.run(p.wave_hard_timeout_ticks + 200)
-	assert_ne(_state(), "active", "a night that outlives its own ceiling is resolved")
-	assert_gt(float(Log.errors), float(errors),
-		"and it is an ERROR, because a night that runs that long is a bug, not weather")
+	p.wave_hard_timeout_ticks = 400
+	var fire: Callable = func() -> void:
+		world.cmd_now({"system": &"threat", "op": "force_wave"})
+		world.run(600)
+	assert_throws(fire, "watchdog",
+		"a night that outlives its own ceiling is resolved, loudly — a campaign "
+		+ "frozen on wave two reported itself green for a whole phase")
+	assert_ne(_state(), "active", "and the wave is actually over afterwards")
 
 
 func test_the_campaign_keeps_starting_nights() -> void:

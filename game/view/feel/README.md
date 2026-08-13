@@ -30,8 +30,9 @@ way within `FLICK` and finished by `SETTLE`, or the game feels like it is
 thinking. Anything the WORLD caused may take up to `EVENT`, because the player
 needs time to notice it and time to feel it.
 
-Staggering a group (a row of icons, a pipe run): `LcnTiming.stagger(i)` — 35 ms
-apart, capped at twelve, so a dozen items still finish inside `SETTLE`.
+Staggering a group (a row of icons, a pipe run): `LcnTiming.stagger(i)` — 22 ms
+apart, capped at eight, so a whole group plus its own `SETTLE` still lands inside
+`SWELL`. A stagger the player has to wait out has stopped being a flourish.
 
 ---
 
@@ -134,7 +135,13 @@ if feel != null:
     feel.world.dust(world_pos)                  # a puff you own
     feel.screen.wash(LcnPalette.DANGER, 0.3)    # a frame you own
     feel.beat.connect(_on_feel_beat)            # named beats, for audio and grade
+    feel.focus_structure(id)                    # point the hover treatment at one thing
 ```
+
+`focus_structure(id)` is there for [P21]'s tutorial: it aims the lift, the rim
+and the brackets at a named structure regardless of where the cursor is, so the
+game can say *this one* in its own visual language instead of inventing a second
+highlight. `focus_structure(-1)` hands control back to the mouse.
 
 `feel.beat(name, strength, at)` fires on: `place` `complete` `demolish` `freeze`
 `deny` `hit` `kill` `select` `alert` `nightfall` `dawn` `assault` `relief` `law`
