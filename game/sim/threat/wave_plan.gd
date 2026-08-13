@@ -159,7 +159,7 @@ func role_phrase() -> String:
 	keys.sort()
 	var parts: PackedStringArray = PackedStringArray()
 	for k: String in keys:
-		parts.append("%s %s" % [str(by_role[k]), k])
+		parts.append("%d %s" % [int(by_role[k]), ThreatDefs.role_plural(StringName(k))])
 	return ", ".join(parts)
 
 

@@ -315,6 +315,31 @@ func test_the_engineers_pick_something_when_left_alone() -> void:
 		"with a sentence a player can read: '%s'" % String(suggestion.get("reason", "")))
 
 
+func test_the_engineers_never_sign_a_law_on_their_own() -> void:
+	# Make the labour signal the loudest thing in the world. The dark branch has
+	# the best answer to it; the engineers must still refuse to reach for it.
+	_exec({"op": "complete", "id": "insulated_clothing"})
+	res.call("execute", {"op": "set_auto", "on": true})
+	for i: int in 40:
+		world.run(50)
+		var active: StringName = StringName(String(res.call("active")))
+		if String(active) == "":
+			continue
+		var n: ResearchNode = _node(active)
+		assert_false(ResearchDefs.needs_consent(n),
+			"the auto-picker started '%s', which is the player's decision" % String(active))
+
+
+func test_a_law_the_player_orders_is_researched_normally() -> void:
+	_exec({"op": "complete", "id": "insulated_clothing"})
+	var started: Dictionary = _exec({"op": "start", "id": "emergency_shift"})
+	assert_true(bool(started["ok"]), "the player may always order a desperate measure")
+	assert_eq(String(res.call("active")), "emergency_shift", "and it goes on the bench")
+	_research_until_done(&"emergency_shift", 8000)
+	assert_true(bool(res.call("is_unlocked", &"law_extended_shift")),
+		"finishing it hands [P06] the law")
+
+
 func test_an_unaffordable_project_is_not_what_the_engineers_open() -> void:
 	var build: SimSystem = world.system(&"build")
 	# Only the cheapest branch is payable. The auto-picker must find it.
@@ -410,6 +435,21 @@ func test_serialize_explains_itself_to_a_critic() -> void:
 		assert_has(s, key, "state.json must carry '%s'" % key)
 	assert_eq(String(s["ledger"]), "build",
 		"research draws from the same yard construction does")
+
+
+## The tick budget is 50 ms for the whole simulation. This part is allowed to be
+## invisible in it: everything expensive (the graph, the layout) is built once,
+## the pacing sample runs every five seconds, and a tick is one node's arithmetic.
+func test_step_is_invisible_in_the_tick_budget() -> void:
+	res.call("execute", {"op": "set_auto", "on": true})
+	world.run(100)
+	var runs: int = 4000
+	var t0: int = Time.get_ticks_usec()
+	for i: int in runs:
+		res.call("step", 200000 + i)
+	var usec: float = float(Time.get_ticks_usec() - t0) / float(runs)
+	assert_lt(usec, 400.0,
+		"research.step() averaged %.1f us/tick — the budget for the whole sim is 50000" % usec)
 
 
 func test_the_same_seed_produces_the_same_research() -> void:

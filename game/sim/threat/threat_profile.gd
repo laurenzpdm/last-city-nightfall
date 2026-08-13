@@ -140,15 +140,15 @@ extends Resource
 @export var set_piece_notice_ticks: int = 9600
 ## {band} {dirs} {detail} {clock} {title} are substituted before display.
 @export var warning_lines: PackedStringArray = PackedStringArray([
-	"Watchers report movement on the plain. {band}, somewhere out of {dirs}.",
-	"They have found the old road. {band} coming out of {dirs} — {clock} to nightfall.",
-	"{detail}. Out of {dirs}. {clock}.",
-	"{detail} at the {dirs} approach. {clock}. Get everyone behind the line.",
+	"Watchers report movement on the plain: {band}, somewhere out of {dirs}.",
+	"They have found the old road: {band} coming out of {dirs}. {clock} to nightfall.",
+	"{detail}, out of {dirs}. {clock} to nightfall.",
+	"{detail} coming in from {dirs}. {clock}. Everyone behind the line.",
 ])
 @export var set_piece_notice_line: String = "{title}. They are massing for it — {band} at least, and the cold is coming with them."
 @export var wave_started_line: String = "Night {wave}: {band} out of {dirs}."
 @export var wave_cleared_line: String = "Night {wave} held. {detail}"
-@export var wave_breached_line: String = "They are inside the {dirs} district."
+@export var wave_breached_line: String = "They are through the line out of {dirs}."
 
 # ==========================================================================
 #  NIGHT COMPOSITION
@@ -199,6 +199,12 @@ extends Resource
 @export var spawn_window_ticks: int = 1100
 ## Ticks between combat polls while a wave is live.
 @export var poll_interval_ticks: int = 10
+## Ticks after the last group is handed over before "nothing is alive" is
+## allowed to mean "the night is over". [P07] runs at order 80, one place behind
+## this system, and queues its spawns — so on the tick a group is dispatched the
+## field is legitimately still empty. Without this window every wave would
+## resolve itself the instant it began.
+@export var wave_settle_ticks: int = 80
 ## Survivors melt back into the dark at dawn. A wave always ends.
 @export var withdraw_at_dawn: bool = true
 
@@ -334,6 +340,7 @@ func validate() -> bool:
 
 	spawn_window_ticks = maxi(1, spawn_window_ticks)
 	poll_interval_ticks = maxi(1, poll_interval_ticks)
+	wave_settle_ticks = maxi(1, wave_settle_ticks)
 	siege_step_ticks = maxi(1, siege_step_ticks)
 	defence_shot = maxf(1.0, defence_shot)
 	breach_radius = maxi(1, breach_radius)

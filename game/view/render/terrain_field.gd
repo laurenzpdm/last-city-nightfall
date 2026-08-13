@@ -57,6 +57,7 @@ var _heat: PackedByteArray = PackedByteArray()
 var _soot: PackedByteArray = PackedByteArray()
 var _city: PackedByteArray = PackedByteArray()
 var _city_tmp: PackedByteArray = PackedByteArray()
+var _city_raw: PackedByteArray = PackedByteArray()
 
 var _kind_img: Image = null
 var _snow_img: Image = null
@@ -100,6 +101,7 @@ func setup(world_size: Vector2i, snow_cap: float) -> void:
 	_soot = _alloc(_soot_dim.x * _soot_dim.y, 0)
 	_city = _alloc(_city_dim.x * _city_dim.y, 0)
 	_city_tmp = _alloc(_city_dim.x * _city_dim.y, 0)
+	_city_raw = _alloc(_city_dim.x * _city_dim.y, 0)
 
 	_kind_img = Image.create_from_data(size.x, size.y, false, Image.FORMAT_R8, _kind)
 	_snow_img = Image.create_from_data(_snow_dim.x, _snow_dim.y, false, Image.FORMAT_R8, _snow)
@@ -286,41 +288,56 @@ func _stamp(field: PackedByteArray, dim: Vector2i, step: int, centre_tiles: Vect
 ## base legible at deep night.
 func refresh_city(buildings: Array[Dictionary]) -> void:
 	var t0: int = Time.get_ticks_usec()
-	_city.fill(0)
 	var w: int = _city_dim.x
 	var h: int = _city_dim.y
+	_city_raw.fill(0)
 	for b: Dictionary in buildings:
 		var c: Vector2 = (b["centre"] as Vector2) / (float(TILE) * float(CITY_STEP))
 		var x: int = clampi(int(c.x), 0, w - 1)
 		var y: int = clampi(int(c.y), 0, h - 1)
 		var i: int = y * w + x
 		# A hearth anchors a district; a length of pipe does not.
-		var weight: int = 90 + int(clampf(float(b.get("warm", 0.0)), 0.0, 1.0) * 165.0)
-		if int(b[&"tiles"].x) * int(b[&"tiles"].y) <= 1:
-			weight = 60
-		_city[i] = maxi(int(_city[i]), weight)
+		var tiles: Vector2i = b.get("tiles", Vector2i.ONE)
+		var weight: int = 150 + int(clampf(float(b.get("warm", 0.0)), 0.0, 1.0) * 105.0)
+		if tiles.x * tiles.y <= 1:
+			weight = 95
+		_city_raw[i] = maxi(int(_city_raw[i]), weight)
 
-	# Horizontal then vertical box blur. Two linear passes, no per-pixel kernel.
-	var r: int = CITY_BLUR
-	var span: int = r * 2 + 1
-	for y: int in h:
-		var row: int = y * w
-		for x: int in w:
-			var acc: int = 0
-			for k: int in range(-r, r + 1):
-				acc += int(_city[row + clampi(x + k, 0, w - 1)])
-			_city_tmp[row + x] = acc / span
-	for x: int in w:
-		for y: int in h:
-			var acc2: int = 0
-			for k2: int in range(-r, r + 1):
-				acc2 += int(_city_tmp[clampi(y + k2, 0, h - 1) * w + x])
-			# The blur halves the peak; scale back up so a dense district still
-			# saturates and reads as fully "inside the city".
-			_city[y * w + x] = mini(255, (acc2 / span) * 3)
+	# Two box passes in each direction — a triangular kernel, so the halo has no
+	# visible step where the box ends. All four passes are linear in the field
+	# size and independent of how many buildings made the stamps.
+	_blur_axis(_city_raw, _city_tmp, w, h, true)
+	_blur_axis(_city_tmp, _city, w, h, false)
+	_blur_axis(_city, _city_tmp, w, h, true)
+	_blur_axis(_city_tmp, _city, w, h, false)
+
+	# The blur spreads the halo but flattens the peak, and an isolated hearth on
+	# an empty plain still has to light its own block. Take whichever is greater.
+	for i2: int in _city.size():
+		_city[i2] = mini(255, maxi(int(_city[i2]) * 4, int(_city_raw[i2])))
 	_city_img = Image.create_from_data(w, h, false, Image.FORMAT_R8, _city)
 	city_tex.update(_city_img)
 	_city_us = Time.get_ticks_usec() - t0
+
+
+func _blur_axis(src: PackedByteArray, dst: PackedByteArray, w: int, h: int, horizontal: bool) -> void:
+	var r: int = CITY_BLUR
+	var span: int = r * 2 + 1
+	if horizontal:
+		for y: int in h:
+			var row: int = y * w
+			for x: int in w:
+				var acc: int = 0
+				for k: int in range(-r, r + 1):
+					acc += int(src[row + clampi(x + k, 0, w - 1)])
+				dst[row + x] = acc / span
+		return
+	for x2: int in w:
+		for y2: int in h:
+			var acc2: int = 0
+			for k2: int in range(-r, r + 1):
+				acc2 += int(src[clampi(y2 + k2, 0, h - 1) * w + x2])
+			dst[y2 * w + x2] = acc2 / span
 
 
 ## 0..1 civilisation presence at a tile. The entity pass reads this so a building
@@ -383,5 +400,5 @@ func stats() -> Dictionary:
 		"sources_us": _src_us,
 		"city_us": _city_us,
 		"snow_chunks": _snow_chunks,
-		"bytes": _kind.size() + _snow.size() + _heat.size() + _soot.size() + _city.size() * 2,
+		"bytes": _kind.size() + _snow.size() + _heat.size() + _soot.size() + _city.size() * 3,
 	}

@@ -93,6 +93,31 @@ func today_of(key: StringName) -> float:
 	return float(rec.get("today", 0.0))
 
 
+## Everything one meter has been moved by, over the whole run. This must equal
+## the distance the meter has actually travelled, and a test holds it to that:
+## a ledger whose numbers do not add up to the number on the bar is a lie with
+## extra detail.
+func meter_total(meter: StringName) -> float:
+	var sum: float = 0.0
+	var want: String = String(meter)
+	for key: StringName in _sorted_keys():
+		var rec: Dictionary = _entries[key]
+		if String(rec["meter"]) == want:
+			sum += float(rec["total"])
+	return sum
+
+
+## The same, since the last dawn.
+func meter_today(meter: StringName) -> float:
+	var sum: float = 0.0
+	var want: String = String(meter)
+	for key: StringName in _sorted_keys():
+		var rec: Dictionary = _entries[key]
+		if String(rec["meter"]) == want:
+			sum += float(rec["today"])
+	return sum
+
+
 ## Ages every `recent` window. Called once per sample with the hours elapsed.
 func decay(hours: float) -> void:
 	if hours <= 0.0:

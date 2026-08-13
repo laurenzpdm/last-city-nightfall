@@ -75,11 +75,19 @@ var short_networks: Array[Dictionary] = []
 var has_population: bool = false
 var population: int = 0
 var sick: int = 0
+var injured: int = 0
 var dead: int = 0
 var homeless: int = 0
 var idle: int = 0
 var freezing: int = 0
 var hungry: int = 0
+## Body warmth of the average citizen, 0..1. [P05] keeps needs on a 0..100
+## scale; the HUD normalises once, here, so no widget has to know that.
+var warmth01: float = 1.0
+var morale01: float = 1.0
+var health01: float = 1.0
+var food_days: float = -1.0
+var unrest01: float = 0.0
 
 # --- society -----------------------------------------------------------------
 var has_society: bool = false
@@ -94,11 +102,16 @@ var wave_strength: float = 0.0
 var wave_direction: Vector2 = Vector2.ZERO
 var wave_origin: Vector2 = Vector2.ZERO
 var wave_note: String = ""
+var wave_phrase: String = ""
+var wave_band: String = ""
+var wave_known: bool = true
+var wave_precision: int = 3
 var wave_active: bool = false
 var has_combat: bool = false
 var enemies_alive: int = 0
 var turrets_online: int = 0
 var turrets_total: int = 0
+var turret_uptime: float = 1.0
 
 # --- build / economy ---------------------------------------------------------
 var has_build: bool = false
@@ -420,14 +433,38 @@ func _read_population() -> void:
 	population = int(_ask(_citizens, [&"population", &"alive", &"citizen_count"], m,
 		["population", "alive", "citizens", "pop"], 0.0))
 	sick = int(_ask(_citizens, [&"sick_count", &"sick"], m, ["sick", "ill"], 0.0))
-	dead = int(_ask(_citizens, [&"dead_count", &"dead", &"deaths"], m,
-		["dead", "deaths", "died"], 0.0))
+	injured = int(_ask(_citizens, [&"injured_count"], m, ["injured"], 0.0))
+	dead = int(_ask(_citizens, [&"dead_total", &"dead_count", &"dead", &"deaths"], m,
+		["dead_total", "dead", "deaths", "died"], 0.0))
 	homeless = int(_ask(_citizens, [&"homeless_count", &"homeless"], m, ["homeless"], 0.0))
-	idle = int(_ask(_citizens, [&"idle_count", &"idle", &"unemployed"], m,
-		["idle", "unemployed", "jobless"], 0.0))
-	freezing = int(_ask(_citizens, [&"freezing_count", &"freezing", &"cold"], m,
+	var employed: int = int(_ask(_citizens, [&"employed_count"], m, ["employed"], -1.0))
+	idle = int(_ask(_citizens, [&"idle_count", &"unemployed"], m,
+		["idle", "unemployed", "jobless"], -1.0))
+	if idle < 0:
+		idle = maxi(0, population - employed) if employed >= 0 else 0
+	warmth01 = _normal01(_ask(_citizens, [&"average_warmth"], m, ["avg_warmth"], 100.0))
+	morale01 = _normal01(_ask(_citizens, [&"average_morale"], m, ["avg_morale"], 100.0))
+	health01 = _normal01(_ask(_citizens, [&"average_health"], m, ["avg_health"], 100.0))
+	unrest01 = _normal01(_ask(_citizens, [&"unrest_pressure"], m, ["unrest"], 0.0))
+	food_days = _ask(_citizens, [&"food_days_remaining"], m, ["food_days"], -1.0)
+	# [P05] tracks warmth as a need, not as a headcount, so the "how many are
+	# freezing" number only exists when a part actually offers one. Without it
+	# the city-wide average carries the same warning — see `city_is_cold()`.
+	freezing = int(_ask(_citizens, [&"freezing_count", &"cold_count"], m,
 		["freezing", "cold"], 0.0))
-	hungry = int(_ask(_citizens, [&"hungry_count", &"hungry"], m, ["hungry", "starving"], 0.0))
+	hungry = int(_ask(_citizens, [&"hungry_count", &"starving_count"], m,
+		["hungry", "starving"], 0.0))
+
+
+## True when the average citizen is cold enough to start getting sick.
+## [P05]'s own threshold, normalised: below 40 of 100 warmth is where the harm
+## begins, below 12 is where it kills.
+func city_is_cold() -> bool:
+	return has_population and population > 0 and warmth01 < 0.40
+
+
+func city_is_freezing() -> bool:
+	return has_population and population > 0 and warmth01 < 0.12
 
 
 func _read_society() -> void:
@@ -465,6 +502,11 @@ func _on_wave_cleared(_wave: int) -> void:
 
 ## [P08]'s preview if it has one, the Bus countdown if it does not, nothing if
 ## neither. `wave_seconds` is negative when there is nothing to show.
+##
+## [P08] REDACTS this dictionary by how much scouting the player has earned
+## (`known` / `precision`), and the HUD honours that: an unscouted wave shows a
+## countdown and no direction, because inventing one would be lying to the player
+## about information the game deliberately withheld.
 func _read_threat(tick: int) -> void:
 	has_threat = _threat != null
 	wave_seconds = -1.0
@@ -472,15 +514,30 @@ func _read_threat(tick: int) -> void:
 		var p: Dictionary = _threat.call("next_wave_preview")
 		if not p.is_empty():
 			wave_number = int(p.get("wave", p.get("index", wave_number)))
-			wave_seconds = float(p.get("seconds", p.get("seconds_until",
+			wave_seconds = float(p.get("seconds_until", p.get("seconds",
 				p.get("eta", p.get("time", -1.0)))))
 			wave_strength = float(p.get("strength", p.get("power", p.get("threat", 0.0))))
-			wave_note = String(p.get("note", p.get("description", p.get("label", ""))))
-			wave_direction = _to_vector(p.get("direction", p.get("dir", p.get("bearing", null))))
-			wave_origin = _to_vector(p.get("origin", p.get("from", p.get("spawn", null))), 32.0)
+			wave_known = bool(p.get("known", true))
+			wave_precision = int(p.get("precision", 3))
+			wave_note = String(p.get("title", p.get("note",
+				p.get("description", p.get("label", "")))))
+			wave_phrase = String(p.get("direction_phrase", ""))
+			wave_band = String(p.get("strength_label", p.get("pressure_band", "")))
+			wave_active = bool(p.get("active", wave_active))
+			wave_direction = Vector2.ZERO
+			wave_origin = Vector2.ZERO
+			_read_vectors(p)
+			if wave_direction == Vector2.ZERO:
+				wave_direction = _to_vector(p.get("direction",
+					p.get("dir", p.get("bearing", null))))
+			if wave_origin == Vector2.ZERO:
+				wave_origin = _to_vector(p.get("origin",
+					p.get("from", p.get("spawn", null))), 32.0)
 			if wave_direction == Vector2.ZERO and wave_origin != Vector2.ZERO:
 				wave_direction = (wave_origin - _core_world()).normalized()
-			wave_active = bool(p.get("active", wave_active))
+			if not wave_known:
+				wave_direction = Vector2.ZERO
+				wave_origin = Vector2.ZERO
 	if wave_seconds < 0.0 and _bus_wave.size() == 3:
 		var elapsed: float = float(tick - int(_bus_wave[2])) * 0.05
 		wave_number = int(_bus_wave[0])
@@ -493,6 +550,31 @@ func _read_threat(tick: int) -> void:
 			["seconds_to_wave", "next_wave_seconds"], -1.0)
 		wave_strength = _ask(_threat, [&"wave_strength", &"pressure"], m,
 			["strength", "pressure"], wave_strength)
+
+
+## The heaviest approach lane, and where it comes in. [P08] hands out a
+## `vectors` array once the player has scouted enough to see one; the biggest
+## share is the one the HUD points at.
+func _read_vectors(p: Dictionary) -> void:
+	var raw: Variant = p.get("vectors", null)
+	if raw is Array and not (raw as Array).is_empty():
+		var best: Dictionary = {}
+		var best_share: float = -1.0
+		for v: Dictionary in raw as Array:
+			var share: float = float(v.get("share", 1.0))
+			if share > best_share:
+				best_share = share
+				best = v
+		if not best.is_empty():
+			wave_direction = _compass_vector(String(best.get("compass",
+				best.get("label", ""))))
+			wave_origin = _to_vector(best.get("entry", best.get("choke", null)), 32.0)
+			if wave_direction == Vector2.ZERO and wave_origin != Vector2.ZERO:
+				wave_direction = (wave_origin - _core_world()).normalized()
+			return
+	var labels: Variant = p.get("directions", null)
+	if labels is Array and not (labels as Array).is_empty():
+		wave_direction = _compass_vector(String((labels as Array)[0]))
 
 
 func _read_combat() -> void:

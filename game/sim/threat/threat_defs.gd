@@ -36,6 +36,17 @@ const ROLES: Array[StringName] = [
 	ROLE_SWARM, ROLE_LINE, ROLE_BREAKER, ROLE_STALKER, ROLE_SIEGE,
 ]
 
+## What a warning calls a role before it is precise enough to name creatures.
+## Index-aligned with ROLES.
+const ROLE_PLURAL: Array[String] = [
+	"light bodies", "walkers", "armour", "runners", "siege engines",
+]
+
+
+static func role_plural(r: StringName) -> String:
+	var i: int = ROLES.find(r)
+	return ROLE_PLURAL[i] if i >= 0 else "bodies"
+
 
 static func role_index(r: StringName) -> int:
 	return ROLES.find(r)
@@ -117,9 +128,7 @@ static func compass_short(sector: int) -> String:
 ## What the player is told instead of a number. The bands are wide on purpose:
 ## the telegraph promises a size, never an exact roster, so preparing is a
 ## judgement call rather than arithmetic.
-const BAND_THRESHOLDS: PackedFloat32Array = PackedFloat32Array([
-	0.0, 12.0, 40.0, 100.0, 220.0, 460.0,
-])
+const BAND_THRESHOLDS: Array[float] = [0.0, 12.0, 40.0, 100.0, 220.0, 460.0]
 
 const BAND_LABELS: Array[String] = [
 	"a handful", "a pack", "a column", "a host", "a tide", "everything out there",

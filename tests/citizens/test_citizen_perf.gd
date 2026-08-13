@@ -27,9 +27,42 @@ func requires_systems() -> PackedStringArray:
 	return PackedStringArray(["citizens"])
 
 
+var buildings_placed: int = 0
+
+
 func before_all() -> void:
 	world = SimFixture.new(4242).start()
 	cit = world.system(&"citizens")
+	_found_a_real_city()
+
+
+## A thousand people idling in a field is not the stress case. They need beds to
+## sleep in and benches to work at, because that is what makes them walk, route
+## and change state — which is where the cost actually is.
+func _found_a_real_city() -> void:
+	var build: SimSystem = world.system(&"build")
+	if build == null or not world.alive():
+		return
+	var grid: SimSystem = world.system(&"grid")
+	var core: Vector2i = grid.call("core_cell") if grid != null else Vector2i(128, 128)
+	_place(&"the_hearth", core)
+	for j: int in 9:
+		for i: int in 10:
+			_place(&"housing_block", core + Vector2i(-28 + i * 5, -20 + j * 5))
+	for j2: int in 5:
+		for i2: int in 4:
+			_place(&"workshop", core + Vector2i(24 + i2 * 5, -20 + j2 * 5))
+	world.run(40)
+
+
+func _place(kind: StringName, cell: Vector2i) -> void:
+	var build: SimSystem = world.system(&"build")
+	var result: Dictionary = build.call("execute", {
+		"op": "place", "kind": String(kind), "cell": [cell.x, cell.y],
+		"free": true, "instant": true,
+	})
+	if bool(result.get("ok", false)):
+		buildings_placed += 1
 
 
 func setup() -> void:
@@ -72,9 +105,11 @@ func test_a_thousand_citizens_fit_in_the_tick_budget() -> void:
 	var worst: float = samples[samples.size() - 1]
 	var pop: int = int(cit.call("population"))
 
-	Log.info("citizens.perf", "%d citizens: mean %.0f us, p95 %.0f us, max %.0f us per tick "
+	# Printed on every run, pass or fail: the runner filters Log below WARN, and
+	# a budget you only see when it breaks is a budget nobody is managing.
+	print("    [P05] %d citizens: mean %.0f us, p95 %.0f us, max %.0f us per tick"
 		% [pop, mean, p95, worst]
-		+ "(whole world %.2f ms/tick over %d ticks)"
+		+ "  (whole world %.2f ms/tick over %d ticks)"
 		% [float(wall) / float(MEASURE_TICKS) / 1000.0, MEASURE_TICKS])
 
 	assert_lt(mean, BUDGET_US,
@@ -95,7 +130,7 @@ func test_a_shift_change_does_not_spike_the_frame() -> void:
 	for i: int in 120:
 		world.run(1)
 		worst = maxf(worst, _step_us())
-	Log.info("citizens.perf", "shift change worst tick: %.0f us" % worst)
+	print("    [P05] whole-city shift change, worst tick: %.0f us" % worst)
 	assert_lt(worst, SPIKE_BUDGET_US,
 		"a whole-city shift change costs %.0f us at its worst" % worst)
 
@@ -105,12 +140,15 @@ func test_pathing_work_is_shared_not_repeated() -> void:
 	var stats: Dictionary = router.stats()
 	var searches: float = float(stats["searches"])
 	var hits: float = float(stats["hits"])
-	Log.info("citizens.perf", "routes cached %d, A* searches %d, cache hits %d" % [
+	print("    [P05] routes cached %d, A* searches %d, cache hits %d" % [
 		int(stats["routes"]), int(searches), int(hits)])
 	assert_lt(searches, float(POPULATION),
 		"a thousand people did not each pay for their own path search")
 	assert_le(float(stats["routes"]), float(CitizenRouter.MAX_ROUTES),
 		"the route cache stays inside its cap")
+	if buildings_placed > 4:
+		assert_gt(hits + searches, 0.0,
+			"a city with beds and benches actually makes people walk somewhere")
 
 
 func test_the_population_is_still_coherent_at_scale() -> void:

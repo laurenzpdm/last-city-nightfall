@@ -30,11 +30,14 @@ var _latest: Dictionary[StringName, float] = {}
 func sample(key: StringName, value: float, now_seconds: float) -> bool:
 	_latest[key] = value
 	var last: float = _last_sample_at.get(key, -1000000.0)
-	if now_seconds - last < sample_seconds:
-		return false
-	# A rewound clock (new world, load) must not be read as a colossal delta.
+	# The rewind check comes FIRST: a new world starts at t=0, which is also
+	# "sooner than the cadence allows", and dropping that sample would leave the
+	# old world's history in place to be read as a collapse.
 	if now_seconds < last:
 		reset_key(key)
+		last = -1000000.0
+	if now_seconds - last < sample_seconds:
+		return false
 	_last_sample_at[key] = now_seconds
 	var ring: PackedFloat32Array = _values.get(key, PackedFloat32Array())
 	ring.append(value)

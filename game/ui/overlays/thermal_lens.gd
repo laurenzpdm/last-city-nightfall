@@ -56,6 +56,8 @@ func _draw() -> void:
 func _paint_field() -> void:
 	var w: int = snap.warm_w
 	var h: int = snap.warm_h
+	if w < 2 or h < 2:
+		return
 	if _img == null or _img_w != w or _img_h != h:
 		_img = Image.create_empty(w, h, false, Image.FORMAT_RGBA8)
 		_img_w = w

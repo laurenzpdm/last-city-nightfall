@@ -156,7 +156,7 @@ func post_setup() -> void:
 	_schedule.build(_profile, _read_storm_calendar())
 	_planner.bind(_profile, _grid, _build, _heat)
 	_planner.build_vectors()
-	_siege.bind(_profile, _planner, _build, _grid)
+	_siege.bind(_profile, _planner, _build, _grid, _by_id)
 	_day = _read_day()
 	_was_night = _read_is_night()
 	_plan_night(_day)
@@ -366,6 +366,7 @@ func _plan_night(day: int) -> void:
 		_read_era_index(), _heat_signature, _pressure.pressure)
 
 	var p := WavePlan.new()
+	p.units = _by_id
 	p.wave = night
 	p.day = day
 	p.budget = float(b["total"])
@@ -416,7 +417,7 @@ func _distribute(p: WavePlan) -> void:
 		var total: int = int(entry.get("count", 0))
 		if total <= 0:
 			continue
-		var def: EnemyDef = entry.get("def")
+		var def: ThreatUnit = entry.get("def")
 		var per_unit: float = float(entry.get("cost", 0.0)) / float(maxi(1, total))
 		var counts: PackedInt32Array = _apportion(total, p.vectors)
 		for i: int in p.vectors.size():
@@ -619,7 +620,10 @@ func _run_wave(tick: int, night: bool) -> void:
 	if not night and _profile.withdraw_at_dawn:
 		_resolve_wave(true)
 		return
-	if _all_dispatched() and _live_units() <= 0:
+	# "Nothing is alive" only means the night is over once everything has been
+	# handed over AND whoever owns the bodies has had time to put them on the
+	# map. Polling on the dispatch tick itself would end every wave at dusk.
+	if _settled(tick) and _live_units() <= 0:
 		_resolve_wave(false)
 
 
@@ -925,6 +929,16 @@ func _all_dispatched() -> bool:
 	return true
 
 
+## True once every group is on the map and the settle window has passed.
+func _settled(tick: int) -> bool:
+	if not _all_dispatched():
+		return false
+	var last: int = 0
+	for g: WaveGroup in _plan.groups:
+		last = maxi(last, g.delay_ticks)
+	return (tick - _night_start_tick) >= last + _profile.wave_settle_ticks
+
+
 func _bind() -> void:
 	_climate = Sim.get_system(&"climate")
 	_grid = Sim.get_system(&"grid")
@@ -1025,7 +1039,7 @@ func _op_force_wave(cmd: Dictionary) -> void:
 
 func _op_spawn(cmd: Dictionary) -> void:
 	var kind: StringName = StringName(String(cmd.get("kind", "")))
-	var def: EnemyDef = Registry.get_item(CATEGORY, kind) as EnemyDef
+	var def: ThreatUnit = _by_id.get(kind)
 	if def == null:
 		Log.error(TAG, "spawn: no enemy '%s' in game/content/enemies/" % kind)
 		return
@@ -1125,6 +1139,7 @@ func deserialize(data: Dictionary) -> void:
 	_plan = null
 	if typeof(raw_plan) == TYPE_DICTIONARY and not (raw_plan as Dictionary).is_empty():
 		_plan = WavePlan.from_dict(raw_plan)
+		_plan.bind_units(_by_id)
 	var ps: Variant = data.get("pressure_state", {})
 	if typeof(ps) == TYPE_DICTIONARY:
 		_pressure.from_dict(ps)

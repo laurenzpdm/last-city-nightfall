@@ -47,11 +47,13 @@ const PACING_INTERVAL: int = 100
 const RATE_INTERVAL: int = 20
 ## Insight per second with nothing built at all. The city always has engineers;
 ## a save with no workshops still crawls forward instead of deadlocking.
-const BASE_INSIGHT: float = 1.0
+## Calibrated on the reference run: a bare city clears a tier-1 node in about
+## two minutes, a city with three workshops in under one.
+const BASE_INSIGHT: float = 1.5
 ## Per running building tagged &"research".
-const INSIGHT_PER_LAB: float = 2.2
+const INSIGHT_PER_LAB: float = 2.5
 ## Per running building tagged &"crafter" — drafting happens on the shop floor.
-const INSIGHT_PER_WORKSHOP: float = 0.55
+const INSIGHT_PER_WORKSHOP: float = 0.70
 ## A browned-out city thinks slower, but never stops.
 const COLD_HANDS_FLOOR: float = 0.55
 ## Ambient at which cold starts costing thinking time, and the span to the floor.
@@ -836,6 +838,11 @@ func _refresh_suggestion() -> void:
 	var dark: StringName = &""
 	var dark_score: float = -1.0e9
 	for id: StringName in _available:
+		# The recommendation answers "what after this", so whatever is already on
+		# the bench is not a candidate — and the half-finished bonus in
+		# _score_of() cannot drown out a problem that appeared since.
+		if id == _active:
+			continue
 		var s: float = _score_of(id)
 		if ResearchDefs.needs_consent(_graph.node(id)):
 			if s > dark_score + 0.0001:

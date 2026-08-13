@@ -553,9 +553,17 @@ def stress():
 # horizontal rungs every ten rows. Plots hug a rung on one side or the other,
 # which is what puts every building on the same network as the Hearth.
 
+# Kept close to the caldera floor on purpose. The map is generated at runtime
+# and this script cannot see terrain, so a rung that reaches thirty tiles out
+# eventually crosses rock, `place_line` skips those cells, and the far half of
+# the rung becomes a private network with a radiator freezing on it. That is
+# exactly the failure this file's header is about, and the answer is to stay on
+# ground the biome generator keeps flat. `tools/analyze_balance.py` checks the
+# result against `expects.max_heat_networks` on every run, so if this ever stops
+# being true the balance report says so instead of quietly measuring a ruin.
 ECON_SPINE_DX = 3
-ECON_RUNGS = (-20, -10, 10, 20)
-ECON_ARM = 20               # rung reach either side of the spine
+ECON_RUNGS = (-16, -8, 8, 16)
+ECON_ARM = 15               # rung reach either side of the spine
 
 
 class Row:
@@ -590,13 +598,21 @@ def economy():
     # Generous but not infinite: the point of this run is the HEAT curve, so a
     # material shortfall must never be what stalls it. Materials are read off
     # build.materials in the report as a sanity line, not as the constraint.
-    L.stock(1, {k: 40000 for k in ["iron_plate", "steel_plate", "stone", "timber",
-                                   "scrap", "gear", "copper_coil", "coal"]})
+    stock = {k: 40000 for k in ["iron_plate", "steel_plate", "stone", "timber",
+                                "scrap", "gear", "copper_coil", "coal"]}
+    # Food is PROVISIONED, not simulated. This run measures the heat curve, and
+    # an unbuilt salvage-to-kitchen chain starving the city on day four does not
+    # make the heat reading harder, it makes it meaningless: a dead city draws
+    # no heat. The food economy gets its own instrument when [P03] logistics can
+    # actually carry grain across the map.
+    stock["grain"] = 9000
+    stock["ration"] = 9000
+    L.stock(1, stock)
     L.unlock(2, "thermal_storage", "pressurised_mains")
 
     # --- the city that already stands at dawn on day one ---------------------
     L.place(3, "the_hearth", -2, -2, free=True, instant=True)
-    L.line(4, "heat_pipe", (ECON_SPINE_DX, -24), (ECON_SPINE_DX, 24),
+    L.line(4, "heat_pipe", (ECON_SPINE_DX, -ECON_ARM - 3), (ECON_SPINE_DX, ECON_ARM + 3),
            free=True, instant=True)
     for dy in ECON_RUNGS:
         L.line(5, "heat_pipe", (ECON_SPINE_DX, dy), (ECON_SPINE_DX - ECON_ARM, dy),
@@ -610,42 +626,45 @@ def economy():
     above = {dy: {s: Row(L, dy, s, above=True) for s in (1, -1)} for dy in ECON_RUNGS}
 
     # Two radiators and two housing blocks are the starting settlement.
-    below[-10][1].add(8, "warmth_radiator", free=True, instant=True)
-    below[10][-1].add(9, "warmth_radiator", free=True, instant=True)
-    above[10][1].add(10, "housing_block", free=True, instant=True)
-    above[-10][-1].add(11, "housing_block", free=True, instant=True)
+    below[-8][1].add(8, "warmth_radiator", free=True, instant=True)
+    below[8][-1].add(9, "warmth_radiator", free=True, instant=True)
+    above[8][1].add(10, "housing_block", free=True, instant=True)
+    above[-8][-1].add(11, "housing_block", free=True, instant=True)
 
     # --- the campaign --------------------------------------------------------
-    # One entry per day: what the player gets built during the light half.
-    # (generators, radiators, housing, extras) — sequenced so the answer to a
-    # night is always visible in the morning that preceded it.
+    # One entry per day: what an ATTENTIVE, NOT OPTIMAL player gets built during
+    # the light half. That distinction is the whole calibration. A play-through
+    # that puts two generators up on day one measures a good player; the design
+    # target is the person who gets one up, is frightened by the first night,
+    # and buys a second the next morning. The generator count is deliberately
+    # back-loaded for exactly that reason.
     plan = [
-        # day 1: two generators before the first dusk. This is the beginner's
-        #        line: build them and survive, skip them and do not.
-        (1, ["coal_generator", "coal_generator", "storage_yard",
-             "warmth_radiator", "housing_block"]),
-        # day 2: the squeeze. More homes than the grid comfortably carries.
-        (2, ["coal_generator", "coal_generator", "housing_block",
-             "housing_block", "workshop"]),
+        # day 1: ONE generator before the first dusk. This is the beginner's
+        #        line: build it and survive on the buffer, skip it and do not.
+        (1, ["coal_generator", "storage_yard", "housing_block"]),
+        # day 2: the squeeze. Homes arrive faster than the grid grows, and the
+        #        shed order becomes something the player can feel.
+        (2, ["coal_generator", "housing_block", "housing_block", "workshop"]),
         # day 3: FIRST FROST at dusk. Thermal storage is the answer and it is
-        #        available; a player who spends the day on housing instead loses
-        #        the district.
+        #        already unlocked; a player who spends the day on housing
+        #        instead loses the district.
         (3, ["coal_generator", "coal_generator", "heat_accumulator",
-             "housing_block"]),
-        (4, ["coal_generator", "coal_generator", "warmth_radiator",
-             "housing_block", "housing_block", "granary"]),
+             "warmth_radiator"]),
+        (4, ["coal_generator", "coal_generator", "housing_block",
+             "housing_block", "granary"]),
         (5, ["coal_generator", "coal_generator", "warmth_radiator",
-             "housing_block", "housing_block", "field_kitchen"]),
-        (6, ["coal_generator", "coal_generator", "housing_block",
-             "housing_block", "workshop", "warmth_radiator"]),
-        # day 7: SECOND FROST, and the last day the run covers in full.
-        (7, ["coal_generator", "coal_generator", "heat_booster_pump",
+             "housing_block", "field_kitchen"]),
+        (6, ["coal_generator", "coal_generator", "coal_generator",
              "housing_block", "housing_block"]),
+        # day 7: SECOND FROST, and the last day the run covers in full. The
+        #        booster pump is what keeps the far rungs alive through it.
+        (7, ["coal_generator", "coal_generator", "coal_generator",
+             "heat_booster_pump", "housing_block"]),
     ]
 
     # Rung/side rotation. Radiators and generators go below the rung, housing
     # above it, so a district reads as street-then-homes rather than as noise.
-    slots = [(dy, s) for dy in (-10, 10, -20, 20) for s in (1, -1)]
+    slots = [(dy, s) for dy in (-8, 8, -16, 16) for s in (1, -1)]
     slot_i = 0
     day_ticks = 9600
     for day, kinds in plan:

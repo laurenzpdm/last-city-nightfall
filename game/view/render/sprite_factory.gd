@@ -127,15 +127,17 @@ static func archetype_for(kind: StringName) -> StringName:
 		return &"generator"
 	if k.contains("foundry") or k.contains("smelt") or k.contains("refin") or k.contains("forge") or k.contains("kiln"):
 		return &"foundry"
-	if k.contains("radiator") or k.contains("warmth") or k.contains("emitter"):
+	if k.contains("radiator") or k.contains("warmth") or k.contains("emitter") \
+			or k.contains("recuperat") or k.contains("exchanger") or k.contains("vent"):
 		return &"radiator"
 	if k.contains("accumulator") or k.contains("buffer") or k.contains("battery") or k.contains("cistern"):
 		return &"accumulator"
 	if k.contains("boiler") or k.contains("furnace") or k.contains("heat") or k.contains("steam") \
 			or k.contains("geo") or k.contains("thermal") or k.contains("core"):
 		return &"heat_plant"
-	if k.contains("house") or k.contains("home") or k.contains("hab") or k.contains("shelter") \
-			or k.contains("tent") or k.contains("barrack") or k.contains("dorm"):
+	if k.contains("hous") or k.contains("home") or k.contains("hab") or k.contains("shelter") \
+			or k.contains("tent") or k.contains("barrack") or k.contains("dorm") \
+			or k.contains("lodg") or k.contains("quarters"):
 		return &"habitat"
 	if k.contains("kitchen") or k.contains("canteen") or k.contains("mess") or k.contains("cook"):
 		return &"kitchen"
@@ -149,7 +151,8 @@ static func archetype_for(kind: StringName) -> StringName:
 		return &"depot"
 	if k.contains("drill") or k.contains("derrick") or k.contains("bore") or k.contains("well"):
 		return &"drill"
-	if k.contains("collector") or k.contains("scrap") or k.contains("salvage") or k.contains("picker"):
+	if k.contains("collector") or k.contains("scrap") or k.contains("salvage") \
+			or k.contains("picker") or k.contains("sorter") or k.contains("breaker"):
 		return &"collector"
 	if k.contains("mine") or k.contains("extract") or k.contains("quarry") or k.contains("pump"):
 		return &"mine"
@@ -185,8 +188,12 @@ func building(arch: StringName, tiles: Vector2i = Vector2i.ZERO) -> Dictionary:
 	if not hit.is_empty():
 		return hit
 
-	var ratio: float = sqrt(float(t.x * t.y) / float(maxi(1, nat.x * nat.y)))
-	var lift: float = float(sp["lift"]) * clampf(ratio, 0.55, 1.85)
+	# pow(.., 0.72), not the linear ratio: a building twice the footprint is
+	# taller but NOT a 2x magnification of the same drawing, so the detail in it
+	# stays the same size on screen and two sizes of the same archetype no longer
+	# read as one picture at two zoom levels.
+	var ratio: float = pow(float(t.x * t.y) / float(maxi(1, nat.x * nat.y)), 0.36)
+	var lift: float = float(sp["lift"]) * clampf(ratio, 0.60, 1.70)
 	var tex: ImageTexture = LcnArtCache.get_texture(
 		"bld_%s_%dx%d" % [arch, t.x, t.y], func() -> Image: return _bake_building(arch, t, lift)
 	)

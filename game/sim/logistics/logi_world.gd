@@ -774,6 +774,18 @@ func _give_to_belt(e: LogiEntity, cell: Vector2i, kind: StringName, amount: int,
 	return placed
 
 
+## Pushes an item onto the BACK of the line that starts at `cell`, exactly the
+## way an upstream belt hands one over — same entry rule, same spacing, no
+## cheating on throughput. This is what [P04] calls when a machine drops its
+## output straight onto a belt, and what a benchmark calls to saturate one.
+## False means the line has no room this tick.
+func push_onto_belt(cell: Vector2i, lane: int, kind: StringName) -> bool:
+	var seg: LogiSegment = segment_at(cell)
+	if seg == null or seg.entry_cell != cell:
+		return false
+	return seg.lanes[clampi(lane, 0, 1)].insert_back(intern(kind), seg.slack())
+
+
 ## Feeds a burner's bunker through [P02]'s own contract. Returns whole items.
 func give_fuel(building_id: int, kind: StringName, amount: int) -> int:
 	if _heat == null or amount <= 0:

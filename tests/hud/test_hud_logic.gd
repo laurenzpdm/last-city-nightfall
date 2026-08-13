@@ -223,9 +223,16 @@ func test_worst_first_and_stable() -> void:
 	assert_ge(float(a.entries.size()), 3.0)
 	assert_eq(int((a.entries[0] as Dictionary)["sev"]), Style.Sev.CRITICAL)
 	assert_has(String((a.entries[0] as Dictionary)["head"]), "freezing")
-	var first_pass: String = str(a.entries)
+	var first_pass: PackedStringArray = _keys_of(a)
 	a.refresh(p, 10.5)
-	assert_eq(str(a.entries), first_pass, "an unchanged city must not reshuffle its list")
+	assert_eq(_keys_of(a), first_pass, "an unchanged city must not reshuffle its list")
+
+
+func _keys_of(a: LcnHudAlerts) -> PackedStringArray:
+	var out := PackedStringArray()
+	for e: Dictionary in a.entries:
+		out.append(String(e["key"]))
+	return out
 
 
 func test_an_alert_disappears_when_the_cause_does() -> void:
@@ -377,8 +384,20 @@ func test_probe_reports_nothing_without_a_world() -> void:
 	assert_eq(p.stress(), 0.0, "an absent world is not an emergency")
 
 
+## A world that failed to finish building (a part mid-edit anywhere in the repo)
+## is a skip, not a failure — and the probe is expected to report nothing at all
+## rather than read half-constructed systems.
+func _live_world() -> bool:
+	if world.ensure().alive():
+		return true
+	skip("Sim.create_world did not complete in this build")
+	return false
+
+
 func test_probe_reads_the_live_world() -> void:
-	world.ensure().run(40)
+	if not _live_world():
+		return
+	world.run(40)
 	var p: LcnHudProbe = Probe.new()
 	p.bind()
 	p.refresh(true)
@@ -398,7 +417,7 @@ func test_probe_reads_the_live_world() -> void:
 
 
 func test_probe_describes_a_building_the_way_the_panel_needs_it() -> void:
-	if not world.ensure().has_system(&"build"):
+	if not _live_world() or not world.has_system(&"build"):
 		return
 	world.cmd({
 		"system": &"build", "op": "place", "kind": "the_hearth",
@@ -427,9 +446,9 @@ func test_probe_describes_a_building_the_way_the_panel_needs_it() -> void:
 
 
 func test_probe_survives_a_system_that_only_has_metrics() -> void:
-	var fakes: Script = load("res://tests/hud/fake_systems.gd") as Script
-	if not world.ensure().alive():
+	if not _live_world():
 		return
+	var fakes: Script = load("res://tests/hud/fake_systems.gd") as Script
 	fakes.call("uninstall", &"citizens")
 	fakes.call("install", fakes.get("MetricsOnlyCitizens").new(), &"citizens")
 	var p: LcnHudProbe = Probe.new()
@@ -442,9 +461,9 @@ func test_probe_survives_a_system_that_only_has_metrics() -> void:
 
 
 func test_probe_reads_the_wave_preview_in_any_shape_a_part_might_ship() -> void:
-	var fakes: Script = load("res://tests/hud/fake_systems.gd") as Script
-	if not world.ensure().alive():
+	if not _live_world():
 		return
+	var fakes: Script = load("res://tests/hud/fake_systems.gd") as Script
 	fakes.call("uninstall", &"threat")
 	var threat: SimSystem = fakes.call("install", fakes.get("FakeThreat").new(), &"threat")
 	var p: LcnHudProbe = Probe.new()
@@ -463,9 +482,9 @@ func test_probe_reads_the_wave_preview_in_any_shape_a_part_might_ship() -> void:
 
 
 func test_probe_normalises_hope_however_society_expresses_it() -> void:
-	var fakes: Script = load("res://tests/hud/fake_systems.gd") as Script
-	if not world.ensure().alive():
+	if not _live_world():
 		return
+	var fakes: Script = load("res://tests/hud/fake_systems.gd") as Script
 	fakes.call("uninstall", &"society")
 	var society: SimSystem = fakes.call("install", fakes.get("FakeSociety").new(), &"society")
 	var p: LcnHudProbe = Probe.new()

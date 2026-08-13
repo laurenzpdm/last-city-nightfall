@@ -136,10 +136,17 @@ func test_terrain_tables_cover_every_kind() -> void:
 		assert_between(p.a, 0.0, 1.0, "terrain %d relief in range" % k)
 
 
-func test_flow_ramp_is_monotonic_in_warmth() -> void:
+## The overlay ramp is the shared scale for heat, power and throughput. It has to
+## be monotonic in BRIGHTNESS — that is what a player reads as "more" — and it has
+## to leave the cold end and arrive at the warm end.
+func test_flow_ramp_is_monotonic_in_brightness() -> void:
 	var prev: float = -1.0
 	for i: int in 21:
 		var c: Color = LcnPalette.flow_ramp(float(i) / 20.0)
-		var warmth: float = c.r - c.b
-		assert_ge(warmth, prev - 0.02, "flow ramp keeps getting warmer at %.2f" % (float(i) / 20.0))
-		prev = warmth
+		var lum: float = c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722
+		assert_ge(lum, prev - 0.001, "flow ramp keeps getting brighter at %.2f" % (float(i) / 20.0))
+		prev = lum
+	var cold: Color = LcnPalette.flow_ramp(0.0)
+	var hot: Color = LcnPalette.flow_ramp(1.0)
+	assert_lt(cold.r - cold.b, 0.0, "the empty end of the ramp is cold")
+	assert_gt(hot.r - hot.b, 0.30, "the full end is warm")

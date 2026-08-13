@@ -2,16 +2,18 @@ extends TestCase
 ## [P07] Combat against a real world: turrets, walls, pathing and the heat that
 ## decides whether any of it fires.
 ##
-## One world is built in before_all and reused, because generating a 256x256 map
-## costs more than every assertion in this file put together. Each test cleans up
-## after itself (`_clear`), and anything that genuinely needs a pristine tick
-## counter says so and restarts.
+## Every test gets a world of its own. Worldgen is cheap enough (about a sixth of
+## a second) that isolation is worth more than the time, and combat is a system
+## whose state is exactly "what is standing on the map" — a leftover body from the
+## previous test is not a flake, it is a wrong answer.
+##
+## [P08]'s wave director is switched off for the duration: it drives spawns
+## through this system by design, and a test of combat must be a test of combat.
 
 const HOUND: StringName = &"drift_hound"
 const BREAKER: StringName = &"hoarfrost_breaker"
 
-static var world: SimFixture = null
-
+var world: SimFixture = null
 var combat: CombatSystem = null
 var grid: GridSystem = null
 var build: BuildSystem = null
@@ -22,38 +24,23 @@ func requires_systems() -> PackedStringArray:
 	return PackedStringArray(["combat", "grid", "build"])
 
 
-func before_all() -> void:
-	if world == null:
-		world = SimFixture.new(7).start()
-
-
 func setup() -> void:
-	if world == null:
-		return
-	world.ensure()
+	world = SimFixture.new(7).start()
 	combat = world.system(&"combat") as CombatSystem
 	grid = world.system(&"grid") as GridSystem
 	build = world.system(&"build") as BuildSystem
+	if combat != null:
+		combat.director.enabled = false
+	var threat: SimSystem = world.system(&"threat")
+	if threat != null:
+		threat.enabled = false
 	if grid != null:
 		core = grid.core_cell()
-	_clear()
 
 
 func teardown() -> void:
-	_clear()
-
-
-## Empties the field and takes back every building this suite put down, so the
-## next test starts from the map the previous one inherited.
-func _clear() -> void:
-	if combat == null:
-		return
-	combat.handle_command({"op": "kill_all"})
-	combat.director.enabled = false
-	if build != null:
-		for b: BuildingInstance in build.all_buildings():
-			build.execute({"op": &"remove", "id": b.id, "instant": true})
-	world.run(1)
+	if world != null:
+		world.stop()
 
 
 func _place(kind: StringName, cell: Vector2i) -> BuildingInstance:

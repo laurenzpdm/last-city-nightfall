@@ -23,7 +23,7 @@ extends RefCounted
 ## Weight of the primary answer in the score. Dominates tier and breadth on
 ## purpose: an urgent answer must outrank a cheap irrelevance.
 const W_PRIMARY: float = 4.0
-const W_SECONDARY: float = 1.6
+const W_SECONDARY: float = 2.0
 ## Preference for something that can be paid for right now.
 const W_AFFORDABLE: float = 0.9
 ## Small pull toward nodes that open more of the tree, so the auto-picker does
@@ -153,7 +153,12 @@ func reason_for(node: ResearchNode) -> String:
 	if node == null:
 		return ""
 	var line: String = node.urgency_line.strip_edges()
+	# Whichever of the node's two problems is actually loudest right now. A node
+	# that quietly fixes freezing buildings should say so on the night buildings
+	# are freezing, not recite its headline.
 	var sig: StringName = node.answers
+	if String(node.also_answers) != "" and value(node.also_answers) > value(sig):
+		sig = node.also_answers
 	if String(sig) == "" or value(sig) < 0.05:
 		return line
 	var body: String = ResearchDefs.signal_line(sig)
