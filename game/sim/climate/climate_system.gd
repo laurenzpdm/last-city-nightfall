@@ -178,6 +178,18 @@ func day_progress() -> float:
 	return float(_tick_in_day) / float(_day_ticks)
 
 
+## 0.0 at the first tick of the current phase, approaching 1.0 at its last.
+## [P13] maps (phase_of_day, phase_progress) onto its colour arc — that pair is
+## the join between this system's six phases and the palette's nine keyframes,
+## and it is why dawn on screen is the same instant as dawn in the sim.
+func phase_progress() -> float:
+	var start: int = _profile.phase_starts[_phase_idx]
+	var stop: int = _day_ticks
+	if _phase_idx + 1 < ClimateDefs.PHASE_COUNT:
+		stop = _profile.phase_starts[_phase_idx + 1]
+	return clampf(float(_tick_in_day - start) / float(maxi(1, stop - start)), 0.0, 1.0)
+
+
 ## 1-based campaign day.
 func day() -> int:
 	return _day

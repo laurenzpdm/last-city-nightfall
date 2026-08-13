@@ -56,7 +56,13 @@ var _preview_dropped: bool = false
 var _terrain_names: Dictionary[String, int] = {}
 var _terrain_remap: Dictionary[int, int] = {}
 var _has_bulk_terrain: bool = false
+var _has_phase_clock: bool = false
+var _has_heat_view: bool = false
 var _agent_providers: Array[SimSystem] = []
+## heat_sources() is asked for three times a frame by three different passes.
+## Rebuilding it each time was the single biggest cost in the entity renderer.
+var _sources_cache: Array[Dictionary] = []
+var _sources_tick: int = -2
 
 var _buildings: Dictionary[int, Dictionary] = {}
 var _building_order: Array[int] = []
@@ -87,6 +93,11 @@ func attach() -> void:
 	_terrain_remap.clear()
 	_agent_providers.clear()
 	_has_bulk_terrain = _grid != null and _grid.has_method("terrain_chunk")
+	_has_phase_clock = _climate != null and _climate.has_method("phase_of_day") \
+		and _climate.has_method("phase_progress")
+	_has_heat_view = _heat != null and _heat.has_method("heat_sources_for_view")
+	_sources_tick = -1
+	_sources_cache = []
 
 	if _grid != null:
 		var cap: Variant = _grid.get("snow_cap")
@@ -277,16 +288,27 @@ const PHASE_ARC: Dictionary[StringName, Vector2] = {
 
 
 ## Normalised time of day. 0 = midnight, 0.25 dawn, 0.5 noon, 0.75 dusk.
+##
+## [P09] owns six named phases; the palette owns nine colour keyframes on a 0..1
+## loop. PHASE_ARC is the join, and phase_progress() is what places us inside the
+## current arc. Both names are part of the climate contract, so this is a real
+## handshake and not a guess.
 func day_fraction() -> float:
+	if _has_phase_clock:
+		var ph: StringName = StringName(str(_climate.call("phase_of_day")))
+		if PHASE_ARC.has(ph):
+			var arc: Vector2 = PHASE_ARC[ph]
+			var within: float = clampf(float(_climate.call("phase_progress")), 0.0, 1.0)
+			return fposmod(lerpf(arc.x, arc.y, within), 1.0)
 	if _climate != null:
 		for m: String in ["day_fraction", "time_of_day", "day_t", "normalized_time"]:
 			if _climate.has_method(m):
 				return fposmod(float(_climate.call(m)), 1.0)
 		if PHASE_ARC.has(_phase_now):
-			var arc: Vector2 = PHASE_ARC[_phase_now]
+			var arc2: Vector2 = PHASE_ARC[_phase_now]
 			var span: float = maxf(0.001, _phase_span.get(_phase_now, 1.0))
-			var within: float = clampf(1.0 - _phase_remaining / span, 0.0, 1.0)
-			return fposmod(lerpf(arc.x, arc.y, within), 1.0)
+			var within2: float = clampf(1.0 - _phase_remaining / span, 0.0, 1.0)
+			return fposmod(lerpf(arc2.x, arc2.y, within2), 1.0)
 		var s: Dictionary = _climate.serialize()
 		for k: String in ["day_fraction", "time_of_day", "day_t", "phase_t"]:
 			if s.has(k):
@@ -531,8 +553,11 @@ func add_building(id: int, kind: StringName, cell: Vector2i) -> void:
 		"warm": warm,
 		"base_warm": warm,
 		"radius": radius,
-		"soot": (0.55 + warm * 0.5) if industrial else 0.0,
-		"soot_radius": float(maxi(tiles.x, tiles.y)) * TILE * (3.0 if industrial else 0.0),
+		# Soot is a halo on the ground AROUND a chimney, not a blanket over the
+		# district. Radius scaled to ~1.5 footprints and weight kept low enough
+		# that a cluster of eight furnaces reads as grime, not as a crater.
+		"soot": (0.34 + warm * 0.22) if industrial else 0.0,
+		"soot_radius": float(maxi(tiles.x, tiles.y)) * TILE * (1.5 if industrial else 0.0),
 		"seed": id * 2654435761 & 0xFFFF,
 	}
 	if not _building_order.has(id):
@@ -594,15 +619,27 @@ func building_count() -> int:
 ## Warm light emitters. Real heat data when [P02] exposes it, otherwise derived
 ## from which buildings are hot enough to glow.
 func heat_sources() -> Array[Dictionary]:
-	if _heat != null and _heat.has_method("heat_sources_for_view"):
+	if _sources_tick == _last_tick and not _buildings_dirty:
+		return _sources_cache
+	_sources_cache = _build_heat_sources()
+	_sources_tick = _last_tick
+	return _sources_cache
+
+
+func _build_heat_sources() -> Array[Dictionary]:
+	if _has_heat_view:
 		var raw: Array = _heat.call("heat_sources_for_view")
 		var out: Array[Dictionary] = []
 		for e: Variant in raw:
 			if typeof(e) == TYPE_DICTIONARY:
 				out.append(e)
-		return out
+		# An empty answer is meaningful once the sim owns heat — nothing is lit.
+		# But before any heat building is finished, fall through to the archetype
+		# glow so a fresh world is not a black rectangle.
+		if not out.is_empty():
+			return out
 	var derived: Array[Dictionary] = []
-	var live: bool = _heat != null and _heat.has_method("power_factor")
+	var live: bool = _heat != null and _heat.has_method("power_factor") and _has_heat_view
 	for b: Dictionary in buildings():
 		var w: float = float(b["warm"])
 		var state: int = int(b["state"])
@@ -610,11 +647,13 @@ func heat_sources() -> Array[Dictionary]:
 			continue
 		if state == BUILD_FROZEN or state == BUILD_DISABLED:
 			w *= 0.12
-		elif live:
+		elif live and _heat.call("has_building", int(b["id"])):
 			# A starved network visibly dims its own city. This is the single
-			# most useful readability signal the renderer has.
-			w *= clampf(0.25 + float(_heat.call("power_factor", int(b["id"]))) * 0.85, 0.0, 1.2)
-		if w < 0.12:
+			# most useful readability signal the renderer has. It is only applied
+			# to buildings the heat system actually owns — asking it about a wall
+			# used to return 0.0 and quietly extinguish the entire map.
+			w *= clampf(0.35 + float(_heat.call("power_factor", int(b["id"]))) * 0.75, 0.0, 1.2)
+		if w < 0.10:
 			continue
 		var sp: Dictionary = _sprites.building(b["arch"])
 		derived.append({

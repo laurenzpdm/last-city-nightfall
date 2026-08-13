@@ -147,9 +147,13 @@ func _load_chunk(chunk: Vector2i, snow_now: float) -> void:
 			# because two stacked overlays turn the ground to mud.
 			var s: float = soot[i]
 			var t: float = temp[i]
-			if s > 0.22:
+			if s > 0.18:
+				# Proportional, not binary. The old `if s > 0.22 -> full strength`
+				# stamp meant any cluster of industry read as one solid black disc
+				# with the roads, walls and citizens inside it invisible.
+				var soot_level: int = 1 if s < 0.42 else (2 if s < 0.72 else 3)
 				decal_layer.set_cell(cell, atlas.source_id,
-					LcnTerrainAtlas.soot_coords(variant + 2), 0)
+					LcnTerrainAtlas.soot_coords(soot_level, variant + 2), 0)
 			elif t < -34.0 and (kind == LcnPalette.Terrain.ICE
 					or kind == LcnPalette.Terrain.WATER_FROZEN
 					or kind == LcnPalette.Terrain.ROCK):

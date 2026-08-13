@@ -272,13 +272,6 @@ func _all_source_ids() -> PackedInt32Array:
 	return out
 
 
-func _source_signature(sources: PackedInt32Array) -> int:
-	var h: int = 1469598103
-	for id: int in sources:
-		h = ((h * 31) ^ id) & 0x7FFFFFFF
-	return h
-
-
 # --- routing --------------------------------------------------------------
 
 ## Level-synchronous multi-source BFS. Exact for "fewest hops, then best

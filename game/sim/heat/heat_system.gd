@@ -61,6 +61,11 @@ var _graph: HeatGraph = null
 var _flow: HeatFlow = null
 var _warmth: WarmthField = null
 var _defs: Dictionary[StringName, HeatDef] = {}
+## Kinds that carry no heat behaviour. See _def_for — this is a perf contract.
+var _not_heat: Dictionary[StringName, bool] = {}
+## Building ids [P11] owns that are not heat entities, so the per-tick sync can
+## skip them instead of re-offering every wall on the map forever.
+var _not_ours: Dictionary[int, bool] = {}
 var _nets: Dictionary[int, HeatNetwork] = {}
 var _ids: PackedInt32Array = PackedInt32Array()
 var _ids_dirty: bool = true
@@ -100,6 +105,8 @@ func setup() -> void:
 	_warmth = WarmthField.new()
 	_nets = {}
 	_defs = {}
+	_not_heat = {}
+	_not_ours = {}
 	_ids = PackedInt32Array()
 	_ids_dirty = true
 	_next_local_id = LOCAL_ID_BASE
@@ -255,6 +262,7 @@ func unregister_building(building_id: int) -> bool:
 		_warmth.remove_source(building_id)
 	_graph.remove(building_id)
 	nodes.erase(building_id)
+	_not_ours.erase(building_id)
 	_ids_dirty = true
 	return true
 
@@ -388,6 +396,44 @@ func invalidate_routes() -> void:
 		_nets[nid].route_dirty = true
 
 
+## Every warm thing on the map, for [P13]'s light rig and [P14]'s embers.
+## {pos: Vector2 (world px), radius: float (px), intensity: float 0..1, seed: int}
+##
+## This is the contract that makes the art direction true: a building only glows
+## if it is ACTUALLY radiating heat this tick, so a browned-out district visibly
+## goes dark and warmth is earned rather than decorative. Read-only; the view
+## never writes back.
+func heat_sources_for_view() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for id: int in _sorted_ids():
+		var n: HeatNode = nodes[id]
+		var d: HeatDef = n.def
+		var strength: float = 0.0
+		if d.radiates() and d.radiance > 0.0:
+			strength = clampf(n.radiance_cur / d.radiance, 0.0, 1.0)
+		elif d.output > 0.0:
+			# A generator with no radiance field still has a lit firebox.
+			strength = clampf(n.output / d.output, 0.0, 1.0) * 0.75
+		elif d.demand > 0.0:
+			# Lit windows: a served consumer is a place where someone is warm.
+			strength = clampf(n.served, 0.0, 1.0) * 0.42
+		if n.frozen:
+			strength *= 0.1
+		if not n.enabled:
+			strength *= 0.15
+		if strength < 0.06:
+			continue
+		var tiles: float = maxf(float(maxi(n.bbox_size.x, n.bbox_size.y)), 1.0)
+		var radius: float = maxf(d.radius, tiles * 0.9 + 1.6) * TILE
+		out.append({
+			"pos": n.world_pos,
+			"radius": radius,
+			"intensity": strength,
+			"seed": (id * 2654435761) & 0xFFFF,
+		})
+	return out
+
+
 func graph() -> HeatGraph:
 	return _graph
 
@@ -487,10 +533,18 @@ func _def_for(kind: StringName) -> HeatDef:
 	var cached: HeatDef = _defs.get(kind)
 	if cached != null:
 		return cached
+	# The NEGATIVE cache is not an optimisation, it is the difference between a
+	# playable frame and a slideshow. Without it every wall, road and storage yard
+	# on the map re-ran HeatDef.from_resource (a fresh object and ~40 reflective
+	# property reads) once per tick, forever: 1500 walls cost 28 ms of a 50 ms tick.
+	if _not_heat.has(kind):
+		return null
 	if not Registry.has("buildings", kind):
+		_not_heat[kind] = true
 		return null
 	var def: HeatDef = HeatDef.from_resource(kind, Registry.get_item("buildings", kind))
 	if not def.participates():
+		_not_heat[kind] = true
 		return null
 	_defs[kind] = def
 	return def
@@ -517,12 +571,17 @@ func _sync_from_build() -> void:
 			continue
 		var id: int = int(b.get("id"))
 		seen[id] = true
+		if _not_ours.has(id):
+			continue
 		var n: HeatNode = nodes.get(id)
 		if n == null:
 			if register_building(id, StringName(String(b.get("kind"))),
 					b.get("cell"), int(b.get("rot"))):
 				n = nodes.get(id)
 			if n == null:
+				# The handshake [P11] and [P02] were missing: remember that this
+				# building is not ours, so we stop re-offering it every tick.
+				_not_ours[id] = true
 				continue
 		var on: bool = bool(b.get("enabled"))
 		if n.enabled != on:
@@ -533,6 +592,13 @@ func _sync_from_build() -> void:
 		if id >= LOCAL_ID_BASE or seen.has(id):
 			continue
 		unregister_building(id)
+	if _not_ours.size() > seen.size():
+		# Demolished buildings must not linger in the skip set forever.
+		var stale: Array = _not_ours.keys()
+		stale.sort()
+		for id2: int in stale:
+			if not seen.has(id2):
+				_not_ours.erase(id2)
 
 
 func _network(nid: int) -> HeatNetwork:

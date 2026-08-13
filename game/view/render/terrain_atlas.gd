@@ -11,8 +11,8 @@ extends RefCounted
 ##   rows 0..8   base terrain, one row per LcnPalette.Terrain
 ##   rows 9..11  snow accumulation overlays, light -> heavy
 ##   row  12     ice fracture overlays
-##   row  13     industrial soot overlays
-##   row  14     trodden path / frost rim overlays
+##   rows 13..15 industrial soot overlays, faint -> heavy
+##   row  16     trodden path / frost rim overlays
 
 const TILE: int = 32
 const VARIANTS: int = 4
@@ -22,10 +22,14 @@ const STRIDE: int = TILE + PAD * 2
 const ROW_SNOW: int = 9
 const ROW_CRACK: int = 12
 const ROW_SOOT: int = 13
-const ROW_PATH: int = 14
-const ROWS: int = 15
+const ROW_PATH: int = 16
+const ROWS: int = 17
 
 const SNOW_LEVELS: int = 3
+## Soot is layered like snow instead of being a single on/off stamp. A binary
+## decal at near-full opacity is what turned the whole settlement into a black
+## disc: eight chimneys summed past one threshold and the city vanished.
+const SOOT_LEVELS: int = 3
 
 var tile_set: TileSet = null
 var source_id: int = 0
@@ -80,8 +84,9 @@ static func crack_coords(variant: int) -> Vector2i:
 	return Vector2i(posmod(variant, VARIANTS), ROW_CRACK)
 
 
-static func soot_coords(variant: int) -> Vector2i:
-	return Vector2i(posmod(variant, VARIANTS), ROW_SOOT)
+## Industrial soot overlay. `level` 1..3, heavier is darker and more covering.
+static func soot_coords(level: int, variant: int) -> Vector2i:
+	return Vector2i(posmod(variant, VARIANTS), ROW_SOOT + clampi(level - 1, 0, SOOT_LEVELS - 1))
 
 
 static func path_coords(variant: int) -> Vector2i:
@@ -119,8 +124,8 @@ func _bake_tile(row: int, col: int) -> Image:
 		return _bake_snow_overlay(row - ROW_SNOW + 1, col)
 	if row == ROW_CRACK:
 		return _bake_crack_overlay(col)
-	if row == ROW_SOOT:
-		return _bake_soot_overlay(col)
+	if row < ROW_SOOT + SOOT_LEVELS:
+		return _bake_soot_overlay(row - ROW_SOOT + 1, col)
 	return _bake_path_overlay(col)
 
 
@@ -245,22 +250,26 @@ func _bake_crack_overlay(variant: int) -> Image:
 	return img
 
 
-func _bake_soot_overlay(variant: int) -> Image:
+## `level` 1..3. Even the heaviest tops out well below opaque: soot has to read
+## as grime ON the ground, never as a hole in it.
+func _bake_soot_overlay(level: int, variant: int) -> Image:
 	var img: Image = Image.create(TILE, TILE, false, Image.FORMAT_RGBA8)
 	var s: int = 9100 + variant * 53
+	var peak: float = [0.16, 0.28, 0.42][clampi(level - 1, 0, 2)]
+	var lo: float = [0.58, 0.44, 0.30][clampi(level - 1, 0, 2)]
 	for y: int in TILE:
 		for x: int in TILE:
 			var fx: float = float(x) / float(TILE)
 			var fy: float = float(y) / float(TILE)
 			var n: float = _tfbm(fx * 2.6, fy * 2.6, 3, s, 3)
-			var a: float = smoothstep(0.34, 0.86, n) * 0.82
+			var a: float = smoothstep(lo, 0.92, n) * peak
 			var speck: float = LcnNoise.hash3(x, y, s + 3)
 			if speck > 0.985:
-				a = maxf(a, 0.65)
+				a = maxf(a, peak * 0.9)
 			if a <= 0.004:
 				img.set_pixel(x, y, Color(0, 0, 0, 0))
 				continue
-			var c: Color = LcnPalette.ASH.lerp(Color(0.055, 0.047, 0.043), n)
+			var c: Color = LcnPalette.ASH.lerp(Color(0.13, 0.12, 0.115), n)
 			img.set_pixel(x, y, Color(c.r, c.g, c.b, a))
 	return img
 
