@@ -1,0 +1,65 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_l352d"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_x26tu"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_g4uef"]
+
+[sub_resource type="Resource" id="Resource_obkmo"]
+script = ExtResource("1_l352d")
+fact = &"stock_timber"
+cmp = 1
+threshold = 30.0
+sustained_hours = 2.0
+
+[sub_resource type="Resource" id="Resource_dwmco"]
+script = ExtResource("1_l352d")
+fact = &"day"
+threshold = 2.0
+
+[sub_resource type="Resource" id="Resource_acs1r"]
+script = ExtResource("2_x26tu")
+label = "Take the sledway decking"
+body = "The boards come up and go into the lagging. The sledway becomes packed ice and a rope line."
+cost_line = "Every load from the shaft now takes half again as long, and the rim road in the dark becomes something people are frightened of with reason."
+gain_line = "The mains are lagged before the Frost arrives. The pipes hold."
+outcome = "They had the decking up in a morning and the lagging on by dusk. The first loaded sled to come down the iced way went into the wall of the second boiler house and took a man's leg with it. The pipes held all through the Frost, which is also true."
+effects = Dictionary[StringName, float]({
+&"approval:workers": -14.0,
+&"discontent": 7.0,
+&"hope": -3.0,
+&"stock:timber": 60.0
+})
+
+[sub_resource type="Resource" id="Resource_cw53d"]
+script = ExtResource("2_x26tu")
+label = "Break up the bunk frames"
+body = "The frames on Kettle Row come apart. People sleep on the floor and on what they can find."
+cost_line = "Sleeping on a floor in a caldera is sleeping in the cold, and the people it happens to will be the ones with the least."
+gain_line = "More timber than the sledway would have given, and the shaft keeps running at full rate."
+outcome = "They took eleven frames apart on the north side of the row and the lagging went on. Two of the people who lost a frame were not in a state to be sleeping on a floor. One of them was still working the day it stopped mattering."
+effects = Dictionary[StringName, float]({
+&"approval:families": -18.0,
+&"deaths": 1.0,
+&"discontent": 6.0,
+&"hope": -8.0,
+&"stock:timber": 90.0
+})
+tags = Array[StringName]([&"cruel"])
+is_default = true
+
+[resource]
+resource_name = "The Timber Runs Out"
+script = ExtResource("3_g4uef")
+id = &"the_last_timber"
+title = "The Timber Runs Out"
+category = &"dilemma"
+priority = 75
+lede = "There is not enough wood in the yard to lag the mains before the Frost."
+body = "The stack is down to {stock_timber}. The nearest standing timber is four days of hauling and the Frost is {storm_hours} away, which is not four days.
+
+There is wood in {city}. It is in the sledway decking, in the roof of the Survey Hall, and in the bunk frames on Kettle Row. All of it is doing a job. All of it would burn."
+all_of = Array[ExtResource("1_l352d")]([SubResource("Resource_obkmo"), SubResource("Resource_dwmco")])
+once = false
+cooldown_hours = 120.0
+options = Array[ExtResource("2_x26tu")]([SubResource("Resource_acs1r"), SubResource("Resource_cw53d")])
+deadline_hours = 6.0

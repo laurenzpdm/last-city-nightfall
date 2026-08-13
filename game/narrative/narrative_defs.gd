@@ -47,6 +47,13 @@ const FEED_KEEP: int = 60
 ## that hands you nine decisions has handed you none.
 const PENDING_MAX: int = 4
 
+## How long a card with nothing to decide stays on the pile before it scrolls
+## into the chronicle by itself. Without this the pile fills with notices nobody
+## clicked and the queue stops letting real events through — which is exactly
+## what a full day of the reference run did before these existed.
+const LINGER_BEAT_HOURS: float = 12.0
+const LINGER_REPORT_HOURS: float = 6.0
+
 
 # =========================================================================
 #  categories and severity
@@ -238,14 +245,22 @@ static func fact_label(key: StringName) -> String:
 	return String(row[0]) if row.size() > 0 else String(key)
 
 
+## Facts that are a yes or a no. Worded as one in every sentence they appear in:
+## "Night (yes) is at or above yes" was a real line this build printed, and it is
+## the kind of thing that makes a player stop reading the explanations.
+static func is_boolean_fact(key: StringName) -> bool:
+	return String(key).begins_with("is_") or key == &"storm_active" \
+		or key == &"researching"
+
+
 ## "61.4", "-24.0 C", "3" — the number as the player will read it in the
 ## sentence that explains why something happened.
 static func fact_value_text(key: StringName, value: float) -> String:
 	var row: Array = FACTS.get(key, [])
 	var unit: String = String(row[1]) if row.size() > 1 else ""
 	var decimals: int = int(row[2]) if row.size() > 2 else 1
-	if key.begins_with("is_") or key == &"storm_active" or key == &"researching":
-		return ("yes" if value >= 0.5 else "no") + unit
+	if is_boolean_fact(key):
+		return "yes" if value >= 0.5 else "no"
 	if decimals <= 0:
 		return "%d%s" % [int(roundf(value)), unit]
 	return "%.*f%s" % [decimals, value, unit]

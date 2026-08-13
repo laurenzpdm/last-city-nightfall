@@ -1,0 +1,62 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_5heye"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_ntjga"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_mkah4"]
+
+[sub_resource type="Resource" id="Resource_hcxt5"]
+script = ExtResource("1_5heye")
+fact = &"enemies_alive"
+threshold = 12.0
+
+[sub_resource type="Resource" id="Resource_o28l5"]
+script = ExtResource("1_5heye")
+fact = &"is_night"
+threshold = 1.0
+
+[sub_resource type="Resource" id="Resource_cpfk8"]
+script = ExtResource("2_ntjga")
+label = "Hold the East Wall"
+body = "Everybody stays where they are. The gate stays barred and the line stays on the wall until dawn or until it does not."
+cost_line = "The watch on that wall are not all coming back off it, and you are the one who told them to be there."
+gain_line = "The workshops, the granary and the sorters are all behind that line, and all of them are still there in the morning."
+outcome = "They held it. The count in the morning was short by more than anybody wanted to say at the kitchen, and the workshops opened on time, and both of those facts were read out in the same breath by somebody who did not know how else to do it."
+effects = Dictionary[StringName, float]({
+&"approval:watch": 16.0,
+&"deaths": 2.0,
+&"discontent": -3.0,
+&"hope": -5.0
+})
+
+[sub_resource type="Resource" id="Resource_m40bx"]
+script = ExtResource("2_ntjga")
+label = "Fall back to the Hearth"
+body = "Everybody in, behind the inner ring, and the outer city is left to whatever is out there until the light comes."
+cost_line = "Whatever they get into overnight is gone, and rebuilding it comes out of a yard that is already short."
+gain_line = "The watch come off the wall alive, all of them, and stand round a generator that does not go out."
+outcome = "They came in at a run and the ring held all night and everybody who went behind it came out the other side. The sorter shed was open to the sky by morning and the granary door was off its hinges. Nobody who came in has said it was the wrong call. Nobody has said it was the right one either."
+effects = Dictionary[StringName, float]({
+&"approval:watch": -6.0,
+&"discontent": 5.0,
+&"hope": 2.0,
+&"stock:iron_plate": -40.0,
+&"stock:timber": -80.0
+})
+is_default = true
+
+[resource]
+resource_name = "The Wall or the Hearth"
+script = ExtResource("3_mkah4")
+id = &"the_wall_or_the_hearth"
+title = "The Wall or the Hearth"
+category = &"dilemma"
+priority = 95
+lede = "There are {enemies_alive} of them inside the lamps and the East Wall is not going to hold the night."
+body = "The watch commander is not asking for reinforcements. He knows what there is. He is asking where he should die, which is a different question and he has phrased it politely.
+
+Hold the wall and the workshops behind it stay standing. Fall back to the Hearth and everything outside the inner ring is theirs until morning, and the Hearth keeps running, and the people around it keep breathing."
+all_of = Array[ExtResource("1_5heye")]([SubResource("Resource_hcxt5"), SubResource("Resource_o28l5")])
+once = false
+cooldown_hours = 48.0
+options = Array[ExtResource("2_ntjga")]([SubResource("Resource_cpfk8"), SubResource("Resource_m40bx")])
+deadline_hours = 2.0

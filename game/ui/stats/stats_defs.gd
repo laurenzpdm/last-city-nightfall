@@ -220,19 +220,47 @@ static func item_label(key: StringName) -> String:
 	return " ".join(out)
 
 
-## A stable colour per item, hashed from the id so the same plate is the same
-## green in every chart, in every run, forever — and never rolled, because a
-## legend that reshuffles itself is worse than no legend.
+## The golden angle, in turns. Successive multiples of it are the most evenly
+## spread sequence on a circle there is, which is exactly what a categorical
+## palette needs and what a hash cannot give you: hashing twenty-four items into
+## a hue wheel collides by the birthday problem long before you run out of wheel.
+const GOLDEN_TURN: float = 0.6180339887498949
+
+static var _item_colours: Dictionary[StringName, Color] = {}
+
+
+## Assigns every item a maximally separated colour, once, from the SORTED item
+## list. The list comes out of the recipe graph, which is content, which means
+## the same build always produces the same legend — a legend that reshuffles
+## itself between runs is worse than no legend at all.
+static func assign_palette(items: Array[StringName]) -> void:
+	_item_colours.clear()
+	for i: int in items.size():
+		var hue: float = fmod(0.08 + float(i) * GOLDEN_TURN, 1.0)
+		# Saturation and value cycle on different periods from the hue, so two
+		# items that land near each other on the wheel still separate by weight.
+		var sat: float = 0.44 + 0.16 * float(i % 3)
+		var val: float = 0.99 - 0.11 * float((i / 3) % 3)
+		_item_colours[items[i]] = Color.from_hsv(hue, sat, val)
+
+
+static func palette_size() -> int:
+	return _item_colours.size()
+
+
+## A stable colour per item. Assigned from the sorted item list where one has
+## been handed over, hashed from the id otherwise so an item the recipe graph
+## does not know about still draws as something rather than as white.
 static func item_colour(key: StringName) -> Color:
-	var id: String = String(item_of(key))
+	var item: StringName = item_of(key)
+	var assigned: Variant = _item_colours.get(item)
+	if assigned != null:
+		return assigned
 	var h: int = 0
+	var id: String = String(item)
 	for i: int in id.length():
 		h = (h * 131 + id.unicode_at(i)) & 0x7FFFFFFF
-	var hue: float = float(h % 997) / 997.0
-	# A band of the wheel that stays legible on #05080f and never collides with
-	# the ember/danger hues the alerts own.
-	var c := Color.from_hsv(fmod(0.42 + hue * 0.72, 1.0), 0.52, 0.92)
-	return c
+	return Color.from_hsv(float(h % 997) / 997.0, 0.52, 0.92)
 
 
 static func _kind_of_item_key(key: StringName) -> int:

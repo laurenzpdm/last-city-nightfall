@@ -243,7 +243,7 @@ func _open_chapter(index: int, ch: NarrativeCampaign.Chapter) -> void:
 		"options": [],
 		"raised_tick": _tick,
 		"day": _day(),
-		"deadline_tick": 0,
+		"deadline_tick": _tick + int(NarrativeDefs.LINGER_BEAT_HOURS * float(_hour_ticks)),
 		"priority": 100,
 		"focus": [],
 	}
@@ -422,9 +422,7 @@ func _raise(def: NarrativeEventDef) -> void:
 			"is_default": o.is_default,
 		})
 
-	var deadline: int = 0
-	if def.deadline_hours > 0.0 and not def.options.is_empty():
-		deadline = _tick + int(def.deadline_hours * float(_hour_ticks))
+	var deadline: int = _linger_deadline(def)
 
 	var card: Dictionary = {
 		"seq": int(row["seq"]),
@@ -449,6 +447,19 @@ func _raise(def: NarrativeEventDef) -> void:
 	Bus.alert_raised.emit(
 		NarrativeDefs.SEV_WARN if def.is_dilemma() else NarrativeDefs.SEV_NOTE,
 		StringName("narrative_" + String(def.id)), def.title, _focus_of(def))
+
+
+## When this card comes off the pile by itself. A decision has the deadline its
+## author gave it; a notice has a linger, because a notice nobody clicked must
+## never be the reason the next real event cannot arrive.
+func _linger_deadline(def: NarrativeEventDef) -> int:
+	if not def.options.is_empty():
+		if def.deadline_hours <= 0.0:
+			return 0
+		return _tick + int(def.deadline_hours * float(_hour_ticks))
+	var hours: float = NarrativeDefs.LINGER_BEAT_HOURS if def.category == NarrativeDefs.CAT_BEAT \
+		else NarrativeDefs.LINGER_REPORT_HOURS
+	return _tick + int(hours * float(_hour_ticks))
 
 
 func _focus_of(def: NarrativeEventDef) -> Vector2:
@@ -481,6 +492,10 @@ func _expire_deadlines() -> void:
 			continue
 		var def: NarrativeEventDef = by_id.get(StringName(String(card["id"])))
 		if def == null or def.options.is_empty():
+			# A notice, not a decision. It scrolls into the chronicle, where it
+			# stays readable, instead of holding a slot the next event needs.
+			journal.close(int(card["seq"]), "unread",
+				String(card.get("body", "")), PackedStringArray())
 			pending.remove_at(i)
 			continue
 		_expired += 1

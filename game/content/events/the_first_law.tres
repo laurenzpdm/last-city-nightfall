@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_3bpo6"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_31bco"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_6kvui"]
+
+[sub_resource type="Resource" id="Resource_ss0ev"]
+script = ExtResource("1_3bpo6")
+fact = &"laws_signed"
+threshold = 1.0
+
+[resource]
+resource_name = "A Page in the Book"
+script = ExtResource("3_6kvui")
+id = &"the_first_law"
+title = "A Page in the Book"
+priority = 62
+lede = "The Book of Laws in the Survey Hall has a signature in it."
+body = "It was an empty book on the first day. Somebody had carried it eleven hours through the ice because the column's charter said there had to be one, and for three days it sat on the map table being a joke.
+
+It is not a joke now. Everything that goes into it is permanent, everything that goes into it forecloses something else, and every page in it will be read back to you by somebody who lived under it."
+all_of = Array[ExtResource("1_3bpo6")]([SubResource("Resource_ss0ev")])

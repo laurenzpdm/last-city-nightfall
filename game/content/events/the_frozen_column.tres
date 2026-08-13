@@ -1,0 +1,65 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_vkyxk"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_p1a7p"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_emvix"]
+
+[sub_resource type="Resource" id="Resource_6rwww"]
+script = ExtResource("1_vkyxk")
+fact = &"day"
+threshold = 3.0
+
+[sub_resource type="Resource" id="Resource_ln11g"]
+script = ExtResource("1_vkyxk")
+fact = &"population"
+threshold = 10.0
+
+[sub_resource type="Resource" id="Resource_34taa"]
+script = ExtResource("2_p1a7p")
+label = "Open the gate"
+body = "They come in tonight. The kitchen stretches, the bunks do not, and the Latecomers get nineteen new members before morning."
+cost_line = "Nineteen more mouths against a larder measured in days, and nineteen people sleeping in the open until something is built."
+gain_line = "Nineteen pairs of hands, most of them able, all of them owing you the fact that they are alive."
+outcome = "They came in and sat down where they stood and the kitchen opened again at an hour it does not normally open. By morning two of them were already on the sled crews. One of them was not moving and had not been for a while, and nobody had noticed in the dark."
+effects = Dictionary[StringName, float]({
+&"approval:latecomers": 25.0,
+&"approval:workers": -8.0,
+&"arrivals": 19.0,
+&"discontent": 5.0,
+&"food": -140.0,
+&"hope": 6.0
+})
+
+[sub_resource type="Resource" id="Resource_nij2n"]
+script = ExtResource("2_p1a7p")
+label = "Keep the gate shut"
+body = "You send out what can be spared through the wicket and you do not open the bar. What they do after that is theirs to decide."
+cost_line = "Every person on the wall watches you do it, and the Congregation will have something to say about it at the Hearth tomorrow."
+gain_line = "The larder holds. Nobody in the Nine sleeps outside who was not already sleeping outside."
+outcome = "They stayed at the gate for most of the night and then they went along the rim, west, which is the wrong way. In the morning the watch reported three shapes still on the road at the limit of the lamps. By noon there were none."
+effects = Dictionary[StringName, float]({
+&"approval:faithful": -22.0,
+&"approval:families": -12.0,
+&"discontent": 8.0,
+&"hope": -12.0
+})
+tags = Array[StringName]([&"cruel"])
+is_default = true
+
+[resource]
+resource_name = "A Column on the Rim Road"
+script = ExtResource("3_emvix")
+id = &"the_frozen_column"
+title = "A Column on the Rim Road"
+category = &"dilemma"
+priority = 85
+lede = "Nineteen people came over the north rim at dusk and stopped at the gate."
+body = "They have three sleds and no fuel. They have been walking since the vent they were sitting on gave out, which by their account was eleven days ago, and they lost four on the way. They knew this place was here because the survey maps have it marked as well.
+
+There are {population} people in {city} tonight and {food_days} of food. Nineteen more is nineteen more bowls, nineteen more bodies against the cold, and nineteen more people with no bunk.
+
+The gate is shut. It is minus twenty out there and they are not going to walk anywhere else."
+cause_prose = "They came because your generator is the only light on any map that still works."
+all_of = Array[ExtResource("1_vkyxk")]([SubResource("Resource_6rwww"), SubResource("Resource_ln11g")])
+options = Array[ExtResource("2_p1a7p")]([SubResource("Resource_34taa"), SubResource("Resource_nij2n")])
+deadline_hours = 4.0

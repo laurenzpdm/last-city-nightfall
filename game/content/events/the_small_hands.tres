@@ -1,0 +1,67 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_je001"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_0yxos"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_syeav"]
+
+[sub_resource type="Resource" id="Resource_xnott"]
+script = ExtResource("1_je001")
+fact = &"stalled_machines"
+threshold = 3.0
+sustained_hours = 4.0
+
+[sub_resource type="Resource" id="Resource_6ulpo"]
+script = ExtResource("1_je001")
+fact = &"population"
+threshold = 12.0
+
+[sub_resource type="Resource" id="Resource_f0jf0"]
+script = ExtResource("1_je001")
+fact = &"day"
+threshold = 3.0
+
+[sub_resource type="Resource" id="Resource_7kfhp"]
+script = ExtResource("2_0yxos")
+label = "Send them in"
+body = "The children go into the housings under supervision, for an hour at a time, with the machines cold."
+cost_line = "The Hearthside will not forgive it, and the machines are only cold until somebody decides an hour of downtime is too much."
+gain_line = "Every stalled machine in the Nine is running again by the end of the week."
+outcome = "They were in and out in an hour and they thought it was an adventure, which is the part that will stay with the people who watched. Every sorter is running. Within a fortnight somebody had them going in with the machine warm, to save the hour, and nobody had to give that order either."
+effects = Dictionary[StringName, float]({
+&"approval:families": -26.0,
+&"approval:workers": 14.0,
+&"discontent": 6.0,
+&"flag:the_children_work": 1.0,
+&"hope": -8.0
+})
+tags = Array[StringName]([&"cruel"])
+
+[sub_resource type="Resource" id="Resource_nof0k"]
+script = ExtResource("2_0yxos")
+label = "Cut the housings open"
+body = "The plate comes off the sorters with a torch. They can be serviced from outside afterwards, permanently."
+cost_line = "Iron plate and three days of the workshop's whole capacity, spent on machines that already exist instead of on anything new, and the sorters run cold and lossy forever after."
+gain_line = "Nobody's child goes inside a machine in {city}, this week or any week after it."
+outcome = "It took three days and most of the plate in the yard and the sorters lost a fifth of their rate for good. The foreman has not mentioned it again. The eleven children are at the Ash Stair doing what children do, which is being loud about nothing at the exact hour the night shift is trying to sleep."
+effects = Dictionary[StringName, float]({
+&"approval:families": 16.0,
+&"approval:workers": -10.0,
+&"discontent": 4.0,
+&"stock:iron_plate": -70.0
+})
+is_default = true
+
+[resource]
+resource_name = "The Machines Want Small Hands"
+script = ExtResource("3_syeav")
+id = &"the_small_hands"
+title = "The Machines Want Small Hands"
+category = &"dilemma"
+priority = 68
+lede = "{stalled_machines} machines are standing idle for want of somebody who fits inside them."
+body = "The housings on the sorters were built to be serviced from the inside by somebody who could get an arm and a shoulder through a gap the width of a ledger. No adult in {city} can do it. Eleven children can.
+
+The foreman has not asked. He has simply mentioned it, twice, in the way that people mention a thing they want somebody else to say first."
+all_of = Array[ExtResource("1_je001")]([SubResource("Resource_xnott"), SubResource("Resource_6ulpo"), SubResource("Resource_f0jf0")])
+options = Array[ExtResource("2_0yxos")]([SubResource("Resource_7kfhp"), SubResource("Resource_nof0k")])
+deadline_hours = 12.0

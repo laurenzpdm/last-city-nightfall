@@ -1,0 +1,57 @@
+{
+  "name": "cold_snap",
+  "description": "THE PROOF THAT AUTOMATION IS LOad-BEARING. Every command in this file is one a player's mouse produces: the whole factory is placed through {system: build}, the same path PlayController turns a click and a drag into. A coal generator, a pipe and a radiator go up; a crate of four hundred coal sits ten tiles west of it; a loading arm lifts coal onto a dragged belt line, the line runs east, and a second arm shovels it into the generator's bunker. The city's own coal is set to zero on tick one, so every lump that burns physically came down that belt. At tick 2000 ONE belt tile is demolished — exactly what pressing X on it does — and nothing else changes. Read off state.json: heat.totals.supply is ~19 at the tick-2000 checkpoint and 0.00 at the end; logistics.totals.fuel_by_machine stops climbing; logistics.metrics.lines_dry goes to 1; logistics.totals.hauled is 0 for the whole run, which is what proves no porter quietly covered for the mistake. Coordinates are for seed 7 and were found by tests/logistics/build_probe.gd searching for buildable ground rather than guessed.",
+  "tags": ["reference", "logistics", "visual"],
+  "seed": 7,
+  "ticks": 7000,
+  "sample_every": 20,
+  "expects": {
+    "max_errors": 0,
+    "metrics": {
+      "logistics.belt_lines": [1, 4],
+      "logistics.entities": [10, 14],
+      "logistics.placed_by_player": [10, 14],
+      "logistics.items_moved_total": [200, 100000],
+      "logistics.fuel_by_machine": [30, 400],
+      "logistics.line_fed_burners": [1, 1],
+      "logistics.lines_dry": [1, 1],
+      "logistics.hauled_total": [0, 0],
+      "logistics.corners_turned": [0, 0],
+      "heat.supply": [0.0, 0.001]
+    }
+  },
+  "script": [
+    {"tick": 1, "cmd": {"system": "build", "op": "add_stock", "items": {
+      "iron_plate": 400, "gear": 200, "timber": 200, "scrap": 300,
+      "steel_plate": 200, "stone": 300, "circuit": 60}}},
+    {"tick": 1, "cmd": {"system": "build", "op": "set_stock", "items": {"coal": 0}}},
+
+    {"tick": 2, "cmd": {"system": "build", "op": "place", "kind": "coal_generator",
+      "cell": [30, 30], "free": true, "instant": true}},
+    {"tick": 2, "cmd": {"system": "build", "op": "place", "kind": "heat_pipe",
+      "cell": [33, 30], "free": true, "instant": true}},
+    {"tick": 2, "cmd": {"system": "build", "op": "place", "kind": "warmth_radiator",
+      "cell": [34, 30], "free": true, "instant": true}},
+
+    {"tick": 4, "cmd": {"system": "build", "op": "place", "kind": "crate",
+      "cell": [20, 30], "free": true, "instant": true}},
+    {"tick": 5, "cmd": {"system": "build", "op": "place", "kind": "inserter_mk1",
+      "cell": [21, 30], "rot": 0, "free": true, "instant": true}},
+    {"tick": 6, "cmd": {"system": "build", "op": "place_line", "kind": "belt_mk1",
+      "from": [22, 30], "to": [28, 30], "rot": 0}},
+    {"tick": 7, "cmd": {"system": "build", "op": "place", "kind": "inserter_mk1",
+      "cell": [29, 30], "rot": 0, "free": true, "instant": true}},
+
+    {"tick": 60, "cmd": {"system": "logistics", "op": "insert",
+      "cell": [20, 30], "item": "coal", "count": 400}},
+
+    {"tick": 2000, "cmd": {"system": "build", "op": "remove",
+      "cell": [25, 30], "instant": true}}
+  ],
+  "shots": [
+    {"tick": 400, "name": "line_running"},
+    {"tick": 1900, "name": "before_the_cut"},
+    {"tick": 2600, "name": "just_after_the_cut"},
+    {"tick": 6800, "name": "gone_cold"}
+  ]
+}

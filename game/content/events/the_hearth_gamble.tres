@@ -1,0 +1,65 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_3lbiv"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_nelbb"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_qoabj"]
+
+[sub_resource type="Resource" id="Resource_u1jp0"]
+script = ExtResource("1_3lbiv")
+fact = &"heat_deficit"
+cmp = 2
+threshold = 2.0
+sustained_hours = 2.0
+
+[sub_resource type="Resource" id="Resource_8h1oc"]
+script = ExtResource("1_3lbiv")
+fact = &"day"
+threshold = 2.0
+
+[sub_resource type="Resource" id="Resource_b3ioc"]
+script = ExtResource("2_nelbb")
+label = "Run it past the plate"
+body = "Full draw, all night, and a man sitting with it in case of the thing nobody wants to name."
+cost_line = "Coal at a rate the yard cannot sustain, and a generator that is now one bad hour away from being the story of how this ended."
+gain_line = "Every pipe in {city} carries heat tonight and nobody freezes in a building you decided not to warm."
+outcome = "It ran all night at a draw that made the housing tick. Nobody froze. In the morning the engineer went over it with a lamp for two hours and came out and said nothing at all, and has been going over it with a lamp every morning since."
+effects = Dictionary[StringName, float]({
+&"discontent": -4.0,
+&"hope": 5.0,
+&"stock:coal": -90.0
+})
+
+[sub_resource type="Resource" id="Resource_i5ecn"]
+script = ExtResource("2_nelbb")
+label = "Shut the west line"
+body = "The valve goes over at dusk. Everyone on that run is told to come in toward the Hearth and find a floor."
+cost_line = "Some of them will not come in, because the ones who will not come in are always the ones who cannot."
+gain_line = "The Hearth runs inside its numbers, the coal lasts, and the rest of the grid is comfortable for the first time in days."
+outcome = "The valve went over at dusk and most of them came in and slept on the floor of the Survey Hall. Most of them."
+effects = Dictionary[StringName, float]({
+&"approval:latecomers": -18.0,
+&"deaths": 1.0,
+&"discontent": 8.0,
+&"hope": -7.0
+})
+tags = Array[StringName]([&"cruel"])
+is_default = true
+
+[resource]
+resource_name = "The Hearth Will Not Reach Them"
+script = ExtResource("3_qoabj")
+id = &"the_hearth_gamble"
+title = "The Hearth Will Not Reach Them"
+category = &"dilemma"
+priority = 78
+lede = "The grid is short by {heat_deficit} and the far end of Kettle Row is already below freezing indoors."
+body = "The engineer has two answers and does not like either of them.
+
+The first is to run the Hearth past the number stamped on the plate on its side. It will hold. It has held before. The plate was written by people who assumed there would be spare parts.
+
+The second is to shut the far end of the west line and accept that the houses on it are not houses tonight. There are people in them. There are {homeless} people already outside who would be glad of them."
+all_of = Array[ExtResource("1_3lbiv")]([SubResource("Resource_u1jp0"), SubResource("Resource_8h1oc")])
+once = false
+cooldown_hours = 96.0
+options = Array[ExtResource("2_nelbb")]([SubResource("Resource_b3ioc"), SubResource("Resource_i5ecn")])
+deadline_hours = 4.0

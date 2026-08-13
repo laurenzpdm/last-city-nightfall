@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="LcnNarrativeBootstrap" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_bootstrap.gd" id="1"]
+
+[resource]
+resource_name = "Narrative Bootstrap"
+script = ExtResource("1")
+id = &"narrative_bootstrap"

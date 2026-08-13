@@ -17,16 +17,27 @@ cd "$ROOT"
 
 RUN_DETERMINISM=1
 RUN_PERF=1
+RUN_GATE=1
+GATE_ARGS=""
 QUIET=0
+PY="${PYTHON:-python3}"
 for arg in "$@"; do
   case "$arg" in
-    --fast)    RUN_DETERMINISM=0; RUN_PERF=0 ;;
+    --fast)    RUN_DETERMINISM=0; RUN_PERF=0; GATE_ARGS="--fast" ;;
     --no-perf) RUN_PERF=0 ;;
     --no-determinism) RUN_DETERMINISM=0 ;;
+    --no-gate) RUN_GATE=0 ;;
+    --no-visual) GATE_ARGS="$GATE_ARGS --no-visual" ;;
     --quiet)   QUIET=1 ;;
     *) echo "check: unknown option $arg"; exit 2 ;;
   esac
 done
+
+if ! command -v "$PY" >/dev/null 2>&1; then
+  echo "check: no $PY on PATH — the engine-error scan and the scenario contracts"
+  echo "       are written in python. Set PYTHON=/path/to/python3."
+  exit 2
+fi
 
 if [ ! -x "$GODOT" ]; then
   echo "check: no Godot at $GODOT (set GODOT=/path/to/Godot)"
@@ -45,22 +56,39 @@ trap 'rm -rf "$LOGDIR"' EXIT
 mkdir -p artifacts && : > artifacts/.gdignore   # keep the editor from importing run output
 
 STAGES=()
-RESULTS=()
+RESULTS=()      # "pass" | "FAIL" | "SKIP"
 DETAILS=()
+GROUPS=()       # for the one-screen summary: pass lines collapse per group
 fail=0
+skipped=0
 
-# stage <name> <logfile> <exit code> [detail]
+# stage <name> <logfile> <exit code> [detail] [group]
 record() {
   STAGES+=("$1")
-  RESULTS+=("$3")
   DETAILS+=("${4:-}")
+  GROUPS+=("${5:-$1}")
   if [ "$3" -ne 0 ]; then
+    RESULTS+=("FAIL")
     fail=1
     echo "  ✗ $1${4:+ — $4}"
     [ -s "$2" ] && tail -40 "$2" | sed 's/^/      /'
   else
+    RESULTS+=("pass")
     echo "  ✓ $1${4:+ — $4}"
   fi
+}
+
+# A stage that did not run is not a stage that passed. It does not fail the
+# exit code, but it downgrades the verdict to PARTIAL and is printed in the
+# summary in full — the whole disease here was output a reader could come away
+# from with a rosier impression than the truth.
+record_skip() {
+  STAGES+=("$1")
+  RESULTS+=("SKIP")
+  DETAILS+=("${2:-}")
+  GROUPS+=("${3:-$1}")
+  skipped=$((skipped + 1))
+  echo "  ~ $1 — NOT CHECKED: ${2:-}"
 }
 
 say() { [ "$QUIET" -eq 1 ] || echo "$@"; }
@@ -115,6 +143,11 @@ say "== tests =="
 tests_code=$?
 grep -q "TESTS FAILED" "$LOGDIR/tests.log" && tests_code=1
 if [ "$QUIET" -eq 0 ]; then
+  # The engine's own ERROR/WARNING lines are filtered OUT of this listing on
+  # purpose — but only because tools/scan_errors.py now reads the same log and
+  # gates on them further down. Before that stage existed, this filter was the
+  # single line of shell that hid 70 engine errors per run from every human who
+  # ever read this output.
   sed -n '/^─/,$p' "$LOGDIR/tests.log" | grep -vE '^(WARNING|ERROR|\s+at:)' | sed 's/^/  /'
 fi
 tests_note="$(grep -m1 '^ tests ' "$LOGDIR/tests.log" | sed 's/^ tests  *//')"
@@ -157,7 +190,7 @@ if [ -n "$STANDALONE" ]; then
     else
       note="$(grep -m1 -oE '[0-9]+ (passed|checks)[^,]*' "$log" || true)"
     fi
-    record "$rel" "$log" "$code" "$note"
+    record "$rel" "$log" "$code" "$note" "standalone suites"
   done <<< "$STANDALONE"
 fi
 
@@ -182,21 +215,98 @@ if [ "$RUN_PERF" -eq 1 ]; then
   record "perf gate" "$LOGDIR/perf.log" "$perf_code" "$perf_note"
 fi
 
+# --- 7. engine errors ------------------------------------------------------
+# Godot writes ERROR: / SCRIPT ERROR: / USER ERROR: to stderr and never touches
+# game/core/log.gd, so Log.errors — the number the harness gates on — counted
+# none of them. Every stage above already redirects 2>&1 into its own log; this
+# reads all of them at once. tools/error_allowlist.txt is the only escape, and
+# an entry there needs an owner, a justification and an expiry date.
+say ""
+say "== engine errors =="
+ERR_LOGS=("$LOGDIR"/*.log)
+"$PY" tools/scan_errors.py "${ERR_LOGS[@]}" --label "engine errors across every stage" \
+    --json artifacts/engine_errors.json > "$LOGDIR/errors.report" 2>&1
+err_code=$?
+[ "$QUIET" -eq 0 ] && sed 's/^/  /' "$LOGDIR/errors.report"
+err_note="$("$PY" - <<'PY' 2>/dev/null || true
+import json
+try:
+    d = json.load(open("artifacts/engine_errors.json"))
+except Exception:
+    raise SystemExit
+b = sum(x["count"] for x in d["blocking"])
+k = sum(x["count"] for x in d["tracked"])
+if b:
+    top = d["blocking"][0]
+    print("%d blocking (worst: x%d %s %s)" % (b, top["count"], top["message"][:60], top["blame"]))
+else:
+    print("none blocking, %d known" % k)
+PY
+)"
+record "engine errors" "$LOGDIR/errors.report" "$err_code" "$err_note"
+
+# --- 8. the gate: reachability, scenario contracts, the visual run ---------
+if [ "$RUN_GATE" -eq 1 ]; then
+  say ""
+  say "== gate =="
+  tools/gate.sh $GATE_ARGS --out=artifacts/gate > "$LOGDIR/gate.log" 2>&1
+  [ "$QUIET" -eq 0 ] && sed -n '/── /,$p' "$LOGDIR/gate.log" | grep -vE '^ *(ok|$)' | sed 's/^/  /'
+  if [ -s artifacts/gate/summary.txt ]; then
+    while IFS='|' read -r gname gstatus gdetail; do
+      [ -z "$gname" ] && continue
+      case "$gstatus" in
+        pass) record "$gname" /dev/null 0 "$gdetail" "gate" ;;
+        SKIP) record_skip "$gname" "$gdetail" "gate" ;;
+        *)    record "$gname" /dev/null 1 "$gdetail" "gate" ;;
+      esac
+    done < artifacts/gate/summary.txt
+  else
+    record "gate" "$LOGDIR/gate.log" 1 "produced no summary — it did not run"
+  fi
+else
+  record_skip "gate" "reachability, scenario contracts and the visual run were all skipped" "gate"
+fi
+
 # --- summary ---------------------------------------------------------------
+# One screen. Failures and unchecked stages in full, passes collapsed by group,
+# and a verdict that cannot be read more generously than the evidence.
 echo ""
 echo "────────────────────────────────────────────────────────────────────────"
+printf ' %-22s %s\n' "checked" "${#STAGES[@]} stages"
+n_fail=0; n_skip=0
 for i in "${!STAGES[@]}"; do
-  if [ "${RESULTS[$i]}" -eq 0 ]; then
-    printf ' %-28s pass\n' "${STAGES[$i]}"
-  else
-    printf ' %-28s FAIL   %s\n' "${STAGES[$i]}" "${DETAILS[$i]}"
+  [ "${RESULTS[$i]}" = "FAIL" ] && n_fail=$((n_fail + 1))
+  [ "${RESULTS[$i]}" = "SKIP" ] && n_skip=$((n_skip + 1))
+done
+printf ' %-22s %s\n' "failing" "$n_fail"
+printf ' %-22s %s\n' "not checked" "$n_skip"
+echo ""
+for i in "${!STAGES[@]}"; do
+  case "${RESULTS[$i]}" in
+    FAIL) printf ' FAIL  %-30s %s\n' "${STAGES[$i]}" "${DETAILS[$i]}" ;;
+    SKIP) printf ' SKIP  %-30s %s\n' "${STAGES[$i]}" "${DETAILS[$i]}" ;;
+  esac
+done
+[ "$n_fail" -eq 0 ] && [ "$n_skip" -eq 0 ] && echo " nothing failed and nothing was skipped"
+echo ""
+printf ' passed:'
+prev=""
+for i in "${!STAGES[@]}"; do
+  [ "${RESULTS[$i]}" != "pass" ] && continue
+  g="${GROUPS[$i]}"
+  if [ "$g" != "$prev" ]; then
+    printf ' %s' "$g"
+    prev="$g"
   fi
 done
+echo ""
 echo "────────────────────────────────────────────────────────────────────────"
 
-if [ "$fail" -eq 0 ]; then
-  echo "CHECK GREEN"
+if [ "$fail" -ne 0 ]; then
+  echo "CHECK RED — $n_fail failing"
+elif [ "$n_skip" -ne 0 ]; then
+  echo "CHECK GREEN, PARTIAL — $n_skip stage(s) were never checked. Not the same as green."
 else
-  echo "CHECK RED"
+  echo "CHECK GREEN"
 fi
 exit $fail

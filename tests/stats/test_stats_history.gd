@@ -194,17 +194,30 @@ func test_item_keys_round_trip_and_read_as_english() -> void:
 
 
 func test_item_colours_are_stable_and_distinct() -> void:
+	var items: Array[StringName] = [&"ammo_shell", &"circuit", &"coal", &"copper_coil",
+		&"gear", &"grain", &"heat_core", &"insulation", &"iron_plate",
+		&"pipe_segment", &"slag", &"steel_plate", &"stone", &"timber"]
+	items.sort()
+	LcnStatsDefs.assign_palette(items)
 	var a: Color = LcnStatsDefs.item_colour(&"iron_plate")
-	var b: Color = LcnStatsDefs.item_colour(&"iron_plate")
-	assert_true(a.is_equal_approx(b), "the same item is the same colour every time")
-	var seen: Dictionary = {}
-	var items: Array[StringName] = [&"iron_plate", &"copper_coil", &"steel_plate",
-		&"gear", &"circuit", &"insulation", &"pipe_segment", &"ammo_shell",
-		&"heat_core", &"coal", &"grain", &"timber"]
-	for item: StringName in items:
-		var key: String = "%d" % int(LcnStatsDefs.item_colour(item).h * 40.0)
-		assert_false(seen.has(key), "%s does not collide with %s" % [item, seen.get(key, "")])
-		seen[key] = String(item)
+	LcnStatsDefs.assign_palette(items)
+	assert_true(a.is_equal_approx(LcnStatsDefs.item_colour(&"iron_plate")),
+		"the same content produces the same legend, every run, forever")
+	assert_true(LcnStatsDefs.item_colour(LcnStatsDefs.produced_key(&"iron_plate"))
+		.is_equal_approx(a), "a prefixed key resolves to the same colour")
+
+	# Every pair has to be separable at a glance on a dark plate. 0.16 in
+	# straight RGB distance is roughly the point at which two lines in a legend
+	# stop being tellable apart.
+	for i: int in items.size():
+		for j: int in range(i + 1, items.size()):
+			var ci: Color = LcnStatsDefs.item_colour(items[i])
+			var cj: Color = LcnStatsDefs.item_colour(items[j])
+			var d: float = absf(ci.r - cj.r) + absf(ci.g - cj.g) + absf(ci.b - cj.b)
+			assert_true(d > 0.16, "%s and %s are tellable apart (%.3f)" % [
+				items[i], items[j], d])
+	assert_true(LcnStatsDefs.item_colour(&"an_item_no_recipe_makes").a > 0.5,
+		"and an item the graph does not know about still draws as something")
 
 
 # ============================================================ formatting ====

@@ -1,0 +1,70 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_6fe3t"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_bk4ur"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_lfr34"]
+
+[sub_resource type="Resource" id="Resource_c7nnj"]
+script = ExtResource("1_6fe3t")
+fact = &"food_days"
+cmp = 1
+threshold = 6.0
+sustained_hours = 2.0
+
+[sub_resource type="Resource" id="Resource_4723u"]
+script = ExtResource("1_6fe3t")
+fact = &"population"
+threshold = 12.0
+
+[sub_resource type="Resource" id="Resource_pmtrq"]
+script = ExtResource("1_6fe3t")
+fact = &"day"
+threshold = 2.0
+
+[sub_resource type="Resource" id="Resource_g1jb2"]
+script = ExtResource("2_bk4ur")
+label = "Make an example of him"
+body = "He is put out of the gate at first light with what he came in with, and the reason is read out at the kitchen."
+cost_line = "You have taken a father away from two children in front of everybody, over grain, and nobody who watched it will forget which of those two things you chose."
+gain_line = "Nothing goes missing from the granary again this winter. Not one thing."
+outcome = "He went out at first light and did not argue, which was worse. The granary was not touched again. The children were taken in by the row and are fed by people who have less than he did."
+effects = Dictionary[StringName, float]({
+&"approval:families": -20.0,
+&"approval:watch": 14.0,
+&"discontent": -6.0,
+&"flag:a_name_was_read_out": 1.0,
+&"hope": -9.0
+})
+tags = Array[StringName]([&"cruel"])
+
+[sub_resource type="Resource" id="Resource_mlrhd"]
+script = ExtResource("2_bk4ur")
+label = "Put it back and say nothing"
+body = "The grain that is left goes back in the store. No name is read out. The crossbeam gets fixed."
+cost_line = "The Watch know you knew. The clerk knows you knew. By the end of the week the row knows, and the store is a suggestion rather than a store."
+gain_line = "Two children keep a father, and nobody stands in the cold watching a man be sent out to die of a decision."
+outcome = "Nothing was said and the beam was fixed the same day. Over the next fortnight the granary lost a little more, in smaller amounts, from more than one person. None of it was ever worth reading a name out for either."
+effects = Dictionary[StringName, float]({
+&"approval:watch": -12.0,
+&"discontent": 5.0,
+&"food": -60.0,
+&"hope": 4.0
+})
+is_default = true
+
+[resource]
+resource_name = "Somebody Got Into the Granary"
+script = ExtResource("3_lfr34")
+id = &"the_thief"
+title = "Somebody Got Into the Granary"
+category = &"dilemma"
+priority = 65
+lede = "Four days of grain, taken through the roof, and the rest left behind."
+body = "They knew where the crossbeam was weak and they knew the clerk walks the yard at the half hour. That is not a stranger. That is somebody who has been inside the Nine since the column stopped here.
+
+The Watch have a name. The name belongs to a man with two children and a bad hand, and the clerk who gave it up has asked, twice, whether he can take it back.
+
+There are {food_days} of food left. The whole city knows the number and the whole city knows four days of it walked out of the roof."
+all_of = Array[ExtResource("1_6fe3t")]([SubResource("Resource_c7nnj"), SubResource("Resource_4723u"), SubResource("Resource_pmtrq")])
+options = Array[ExtResource("2_bk4ur")]([SubResource("Resource_g1jb2"), SubResource("Resource_mlrhd")])
+deadline_hours = 12.0

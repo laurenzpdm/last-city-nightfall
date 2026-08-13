@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_ixij3"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_x2510"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_quhqm"]
+
+[sub_resource type="Resource" id="Resource_unwbu"]
+script = ExtResource("1_ixij3")
+fact = &"frozen_buildings"
+threshold = 2.0
+sustained_hours = 1.0
+
+[resource]
+resource_name = "Frozen Solid"
+script = ExtResource("3_quhqm")
+id = &"the_frozen_works"
+title = "Frozen Solid"
+priority = 76
+lede = "{frozen_buildings} structures in {city} have gone below the temperature at which they do anything at all."
+body = "Frozen is not slow. Frozen is a machine with ice inside the housing and a crew standing next to it with their hands under their arms.
+
+It does not come back on its own. Heat has to reach it, and heat is reaching it through the same pipes that are the reason it froze."
+all_of = Array[ExtResource("1_ixij3")]([SubResource("Resource_unwbu")])
+once = false

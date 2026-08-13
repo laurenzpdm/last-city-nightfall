@@ -49,9 +49,10 @@ const BURNER_RESCAN_TICKS: int = 200
 ## latency on a bunker that starts empty anyway.
 const BURNER_RESCAN_MIN: int = 20
 ## Ticks between sweeps of [P11]'s building list when its roster has not moved.
-## Nothing can have changed, so this is only a tripwire against a change we
-## failed to notice; the real trigger is roster_version.
-const SYNC_EVERY: int = 200
+## roster_version counts placements, removals, completions and switches — but
+## NOT a rotation, and a rotated belt has to turn. So the unconditional sweep
+## stays, at the cadence it always had; the roster counter only makes it faster.
+const SYNC_EVERY: int = 20
 ## Fastest a sweep may happen while the roster IS moving. A player dragging a
 ## belt wants it carrying coal a fifth of a second later, not a second later,
 ## and a mass build must still not walk seventeen hundred buildings every tick.

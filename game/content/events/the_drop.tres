@@ -1,0 +1,60 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_v2gfm"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_vjt1b"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_33gtx"]
+
+[sub_resource type="Resource" id="Resource_lcj2o"]
+script = ExtResource("1_v2gfm")
+fact = &"deaths"
+threshold = 5.0
+sustained_hours = 2.0
+
+[sub_resource type="Resource" id="Resource_8agh3"]
+script = ExtResource("2_vjt1b")
+label = "Open the Drop"
+body = "They go down the west shaft, all of them, at night, and the mouth is boarded over afterwards."
+cost_line = "There is nowhere to stand and be sad. The Congregation will hold the vigil at the Hearth instead, which puts forty people in front of the generator every evening."
+gain_line = "The East Wall is clear. The Watch stop standing where the pile was and looking at it."
+outcome = "It took most of a night and the men who did it were given the morning off and none of them slept. The wall is clear. Somebody has scratched the names into the boards over the mouth, all of them, in a hand that got worse as it went."
+effects = Dictionary[StringName, float]({
+&"approval:faithful": -24.0,
+&"approval:watch": 12.0,
+&"discontent": -5.0,
+&"flag:the_drop_is_open": 1.0,
+&"hope": -6.0
+})
+tags = Array[StringName]([&"cruel"])
+
+[sub_resource type="Resource" id="Resource_edrbc"]
+script = ExtResource("2_vjt1b")
+label = "Leave them where they are"
+body = "The pile stays. More canvas is found. Somebody is put on it to keep it decent."
+cost_line = "It grows, in full view of the wall the watch stand on every night, and when the fever comes it will come from there."
+gain_line = "Every family in the Nine knows exactly where their people are."
+outcome = "More canvas was found and the pile was made decent, which took one person off the shaft permanently. The Congregation come down on the seventh evening and read the names out. So does everybody else, eventually, because they can."
+effects = Dictionary[StringName, float]({
+&"approval:faithful": 18.0,
+&"approval:watch": -10.0,
+&"discontent": 6.0,
+&"flag:the_wall_is_a_graveyard": 1.0,
+&"hope": 3.0
+})
+is_default = true
+
+[resource]
+resource_name = "The Dead Are Still by the East Wall"
+script = ExtResource("3_33gtx")
+id = &"the_drop"
+title = "The Dead Are Still by the East Wall"
+category = &"dilemma"
+priority = 72
+lede = "There are more of them than the tarp is long."
+body = "The ground is four metres of permafrost and nobody is digging a grave in it. They have been stacked against the East Wall since the first one, under canvas, in the order they arrived, and the pile is now at {deaths}.
+
+There is a vent shaft on the west side of the caldera that goes down further than anybody has ever been. The Watch call it the Drop. It is warm at the mouth of it, which is the part nobody says out loud.
+
+The Congregation want them where they can be visited. The Watch want them gone before the thaw that is not coming."
+all_of = Array[ExtResource("1_v2gfm")]([SubResource("Resource_lcj2o")])
+options = Array[ExtResource("2_vjt1b")]([SubResource("Resource_8agh3"), SubResource("Resource_edrbc")])
+deadline_hours = 10.0

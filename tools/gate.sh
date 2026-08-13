@@ -1,25 +1,30 @@
 #!/usr/bin/env bash
 # THE TEETH. Everything the old gate could not see.
 #
-#   tools/gate.sh                 # reachability + the gate scenarios + a visual run
-#   tools/gate.sh --fast          # reachability + smoke only  (pre-commit loop)
-#   tools/gate.sh --all           # every scenario in tests/scenarios/, including the long one
-#   tools/gate.sh --no-visual     # skip the windowed run  (states it in the report)
-#   tools/gate.sh --scenarios=a,b # exactly these
+#   tools/gate.sh                  # reachability + gate scenarios + endurance + a visual run
+#   tools/gate.sh --fast           # reachability + smoke only        (pre-commit loop)
+#   tools/gate.sh --all            # every scenario in tests/scenarios/, including the long one
+#   tools/gate.sh --no-visual      # skip the windowed run  (says so, loudly, in the report)
+#   tools/gate.sh --scenarios=a,b  # exactly these
+#   tools/gate.sh --show-pass      # print the assertions that held, too
 #
 # Three questions the 768 tests, the determinism replay and the perf gate could
 # all answer "green" to while the build was unplayable:
 #
-#   1. did the process print engine errors?   Godot's ERROR:/SCRIPT ERROR: go to
-#      stderr and never touch Log.errors, so 70 of them per visual run were
-#      invisible to every gate in the repo.
-#   2. can a human reach what was built?      the build menu was never in the
-#      scene tree; the palette, tech tree, recipe browser, blueprint library and
-#      Book of Laws therefore did not exist in the running game.
-#   3. did anything actually HAPPEN?          24000 ticks, 0 items moved, 0 belt
-#      lines, 43 shots in three days, one enemy alive at full HP for 7000 ticks.
+#   1. did the process print engine errors?  Godot's ERROR:/SCRIPT ERROR: go to
+#      stderr and never touch Log.errors, so 70 of them in one visual run were
+#      invisible to every gate in this repo — and check.sh even filtered ^ERROR
+#      out of the test output before showing it to a human.
+#   2. can a human reach what was built?     the build menu was never in the
+#      scene tree, so the palette, tech tree, recipe browser, blueprint library
+#      and Book of Laws did not exist in the running game.
+#   3. did anything actually HAPPEN?         24000 ticks, 0 items moved, 0 belt
+#      lines, 43 shots in three days, an enemy at full HP for 7000 ticks.
 #
-# Exit 0 only when all three are clean. Every stage runs even after one fails.
+# Writes <out>/summary.txt as `section|status|detail` lines so tools/check.sh can
+# print one honest line per section instead of a single opaque verdict.
+#
+# Exit 0 only when every section is clean.
 set -uo pipefail
 GODOT="${GODOT:-/Applications/Godot.app/Contents/MacOS/Godot}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -28,14 +33,16 @@ PY="${PYTHON:-python3}"
 
 SCENARIOS=(smoke first_night stress_1000 determinism)
 RUN_VISUAL=1
+RUN_ENDURANCE=1
 SHOW_PASS=""
 OUT_ROOT="artifacts/gate"
 
 for arg in "$@"; do
   case "$arg" in
-    --fast)        SCENARIOS=(smoke); RUN_VISUAL=0 ;;
+    --fast)        SCENARIOS=(smoke); RUN_VISUAL=0; RUN_ENDURANCE=0 ;;
     --all)         SCENARIOS=(); for f in tests/scenarios/*.json; do b="$(basename "$f" .json)"; [ "${b#_}" = "$b" ] && SCENARIOS+=("$b"); done ;;
     --no-visual)   RUN_VISUAL=0 ;;
+    --no-endurance) RUN_ENDURANCE=0 ;;
     --show-pass)   SHOW_PASS="--show-pass" ;;
     --scenarios=*) IFS=',' read -r -a SCENARIOS <<< "${arg#--scenarios=}" ;;
     --out=*)       OUT_ROOT="${arg#--out=}" ;;
@@ -48,13 +55,32 @@ if [ ! -x "$GODOT" ]; then
   exit 2
 fi
 
-mkdir -p artifacts && : > artifacts/.gdignore
+mkdir -p artifacts "$OUT_ROOT" && : > artifacts/.gdignore
+SUMMARY="$OUT_ROOT/summary.txt"
+: > "$SUMMARY"
 LOGDIR="$(mktemp -d "${TMPDIR:-/tmp}/lcn_gate.XXXXXX")"
 trap 'rm -rf "$LOGDIR"' EXIT
-
 fail=0
-NOTES=()
-note() { NOTES+=("$1"); }
+skipped=0
+
+# section <name> <code> <detail>
+sect() {
+  local status="pass"
+  [ "$2" -ne 0 ] && { status="FAIL"; fail=1; }
+  printf '%s|%s|%s\n' "$1" "$status" "$3" >> "$SUMMARY"
+}
+
+# A section that did not run is NOT a section that passed. It never fails the
+# exit code — a pre-commit loop has to stay usable — but it downgrades the
+# verdict to PARTIAL and is printed in full, so nobody can read a skipped
+# visual pass as a checked one.
+sect_skip() {
+  skipped=$((skipped + 1))
+  printf '%s|SKIP|%s\n' "$1" "$2" >> "$SUMMARY"
+}
+
+# The one-line verdict a python checker printed, for the summary file.
+tailnote() { grep -m1 -E "^ [a-z].* — .*pass" "$1" | sed 's/^ *//' ; }
 
 echo "════════════════════════════════════════════════════════════════════════"
 echo " gate — engine errors · reachability · scenario contracts"
@@ -66,76 +92,108 @@ echo "── reachability ──"
 REACH_OUT="$OUT_ROOT/reach"
 rm -rf "$REACH_OUT"
 if [ "${LCN_NO_DISPLAY:-0}" = "1" ]; then
-  echo " SKIPPED BY LCN_NO_DISPLAY — boot skips the entire view layer without a"
-  echo " display server, so this run can say nothing about whether the UI is"
-  echo " reachable. Treat the build as UNVERIFIED, not as green."
-  note "reachability SKIPPED (LCN_NO_DISPLAY=1) — the UI was never checked"
-  fail=1
+  echo " SKIPPED BY LCN_NO_DISPLAY. Without a display server boot skips the whole"
+  echo " view layer, so a headless pass can say nothing about whether the UI is"
+  echo " reachable. The build is UNVERIFIED here, not green."
+  sect_skip "reachability" "LCN_NO_DISPLAY=1 — the UI was never looked at"
 else
   "$GODOT" --path "$ROOT" --resolution 1280x720 tools/reachability_scene.tscn -- \
       --out="$REACH_OUT" --frames=50 > "$LOGDIR/reach.log" 2>&1
-  reach_run=$?
-  [ "$reach_run" -ne 0 ] && { echo " the probe process exited $reach_run"; tail -20 "$LOGDIR/reach.log" | sed 's/^/   /'; fail=1; }
-  "$PY" tools/check_reachability.py "$REACH_OUT" $SHOW_PASS || fail=1
-  "$PY" tools/scan_errors.py "$LOGDIR/reach.log" --label "engine errors during boot" || fail=1
+  rcode=$?
+  if [ "$rcode" -ne 0 ]; then
+    echo " the probe process exited $rcode"
+    tail -20 "$LOGDIR/reach.log" | sed 's/^/   /'
+  fi
+  "$PY" tools/check_reachability.py "$REACH_OUT" $SHOW_PASS > "$LOGDIR/reach.check" 2>&1
+  ccode=$?
+  cat "$LOGDIR/reach.check"
+  [ "$rcode" -ne 0 ] && ccode=1
+  sect "reachability" "$ccode" "$(tailnote "$LOGDIR/reach.check")"
+  "$PY" tools/scan_errors.py "$LOGDIR/reach.log" --label "engine errors during boot" --quiet
+  sect "engine errors: boot" $? "Godot's own stderr during a real launch"
 fi
 
 # ── 2. the scenarios: run them, then hold them to their contract ────────────
-for s in "${SCENARIOS[@]}"; do
+run_scenario() {   # run_scenario <label> <scenario> [extra harness args...]
+  local label="$1"; shift
+  local scenario="$1"; shift
   echo ""
-  echo "── $s ──"
-  out="$OUT_ROOT/$s"
+  echo "── $label ──"
+  local out="$OUT_ROOT/$label"
   rm -rf "$out"
-  # The harness run is the one a critic is handed: state.json + metrics.csv.
-  LCN_NO_ERROR_GATE=1 tools/run_sim.sh --scenario="$s" --out="$out" > "$LOGDIR/$s.harness.log" 2>&1
-  hcode=$?
+  # The harness run is what a critic is handed: state.json + metrics.csv + log.txt.
+  LCN_NO_ERROR_GATE=1 tools/run_sim.sh --scenario="$scenario" --out="$out" "$@" \
+      > "$LOGDIR/$label.harness.log" 2>&1
+  local hcode=$?
   # The probe adds what state.json cannot hold: alerts, Bus signals, rosters.
   "$GODOT" --headless --path "$ROOT" --script tools/gate_probe.gd -- \
-      --scenario="$s" --out="$out" > "$LOGDIR/$s.probe.log" 2>&1
-  pcode=$?
+      --scenario="$scenario" --out="$out" "$@" > "$LOGDIR/$label.probe.log" 2>&1
+  local pcode=$?
   if [ "$hcode" -ne 0 ]; then
-    echo " the harness exited $hcode"
-    tail -15 "$LOGDIR/$s.harness.log" | sed 's/^/   /'
-    fail=1
+    echo " the harness exited $hcode"; tail -12 "$LOGDIR/$label.harness.log" | sed 's/^/   /'
   fi
   if [ "$pcode" -ne 0 ]; then
-    echo " gate_probe exited $pcode"
-    tail -15 "$LOGDIR/$s.probe.log" | sed 's/^/   /'
-    fail=1
+    echo " gate_probe exited $pcode"; tail -12 "$LOGDIR/$label.probe.log" | sed 's/^/   /'
   fi
-  "$PY" tools/assert_run.py "$out" --scenario="$s" $SHOW_PASS || fail=1
-  "$PY" tools/scan_errors.py "$LOGDIR/$s.harness.log" "$LOGDIR/$s.probe.log" \
-      --label "engine errors in $s" || fail=1
+  "$PY" tools/assert_run.py "$out" --scenario="$label" $SHOW_PASS > "$LOGDIR/$label.check" 2>&1
+  local acode=$?
+  cat "$LOGDIR/$label.check"
+  [ "$hcode" -ne 0 ] || [ "$pcode" -ne 0 ] && acode=1
+  sect "contract: $label" "$acode" "$(tailnote "$LOGDIR/$label.check")"
+  "$PY" tools/scan_errors.py "$LOGDIR/$label.harness.log" "$LOGDIR/$label.probe.log" \
+      --label "engine errors in $label" --quiet
+  sect "engine errors: $label" $? "headless run + probe"
+}
+
+for s in "${SCENARIOS[@]}"; do
+  run_scenario "$s" "$s"
 done
+
+# The shipped first_night stops at 11000 ticks and never reaches wave 2, which
+# is where "the wave that never ended" lived. tests/scenarios/ belongs to [P00],
+# so the gate stretches the run instead of editing the file.
+if [ "$RUN_ENDURANCE" -eq 1 ]; then
+  run_scenario "first_night_endurance" "first_night" --ticks=24000
+fi
 
 # ── 3. the visual run: the only place the UI code actually executes ─────────
 echo ""
 echo "── visual run ──"
 if [ "$RUN_VISUAL" -eq 0 ]; then
-  echo " SKIPPED BY FLAG. Every engine error this build has ever printed came from"
-  echo " a visual run — 68 String formatting errors and a refused add_child() in a"
+  echo " SKIPPED BY FLAG. Every engine error this build has printed came out of a"
+  echo " visual run — 68 String formatting errors and one refused add_child() in a"
   echo " single 30 second pass. A headless-only check has not looked at the UI."
-  note "visual run SKIPPED — the UI layer was not executed at all"
+  sect_skip "visual run" "the UI layer was never executed in this check"
 else
   vis="$OUT_ROOT/visual"
   rm -rf "$vis"
-  "$GODOT" --path "$ROOT" --resolution 1920x1080 -- --harness --visual \
-      --scenario=smoke --out="$vis" > "$LOGDIR/visual.log" 2>&1
+  LCN_NO_ERROR_GATE=1 tools/run_visual.sh --scenario=smoke --out="$vis" \
+      > "$LOGDIR/visual.log" 2>&1
   vcode=$?
-  [ "$vcode" -ne 0 ] && { echo " the visual harness exited $vcode"; fail=1; }
   shots=$(ls "$vis/shots" 2>/dev/null | wc -l | tr -d ' ')
-  echo " $shots screenshot(s) in $vis/shots"
-  [ "$shots" -eq 0 ] && { echo " a visual run that writes no frames proves nothing"; fail=1; }
-  "$PY" tools/scan_errors.py "$LOGDIR/visual.log" --label "engine errors in the visual run" || fail=1
+  echo " harness exit $vcode, $shots screenshot(s) in $vis/shots"
+  [ "$shots" -eq 0 ] && { echo " a visual run that writes no frames proves nothing"; vcode=1; }
+  sect "visual run" "$vcode" "$shots screenshot(s)"
+  "$PY" tools/scan_errors.py "$LOGDIR/visual.log" --label "engine errors in the visual run"
+  sect "engine errors: visual" $? "the only pass that executes ui/ and view/"
 fi
 
+# ── the verdict ────────────────────────────────────────────────────────────
 echo ""
 echo "════════════════════════════════════════════════════════════════════════"
-for n in "${NOTES[@]:-}"; do [ -n "$n" ] && echo " ! $n"; done
-if [ "$fail" -eq 0 ]; then
-  echo " GATE GREEN — no engine errors, the UI is in the tree, every band held"
-else
-  echo " GATE RED"
-fi
+while IFS='|' read -r name status detail; do
+  case "$status" in
+    pass) printf ' %-34s pass   %s\n' "$name" "$detail" ;;
+    SKIP) printf ' %-34s SKIP   %s\n' "$name" "$detail" ;;
+    *)    printf ' %-34s FAIL   %s\n' "$name" "$detail" ;;
+  esac
+done < "$SUMMARY"
 echo "════════════════════════════════════════════════════════════════════════"
+if [ "$fail" -ne 0 ]; then
+  echo " GATE RED"
+elif [ "$skipped" -ne 0 ]; then
+  echo " GATE GREEN, PARTIAL — $skipped section(s) were not checked at all (SKIP above)"
+else
+  echo " GATE GREEN — no engine errors, the UI is in the tree, every band held"
+fi
 exit $fail

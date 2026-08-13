@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_h7536"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_tdv2l"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_e8qfe"]
+
+[sub_resource type="Resource" id="Resource_mktrk"]
+script = ExtResource("1_h7536")
+fact = &"belt_lines"
+threshold = 1.0
+
+[resource]
+resource_name = "The Line Moves On Its Own"
+script = ExtResource("3_e8qfe")
+id = &"the_belts_run"
+title = "The Line Moves On Its Own"
+priority = 55
+lede = "There are {belt_lines} belt lines running in {city} and nobody is carrying anything along them."
+body = "It took two people a day to build and it does the work of four people for as long as there is heat in the grid to turn it.
+
+The four people are now doing something else. That is the whole argument for the thing, and it is also the reason the shaft crews watched it being built without saying anything."
+cause_prose = "This is the first time material has moved through this city without a person under it."
+all_of = Array[ExtResource("1_h7536")]([SubResource("Resource_mktrk")])

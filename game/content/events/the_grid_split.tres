@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_1455n"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_80s2h"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_2if8r"]
+
+[sub_resource type="Resource" id="Resource_tj8sd"]
+script = ExtResource("1_1455n")
+fact = &"networks"
+threshold = 2.0
+sustained_hours = 1.0
+
+[sub_resource type="Resource" id="Resource_vrbne"]
+script = ExtResource("1_1455n")
+fact = &"day"
+threshold = 1.0
+
+[resource]
+resource_name = "The Grid Is in Pieces"
+script = ExtResource("3_2if8r")
+id = &"the_grid_split"
+title = "The Grid Is in Pieces"
+priority = 74
+lede = "There are {networks} separate heat networks in {city} and only one of them has the Hearth on it."
+body = "The engineer walked the whole run this morning with a lamp and came back with the answer, which is that at some point a pipe was placed that does not touch the pipe next to it.
+
+Everything on the far side of that gap is being kept alive by nothing at all. The people in it do not know that yet. They know their rooms are cold and they assume it is the weather."
+cause_prose = "A network is a connected run of pipe. Two networks means a gap somebody did not see."
+all_of = Array[ExtResource("1_1455n")]([SubResource("Resource_tj8sd"), SubResource("Resource_vrbne")])
+once = false
+cooldown_hours = 48.0

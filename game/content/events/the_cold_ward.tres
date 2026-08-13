@@ -1,0 +1,63 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_vxx2r"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_3lvle"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_jfyce"]
+
+[sub_resource type="Resource" id="Resource_4hfh2"]
+script = ExtResource("1_vxx2r")
+fact = &"sick"
+threshold = 4.0
+sustained_hours = 3.0
+
+[sub_resource type="Resource" id="Resource_pbh3k"]
+script = ExtResource("1_vxx2r")
+fact = &"population"
+threshold = 8.0
+
+[sub_resource type="Resource" id="Resource_fe0vx"]
+script = ExtResource("2_3lvle")
+label = "Turn the west line up"
+body = "Full pressure to the care house, taken off the workshop run for as long as this lasts."
+cost_line = "The workshop runs cold and slow, and everything the workshop was going to make this week is now next week's problem."
+gain_line = "The ward gets warm enough that people stop shivering, which is most of what a fever needs."
+outcome = "The coughing thinned out over two days. The workshop lost most of a week and the foreman came up to say so, at length, and he was right, and it did not change the decision."
+effects = Dictionary[StringName, float]({
+&"approval:infirm": 20.0,
+&"approval:workers": -12.0,
+&"hope": 4.0,
+&"stock:coal": -60.0
+})
+
+[sub_resource type="Resource" id="Resource_boyme"]
+script = ExtResource("2_3lvle")
+label = "Move them into the workshop"
+body = "The sick go where the heat already is. The machines keep running around them."
+cost_line = "You have put the fever in the one building the whole day shift passes through. The Hearthside will work out what that means before you have finished saying it."
+gain_line = "Nothing is taken off the grid. The ward empties into a room that is already warm."
+outcome = "They were carried across on the sleds and laid out between the benches and the machines did not stop. Within four days it was in the day shift as well. It was always going to be, and doing it this way made it faster."
+effects = Dictionary[StringName, float]({
+&"approval:families": -16.0,
+&"approval:infirm": 6.0,
+&"discontent": 9.0,
+&"hope": -4.0
+})
+tags = Array[StringName]([&"cruel"])
+is_default = true
+
+[resource]
+resource_name = "The Care House Is Losing"
+script = ExtResource("3_jfyce")
+id = &"the_cold_ward"
+title = "The Care House Is Losing"
+category = &"dilemma"
+priority = 70
+lede = "The fever is going along the bunks in the order they are laid out."
+body = "{sick} people are down with it. The care house is at the cold end of the west line and it was put there because it was the building nobody else wanted, which was a decision somebody made in week one without thinking of it as a decision.
+
+The physician has stopped asking for medicine, which she knows there is none of, and started asking for heat, which there is. It is just somewhere else."
+all_of = Array[ExtResource("1_vxx2r")]([SubResource("Resource_4hfh2"), SubResource("Resource_pbh3k")])
+once = false
+cooldown_hours = 96.0
+options = Array[ExtResource("2_3lvle")]([SubResource("Resource_fe0vx"), SubResource("Resource_boyme")])
+deadline_hours = 8.0

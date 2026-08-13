@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_j676n"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_skhcm"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_byb3c"]
+
+[sub_resource type="Resource" id="Resource_f358n"]
+script = ExtResource("1_j676n")
+fact = &"deaths"
+threshold = 1.0
+
+[resource]
+resource_name = "The First One"
+script = ExtResource("3_byb3c")
+id = &"the_first_death"
+title = "The First One"
+category = &"obituary"
+priority = 90
+lede = "Somebody died in {city} today, and it is the first time."
+body = "The ledger has no column for it. Somebody ruled a line down the right hand side of the page and wrote a heading over it, and that heading is now a permanent feature of how this city keeps its records.
+
+The name was read out at the kitchen at the evening whistle, because nobody could think of what else to do, and that is how it is going to be done from now on."
+cause_prose = "There was no law about this and there is still no law about it."
+all_of = Array[ExtResource("1_j676n")]([SubResource("Resource_f358n")])

@@ -1,0 +1,58 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_3htbi"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_eihay"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_35fc2"]
+
+[sub_resource type="Resource" id="Resource_gdo8c"]
+script = ExtResource("1_3htbi")
+fact = &"day"
+threshold = 5.0
+
+[sub_resource type="Resource" id="Resource_ptgv5"]
+script = ExtResource("1_3htbi")
+fact = &"population"
+threshold = 20.0
+
+[sub_resource type="Resource" id="Resource_lhxl3"]
+script = ExtResource("2_eihay")
+label = "Send a party"
+body = "Eight people, twenty days of food, and the best sled. They go at first light."
+cost_line = "Eight pairs of hands out of the rotation for the better part of three weeks, and twenty days of food out of a larder that has {food_days} in it."
+gain_line = "You find out whether there is anywhere else. Nobody in this caldera has known that since the column stopped."
+outcome = "They went at first light and the whole of Kettle Row came out for it, which nobody had arranged. The shaft ran three short for the rest of the month and everybody knew why and nobody complained about it, which has not happened before."
+effects = Dictionary[StringName, float]({
+&"approval:workers": -8.0,
+&"flag:the_party_went_out": 1.0,
+&"food": -180.0,
+&"hope": 9.0
+})
+
+[sub_resource type="Resource" id="Resource_nfffi"]
+script = ExtResource("2_eihay")
+label = "Keep everybody here"
+body = "The marker goes in a drawer in the Survey Hall. The scouts are told, plainly, why."
+cost_line = "The scouts will tell people, because scouts always do, and the Nine will spend the winter knowing there was a door and that you decided not to open it."
+gain_line = "Eight people stay on the rotation and twenty days of food stay in the granary at the exact point in the winter where both matter most."
+outcome = "The marker is in the second drawer of the map table with the crossing-out still on it. By the end of the week everybody knew, and by the end of the month it had turned into a thing people say about you rather than a thing that happened."
+effects = Dictionary[StringName, float]({
+&"approval:latecomers": -10.0,
+&"discontent": 4.0,
+&"hope": -6.0
+})
+is_default = true
+
+[resource]
+resource_name = "There Is Another Vent"
+script = ExtResource("3_35fc2")
+id = &"the_second_vent"
+title = "There Is Another Vent"
+category = &"dilemma"
+priority = 60
+lede = "The scouts came back off the north rise with a survey marker and a direction."
+body = "Nine days of walking, they say. Open, breathing, and wider at the mouth than this one. The old maps have it as Site Fourteen and there is a crossing-out beside it in a hand nobody in {city} recognises.
+
+Nine days out is nine days back. A party big enough to survive it is a party big enough to be missed here. And if it is real, it is not a place to move to. It is a place to know about."
+all_of = Array[ExtResource("1_3htbi")]([SubResource("Resource_gdo8c"), SubResource("Resource_ptgv5")])
+options = Array[ExtResource("2_eihay")]([SubResource("Resource_lhxl3"), SubResource("Resource_nfffi")])
+deadline_hours = 24.0

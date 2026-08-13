@@ -97,21 +97,26 @@ func _init() -> void:
 ## Points the recorder at the live world and declares every series. Safe to call
 ## again after `Sim.create_world`; it throws the old history away, because two
 ## worlds on one chart is a lie.
-func bind() -> void:
+##
+## `overrides` replaces a system by name. Only the tests use it, and they use it
+## so the consumption ledger can be driven against a machine that crafts on
+## command instead of against whatever the balance happens to be this week.
+func bind(overrides: Dictionary = {}) -> void:
 	_sim = _autoload("Sim")
-	_heat = _system(&"heat")
-	_society = _system(&"society")
-	_citizens = _system(&"citizens")
-	_climate = _system(&"climate")
-	_combat = _system(&"combat")
-	_threat = _system(&"threat")
-	_production = _system(&"production")
-	_logistics = _system(&"logistics")
-	_build = _system(&"build")
-	_research = _system(&"research")
+	_heat = _pick(overrides, &"heat")
+	_society = _pick(overrides, &"society")
+	_citizens = _pick(overrides, &"citizens")
+	_climate = _pick(overrides, &"climate")
+	_combat = _pick(overrides, &"combat")
+	_threat = _pick(overrides, &"threat")
+	_production = _pick(overrides, &"production")
+	_logistics = _pick(overrides, &"logistics")
+	_build = _pick(overrides, &"build")
+	_research = _pick(overrides, &"research")
 	bound = _heat != null or _society != null or _climate != null or _production != null
 
 	items = _read_item_list()
+	LcnStatsDefs.assign_palette(items)
 	_machine_crafts.clear()
 	_machine_recipe.clear()
 	_consumed.clear()
@@ -368,6 +373,12 @@ func _read_item_list() -> Array[StringName]:
 	for n: String in names:
 		out.append(StringName(n))
 	return out
+
+
+func _pick(overrides: Dictionary, n: StringName) -> Object:
+	if overrides.has(n):
+		return overrides[n]
+	return _system(n)
 
 
 func _system(n: StringName) -> Object:

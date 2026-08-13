@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_0m2e3"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_rx4cv"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_a23sr"]
+
+[sub_resource type="Resource" id="Resource_yylh8"]
+script = ExtResource("1_0m2e3")
+fact = &"threat_pressure"
+threshold = 0.6
+sustained_hours = 2.0
+
+[resource]
+resource_name = "Something Is Assembling"
+script = ExtResource("3_a23sr")
+id = &"the_muster"
+title = "Something Is Assembling"
+priority = 84
+lede = "The watch on the East Wall have stopped counting them individually."
+body = "Pressure on the wall is at {threat_pressure} and the thing about that number is that it has been climbing every night rather than oscillating. Whatever is out there is not wandering in. It is being brought.
+
+There are {turrets} guns on the wall and {turret_uptime} of them have heat enough to fire. Both of those numbers are decisions somebody took days ago."
+all_of = Array[ExtResource("1_0m2e3")]([SubResource("Resource_yylh8")])
+once = false
+cooldown_hours = 48.0

@@ -1,0 +1,64 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_13emu"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_c8ax2"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_738hl"]
+
+[sub_resource type="Resource" id="Resource_0vcwy"]
+script = ExtResource("1_13emu")
+fact = &"food_days"
+cmp = 1
+threshold = 4.0
+sustained_hours = 3.0
+
+[sub_resource type="Resource" id="Resource_7efx2"]
+script = ExtResource("1_13emu")
+fact = &"population"
+threshold = 10.0
+
+[sub_resource type="Resource" id="Resource_1joa3"]
+script = ExtResource("2_c8ax2")
+label = "Half rations from tonight"
+body = "The scoop gets smaller at the evening whistle. It is not announced. It is simply smaller."
+cost_line = "People doing shaft work on half a bowl start making the kind of mistakes that end up in the care house, and everybody in the queue does the same arithmetic the clerk did."
+gain_line = "Eight days instead of four. Eight days is long enough for something to arrive."
+outcome = "The scoop was smaller and the queue noticed inside a minute. Nobody said anything at the kitchen. The talking started afterwards, on the stair, and it has not stopped."
+effects = Dictionary[StringName, float]({
+&"approval:workers": -14.0,
+&"discontent": 9.0,
+&"food": 90.0,
+&"hope": -7.0
+})
+
+[sub_resource type="Resource" id="Resource_2jkd4"]
+script = ExtResource("2_c8ax2")
+label = "Full bowls while there are any"
+body = "Nothing changes at the kitchen. The scoop stays the size it has always been, right up until the day there is nothing in it."
+cost_line = "Four days, and then a morning where the kitchen does not open at all and everybody in the Nine finds out at once."
+gain_line = "Four days of people being able to work, think and stand up, which is four days to fix it."
+outcome = "The scoop stayed the same size and the shaft crews made their quota all four days, which they would not have done otherwise. The kitchen did not open on the fifth morning. There was a queue anyway, for about an hour."
+effects = Dictionary[StringName, float]({
+&"approval:families": -12.0,
+&"approval:workers": 10.0,
+&"discontent": -2.0,
+&"food": -40.0,
+&"hope": 3.0
+})
+is_default = true
+
+[resource]
+resource_name = "The Clerk Wants an Answer"
+script = ExtResource("3_738hl")
+id = &"the_half_ration"
+title = "The Clerk Wants an Answer"
+category = &"dilemma"
+priority = 82
+lede = "There are {food_days} of food left and the kitchen opens in an hour."
+body = "The ration clerk has been doing the arithmetic in the margin of the ledger for three days and has finally brought the ledger up here rather than the answer.
+
+Full bowls for four more days, and then nothing at all. Or half bowls from tonight, and eight days, and a city that finds out at the kitchen queue rather than from you."
+all_of = Array[ExtResource("1_13emu")]([SubResource("Resource_0vcwy"), SubResource("Resource_7efx2")])
+once = false
+cooldown_hours = 96.0
+options = Array[ExtResource("2_c8ax2")]([SubResource("Resource_1joa3"), SubResource("Resource_2jkd4")])
+deadline_hours = 3.0

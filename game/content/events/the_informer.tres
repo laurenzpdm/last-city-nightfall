@@ -1,0 +1,67 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_gna3w"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_jgy4p"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_kra8a"]
+
+[sub_resource type="Resource" id="Resource_xsg27"]
+script = ExtResource("1_gna3w")
+fact = &"discontent"
+threshold = 48.0
+sustained_hours = 4.0
+
+[sub_resource type="Resource" id="Resource_7c08d"]
+script = ExtResource("1_gna3w")
+fact = &"laws_signed"
+threshold = 3.0
+
+[sub_resource type="Resource" id="Resource_7quev"]
+script = ExtResource("1_gna3w")
+fact = &"day"
+threshold = 4.0
+
+[sub_resource type="Resource" id="Resource_5cuki"]
+script = ExtResource("2_jgy4p")
+label = "Keep the list"
+body = "It goes in the drawer. The clerk is thanked. Nothing is done with it, this week."
+cost_line = "There is now a drawer in the Survey Hall with eleven names in it, and there will be a second list, because the clerk has been told he was right."
+gain_line = "You know who they are before they know they are anybody, and the loud stop being loud remarkably quickly."
+outcome = "It went in the drawer. Within a fortnight there were four lists and none of them had been asked for. The kitchen has gone quiet in the evenings, which is what you wanted, and it is not the same quiet."
+effects = Dictionary[StringName, float]({
+&"approval:watch": 12.0,
+&"approval:workers": -16.0,
+&"discontent": -8.0,
+&"flag:the_lists_exist": 1.0,
+&"hope": -7.0
+})
+tags = Array[StringName]([&"cruel"])
+
+[sub_resource type="Resource" id="Resource_wlnco"]
+script = ExtResource("2_jgy4p")
+label = "Burn it in front of him"
+body = "The list goes in the Hearth with the clerk standing there, and he is told why, and he is left in his job."
+cost_line = "He will tell people, and everyone who was loud at the kitchen learns that being loud has no consequences at all."
+gain_line = "Nobody in {city} is on a list. That is a sentence you can still say out loud."
+outcome = "It burned in about four seconds and he watched all of it. He told the row before the end of the shift. The kitchen has got louder rather than quieter and one of the eleven has started holding meetings in the second workshop."
+effects = Dictionary[StringName, float]({
+&"approval:watch": -14.0,
+&"approval:workers": 14.0,
+&"discontent": 7.0,
+&"hope": 6.0
+})
+is_default = true
+
+[resource]
+resource_name = "Somebody Has Been Writing Names Down"
+script = ExtResource("3_kra8a")
+id = &"the_informer"
+title = "Somebody Has Been Writing Names Down"
+category = &"dilemma"
+priority = 66
+lede = "A list came up from the row with eleven names on it and no explanation."
+body = "The handwriting is the shift clerk's. The names are the eleven people who were loudest at the kitchen on the night the ration changed. Nobody asked him for it. He made it because he thought it was the kind of thing that would be wanted, which is the part that should worry you most.
+
+Discontent stands at {discontent}. The list is on the table. What happens next is going to tell {population} people what kind of place this is."
+all_of = Array[ExtResource("1_gna3w")]([SubResource("Resource_xsg27"), SubResource("Resource_7c08d"), SubResource("Resource_7quev")])
+options = Array[ExtResource("2_jgy4p")]([SubResource("Resource_5cuki"), SubResource("Resource_wlnco")])
+deadline_hours = 8.0

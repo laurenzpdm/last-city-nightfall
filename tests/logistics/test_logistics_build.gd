@@ -256,18 +256,19 @@ func test_a_drag_that_steps_over_something_splits_into_two_runs() -> void:
 		"the belt before the obstacle still faces the way the drag went")
 	assert_eq(_rot_at(o + Vector2i(5, 0)), 0,
 		"and so does the one after it")
-	assert_null(logi.entity_at(o + Vector2i(4, 0)),
-		"nothing was built on top of the crate")
+	var blocked: LogiEntity = logi.entity_at(o + Vector2i(4, 0))
+	assert_not_null(blocked, "the crate is still standing where the drag stepped over it")
+	assert_eq(String(blocked.kind), "crate", "nothing was built on top of the crate")
 
 
 # --- 4. splitters ------------------------------------------------------------
 
 func test_a_splitter_stands_on_the_same_two_tiles_both_systems_think_it_does() -> void:
-	for rot: int in 4:
-		var o: Vector2i = _area_of(Vector2i(3, 3))
-		if o == Vector2i.MAX:
-			skip("no clear ground on this seed")
+	var o: Vector2i = _area_of(Vector2i(3, 3))
+	if o == Vector2i.MAX:
+		skip("no clear ground on this seed")
 		return
+	for rot: int in 4:
 		var anchor: Vector2i = o + Vector2i(1, 1)
 		_place("splitter_mk1", anchor, rot)
 		world.run(40)
@@ -370,7 +371,7 @@ func test_a_dragged_belt_delivers_exactly_what_it_claims() -> void:
 		var o: Vector2i = _run_of(13)
 		if o == Vector2i.MAX:
 			skip("no clear ground on this seed")
-		return
+			return
 		_drag(kind, o, o + Vector2i(11, 0), 0)
 		_place("bunker_chest", o + Vector2i(12, 0))
 		world.run(120)

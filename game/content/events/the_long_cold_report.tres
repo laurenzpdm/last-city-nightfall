@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_edmvp"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_ru4hu"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_daeis"]
+
+[sub_resource type="Resource" id="Resource_vc87q"]
+script = ExtResource("1_edmvp")
+fact = &"era"
+threshold = 2.0
+
+[resource]
+resource_name = "It Is Getting Worse On a Schedule"
+script = ExtResource("3_daeis")
+id = &"the_long_cold_report"
+title = "It Is Getting Worse On a Schedule"
+priority = 70
+lede = "{era_text}. Outside temperature {temperature}."
+body = "The survey team who wrote the climate pages left before the first winter and their numbers were taken from a summer. The real curve is steeper and it is not finished.
+
+This is the part where a city either has margin or discovers that it does not. There are {buildings} structures standing and the grid is short by {heat_deficit}."
+all_of = Array[ExtResource("1_edmvp")]([SubResource("Resource_vc87q")])
+once = false
+cooldown_hours = 96.0

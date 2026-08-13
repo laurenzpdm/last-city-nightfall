@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="NarrativeEventDef" format=3]
+
+[ext_resource type="Script" path="res://game/narrative/narrative_condition.gd" id="1_1id5w"]
+[ext_resource type="Script" path="res://game/narrative/narrative_option.gd" id="2_yetyr"]
+[ext_resource type="Script" path="res://game/narrative/narrative_event_def.gd" id="3_sj1g4"]
+
+[sub_resource type="Resource" id="Resource_01c1v"]
+script = ExtResource("1_1id5w")
+fact = &"day"
+threshold = 4.0
+
+[resource]
+resource_name = "What Is on the Survey Road"
+script = ExtResource("3_sj1g4")
+id = &"word_from_the_road"
+title = "What Is on the Survey Road"
+category = &"scout"
+priority = 56
+lede = "The party that went east came back a day early and did not want to make a report in front of people."
+body = "Nine hours out, on the old survey road, there is a column of carts. Fourteen of them, roped in a line, pointed this way. They are standing up because there is nothing out there to knock them over.
+
+The scouts did not open any of them. They counted the carts, they wrote down the number, and they came back. The one thing they did bring is a child's boot, which one of them has not put down since."
+cause_prose = "Scouts go out because the yard is short. This is what is out there instead of what the yard is short of."
+all_of = Array[ExtResource("1_1id5w")]([SubResource("Resource_01c1v")])
