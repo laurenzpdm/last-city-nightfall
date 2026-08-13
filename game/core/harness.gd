@@ -133,6 +133,7 @@ func _shoot(name: String) -> void:
 	# stream in any terrain the camera just moved onto, the second draws it.
 	# Shooting after a single frame photographs the previous tick.
 	await get_tree().process_frame
+	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	var img: Image = get_viewport().get_texture().get_image()
 	var path: String = "%s/shots/%s.png" % [_out_dir, name]

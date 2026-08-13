@@ -83,6 +83,10 @@ func _install_view() -> void:
 	if GameCamera.current() == null:
 		camera = GameCamera.new()
 		camera.name = "GameCamera"
+		# The camera must land on the Camera2D BEFORE the renderer reads the canvas
+		# transform, or every frame culls and streams for where the camera was last
+		# frame. On the first frame of a screenshot run that means an empty screen.
+		camera.process_priority = -50
 		add_child(camera)
 	else:
 		camera = GameCamera.current()
