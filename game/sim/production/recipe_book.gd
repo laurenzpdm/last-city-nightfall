@@ -56,6 +56,8 @@ func load_all() -> void:
 	problems = PackedStringArray()
 	max_depth = 0
 
+	# Registry.ids() sorts StringName by intern pointer, so it is NOT alphabetical.
+	# ids is re-sorted properly below; this loop only has to be complete.
 	for rid: StringName in Registry.ids(CATEGORY):
 		var res: Resource = Registry.get_item(CATEGORY, rid)
 		var r := res as RecipeDef
@@ -69,7 +71,7 @@ func load_all() -> void:
 		by_id[rid] = r
 		ids.append(rid)
 
-	ids.sort()
+	ids = ProdSort.names(ids)
 	_index_items()
 	_compute_depth()
 
@@ -99,8 +101,7 @@ func for_machine(kind: StringName, tags: Array[StringName], allowed: Array[Strin
 		var r2: RecipeDef = by_id[rid]
 		if r2.runs_on(kind, tags):
 			extra.append(rid)
-	extra.sort()
-	out.append_array(extra)
+	out.append_array(ProdSort.names(extra))
 	var store: Array = []
 	for o: StringName in out:
 		store.append(String(o))
@@ -209,9 +210,7 @@ func _index_items() -> void:
 			prod.append(String(rid))
 			producers_of[out_item] = prod
 
-	var keys: Array = seen.keys()
-	keys.sort()
-	for k: StringName in keys:
+	for k: StringName in ProdSort.keys_of(seen):
 		items.append(k)
 		var plist: Array = producers_of.get(k, [])
 		plist.sort()

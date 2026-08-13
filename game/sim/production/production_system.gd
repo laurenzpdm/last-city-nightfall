@@ -1129,7 +1129,10 @@ func _unregister(building_id: int) -> void:
 
 func _load_defs() -> void:
 	var count: int = 0
-	for id: StringName in Registry.ids("buildings"):
+	# Registry.ids() is intern-pointer ordered, not alphabetical — see [ProdSort].
+	# It only fills caches here, but a cache filled in a build-dependent order is
+	# one refactor away from being a state-dependent one.
+	for id: StringName in ProdSort.names(Registry.ids("buildings")):
 		var def: ProdMachineDef = ProdMachineDef.from_resource(id, Registry.get_item("buildings", id))
 		if not def.participates():
 			_not_machines[id] = true
@@ -1256,9 +1259,7 @@ func serialize() -> Dictionary:
 		ms.append(machines[id].to_json())
 	var totals_by_item: Dictionary = {}
 	var rates: Dictionary = {}
-	var keys: Array = _produced_total.keys()
-	keys.sort()
-	for k: StringName in keys:
+	for k: StringName in ProdSort.keys_of(_produced_total):
 		totals_by_item[String(k)] = _produced_total[k]
 		rates[String(k)] = snappedf(items_per_minute(k), 0.01)
 	return {
@@ -1308,10 +1309,9 @@ func deserialize(data: Dictionary) -> void:
 	_produced_total.clear()
 	var prod: Variant = data.get("produced", {})
 	if typeof(prod) == TYPE_DICTIONARY:
-		var pkeys: Array = (prod as Dictionary).keys()
-		pkeys.sort()
-		for k: Variant in pkeys:
-			_produced_total[StringName(String(k))] = int((prod as Dictionary)[k])
+		var pd: Dictionary = prod
+		for k: StringName in ProdSort.names(pd.keys()):
+			_produced_total[k] = int(pd.get(String(k), 0))
 	store.from_json(data.get("store", {}))
 	var marks: Dictionary = data.get("marks", {})
 	_mark_prev_tick = int(marks.get("prev_tick", 0))

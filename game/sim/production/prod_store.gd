@@ -132,9 +132,7 @@ func to_json() -> Dictionary:
 	if _stock != null:
 		return {"backing": String(backing())}
 	var items: Dictionary = {}
-	var keys: Array = amounts.keys()
-	keys.sort()
-	for k: StringName in keys:
+	for k: StringName in ProdSort.keys_of(amounts):
 		if amounts[k] > 0:
 			items[String(k)] = amounts[k]
 	return {"backing": "local", "amounts": items}
@@ -146,9 +144,7 @@ func from_json(data: Dictionary) -> void:
 	if typeof(raw) != TYPE_DICTIONARY:
 		return
 	var src: Dictionary = raw
-	var keys: Array = src.keys()
-	keys.sort()
-	for k: Variant in keys:
-		var n: int = int(src[k])
+	for k: Variant in ProdSort.names(src.keys()):
+		var n: int = int(src.get(String(k), 0))
 		if n > 0:
 			amounts[StringName(String(k))] = n

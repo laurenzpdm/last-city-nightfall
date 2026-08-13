@@ -43,6 +43,15 @@ const REQUEST_EVERY: int = 10
 const ALERT_EVERY: int = 400
 ## Ticks between full rescans of [P02]'s world for burners.
 const BURNER_RESCAN_TICKS: int = 200
+## Fastest a burner rescan may happen even when the heat world keeps changing.
+## During a mass build, heat gains a node every few ticks and a rescan walks
+## every pipe in the city; once every twenty ticks is a quarter of a second of
+## latency on a bunker that starts empty anyway.
+const BURNER_RESCAN_MIN: int = 20
+## Ticks between sweeps of [P11]'s building list when nothing was built.
+const SYNC_EVERY: int = 10
+## How often the profiling line is written at DEBUG.
+const LOG_PERF_EVERY: int = 1000
 
 var world: LogiWorld = LogiWorld.new()
 var haul: LogiHaul = LogiHaul.new()
@@ -66,6 +75,11 @@ var _seen_build: Dictionary[int, bool] = {}
 var _kind_traits: Dictionary[StringName, Dictionary] = {}
 
 var _last_alert_tick: int = -100000
+var _perf_us: int = 0
+var _perf_max_us: int = 0
+var _perf_steps: int = 0
+var _sync_tick: int = -100000
+var _sync_count: int = -1
 var _burner_cache: Array[int] = []
 var _burner_fuel: Dictionary[int, StringName] = {}
 var _burner_scan_size: int = -1
@@ -161,6 +175,7 @@ func _load_content() -> void:
 # =========================================================================
 
 func step(tick: int) -> void:
+	var t0: int = Time.get_ticks_usec()  # lint:allow profiling only; never serialized
 	_tick = tick
 	haul.begin_tick(tick, _crew())
 	_sync_from_build()
@@ -171,6 +186,18 @@ func step(tick: int) -> void:
 	_serve_fuel()
 	if tick % REQUEST_EVERY == 0:
 		_serve_requests()
+
+	var us: int = Time.get_ticks_usec() - t0  # lint:allow profiling only
+	_perf_us += us
+	_perf_max_us = maxi(_perf_max_us, us)
+	_perf_steps += 1
+	if _perf_steps >= LOG_PERF_EVERY:
+		Log.debug("logistics", "step avg %.1f us, max %d us over %d ticks; %d lines, %d items, %d arms" % [
+			float(_perf_us) / float(_perf_steps), _perf_max_us, _perf_steps,
+			world.segment_ids.size(), world.items_on_belts(), world.inserter_ids.size()])
+		_perf_us = 0
+		_perf_max_us = 0
+		_perf_steps = 0
 
 
 ## Is there anywhere in this world an item could physically come from?
@@ -261,7 +288,9 @@ func _burners() -> Array[int]:
 		var raw: Variant = _heat.get("nodes")
 		if typeof(raw) == TYPE_DICTIONARY:
 			nodes = raw
-	if nodes.size() != _burner_scan_size or _tick - _burner_scan_tick >= BURNER_RESCAN_TICKS:
+	var changed: bool = nodes.size() != _burner_scan_size
+	var waited: int = _tick - _burner_scan_tick
+	if (changed and waited >= BURNER_RESCAN_MIN) or waited >= BURNER_RESCAN_TICKS:
 		_burner_scan_size = nodes.size()
 		_burner_scan_tick = _tick
 		var found: Dictionary[int, StringName] = {}
@@ -370,6 +399,14 @@ func _return_items(_cell: Vector2i, kind: StringName, amount: int) -> void:
 func _sync_from_build() -> void:
 	if _build == null or not _build.has_method("all_buildings"):
 		return
+	# Walking seventeen hundred buildings every tick to find the two that gained
+	# a chest is most of what this system would cost in a big city. The list is
+	# swept when it grew or shrank, and otherwise twice a second.
+	var count: int = int(_build.call("building_count")) if _build.has_method("building_count") else -1
+	if count == _sync_count and _tick - _sync_tick < SYNC_EVERY:
+		return
+	_sync_count = count
+	_sync_tick = _tick
 	var raw: Variant = _build.call("all_buildings")
 	if typeof(raw) != TYPE_ARRAY:
 		return

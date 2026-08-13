@@ -217,13 +217,10 @@ func to_json() -> Dictionary:
 	}
 
 
+## Alphabetical, via [ProdSort] — a bare Array.sort() on StringName orders by
+## interned pointer and would make this file's iteration build-dependent.
 func _sorted(d: Dictionary[StringName, int]) -> Array[StringName]:
-	var keys: Array = d.keys()
-	keys.sort()
-	var out: Array[StringName] = []
-	for k: StringName in keys:
-		out.append(k)
-	return out
+	return ProdSort.keys_of(d)
 
 
 func _items_json(d: Dictionary[StringName, int]) -> Dictionary:

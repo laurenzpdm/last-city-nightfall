@@ -208,14 +208,10 @@ func is_working() -> bool:
 	return state == State.RUNNING
 
 
-## Sorted item ids of a buffer — every iteration that reaches state is ordered.
+## Sorted item ids of a buffer — every iteration that reaches state is ordered,
+## and ordered ALPHABETICALLY rather than by intern pointer. See [ProdSort].
 func sorted_keys(d: Dictionary[StringName, int]) -> Array[StringName]:
-	var keys: Array = d.keys()
-	keys.sort()
-	var out: Array[StringName] = []
-	for k: StringName in keys:
-		out.append(k)
-	return out
+	return ProdSort.keys_of(d)
 
 
 func to_json() -> Dictionary:
@@ -294,10 +290,8 @@ func _items(v: Variant) -> Dictionary[StringName, int]:
 	if typeof(v) != TYPE_DICTIONARY:
 		return out
 	var src: Dictionary = v
-	var keys: Array = src.keys()
-	keys.sort()
-	for k: Variant in keys:
-		var n: int = int(src[k])
+	for k: StringName in ProdSort.keys_of(src):
+		var n: int = int(src.get(k, src.get(String(k), 0)))
 		if n > 0:
-			out[StringName(String(k))] = n
+			out[k] = n
 	return out
