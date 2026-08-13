@@ -102,8 +102,11 @@ func _setup() -> void:
 		if grid != null and grid.has_method("map_size"):
 			var size: Vector2i = grid.call("map_size")
 			cam2.set_world_bounds(Rect2(Vector2.ZERO, Vector2(size) * 32.0))
-		cam2.focus_on(Vector2(_core()) * 32.0, true)
 		cam2.set_zoom_level(1.0, false)
+		# Frame the city that was actually built, not the cell it was aimed at:
+		# the ground refuses some placements, and a camera pointed at empty snow
+		# makes every view-culled layer correctly draw nothing.
+		cam2.focus_on(_city_centre(), true)
 
 
 ## A dense city, so the idle-life layer has far more candidates than its cap and
@@ -168,6 +171,20 @@ func _churn() -> void:
 	SimClock.advance(1)
 
 
+## Mean position of what the renderer can actually see.
+func _city_centre() -> Vector2:
+	var r: WorldRenderer = get_tree().get_first_node_in_group(WorldRenderer.GROUP)
+	if r == null:
+		return Vector2(_core()) * 32.0
+	var b: Array[Dictionary] = r.world_model().buildings()
+	if b.is_empty():
+		return Vector2(_core()) * 32.0
+	var sum := Vector2.ZERO
+	for e: Dictionary in b:
+		sum += e["centre"] as Vector2
+	return sum / float(b.size())
+
+
 func _core() -> Vector2i:
 	var grid: SimSystem = Sim.get_system(&"grid")
 	if grid != null and grid.has_method("core_cell"):
@@ -191,12 +208,6 @@ func _finish() -> void:
 			int(idle["anchors"]), LcnFeelIdleLife.MAX_ANCHORS,
 			int(idle["seen"]), int(idle["in_view"]), float(idle["zoom"])])
 		print("  view rect     %s" % String(idle["view"]))
-		var cam3: GameCamera = GameCamera.current()
-		var m: LcnWorldModel = (get_tree().get_first_node_in_group(WorldRenderer.GROUP) as WorldRenderer).world_model()
-		var b0: Array[Dictionary] = m.buildings()
-		print("  DEBUG core=%s cam=%s first_centre=%s count=%d" % [
-			str(_core()), str(cam3.global_position if cam3 != null else Vector2.ZERO),
-			str(b0[0]["centre"]) if not b0.is_empty() else "none", b0.size()])
 		print("  _process      avg %6.1f us   max %6.1f us   (budget %.0f)" % [
 			proc_avg, proc_max, BUDGET_PROCESS_US])
 		print("  _draw         avg %6.1f us   max %6.1f us   (budget %.0f)  %s" % [

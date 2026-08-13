@@ -109,9 +109,12 @@ static func install_card() -> LcnNarrativeCard:
 		return null
 	var existing: Node = tree.get_first_node_in_group(LcnNarrativeCard.GROUP)
 	if existing != null:
-		_card_done = true
 		# [P17] or [P18] taking the group over is the intended end state, not a
-		# failure. Say so once so the log records which one is drawing.
+		# failure. The log names whoever is drawing, so a run always says which
+		# one a screenshot came from.
+		if not _card_done:
+			Log.info(NarrativeDefs.TAG, "events are drawn by %s" % existing.name)
+		_card_done = true
 		return existing as LcnNarrativeCard
 	if _card_done:
 		return null

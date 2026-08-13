@@ -107,16 +107,6 @@ func _process(_delta: float) -> void:
 	_drive(SCENES[_scene_index])
 	_costs.append(float(Time.get_ticks_usec() - t0))
 	_scene_frame += 1
-	# Two frames before the shot the effects layer is switched off, one frame
-	# before it is read back, and then it is switched on again. The difference
-	# between those two draw-call counts is THIS PART and nothing else — the
-	# ground, the city, the lights and the post stack are identical in both.
-	if _scene_frame == FRAMES_PER_SCENE - 2:
-		_vfx.visible = false
-	elif _scene_frame == FRAMES_PER_SCENE - 1:
-		_calls_without = int(Performance.get_monitor(
-			Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
-		_vfx.visible = true
 	if _scene_frame >= FRAMES_PER_SCENE:
 		# _capture suspends on frame_post_draw, so _process itself becomes a
 		# coroutine here and the guard keeps the next frame from re-entering it
@@ -283,6 +273,16 @@ func _fake_frost() -> void:
 
 # ------------------------------------------------------------- measurement --
 
+## THE MEASUREMENT. The same frame is photographed twice, one frame apart, with
+## the effects layer switched off and then on. Everything else on screen — the
+## ground, the city, the lights, the post grade, and every other part's own
+## animation — is in both photographs, so the DIFFERENCE between them is this
+## part and nothing else.
+##
+## This is deliberately not "count bright pixels and hope". An absolute count
+## moved by five thousand between two runs of identical code, because other
+## parts install on their own schedules and animate on their own clocks. A
+## difference against a control frame taken one frame earlier cannot.
 func _capture(name: String) -> void:
 	var stats: Dictionary = _vfx.stats()
 	var row: Dictionary = {
@@ -296,18 +296,65 @@ func _capture(name: String) -> void:
 		"frosting": int(stats.get("frosting", 0)),
 		"beams": int(stats.get("beams", 0)),
 	}
-	if not _headless:
-		await RenderingServer.frame_post_draw
-		var img: Image = get_viewport().get_texture().get_image()
-		img.save_png("%s/%s.png" % [
-			ProjectSettings.globalize_path(OUT_DIR), name])
-		row.merge(_analyse(img), true)
-		var calls: int = int(Performance.get_monitor(
-			Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
-		row["draw_calls"] = calls
-		row["vfx_draw_calls"] = calls - _calls_without
+	if _headless:
+		_measure[name] = row
+		print("  %-12s %s" % [name, str(row)])
+		return
+
+	_vfx.visible = false
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	var off: Image = get_viewport().get_texture().get_image()
+	var calls_off: int = int(Performance.get_monitor(
+		Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+
+	_vfx.visible = true
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	var on: Image = get_viewport().get_texture().get_image()
+	var calls_on: int = int(Performance.get_monitor(
+		Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+
+	on.save_png("%s/%s.png" % [ProjectSettings.globalize_path(OUT_DIR), name])
+	off.save_png("%s/%s_without_vfx.png" % [ProjectSettings.globalize_path(OUT_DIR), name])
+	row.merge(_analyse(on), true)
+	row["detail_without"] = float(_analyse(off).get("detail", 0.0))
+	row.merge(_diff(off, on), true)
+	row["draw_calls"] = calls_on
+	row["vfx_draw_calls"] = calls_on - calls_off
 	_measure[name] = row
 	print("  %-12s %s" % [name, str(row)])
+
+
+## What the effects layer put on the screen, pixel by pixel, against the control
+## frame taken with it switched off.
+func _diff(off: Image, on: Image) -> Dictionary:
+	var w: int = mini(off.get_width(), on.get_width())
+	var h: int = mini(off.get_height(), on.get_height())
+	var x0: int = int(float(w) * 0.10)
+	var x1: int = int(float(w) * 0.90)
+	var y0: int = int(float(h) * 0.08)
+	var y1: int = int(float(h) * 0.92)
+	var changed: int = 0
+	var warm_added: int = 0
+	var cool_added: int = 0
+	var sampled: int = 0
+	for y: int in range(y0, y1, 2):
+		for x: int in range(x0, x1, 2):
+			var a: Color = off.get_pixel(x, y)
+			var b: Color = on.get_pixel(x, y)
+			sampled += 1
+			var dr: float = b.r - a.r
+			var dg: float = b.g - a.g
+			var db: float = b.b - a.b
+			if absf(dr) + absf(dg) + absf(db) > 0.045:
+				changed += 1
+			if dr > 0.055 and dr > db * 1.6:
+				warm_added += 1
+			elif db > 0.030 and db >= dr:
+				cool_added += 1
+	return {"changed": changed, "warm_added": warm_added, "cool_added": cool_added,
+		"diff_sampled": sampled}
 
 
 ## Statistics over the middle of the frame only. The edges carry the HUD and the
@@ -411,42 +458,51 @@ func _verdict() -> void:
 		return
 
 	# --- things only a real frame can say ---
-	# Flakes are small, discrete and brighter than what is behind them, which is
-	# what `speckle` counts and what a fog bank would not produce. The count has
-	# to scale with the weather, not merely be non-zero.
-	var c_snow: int = int(clear.get("cold", 0))
-	var s_snow: int = int(snowfall.get("cold", 0))
-	var b_snow: int = int(_measure.get("blizzard", {}).get("cold", 0))
-	_expect(s_snow > int(float(c_snow) * 1.15),
-		"snowfall put %d pale-cold pixels on screen against %d in clear weather"
+	# Everything below is measured against a control frame with the layer
+	# switched off, so it is what THIS PART drew and not what the hour happened
+	# to look like.
+	var noise: int = int(clear.get("changed", 0))
+	var s_snow: int = int(snowfall.get("cool_added", 0))
+	var c_snow: int = int(clear.get("cool_added", 0))
+	var b_snow: int = int(_measure.get("blizzard", {}).get("cool_added", 0))
+	_expect(s_snow > maxi(600, c_snow * 3),
+		"snowfall drew %d pale pixels the same frame without it does not have (clear: %d)"
 		% [s_snow, c_snow])
-	_expect(b_snow > int(float(s_snow) * 1.5),
-		"a blizzard (%d) was not markedly thicker than ordinary snowfall (%d)"
+	_expect(b_snow > int(float(s_snow) * 1.4),
+		"a blizzard (%d px) was not markedly thicker than ordinary snowfall (%d px)"
 		% [b_snow, s_snow])
+	_expect(int(frost_scene.get("changed", 0)) > noise * 3,
+		"a Great Frost changed %d pixels against a %d-pixel still-frame noise floor"
+		% [int(frost_scene.get("changed", 0)), noise])
 
-	# The layer has to be affordable in draw calls as well as in milliseconds:
-	# the renderer holds a 1700-building city in single digits and this part must
-	# not undo that.
-	for name: String in _measure:
-		var added: int = int((_measure[name] as Dictionary).get("vfx_draw_calls", 0))
-		_expect(added <= MAX_DRAW_CALLS,
-			"scene '%s' cost %d draw calls of effects (ceiling %d)"
-			% [name, added, MAX_DRAW_CALLS])
-
-	_expect(float(frost_scene.get("detail", 1.0)) < float(snowfall.get("detail", 0.0)) * 0.92,
-		"a whiteout did not actually cost visibility (local detail %.4f vs %.4f)" % [
-			float(frost_scene.get("detail", -1.0)), float(snowfall.get("detail", -1.0))])
+	# "Genuinely reduces visibility" means local detail is destroyed, not that
+	# the frame got brighter. Both halves of that are measured, on the same frame
+	# with and without the veil.
+	_expect(float(frost_scene.get("detail", 1.0))
+			< float(frost_scene.get("detail_without", 0.0)) * 0.85,
+		"the whiteout did not cost visibility: detail %.4f with it, %.4f without" % [
+			float(frost_scene.get("detail", -1.0)),
+			float(frost_scene.get("detail_without", -1.0))])
 	_expect(float(frost_scene.get("mean_luma", 0.0)) > float(snowfall.get("mean_luma", 1.0)),
 		"a whiteout did not lift the frame (luma %.3f vs %.3f)" % [
 			float(frost_scene.get("mean_luma", -1.0)), float(snowfall.get("mean_luma", -1.0))])
 
-	_expect(int(battle.get("warm", 0)) > int(snowfall.get("warm", 0)),
-		"a fire-fight put no warm pixels on screen (%d vs %d in the same weather)" % [
-			int(battle.get("warm", -1)), int(snowfall.get("warm", -1))])
+	# The layer has to be affordable in draw calls as well as in milliseconds:
+	# the renderer holds a 1700-building city in single digits and this part must
+	# not undo that.
+	for scene_name: String in _measure:
+		var added: int = int((_measure[scene_name] as Dictionary).get("vfx_draw_calls", 0))
+		_expect(added <= MAX_DRAW_CALLS,
+			"scene '%s' cost %d draw calls of effects (ceiling %d)"
+			% [scene_name, added, MAX_DRAW_CALLS])
 
-	_expect(int(frostbite.get("cold", 0)) > int(clear.get("cold", 0)),
-		"frost creep put no cold pixels on screen (%d vs %d)" % [
-			int(frostbite.get("cold", -1)), int(clear.get("cold", -1))])
+	_expect(int(battle.get("warm_added", 0)) > maxi(300, int(snowfall.get("warm_added", 0)) * 2),
+		"a fire-fight drew %d warm pixels the control frame lacks (quiet weather: %d)" % [
+			int(battle.get("warm_added", -1)), int(snowfall.get("warm_added", -1))])
+
+	_expect(int(frostbite.get("cool_added", 0)) > maxi(300, int(clear.get("cool_added", 0)) * 3),
+		"frost creep drew %d pale pixels the control frame lacks (clear: %d)" % [
+			int(frostbite.get("cool_added", -1)), int(clear.get("cool_added", -1))])
 
 
 func _peak_cost() -> float:

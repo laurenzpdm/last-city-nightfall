@@ -32,8 +32,8 @@ func setup() -> void:
 	world = SimFixture.new(7).start()
 	logi = world.system(&"logistics") as LogisticsSystem
 	build = world.system(&"build")
-	world.cmd({"system": &"build", "op": "grant_unlock", "unlock": "belt_gearing"})
-	world.cmd({"system": &"build", "op": "grant_unlock", "unlock": "driven_rollers"})
+	world.cmd({"system": &"build", "op": "grant_unlock", "unlock": "splitters_and_balancers"})
+	world.cmd({"system": &"build", "op": "grant_unlock", "unlock": "logistic_scheduling"})
 	world.cmd_now({"system": &"build", "op": "add_stock", "items": {
 		"iron_plate": 900, "gear": 400, "timber": 300, "scrap": 400,
 		"steel_plate": 300, "stone": 400, "circuit": 100}})
@@ -366,8 +366,8 @@ func test_a_dragged_belt_delivers_exactly_what_it_claims() -> void:
 		world.restart()
 		logi = world.system(&"logistics") as LogisticsSystem
 		build = world.system(&"build")
-		world.cmd({"system": &"build", "op": "grant_unlock", "unlock": "belt_gearing"})
-		world.cmd_now({"system": &"build", "op": "grant_unlock", "unlock": "driven_rollers"})
+		world.cmd({"system": &"build", "op": "grant_unlock", "unlock": "splitters_and_balancers"})
+		world.cmd_now({"system": &"build", "op": "grant_unlock", "unlock": "logistic_scheduling"})
 		var o: Vector2i = _run_of(13)
 		if o == Vector2i.MAX:
 			skip("no clear ground on this seed")

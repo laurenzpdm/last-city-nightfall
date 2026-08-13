@@ -185,6 +185,50 @@ const KEY_PRESSURE: StringName = &"threat_pressure"
 const MAX_BUS_SEVERITY: int = 1
 
 
+# --------------------------------------------------------------- the verdict
+
+## How a night went, in one word, before anybody reads a number.
+##
+## The design rule this exists for: a player must be able to tell a good night
+## from a bad one without arithmetic. Five outcomes, ordered worst to best, each
+## with a key the HUD, the audio mix and the narrative layer can switch on and a
+## sentence a human wrote.
+const VERDICT_KEYS: Array[StringName] = [
+	&"overrun", &"breached", &"costly", &"held_at_dawn", &"held",
+]
+const VERDICT_LABELS: Array[String] = [
+	"They are still standing in it.",
+	"They got through the line.",
+	"Held, and it cost.",
+	"The last of them broke off with the light.",
+	"Held. Nothing of it is left standing.",
+]
+
+
+## `outcome` is the dictionary [ThreatSystem] measures a night with.
+static func verdict_of(outcome: Dictionary, cleared: bool, withdrew: int) -> int:
+	var spawned: int = maxi(1, int(outcome.get("spawned", 0)))
+	var killed: int = int(outcome.get("killed", 0))
+	var lost: int = int(outcome.get("structures_lost", 0))
+	if bool(outcome.get("breached", false)) and float(killed) < float(spawned) * 0.5:
+		return 0
+	if bool(outcome.get("breached", false)):
+		return 1
+	if lost > 0:
+		return 2
+	if cleared:
+		return 4
+	return 3 if withdrew > 0 else 4
+
+
+static func verdict_key(i: int) -> StringName:
+	return VERDICT_KEYS[i] if i >= 0 and i < VERDICT_KEYS.size() else &"held"
+
+
+static func verdict_label(i: int) -> String:
+	return VERDICT_LABELS[i] if i >= 0 and i < VERDICT_LABELS.size() else VERDICT_LABELS[4]
+
+
 ## "4:12" — the same clock format climate uses, so every warning in the game
 ## reads the same way.
 static func format_clock(seconds: float) -> String:

@@ -20,8 +20,8 @@ func _fresh() -> LogisticsSystem:
 	Sim.submit_command({"system": &"build", "op": "add_stock", "items": {
 		"iron_plate": 900, "gear": 400, "timber": 300, "scrap": 400,
 		"steel_plate": 300, "stone": 400, "circuit": 100}})
-	Sim.submit_command({"system": &"build", "op": "grant_unlock", "unlock": "belt_gearing"})
-	Sim.submit_command({"system": &"build", "op": "grant_unlock", "unlock": "driven_rollers"})
+	Sim.submit_command({"system": &"build", "op": "grant_unlock", "unlock": "splitters_and_balancers"})
+	Sim.submit_command({"system": &"build", "op": "grant_unlock", "unlock": "logistic_scheduling"})
 	SimClock.advance(2)
 	return Sim.get_system(&"logistics") as LogisticsSystem
 

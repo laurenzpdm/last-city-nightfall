@@ -349,7 +349,7 @@ func _draw_chrome() -> void:
 	var right: float = frame.position.x + frame.size.x - 18.0
 	for i2: int in range(WINDOWS.size() - 1, -1, -1):
 		var entry: Dictionary = WINDOWS[i2]
-		var label2: String = String(entry["label"])
+		var label2: String = _window_label(entry)
 		var w2: float = t.caps_width(label2, small) + 18.0
 		var r2 := Rect2(Vector2(right - w2, frame.position.y + 14.0), Vector2(w2, 26.0))
 		var on: bool = StringName(String(entry["id"])) == window_id
@@ -377,6 +377,22 @@ func _draw_chrome() -> void:
 
 func _memory_note() -> String:
 	return "%.0f KB of history" % (float(recorder.memory_bytes()) / 1024.0)
+
+
+## The button says what the track ACTUALLY covers, read off the track. A button
+## labelled MINUTE over a two-minute window is a small lie that costs a player
+## an hour of wondering why their numbers do not add up.
+func _window_label(entry: Dictionary) -> String:
+	var id := StringName(String(entry["id"]))
+	if id == LcnStatsRecorder.T_RUN:
+		return "WHOLE RUN"
+	var t: LcnStatTrack = recorder.track(id)
+	if t == null or t.sample_count() < 2:
+		return String(entry["label"])
+	var seconds: float = t.window_seconds()
+	if seconds < 90.0:
+		return "LAST %d S" % int(round(seconds))
+	return "LAST %d MIN" % int(round(seconds / 60.0))
 
 
 # ===================================================================  input ==

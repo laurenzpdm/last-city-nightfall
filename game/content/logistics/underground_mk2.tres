@@ -18,5 +18,5 @@ cost = Dictionary[StringName, int]({
 })
 speed = 3.75
 max_span = 7
-unlock_id = &"belt_gearing"
+unlock_id = &"splitters_and_balancers"
 tint = Color(0.66, 0.6, 0.44, 1)

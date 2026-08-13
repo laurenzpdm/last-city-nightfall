@@ -28,9 +28,17 @@ enum Mode { LEVEL, RATE, FLAG }
 
 const MIN_PLOT_W: float = 80.0
 const MIN_PLOT_H: float = 50.0
-## Samples the rate smoother looks back over. Four samples of the fine track is
-## two seconds — short enough to see a stall, long enough not to flicker.
-const RATE_WINDOW: int = 4
+## SECONDS the rate smoother looks back over — not samples. A craft is a discrete
+## event: a workshop eats two plates in one tick and nothing for the next five
+## seconds. Smoothed over a fixed number of fine-track samples that draws as a
+## comb of 60/min spikes separated by zero, which is arithmetically true and
+## tells a player nothing. Ten seconds of world time reads as the rate they
+## actually have, at every resolution.
+const RATE_WINDOW_SECONDS: float = 10.0
+## Bounds on the derived sample count, so a very coarse track still differences
+## something and a very fine one does not walk half the ring per point.
+const RATE_WINDOW_MIN: int = 1
+const RATE_WINDOW_MAX: int = 48
 const LINE_W: float = 2.0
 
 signal hovered(index: int, tick: int)
@@ -223,10 +231,13 @@ func _sample_entry(e: Dictionary) -> PackedFloat32Array:
 		for i: int in _count:
 			out[i] = s.at(_from + i)
 		return out
-	var per: float = 60.0 / maxf(0.001, track.sample_seconds())
+	var sample_s: float = maxf(0.001, track.sample_seconds())
+	var per: float = 60.0 / sample_s
+	var window: int = clampi(int(round(RATE_WINDOW_SECONDS / sample_s)),
+		RATE_WINDOW_MIN, RATE_WINDOW_MAX)
 	for i: int in _count:
 		var idx: int = _from + i
-		var back: int = maxi(0, idx - RATE_WINDOW)
+		var back: int = maxi(0, idx - window)
 		var steps: int = idx - back
 		if steps <= 0:
 			out[i] = 0.0

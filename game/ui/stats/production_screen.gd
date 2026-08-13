@@ -94,14 +94,11 @@ func _bind_plot() -> void:
 	plot.refresh()
 
 
+## The table covers exactly what the chart covers. Anything else and a player
+## reads "6/min" beside a curve that is plainly at twelve and stops trusting
+## both of them.
 func _window_samples() -> int:
-	match window_id:
-		LcnStatsRecorder.T_FINE:
-			return 120       # the last minute
-		LcnStatsRecorder.T_MID:
-			return 240       # the last twenty minutes
-		_:
-			return -1        # the whole run
+	return -1
 
 
 # ===================================================================  draw ===

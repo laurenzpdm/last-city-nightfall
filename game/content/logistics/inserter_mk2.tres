@@ -19,5 +19,5 @@ cost = Dictionary[StringName, int]({
 swings_per_second = 2.31
 stack_size = 1
 reach = 1
-unlock_id = &"belt_gearing"
+unlock_id = &"splitters_and_balancers"
 tint = Color(0.64, 0.7, 0.78, 1)

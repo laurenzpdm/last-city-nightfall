@@ -18,5 +18,5 @@ cost = Dictionary[StringName, int]({
 })
 speed = 5.625
 size = Vector2i(2, 1)
-unlock_id = &"driven_rollers"
+unlock_id = &"logistic_scheduling"
 tint = Color(0.78, 0.76, 0.62, 1)

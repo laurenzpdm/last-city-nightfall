@@ -868,8 +868,11 @@ func _resolve_wave(at_dawn: bool) -> void:
 		int(outcome.get("killed", 0)), maxi(1, int(outcome.get("spawned", 0))),
 		"" if int(outcome.get("structures_lost", 0)) == 0
 			else ", %d structure(s) lost" % int(outcome.get("structures_lost", 0))]
-	var line: String = _profile.wave_cleared_line \
-		.replace("{wave}", str(_plan.wave)).replace("{detail}", detail)
+	# The verdict comes FIRST, in words, because that is the thing a player needs
+	# before any of the numbers: was that a good night or a bad one.
+	var verdict: int = ThreatDefs.verdict_of(outcome, wiped, withdrew)
+	var line: String = "%s %s" % [ThreatDefs.verdict_label(verdict),
+		_profile.wave_cleared_line.replace("{wave}", str(_plan.wave)).replace("{detail}", detail)]
 
 	var defence: Dictionary = _defence_delta()
 	_nights.append({
@@ -883,6 +886,7 @@ func _resolve_wave(at_dawn: bool) -> void:
 		"killed": int(outcome.get("killed", 0)),
 		"withdrew": withdrew,
 		"cleared": wiped,
+		"verdict": String(ThreatDefs.verdict_key(verdict)),
 		"structures_lost": int(outcome.get("structures_lost", 0)),
 		"breached": bool(outcome.get("breached", false)),
 		"damage_taken": defence.get("damage_taken", 0.0),
@@ -913,6 +917,8 @@ func _resolve_wave(at_dawn: bool) -> void:
 		"pressure_after": record.get("pressure_after", 1.0),
 		"withdrew": withdrew,
 		"cleared": wiped,
+		"verdict": String(ThreatDefs.verdict_key(verdict)),
+		"verdict_text": ThreatDefs.verdict_label(verdict),
 		"ended_at_dawn": at_dawn,
 		"text": line,
 	}

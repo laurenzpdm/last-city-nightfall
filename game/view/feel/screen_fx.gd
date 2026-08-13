@@ -91,6 +91,11 @@ func sweep(tint: Color, seconds: float = LcnTiming.EVENT, down: bool = true) -> 
 
 
 func refresh(ui_dt: float) -> void:
+	if _sweep_active and LcnTiming.reduce_motion():
+		# Turning reduce motion on mid-run has to stop the motion that is already
+		# in flight, not only refuse the next one. A player who reaches for that
+		# setting is asking for the thing on screen right now to stop.
+		_sweep_active = false
 	_wash.advance(ui_dt)
 	_edge.advance(ui_dt)
 	if _sweep_active:
@@ -170,7 +175,7 @@ func _paint(c: Control) -> void:
 func _paint_sweep(c: Control, size: Vector2) -> void:
 	var k: float = clampf(_sweep_t / _sweep_span, 0.0, 1.0)
 	var e: float = LcnEase.apply(LcnEase.Kind.SINE_IN_OUT, k)
-	var band: float = size.y * 0.55
+	var band: float = size.y * 0.72
 	var y: float = lerpf(-band, size.y, e) if _sweep_down else lerpf(size.y, -band, e)
 	# Fade the band in and out at the ends of its travel so it does not pop.
 	var a: float = LcnEase.apply(LcnEase.Kind.PULSE, k)
@@ -202,15 +207,17 @@ func _bake_vignette() -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 
-## A vertical ramp with a soft leading edge and a long tail.
+## A vertical ramp that reaches zero at BOTH ends and is densest just behind the
+## leading edge. The first version ramped 0 -> 1 top to bottom, which put a hard
+## horizontal line across the whole frame at the band's leading edge and read as
+## a rendering bug rather than as weather. A sweep must have no edges at all.
 func _bake_sweep() -> ImageTexture:
 	var img := Image.create(4, SWEEP_PX, false, Image.FORMAT_RGBA8)
 	for y: int in SWEEP_PX:
 		var t: float = float(y) / float(SWEEP_PX - 1)
-		# Dense at the leading edge (bottom of the band), thinning upward.
-		var a: float = LcnEase.apply(LcnEase.Kind.CUBIC_IN, t)
+		var a: float = pow(sin(t * PI), 0.75) * (0.28 + 0.72 * t)
 		for x: int in 4:
-			img.set_pixel(x, y, Color(1.0, 1.0, 1.0, a))
+			img.set_pixel(x, y, Color(1.0, 1.0, 1.0, clampf(a, 0.0, 1.0)))
 	return ImageTexture.create_from_image(img)
 
 

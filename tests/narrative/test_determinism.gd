@@ -73,6 +73,79 @@ func test_a_narrative_roll_does_not_disturb_another_system() -> void:
 			"forty narrative rolls moved [%s]" % part)
 
 
+# =========================================================================
+#  the lint game/sim/** gets and this folder does not
+# =========================================================================
+
+## `tools/lint_sim.sh` greps game/sim/** for the things §3 forbids. This part
+## runs inside the tick and lives at game/narrative/, so that grep never sees
+## it. The same rules are enforced here instead, over the files that step().
+##
+## The presenter and the installer are deliberately exempt and named: one draws
+## and one touches the scene tree, which is exactly what a view file is for.
+const SIM_SIDE_EXEMPT: Array[String] = [
+	"narrative_card.gd", "narrative_bootstrap.gd", "_write_the_events.gd",
+]
+
+const FORBIDDEN: Array[Array] = [
+	["randf(", "a bare randf() is not replayable; use Rng.stream()"],
+	["randi(", "a bare randi() is not replayable; use Rng.stream()"],
+	["randomize(", "reseeding the global generator destroys every replay"],
+	["Time.get_ticks", "wall clock in the tick; use SimClock"],
+	["Input.", "input belongs in view/ and ui/"],
+	["InputMap.", "input belongs in view/ and ui/"],
+	["Settings.", "a user setting must never reach a simulation decision"],
+	["OS.get_cmdline", "a command line flag must never reach a simulation decision"],
+	["func _process", "a system advances through step(tick), never a frame callback"],
+	["get_tree(", "the sim does not know the scene tree exists"],
+	["print(", "use Log.info; print() is invisible to the harness"],
+]
+
+
+func test_the_ticking_half_of_this_part_obeys_section_three() -> void:
+	var files: PackedStringArray = _sim_side_files()
+	assert_ge(float(files.size()), 8.0, "the lint found almost nothing to lint")
+	for path: String in files:
+		var text: String = FileAccess.get_file_as_string(path)
+		assert_ne(text, "", "could not read %s" % path)
+		var code: PackedStringArray = _code_lines(text)
+		for rule: Array in FORBIDDEN:
+			var needle: String = String(rule[0])
+			var offender: String = ""
+			for i: int in code.size():
+				if code[i].contains(needle):
+					offender = "line %d: %s" % [i + 1, code[i]]
+					break
+			assert_eq(offender, "", "%s — %s (%s)" % [
+				path.get_file(), String(rule[1]), offender])
+
+
+func _sim_side_files() -> PackedStringArray:
+	var out := PackedStringArray()
+	var dir := DirAccess.open("res://game/narrative")
+	if dir == null:
+		return out
+	for f: String in dir.get_files():
+		if not f.ends_with(".gd") or SIM_SIDE_EXEMPT.has(f):
+			continue
+		out.append("res://game/narrative/" + f)
+	out.sort()
+	return out
+
+
+## Code only. A rule that fires on the sentence explaining the rule would make
+## every one of these comments unwritable.
+func _code_lines(text: String) -> PackedStringArray:
+	var out := PackedStringArray()
+	for line: String in text.split("\n"):
+		var trimmed: String = line.strip_edges()
+		if trimmed.begins_with("#"):
+			continue
+		var hash_at: int = trimmed.find("#")
+		out.append(trimmed if hash_at < 0 else trimmed.substr(0, hash_at))
+	return out
+
+
 func _lines_after(world_seed: int, ticks: int) -> PackedStringArray:
 	var fx: SimFixture = SimFixture.new(world_seed).start()
 	LcnNarrativeBootstrap.ensure()

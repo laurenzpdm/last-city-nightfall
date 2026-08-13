@@ -167,6 +167,11 @@ func _stock(item: StringName, amount: int) -> void:
 	# Spending is a set, not a give: BuildStock refuses to go negative and a
 	# "take" the yard cannot cover has to leave the yard at zero, not at a
 	# number nobody can explain.
+	#
+	# Read-then-write across a tick boundary is safe here and only here: this
+	# runs at order 95, after every system has stepped, and the command lands at
+	# the TOP of the next tick before any of them steps again. Nothing can spend
+	# from the yard in between.
 	var stock: Object = build.get("stock")
 	var have: int = 0 if stock == null else int(stock.call("count", item))
 	var left: int = maxi(0, have + amount)

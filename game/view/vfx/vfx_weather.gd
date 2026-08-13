@@ -57,7 +57,6 @@ var _drift_pts: PackedVector2Array = PackedVector2Array()
 
 
 func setup() -> void:
-	var flake: ImageTexture = LcnVfxArt.texture("flake")
 	for spec: Dictionary in LcnVfxTuning.SNOW_LAYERS:
 		var p := GPUParticles2D.new()
 		p.name = String(spec["name"])
@@ -68,7 +67,7 @@ func setup() -> void:
 		p.fixed_fps = 30
 		p.interpolate = true
 		p.local_coords = false
-		p.texture = flake
+		p.texture = LcnVfxArt.texture(String(spec.get("art", "mote")))
 		p.z_index = int(spec["z"])
 		p.z_as_relative = false
 		p.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
@@ -95,8 +94,21 @@ func setup() -> void:
 		m.turbulence_noise_strength = 0.9 + float(spec["drift"])
 		m.turbulence_noise_scale = 1.8
 		m.turbulence_noise_speed = Vector3(0.5, 0.15, 0.0)
-		m.color = Color(LcnVfxTuning.SNOW_FLAKE.r, LcnVfxTuning.SNOW_FLAKE.g,
-			LcnVfxTuning.SNOW_FLAKE.b, float(spec["alpha"]))
+		# A ramp rather than a flat colour: a flake that pops into existence at
+		# full opacity at the top of the screen and vanishes at the bottom reads
+		# as a spawner. This one fades in, holds, and fades out.
+		var a: float = float(spec["alpha"])
+		var gt := GradientTexture1D.new()
+		gt.gradient = LcnVfxArt.ramp([
+			Color(LcnVfxTuning.SNOW_FLAKE.r, LcnVfxTuning.SNOW_FLAKE.g,
+				LcnVfxTuning.SNOW_FLAKE.b, 0.0),
+			Color(LcnVfxTuning.SNOW_FLAKE.r, LcnVfxTuning.SNOW_FLAKE.g,
+				LcnVfxTuning.SNOW_FLAKE.b, a),
+			Color(LcnVfxTuning.SNOW_FLAKE.r, LcnVfxTuning.SNOW_FLAKE.g,
+				LcnVfxTuning.SNOW_FLAKE.b, a),
+			Color(LcnVfxTuning.SNOW_FLAKE.r, LcnVfxTuning.SNOW_FLAKE.g,
+				LcnVfxTuning.SNOW_FLAKE.b, 0.0)] as Array[Color])
+		m.color_ramp = gt
 		p.process_material = m
 		add_child(p)
 		layers.append(p)

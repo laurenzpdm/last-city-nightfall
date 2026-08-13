@@ -21,7 +21,7 @@ drag_mode = 1
 cost = Dictionary[StringName, int]({
 &"iron_plate": 1
 })
-build_time_ticks = 4
+build_time_ticks = 10
 demolish_time_ticks = 2
 refund_ratio = 0.8
 build_priority = 55

@@ -42,17 +42,26 @@ const ENEMY_MEMORY_MAX: int = 2048
 
 ## Snow layers. Near flakes are big, fast and blurred; far flakes are a haze.
 ## amount is the fixed GPU buffer; ratio is what the weather scales.
-## `size` multiplies a 32 px crystal, so 0.10 is a three-pixel mote and 0.34 is
-## an eleven-pixel flake. The first pass shipped these at 1.05/1.9/3.4 — a
-## hundred-pixel snowflake per particle — which read as decorative symbols
-## printed over the city rather than as weather. Snow is small.
+## `size` multiplies a 32 px sprite, so 0.17 is a six-pixel mote and 0.55 an
+## eighteen-pixel crystal. Two calibration passes against real frames are baked
+## into these numbers: the first shipped 1.05/1.9/3.4, a hundred-pixel snowflake
+## per particle, which read as decorative symbols printed over the city; the
+## correction to 0.10/0.18/0.34 at 870 particles was invisible on a 1920x1080
+## frame. Distance is carried by the two far layers being soft motes and only
+## the near layer being a crystal you can see the arms of.
+##
+## 3700 particles is a large number and a cheap one: three GPUParticles2D are
+## three draw calls whatever they hold, the stepping is on the GPU, and the
+## measured cost of the whole weather layer is 6 draw calls and a fraction of a
+## millisecond (tests/vfx/vfx_gpu.tscn prints both). Sparse snow was the thing
+## that read as wrong.
 const SNOW_LAYERS: Array[Dictionary] = [
-	{"name": "SnowFar", "amount": 420, "size": 0.10, "fall": 34.0, "alpha": 0.34,
-		"drift": 0.45, "spin": 0.0, "z": 52},
-	{"name": "SnowMid", "amount": 300, "size": 0.18, "fall": 62.0, "alpha": 0.55,
-		"drift": 0.75, "spin": 1.2, "z": 54},
-	{"name": "SnowNear", "amount": 150, "size": 0.34, "fall": 104.0, "alpha": 0.46,
-		"drift": 1.15, "spin": 2.4, "z": 57},
+	{"name": "SnowFar", "amount": 1800, "size": 0.16, "fall": 36.0, "alpha": 0.50,
+		"drift": 0.45, "spin": 0.0, "z": 52, "art": "mote"},
+	{"name": "SnowMid", "amount": 1300, "size": 0.29, "fall": 68.0, "alpha": 0.72,
+		"drift": 0.75, "spin": 1.2, "z": 54, "art": "mote"},
+	{"name": "SnowNear", "amount": 600, "size": 0.52, "fall": 116.0, "alpha": 0.62,
+		"drift": 1.15, "spin": 2.4, "z": 57, "art": "flake"},
 ]
 
 ## Weather kind -> {snow, whiteout, gust}. `snow` scales every layer's ratio,

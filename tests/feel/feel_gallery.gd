@@ -126,8 +126,10 @@ func _beat_opening() -> void:
 
 func _beat_hover() -> void:
 	var cell: Vector2i = _core + Vector2i(-1, -1)   # the hearth
-	_feel.hover.set_hover(1, Rect2(Vector2(_core + Vector2i(-2, -2)) * 32.0,
-		Vector2(5.0, 5.0) * 32.0), &"hearth", Vector2i(5, 5))
+	# Through the real API, not by poking the surface: LcnFeel drives hover from
+	# the cursor every frame and would overwrite anything set behind its back —
+	# which is exactly the bug this call caught the first time it was written.
+	_feel.focus_structure(_first_building_id())
 	_feel.hover.set_ground(cell, true)
 	await _frames(3)
 	_check(_feel.hover.hover_lift_px > 0.5,
@@ -140,7 +142,7 @@ func _beat_hover() -> void:
 	_check(int((_feel.stats()["hover"] as Dictionary)["selected"]) == 1, "a selection is drawn")
 	await _shoot("03_selection")
 	_feel.hover.set_selection([])
-	_feel.hover.clear_hover()
+	_feel.focus_structure(-1)
 
 
 func _beat_place() -> void:
@@ -214,8 +216,14 @@ func _beat_nightfall() -> void:
 		"nightfall is under way (%.2f)" % _feel.nightfall_progress())
 	_check(float((_feel.stats()["screen"] as Dictionary)["sweep"]) > 0.0,
 		"and the sweep is crossing the frame")
+	# Photographed mid-travel, not on the frame it fired: the band starts above
+	# the frame, so a shot two frames in photographs an empty sky and proves
+	# nothing. 40 frames is roughly a quarter of the way across at 60 Hz.
+	await _frames(40)
+	_check(float((_feel.stats()["screen"] as Dictionary)["sweep"]) > 0.0,
+		"and it is still crossing it when the shutter opens")
 	await _shoot("10_nightfall_sweep")
-	await _frames(10)
+	await _frames(40)
 	await _shoot("11_night_pressure")
 
 

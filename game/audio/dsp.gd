@@ -180,15 +180,21 @@ static func pcm16(buf: PackedFloat32Array, count: int) -> PackedByteArray:
 ## Finished, playable stream. `looping` sets a forward loop over the whole body.
 static func to_wav(buf: PackedFloat32Array, count: int, sr: int, looping: bool) -> AudioStreamWAV:
 	var n: int = maxi(1, mini(count, buf.size()))
+	return wav_from_pcm(pcm16(buf, n), sr, looping)
+
+
+## Same, from PCM that was encoded elsewhere — the chunked path in
+## [LcnSynthJob] fills its byte array a slice at a time.
+static func wav_from_pcm(pcm: PackedByteArray, sr: int, looping: bool) -> AudioStreamWAV:
 	var w := AudioStreamWAV.new()
 	w.format = AudioStreamWAV.FORMAT_16_BITS
 	w.mix_rate = maxi(1000, sr)
 	w.stereo = false
-	w.data = pcm16(buf, n)
+	w.data = pcm
 	if looping:
 		w.loop_mode = AudioStreamWAV.LOOP_FORWARD
 		w.loop_begin = 0
-		w.loop_end = n
+		w.loop_end = maxi(1, pcm.size() / 2)
 	else:
 		w.loop_mode = AudioStreamWAV.LOOP_DISABLED
 	return w

@@ -22,7 +22,7 @@ cost = Dictionary[StringName, int]({
 &"gear": 3,
 &"iron_plate": 4
 })
-build_time_ticks = 12
+build_time_ticks = 24
 demolish_time_ticks = 4
 refund_ratio = 0.8
 build_priority = 54

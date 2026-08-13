@@ -273,9 +273,14 @@ record "engine errors" "$LOGDIR/errors.report" "$err_code" "$err_note"
 if [ "$RUN_GATE" -eq 1 ]; then
   say ""
   say "== gate =="
-  tools/gate.sh $GATE_ARGS --out=artifacts/gate > "$LOGDIR/gate.log" 2>&1
+  # The summary lands in THIS check's private log dir, never in the shared
+  # artifacts/gate/: nine other agents run this same script, and reading a
+  # summary file another process is rewriting is how a stage silently loses
+  # half its rows.
+  tools/gate.sh $GATE_ARGS --out=artifacts/gate --summary="$LOGDIR/gate.summary" \
+      > "$LOGDIR/gate.log" 2>&1
   [ "$QUIET" -eq 0 ] && sed -n '/── /,$p' "$LOGDIR/gate.log" | grep -vE '^ *(ok|$)' | sed 's/^/  /'
-  if [ -s artifacts/gate/summary.txt ]; then
+  if [ -s "$LOGDIR/gate.summary" ]; then
     while IFS='|' read -r gname gstatus gdetail; do
       [ -z "$gname" ] && continue
       case "$gstatus" in
@@ -283,7 +288,7 @@ if [ "$RUN_GATE" -eq 1 ]; then
         SKIP) record_skip "$gname" "$gdetail" "gate" ;;
         *)    record "$gname" /dev/null 1 "$gdetail" "gate" ;;
       esac
-    done < artifacts/gate/summary.txt
+    done < "$LOGDIR/gate.summary"
   else
     record "gate" "$LOGDIR/gate.log" 1 "produced no summary — it did not run"
   fi

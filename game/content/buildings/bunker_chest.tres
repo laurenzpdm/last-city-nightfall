@@ -22,11 +22,11 @@ cost = Dictionary[StringName, int]({
 &"steel_plate": 10,
 &"stone": 20
 })
-build_time_ticks = 20
+build_time_ticks = 26
 demolish_time_ticks = 8
 refund_ratio = 0.7
 build_priority = 45
 hp = 220.0
 storage_capacity = 1600
-unlock_id = &"belt_gearing"
+unlock_id = &"splitters_and_balancers"
 tint = Color(0.5, 0.54, 0.58, 1)

@@ -13,7 +13,7 @@
       "iron_plate": 300, "gear": 200, "timber": 200,
       "scrap": 300, "steel_plate": 200, "stone": 300, "circuit": 60}}},
 
-    {"tick": 1, "cmd": {"system": "build", "op": "grant_unlock", "unlock": "belt_gearing"}},
+    {"tick": 1, "cmd": {"system": "build", "op": "grant_unlock", "unlock": "splitters_and_balancers"}},
     {"tick": 1, "cmd": {"system": "build", "op": "set_stock", "items": {"coal": 0}}},
 
     {"tick": 2, "cmd": {"system": "build", "op": "place", "kind": "coal_generator",

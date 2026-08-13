@@ -18,11 +18,11 @@ extends RefCounted
 ## about two seconds of arithmetic in total, so the budget is generous while the
 ## game is opening — nobody is playing yet and the frame is already busy with
 ## world generation — and drops to a background trickle afterwards.
-const EAGER_BUDGET_USEC: int = 8000
+const EAGER_BUDGET_USEC: int = 6000
 const DEFAULT_BUDGET_USEC: int = 2500
-## Frames the eager budget lasts. Three seconds at 60 fps, which finishes the
+## Frames the eager budget lasts. Five seconds at 60 fps, which finishes the
 ## whole bake with room to spare.
-const EAGER_FRAMES: int = 200
+const EAGER_FRAMES: int = 300
 ## Samples of work per microsecond of budget, measured on the machine that wrote
 ## this. Only used to convert the budget into a slice size; being wrong by 2x
 ## costs a fraction of a millisecond either way.

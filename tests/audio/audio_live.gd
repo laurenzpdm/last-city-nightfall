@@ -154,10 +154,10 @@ func _suite_it_answers_the_simulation() -> void:
 	# world: a heat network takes minutes to collapse and the mapping is what is
 	# under test here.
 	probe.hearth01 = 1.0
-	await _settle(probe, 40)
+	_settle(probe, 240)
 	var strong: float = _audio.beds.db_of(&"hearth")
 	probe.hearth01 = 0.05
-	await _settle(probe, 60)
+	_settle(probe, 300)
 	var dying: float = _audio.beds.db_of(&"hearth")
 	_check(dying < strong - 6.0,
 		"a dying hearth is %.1f dB quieter than a strong one" % (strong - dying))
@@ -166,12 +166,12 @@ func _suite_it_answers_the_simulation() -> void:
 	# --- the storm ---
 	probe.storm01 = 0.0
 	probe.wind01 = 0.0
-	await _settle(probe, 60)
+	_settle(probe, 300)
 	var calm_wind: float = _audio.beds.db_of(&"wind")
 	var calm_howl: float = _audio.beds.db_of(&"howl")
 	probe.storm01 = 1.0
 	probe.wind01 = 1.0
-	await _settle(probe, 60)
+	_settle(probe, 300)
 	_check(_audio.beds.db_of(&"wind") > calm_wind + 6.0,
 		"a gale is %.1f dB louder than a still day"
 		% (_audio.beds.db_of(&"wind") - calm_wind))
@@ -183,10 +183,10 @@ func _suite_it_answers_the_simulation() -> void:
 		"the chorus found %d machine families in the opening city"
 		% int(_audio.chorus.report()["families_in_earshot"]))
 	probe.factory01 = 1.0
-	await _settle(probe, 20)
+	_settle(probe, 120)
 	var running_cut: float = _machine_cutoff()
 	probe.factory01 = 0.0
-	await _settle(probe, 20)
+	_settle(probe, 120)
 	var stalled_cut: float = _machine_cutoff()
 	_check(stalled_cut < running_cut * 0.5,
 		"a stalled factory is audibly muffled: %d Hz -> %d Hz"
@@ -205,7 +205,7 @@ func _suite_it_answers_the_simulation() -> void:
 	probe.is_night = false
 	probe.is_deep_night = false
 	probe.hearth01 = 1.0
-	await _settle(probe, 80)
+	_settle(probe, 400)
 	var peace_hope: float = _audio.music.db_of(&"hope")
 	var peace_dread: float = _audio.music.db_of(&"dread")
 	var peace_perc: float = _audio.music.db_of(&"perc")
@@ -216,7 +216,7 @@ func _suite_it_answers_the_simulation() -> void:
 	probe.light = 0.0
 	probe.is_night = true
 	probe.is_deep_night = true
-	await _settle(probe, 80)
+	_settle(probe, 400)
 	_check(_audio.music.db_of(&"hope") < peace_hope - 5.0, "hope drains away")
 	_check(_audio.music.db_of(&"dread") > peace_dread + 5.0, "dread comes up")
 	_check(_audio.music.db_of(&"perc") > peace_perc + 5.0, "and the drums start")
@@ -256,8 +256,9 @@ func _suite_an_assault_cannot_blow_out_the_mix() -> void:
 		"%d voices active, never more than the pool" % r["active"])
 	_check(int(_audio.report()["pending"]) < LcnAudio.MAX_PENDING,
 		"the cue queue drained instead of growing without bound")
-	_check(int(r["coalesced"]) + int(r["rate_limited"]) > 1000,
-		"the limiter absorbed %d requests" % (int(r["coalesced"]) + int(r["rate_limited"])))
+	var absorbed: int = int(r["coalesced"]) + int(r["rate_limited"]) \
+		+ int(r["culled_distance"]) + int(r["refused_cap"]) + int(_audio.report()["cues_dropped"])
+	_check(absorbed > 5000, "the limiter absorbed %d of the 9000 requests" % absorbed)
 	_check(int(r["started"]) > int(voices_before["started"]), "and some of it was actually heard")
 
 	# The alert path: everything scenic must get out of the way.
@@ -267,7 +268,7 @@ func _suite_an_assault_cannot_blow_out_the_mix() -> void:
 	_check(_audio.mixer.db_of(LcnAudioDefs.BUS_MUSIC) < music_before,
 		"a critical alert ducked the score by %.1f dB"
 		% (music_before - _audio.mixer.db_of(LcnAudioDefs.BUS_MUSIC)))
-	await _frames(90)
+	_settle(_audio.probe, 120)
 	_check(_audio.mixer.duck_amount() < 0.2, "and the duck released again")
 
 	# Per-frame cost. This runs alongside a 50 ms tick budget that heat already
@@ -385,29 +386,30 @@ func _frames(n: int) -> void:
 		await get_tree().process_frame
 
 
-## Runs the layers against a probe whose values the test has set by hand, with
-## the probe's own polling suppressed so the reading is not overwritten.
-func _settle(probe: LcnAudioProbe, frames: int) -> void:
-	for i: int in frames:
-		var keep: Dictionary = {
-			"hearth01": probe.hearth01, "storm01": probe.storm01,
-			"wind01": probe.wind01, "factory01": probe.factory01,
-			"threat01": probe.threat01, "hope01": probe.hope01,
-			"enemies_alive": probe.enemies_alive, "light": probe.light,
-			"is_night": probe.is_night, "is_deep_night": probe.is_deep_night,
-		}
-		await get_tree().process_frame
-		probe.hearth01 = keep["hearth01"]
-		probe.storm01 = keep["storm01"]
-		probe.wind01 = keep["wind01"]
-		probe.factory01 = keep["factory01"]
-		probe.threat01 = keep["threat01"]
-		probe.hope01 = keep["hope01"]
-		probe.enemies_alive = keep["enemies_alive"]
-		probe.light = keep["light"]
-		probe.is_night = keep["is_night"]
-		probe.is_deep_night = keep["is_deep_night"]
-		probe.wave_active = probe.enemies_alive > 0
+## Drives the layers on a FIXED timestep against a probe the test has set by
+## hand, with the root's own `_process` switched off.
+##
+## Two reasons, and the second one is the interesting one. First: a headless
+## process runs frames as fast as it can, so `delta` is a few microseconds and a
+## bed that travels at 5 dB per SECOND moves by nothing at all in sixty frames —
+## the first version of this suite reported the hearth dropping 2.9 dB and
+## called it a failure of the mix. Second: what is under test here is the
+## MAPPING from a simulation reading to a gain, and a mapping should be tested
+## at a stated timestep rather than at whatever the machine happened to manage.
+func _settle(probe: LcnAudioProbe, steps: int, dt: float = 1.0 / 60.0) -> void:
+	if _audio == null:
+		return
+	probe.wave_active = probe.enemies_alive > 0
+	_audio.set_process(false)
+	for i: int in steps:
+		_audio.mixer.storm01 = probe.storm01
+		_audio.mixer.hearth01 = probe.hearth01
+		_audio.mixer.factory01 = probe.factory01
+		_audio.mixer.update(dt)
+		_audio.beds.update(dt, probe)
+		_audio.chorus.update(dt, probe)
+		_audio.music.update(dt, probe)
+	_audio.set_process(true)
 
 
 ## The same opening settlement `game/boot.gd` places, so the city this suite

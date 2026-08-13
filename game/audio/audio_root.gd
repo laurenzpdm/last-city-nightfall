@@ -200,9 +200,11 @@ func _process(delta: float) -> void:
 	_frames += 1
 
 	bank.pump()
+	var t_bake: int = Time.get_ticks_usec()
 	pool.begin_frame()
 	_track_listener()
 	probe.update(delta)
+	var t_probe: int = Time.get_ticks_usec()
 
 	mixer.storm01 = probe.storm01
 	mixer.hearth01 = probe.hearth01
@@ -212,8 +214,17 @@ func _process(delta: float) -> void:
 	beds.update(delta, probe)
 	chorus.update(delta, probe)
 	music.update(delta, probe)
+	var t_layers: int = Time.get_ticks_usec()
 
 	_drain()
+
+	# Attributed, not guessed. The first version of this loop peaked at 16 ms and
+	# three different subsystems were plausible suspects; the split says which.
+	var now: int = Time.get_ticks_usec()
+	_stage_usec[&"bake"] = maxi(_stage_usec[&"bake"], t_bake - t0)
+	_stage_usec[&"probe"] = maxi(_stage_usec[&"probe"], t_probe - t_bake)
+	_stage_usec[&"layers"] = maxi(_stage_usec[&"layers"], t_layers - t_probe)
+	_stage_usec[&"voices"] = maxi(_stage_usec[&"voices"], now - t_layers)
 
 	if not _ready_logged and bank.finished():
 		_ready_logged = true

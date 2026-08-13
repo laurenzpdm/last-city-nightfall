@@ -109,7 +109,7 @@ func _draw() -> void:
 		maxf(_cost_height(t, report), _record_height(t, report)))
 	var strip: float = 0.0
 	if reports.size() > 1 or available - wanted > 150.0:
-		strip = clampf(available - wanted - BLOCK_GAP, 0.0, 190.0)
+		strip = maxf(0.0, available - wanted - BLOCK_GAP)
 	var body_h: float = clampf(wanted, 120.0, available - (strip + BLOCK_GAP if strip > 0.0 else 0.0))
 	_draw_made(t, report, Rect2(Vector2(PAD, y), Vector2(col_w, body_h)))
 	_draw_cost(t, report, Rect2(Vector2(PAD * 2.0 + col_w, y), Vector2(col_w, body_h)))
@@ -270,7 +270,9 @@ func _draw_nights(t: LcnStatsTheme, rect: Rect2) -> void:
 	t.plate(self, rect, t.PANEL, t.RIM_SOFT)
 	var y: float = _block_head(t, rect, "Every night so far")
 	var n: int = reports.size()
-	var cell: float = (rect.size.x - 28.0) / float(maxi(1, n))
+	# Capped, not divided. One night into a full-width column is a hundred-pixel
+	# orange slab, not a chart, and the fifteenth night still has to fit.
+	var cell: float = clampf((rect.size.x - 28.0) / float(maxi(1, n)), 26.0, 96.0)
 	var chart_h: float = maxf(24.0, rect.position.y + rect.size.y - y - 26.0)
 	var peak_kills: float = 1.0
 	var peak_short: float = 1.0
@@ -320,9 +322,23 @@ func _draw_nights(t: LcnStatsTheme, rect: Rect2) -> void:
 			"N%d" % int(r2["night"]), tiny, t.TEXT_DIM)
 		draw_rect(Rect2(Vector2(x + 6.0, y + chart_h + 18.0),
 			Vector2(maxf(10.0, cell - 20.0), 2.0)), vc, true)
-	t.text_right(self, rect.position.x + rect.size.x - 14.0,
-		rect.position.y + 22.0, "killed  ·  lost  ·  grid short", t.fs(t.FS_TINY),
-		t.TEXT_FAINT)
+	# A colour key, so the three bars over each night are readable without a
+	# tooltip. Laid out from the right edge inward, same as the chart legends.
+	var key: Array[Dictionary] = [
+		{"label": "killed", "colour": t.GOOD},
+		{"label": "lost", "colour": t.BAD},
+		{"label": "grid short", "colour": t.WARN},
+	]
+	var kx: float = rect.position.x + rect.size.x - 14.0
+	for i2: int in range(key.size() - 1, -1, -1):
+		var label: String = String(key[i2]["label"])
+		var w: float = t.text_width(label, tiny)
+		kx -= w
+		t.text(self, Vector2(kx, rect.position.y + 22.0), label, tiny, t.TEXT_FAINT)
+		kx -= 13.0
+		t.swatch(self, Rect2(Vector2(kx, rect.position.y + 14.0), Vector2(8.0, 8.0)),
+			key[i2]["colour"])
+		kx -= 12.0
 
 
 # ------------------------------------------------------------- measurement --

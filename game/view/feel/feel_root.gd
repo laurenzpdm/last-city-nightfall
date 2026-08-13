@@ -94,6 +94,7 @@ var _last_tracer: float = -99.0
 var _last_hit_stop: float = -99.0
 var _hit_stop_left: float = 0.0
 var _time_scale_saved: float = 1.0
+var _hover_override: int = -1
 var _placements_this_tick: int = 0
 var _placement_tick: int = -1
 
@@ -324,6 +325,8 @@ func _update_pressures(ui_dt: float) -> void:
 ## The structure under the cursor, resolved through the build system so it is one
 ## lookup rather than a scan, and applied to the hover surface every frame.
 func _update_hover() -> void:
+	if _hover_override >= 0:
+		return
 	if _camera == null:
 		return
 	var inside: bool = _camera.is_hovering()
@@ -347,6 +350,25 @@ func _update_hover() -> void:
 		tiles = def.get("size")
 	var rect := Rect2(Vector2(origin) * TILE, Vector2(tiles) * TILE)
 	hover.set_hover(id, rect, LcnSpriteFactory.archetype_for(kind), tiles)
+
+
+## Points the hover treatment at a named structure regardless of where the
+## cursor is, so something other than the mouse can say "this one" — [P21]'s
+## tutorial pointing at the hearth, a quest marker, an alert asking to be looked
+## at. Pass -1 to hand control back to the cursor.
+func focus_structure(id: int) -> void:
+	_hover_override = id
+	if id < 0:
+		hover.clear_hover()
+		return
+	var b: Object = _build.call("get_building", id) if _build != null else null
+	if b == null:
+		_hover_override = -1
+		return
+	var origin: Vector2i = b.get("cell")
+	var tiles: Vector2i = _tiles_of(b.get("kind"))
+	hover.set_hover(id, Rect2(Vector2(origin) * TILE, Vector2(tiles) * TILE),
+		LcnSpriteFactory.archetype_for(b.get("kind")), tiles)
 
 
 func _on_hover_cell(cell: Vector2i, inside: bool) -> void:
@@ -521,7 +543,7 @@ func _on_day(day: int) -> void:
 	if not enabled:
 		return
 	_nightfall.reset()
-	screen.sweep(Color(LcnPalette.WARM_MID, 0.42), LcnTiming.EVENT * 0.8, false)
+	screen.sweep(Color(LcnPalette.WARM_MID, 0.26), LcnTiming.EVENT * 0.8, false)
 	Log.info("feel", "dawn of day %d" % day)
 	_emit_beat(&"dawn", 0.7, Vector2.ZERO)
 

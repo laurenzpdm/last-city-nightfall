@@ -36,6 +36,7 @@ RUN_VISUAL=1
 RUN_ENDURANCE=1
 SHOW_PASS=""
 OUT_ROOT="artifacts/gate"
+SUMMARY_OUT=""
 
 for arg in "$@"; do
   case "$arg" in
@@ -46,6 +47,7 @@ for arg in "$@"; do
     --show-pass)   SHOW_PASS="--show-pass" ;;
     --scenarios=*) IFS=',' read -r -a SCENARIOS <<< "${arg#--scenarios=}" ;;
     --out=*)       OUT_ROOT="${arg#--out=}" ;;
+    --summary=*)   SUMMARY_OUT="${arg#--summary=}" ;;
     *) echo "gate: unknown option $arg"; exit 2 ;;
   esac
 done
@@ -55,11 +57,35 @@ if [ ! -x "$GODOT" ]; then
   exit 2
 fi
 
-mkdir -p artifacts "$OUT_ROOT" && : > artifacts/.gdignore
-SUMMARY="$OUT_ROOT/summary.txt"
+mkdir -p artifacts && : > artifacts/.gdignore
+
+# TEN AGENTS SHARE THIS REPO AND ALL OF THEM RUN tools/check.sh. Two gate runs
+# in the same artifacts/gate/ delete each other's scenario directories between a
+# harness run and the assertion over it — which is exactly what happened the
+# first time this stage ran for real: stress_1000 was graded "holds no
+# state.json" while a 21 MB state.json sat in the folder, written by a run whose
+# directory a concurrent gate had already removed. So: one gate owns the shared
+# path, everyone else gets their own and is told so.
+LOCK="artifacts/.gate.lock"
+if mkdir "$LOCK" 2>/dev/null; then
+  echo $$ > "$LOCK/pid"
+  trap 'rm -rf "$LOCK" "$LOGDIR"' EXIT
+else
+  holder="$(cat "$LOCK/pid" 2>/dev/null || echo 0)"
+  if [ -n "$holder" ] && kill -0 "$holder" 2>/dev/null; then
+    OUT_ROOT="${OUT_ROOT}-$$"
+    echo "gate: another run (pid $holder) holds artifacts/.gate.lock — writing to $OUT_ROOT"
+    trap 'rm -rf "$LOGDIR"' EXIT
+  else
+    echo $$ > "$LOCK/pid"
+    echo "gate: took over a stale lock from pid $holder"
+    trap 'rm -rf "$LOCK" "$LOGDIR"' EXIT
+  fi
+fi
+mkdir -p "$OUT_ROOT"
+SUMMARY="${SUMMARY_OUT:-$OUT_ROOT/summary.txt}"
 : > "$SUMMARY"
 LOGDIR="$(mktemp -d "${TMPDIR:-/tmp}/lcn_gate.XXXXXX")"
-trap 'rm -rf "$LOGDIR"' EXIT
 fail=0
 skipped=0
 

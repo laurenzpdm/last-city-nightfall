@@ -16,5 +16,5 @@ cost = Dictionary[StringName, int]({
 &"gear": 1
 })
 speed = 5.625
-unlock_id = &"driven_rollers"
+unlock_id = &"logistic_scheduling"
 tint = Color(0.82, 0.8, 0.66, 1)

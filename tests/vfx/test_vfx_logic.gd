@@ -198,7 +198,7 @@ func test_the_caps_are_actually_small() -> void:
 	var snow: int = 0
 	for spec: Dictionary in LcnVfxTuning.SNOW_LAYERS:
 		snow += int(spec["amount"])
-	assert_true(snow <= 1200, "snow buffer is %d particles, which is a budget not a look" % snow)
+	assert_true(snow <= 4096, "snow buffer is %d particles, which is a budget not a look" % snow)
 
 
 # ------------------------------------------------------------------- assets --

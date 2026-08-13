@@ -20,8 +20,8 @@ func _throughput() -> void:
 	print(" belt          tooltip   measured")
 	for kind: String in ["belt_mk1", "belt_mk2", "belt_mk3"]:
 		var logi: LogisticsSystem = _fresh()
-		Sim.submit_command({"system": &"build", "op": "grant_unlock", "unlock": "belt_gearing"})
-		Sim.submit_command({"system": &"build", "op": "grant_unlock", "unlock": "driven_rollers"})
+		Sim.submit_command({"system": &"build", "op": "grant_unlock", "unlock": "splitters_and_balancers"})
+		Sim.submit_command({"system": &"build", "op": "grant_unlock", "unlock": "logistic_scheduling"})
 		SimClock.advance(1)
 		var o := Vector2i(40, 40)
 		Sim.submit_command({"system": &"logistics", "op": "place_line", "kind": kind,

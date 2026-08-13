@@ -21,12 +21,18 @@ extends RefCounted
 ##   0 CONTINUOUS  the bed — noise or partials, one slice at a time
 ##   1 SEAM        fold the overrun back over the head so the loop has no tick
 ##   2 EVENTS      transients written on top, wrapping around the loop point
-##   3 FINISH      sanitise, normalise, encode to 16-bit
+##   3 SCRUB       sanitise and measure the peak, one slice at a time
+##   4 ENCODE      normalise and write 16-bit PCM, one slice at a time
+##
+## SCRUB and ENCODE are chunked for the same reason everything else is. They
+## were one atomic `_finish()` at first, three passes over the buffer with no
+## budget check in them, and on a 9.6 s music stem that single call cost 30 ms —
+## a dropped frame, produced by the very mechanism that exists to prevent one.
 ##
 ## Nothing in here touches the scene tree, the clock, Rng or Settings. It is
 ## pure arithmetic, which is why the sound of the game cannot desync a replay.
 
-enum Phase { CONTINUOUS, SEAM, EVENTS, FINISH, DONE }
+enum Phase { CONTINUOUS, SEAM, EVENTS, SCRUB, ENCODE, DONE }
 
 var key: StringName = &""
 var stream: AudioStreamWAV = null
@@ -61,6 +67,10 @@ var _phase: int = Phase.CONTINUOUS
 var _cursor: int = 0
 var _events: Array[Dictionary] = []
 var _event_index: int = 0
+var _tail_cursor: int = 0
+var _peak: float = 0.0
+var _norm: float = 1.0
+var _pcm: PackedByteArray = PackedByteArray()
 
 # --- continuous state, carried across slices ---------------------------------
 var _rng: RandomNumberGenerator = null
@@ -134,9 +144,10 @@ func advance(budget: int) -> bool:
 				_phase = Phase.EVENTS
 			Phase.EVENTS:
 				left -= _do_events(left)
-			Phase.FINISH:
-				_finish()
-				left = 0
+			Phase.SCRUB:
+				left -= _do_scrub(left)
+			Phase.ENCODE:
+				left -= _do_encode(left)
 			_:
 				done = true
 	build_usec += Time.get_ticks_usec() - t0
@@ -253,14 +264,14 @@ func _prepare() -> void:
 	# --- events ---
 	_events = _plan_events(seconds)
 
-	work_total = (_render_len if _bed > 0.0 else 0) + _xfade
+	work_total = (_render_len if _bed > 0.0 else 0) + _xfade + _body * 2
 	for e: Dictionary in _events:
 		work_total += int(e["len"])
 	work_total = maxi(1, work_total)
 
 	if _bed <= 0.0:
 		# No bed: skip straight past the continuous pass and its seam.
-		_phase = Phase.EVENTS if not _events.is_empty() else Phase.FINISH
+		_phase = Phase.EVENTS if not _events.is_empty() else Phase.SCRUB
 
 
 ## [[hz, depth], ...] with every rate snapped to the loop grid. A no-op when the
@@ -327,7 +338,7 @@ func _do_continuous(budget: int) -> int:
 	if spent <= 0:
 		_phase = Phase.SEAM if _xfade > 0 else Phase.EVENTS
 		if _events.is_empty() and _phase == Phase.EVENTS:
-			_phase = Phase.FINISH
+			_phase = Phase.SCRUB
 		return 1
 	if _engine == &"tonal":
 		_render_tonal(_cursor, to)
@@ -338,7 +349,7 @@ func _do_continuous(budget: int) -> int:
 	if _cursor >= _render_len:
 		_phase = Phase.SEAM if _xfade > 0 else Phase.EVENTS
 		if _events.is_empty() and _phase == Phase.EVENTS:
-			_phase = Phase.FINISH
+			_phase = Phase.SCRUB
 	return spent
 
 
@@ -551,7 +562,7 @@ func _do_events(budget: int) -> int:
 		work_done += int(e["len"])
 		_event_index += 1
 	if _event_index >= _events.size():
-		_phase = Phase.FINISH
+		_phase = Phase.SCRUB
 	return maxi(1, spent)
 
 
@@ -674,19 +685,59 @@ func _render_event(e: Dictionary) -> void:
 
 # =================================================================== finish ==
 
-func _finish() -> void:
-	if _pre > 0:
+## Scrubs non-finite samples and measures the peak, so ENCODE knows the gain.
+func _do_scrub(budget: int) -> int:
+	if _tail_cursor == 0 and _pre > 0:
 		# Throw the run-up away. Everything after this point sees a buffer whose
 		# sample zero is the first sample of the loop.
 		_buf = _buf.slice(_pre, _pre + _body)
 		_pre = 0
-	non_finite = LcnDsp.sanitize(_buf, _body)
-	LcnDsp.normalize_to(_buf, _body, LcnDsp.NORMAL_PEAK * clampf(_gain, 0.05, 1.0))
-	stream = LcnDsp.to_wav(_buf, _body, _sr, _loop)
+	var to: int = mini(_body, _tail_cursor + budget)
+	for i: int in range(_tail_cursor, to):
+		var v: float = _buf[i]
+		if not is_finite(v):
+			v = 0.0
+			non_finite += 1
+			_buf[i] = 0.0
+		elif v > 1.0:
+			v = 1.0
+			_buf[i] = 1.0
+		elif v < -1.0:
+			v = -1.0
+			_buf[i] = -1.0
+		var a: float = absf(v)
+		if a > _peak:
+			_peak = a
+	var spent: int = to - _tail_cursor
+	work_done += spent
+	_tail_cursor = to
+	if _tail_cursor >= _body:
+		var target: float = LcnDsp.NORMAL_PEAK * clampf(_gain, 0.05, 1.0)
+		_norm = 1.0 if _peak < 0.0001 else target / _peak
+		_pcm = PackedByteArray()
+		_pcm.resize(_body * 2)
+		_tail_cursor = 0
+		_phase = Phase.ENCODE
+	return maxi(1, spent)
+
+
+func _do_encode(budget: int) -> int:
+	var to: int = mini(_body, _tail_cursor + budget)
+	for i: int in range(_tail_cursor, to):
+		var v: int = int(round(clampf(_buf[i] * _norm, -1.0, 1.0) * 32767.0))
+		_pcm.encode_s16(i * 2, clampi(v, -32768, 32767))
+	var spent: int = to - _tail_cursor
+	work_done += spent
+	_tail_cursor = to
+	if _tail_cursor < _body:
+		return maxi(1, spent)
+	stream = LcnDsp.wav_from_pcm(_pcm, _sr, _loop)
 	_buf = PackedFloat32Array()
+	_pcm = PackedByteArray()
 	work_done = work_total
 	_phase = Phase.DONE
 	done = true
+	return maxi(1, spent)
 
 
 ## Bytes the finished stream occupies. Reported by the bank.

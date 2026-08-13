@@ -16,5 +16,5 @@ cost = Dictionary[StringName, int]({
 &"stone": 20
 })
 capacity = 1600
-unlock_id = &"belt_gearing"
+unlock_id = &"splitters_and_balancers"
 tint = Color(0.5, 0.54, 0.58, 1)

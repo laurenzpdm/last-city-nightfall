@@ -31,8 +31,8 @@ func setup() -> void:
 func _open_the_tech_tree() -> void:
 	if world.system(&"build") == null:
 		return
-	world.cmd({"system": &"build", "op": "grant_unlock", "unlock": "belt_gearing"})
-	world.cmd_now({"system": &"build", "op": "grant_unlock", "unlock": "driven_rollers"})
+	world.cmd({"system": &"build", "op": "grant_unlock", "unlock": "splitters_and_balancers"})
+	world.cmd_now({"system": &"build", "op": "grant_unlock", "unlock": "logistic_scheduling"})
 
 
 func teardown() -> void:
@@ -541,7 +541,7 @@ func test_a_belt_tier_stays_locked_until_it_is_researched() -> void:
 	assert_false(bool(blocked["ok"]), "a driven belt is not available on day one")
 	assert_has(String(blocked["reason"]), "locked", "and it says why")
 	assert_true(bool(logi.can_place(&"belt_mk1", O, 0)["ok"]), "a slat belt always is")
-	world.cmd_now({"system": &"build", "op": "grant_unlock", "unlock": "driven_rollers"})
+	world.cmd_now({"system": &"build", "op": "grant_unlock", "unlock": "logistic_scheduling"})
 	assert_true(bool(logi.can_place(&"belt_mk3", O, 0)["ok"]), "research opens it")
 
 

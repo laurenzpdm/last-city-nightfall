@@ -119,9 +119,16 @@ func _build() -> void:
 	_options.add_theme_constant_override("separation", 8)
 	_column.add_child(_options)
 
-	_ticker = _label("", 12, Color(0.58, 0.62, 0.70))
+	_ticker = _label("", 12, Color(0.72, 0.75, 0.82))
 	_ticker.name = "Ticker"
 	_ticker.autowrap_mode = TextServer.AUTOWRAP_OFF
+	# The ticker floats over the world, not over a plate, and the caldera floor
+	# goes from near-black at night to a bright warm grey at midday. A shadow is
+	# cheaper than a panel and keeps the line readable on both.
+	_ticker.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.85))
+	_ticker.add_theme_constant_override("shadow_offset_x", 1)
+	_ticker.add_theme_constant_override("shadow_offset_y", 1)
+	_ticker.add_theme_constant_override("shadow_outline_size", 3)
 	_root.add_child(_ticker)
 
 
