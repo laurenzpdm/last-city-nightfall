@@ -31,7 +31,7 @@ func apply(node: ResearchNode) -> bool:
 	if node == null:
 		return false
 	var keys: Array = node.effects.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: Variant in keys:
 		var key: StringName = StringName(String(k))
 		var contributors: Array = _sources.get(key, [])
@@ -71,7 +71,7 @@ func sources_of(key: StringName) -> Array[StringName]:
 func snapshot() -> Dictionary:
 	var out: Dictionary = {}
 	var keys: Array = _values.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: StringName in keys:
 		out[String(k)] = snappedf(float(_values[k]), 0.0001)
 	return out
@@ -81,7 +81,7 @@ func snapshot() -> Dictionary:
 func detailed() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var keys: Array = _values.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: StringName in keys:
 		var sources: Array = _sources.get(k, [])
 		out.append({

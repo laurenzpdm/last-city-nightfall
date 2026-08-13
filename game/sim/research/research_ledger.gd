@@ -75,7 +75,7 @@ func count(item: StringName) -> int:
 func missing(items: Dictionary[StringName, int]) -> Dictionary[StringName, int]:
 	var out: Dictionary[StringName, int] = {}
 	var keys: Array = items.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: StringName in keys:
 		var short: int = int(items[k]) - count(k)
 		if short > 0:
@@ -102,7 +102,7 @@ func take(items: Dictionary[StringName, int]) -> bool:
 	if not can_afford(items):
 		return false
 	var keys: Array = items.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: StringName in keys:
 		amounts[k] = int(amounts.get(k, 0)) - int(items[k])
 		if amounts[k] <= 0:
@@ -123,7 +123,7 @@ func give(items: Dictionary[StringName, int]) -> void:
 		f.call("give", items)
 		return
 	var keys: Array = items.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: StringName in keys:
 		amounts[k] = int(amounts.get(k, 0)) + int(items[k])
 
@@ -169,7 +169,7 @@ func _live_facade() -> Object:
 func _to_json(items: Dictionary[StringName, int]) -> Dictionary:
 	var out: Dictionary = {}
 	var keys: Array = items.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: StringName in keys:
 		out[String(k)] = int(items[k])
 	return out

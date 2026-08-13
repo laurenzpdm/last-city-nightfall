@@ -139,10 +139,13 @@ THE CURVE  — measured over dusk/night/deep-night of each day
     1  First Night      0.942    0.679     0.0%     0.431   0.00    -31.8  pass
     2  The Squeeze      0.967    0.887     0.0%     0.329   0.00    -28.4  pass
     3  First Frost      0.849    0.732     0.0%     0.424   0.50    -38.1  pass
-    4  Colder Ground    1.165    1.162     0.6%     1.000   0.00    -32.7  soft
-    5  Consolidation    1.163    1.139     1.9%     0.954   0.00    -37.5  soft
-    6  Outgrown         1.037    0.928     3.0%     0.579   0.00    -40.0  pass
-    7  Second Frost     0.554    0.323    11.1%     0.072   0.66    -54.0  pass
+    4  Colder Ground    0.844    0.834     0.6%     0.357   0.00    -32.7  pass
+    5  Consolidation    0.921    0.814     1.2%     0.469   0.00    -37.5  pass
+    6  Outgrown         0.912    0.782     3.0%     0.136   0.00    -40.0  pass
+    7  Second Frost     0.538    0.363    11.1%     0.000   0.66    -54.0  pass
+
+THE GRID  — at the final tick
+  1 network(s); 100.0% of every heat entity is in the largest one
 
 VERDICT
   ✓ every graded day inside its designed band
@@ -157,26 +160,70 @@ Reading it as a player experience:
 * **Day 3, the First Frost**, drops ambient to −38.1 °C at 0.50 storm intensity
   and takes the night to 0.73. The city holds, and it holds *because* the
   accumulator went up that morning.
-* **Day 7, the Second Frost**, is the near-death: −54.0 °C, trough 0.32, 11% of
-  the grid frozen at once, and 93% of the banked heat gone. Anything less than
-  the three generators built that morning loses the outer rungs.
+* **Days 4 to 6** run the long squeeze: margins 0.84, 0.92, 0.91 with troughs in
+  the 0.78–0.83 band and the buffer floor falling from 0.36 to 0.14 as the plain
+  cools from −32.7 °C to −40.0 °C. Nothing dramatic happens on any of them and
+  that is the point — this is the stretch where a player spends on homes and
+  tells themselves the margin is fine.
+* **Day 7, the Second Frost**, is the near-death: −54.0 °C, trough 0.36, 11% of
+  the grid frozen at once, and the buffer floor at **0.000** — every joule the
+  city ever banked, gone. Anything less than the three generators built that
+  morning loses the outer rungs.
 
-The whole run stays on **one** heat network and logs **zero** errors.
+The whole run stays on **one** heat network, 100% of heat entities in it, and
+logs **zero** errors at 419 ticks/second.
 
 ### Where the tuning actually went
 
-The first version of this scenario put two generators up on day 1 and produced
-day-1 margins of 1.21 — a play-through of a *good* player, not the design
-target. The generator schedule was back-loaded to 1, 1, 2, 1, 1, 3, 3 across the
-week: an attentive beginner gets one burner up before the first dusk, is
-frightened, and buys the second the next morning. That single change moved day 1
-from 1.214/0.996 to 0.942/0.679 and moved day 6 from a comfortable 1.30 to the
-0.93 trough that makes the Second Frost land.
+Three iterations, each one a run:
 
-Days 4 and 5 still read `soft`: their troughs sit a little above the designed
-ceiling. That is honest and it is reported rather than papered over — the
-tolerance mechanism exists so that a 3% drift reads differently from a 200% one,
-and so that a gate which fires on noise does not get switched off.
+| run | change | day 1 margin/trough | day 6 | day 7 |
+|---|---|---|---|---|
+| `p12_econ1` | two generators a day from day 1 | 1.214 / 0.996 | 0.63 | 0.39 |
+| `p12_econ6` | back-loaded to 1,1,2,2,2,2,2 | 0.942 / 0.679 | 1.04 / 0.93 | 0.55 / 0.32 |
+| `p12_econ7` | days 4–5 spend on homes, day 6 corrects with three burners | 0.942 / 0.679 | 0.91 / 0.78 | 0.54 / 0.36 |
+
+The first version was a play-through of a *good* player, not of the design
+target. Back-loading the generator schedule to **1, 1, 2, 1, 1, 3, 3** models the
+person the design is written for: they get one burner up before the first dusk,
+are frightened by it, and buy the second the next morning. That single change
+moved day 1 from 1.214/0.996 to 0.942/0.679.
+
+The second pass fixed days 4 and 5, which were reading `soft` at troughs of 1.16
+and 1.14 — nights that never dipped. Moving one generator out of each and into
+day 6 turned them into the long, unglamorous squeeze the design asks for, and it
+is what makes the Second Frost land three days later.
+
+Nothing was fixed by editing a band.
+
+---
+
+### The reference run, with the guns live
+
+`first_night` is the other measured run (`artifacts/p12_fn2`, seed 7, 11 000
+ticks) and it keeps everything `economy_60min` pins: real waves, real hauling,
+real fuel. Its day 1 grades **soft**:
+
+```
+  day  label            margin   trough   frozen  buf-floor  storm   coldest
+    1  First Night      1.034    0.793     3.6%     0.041   0.00    -28.6
+      buffer  ~  0.041 is outside 0.050..1.000 (soft)
+
+  dawn        margin 1.145   in deficit  50.5% of samples
+  afternoon   margin 1.179   in deficit   0.0% of samples
+  night       margin 1.088   in deficit  26.0% of samples
+  deep_night  margin 0.858   in deficit 100.0% of samples   300 brownouts
+```
+
+That phase table is the shape the whole game is built around and it is worth
+reading on its own: **the afternoon is free, and every single sample of deep
+night is in deficit.** The player spends the light half building the thing that
+will not quite carry them through the dark half.
+
+Day 1 misses its buffer floor by 0.009 — the city ends the night with 4% of what
+it banked rather than 5%. That is a genuine near-miss reported as one, not a
+failure, and it is on the right side: the reference run should end the first
+night with almost nothing left.
 
 ---
 
@@ -287,6 +334,19 @@ balance owner who finds them and says nothing is worse than one who never looked
    not have, and when the scenario was regenerated [P07]/[P08] had only just
    landed. The combat half of the stress test is owed, not forgotten, and the
    description says so.
+4. **The turrets in `first_night` are ornaments, and it costs the Hearth.**
+   The log says it plainly:
+   `mount 'turret_mount' asks for weapon 'burner_cannon', which does not exist`.
+   With nothing firing, a drift_hound walks the perimeter and at tick 10 531
+   `The Hearth #1 destroyed by drift_hound`. Because the Hearth's 5×5 footprint
+   is what joins the four pipe arms, losing it splits the city into four
+   networks and drops the largest component to 41% of the grid. The scenario's
+   grid claim now covers day 1 only, and says why. Owner: [P07] weapons content.
+5. **`stress_1000` is at 36 ticks/second against a floor of 35.** It measured 45
+   before [P05]/[P03]/[P04]/[P07]/[P08] landed. The floor is not mine to move
+   and the workload is real (1 483 heat entities, 98.9% of them in one
+   component, which is the expensive case on purpose), but the perf gate has
+   roughly one tick/second of headroom left.
 
 ---
 

@@ -20,7 +20,8 @@
       6,
       7
     ],
-    "max_heat_networks": 1
+    "max_heat_networks": 1,
+    "min_main_network_share": 1.0
   },
   "script": [
     {

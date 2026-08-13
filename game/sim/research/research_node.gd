@@ -88,7 +88,7 @@ extends Resource
 func total_cost() -> Dictionary[StringName, int]:
 	var out: Dictionary[StringName, int] = {}
 	var keys: Array = cost.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: StringName in keys:
 		var n: int = int(cost[k])
 		if n > 0:
@@ -103,7 +103,7 @@ func cost_by_fraction(fraction: float) -> Dictionary[StringName, int]:
 	var f: float = clampf(fraction, 0.0, 1.0)
 	var out: Dictionary[StringName, int] = {}
 	var keys: Array = cost.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: StringName in keys:
 		var total: int = int(cost[k])
 		if total <= 0:
@@ -119,7 +119,7 @@ func unlock_ids() -> Array[StringName]:
 	for g: StringName in grants:
 		if String(g) != "" and g != id and not extra.has(g):
 			extra.append(g)
-	extra.sort()
+	extra = ResearchDefs.sorted_names(extra)
 	out.append_array(extra)
 	return out
 
@@ -130,7 +130,7 @@ func law_ids() -> Array[StringName]:
 	for g: StringName in grants:
 		if ResearchDefs.is_law(g):
 			out.append(g)
-	out.sort()
+	out = ResearchDefs.sorted_names(out)
 	return out
 
 
@@ -140,7 +140,7 @@ func recipe_ids() -> Array[StringName]:
 	for g: StringName in grants:
 		if ResearchDefs.is_recipe(g):
 			out.append(g)
-	out.sort()
+	out = ResearchDefs.sorted_names(out)
 	return out
 
 
@@ -175,7 +175,7 @@ func validate() -> PackedStringArray:
 		if int(cost[k]) <= 0:
 			problems.append("non-positive cost entry '%s'" % String(k))
 	var ekeys: Array = effects.keys()
-	ekeys.sort()
+	ekeys = ResearchDefs.sorted_names(ekeys)
 	for k2: Variant in ekeys:
 		var key: StringName = StringName(String(k2))
 		if not ResearchDefs.is_effect_key(key):

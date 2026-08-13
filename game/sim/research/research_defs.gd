@@ -8,6 +8,44 @@ extends RefCounted
 
 const TAG: String = "research"
 
+
+# ==========================================================================
+#  DETERMINISTIC KEY ORDER
+# ==========================================================================
+##
+## `Array.sort()` on StringName keys DOES NOT SORT ALPHABETICALLY. Godot's
+## StringName compares by the address of its interned data, so sorting a
+## dictionary's StringName keys orders them by allocation address:
+##
+##     {&"zebra", &"apple", &"mango", &"banana", &"cherry"}.keys().sort()
+##       -> ["cherry", "banana", "mango", "apple", "zebra"]
+##
+## That is stable inside one process and identical between two runs of the same
+## build — which is why a replay diff never caught it — but it is meaningless
+## between builds, it reorders the instant an unrelated part interns a name
+## earlier, and it makes every ordered array in state.json unreadable.
+## ARCHITECTURE.md §3 asks for sorted keys; this is what actually sorts them.
+##
+## Everything in [P10] that writes an ordered array or iterates keys for effect
+## goes through here.
+
+static func _name_lt(a: StringName, b: StringName) -> bool:
+	return String(a) < String(b)
+
+
+## Dictionary keys in true lexicographic order.
+static func sorted_names(keys: Array) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for k: Variant in keys:
+		out.append(StringName(String(k)))
+	out.sort_custom(_name_lt)
+	return out
+
+
+## Sorts an existing typed array of names in place-equivalent fashion.
+static func sort_names(names: Array[StringName]) -> void:
+	names.sort_custom(_name_lt)
+
 # ==========================================================================
 #  BRANCHES — the six lanes of the tree, in draw order
 # ==========================================================================

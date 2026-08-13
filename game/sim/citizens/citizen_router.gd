@@ -23,12 +23,16 @@ extends RefCounted
 ## come from a counter. Nothing here iterates an unordered container.
 
 const MAX_ROUTES: int = 512
-## Hard ceiling on one A* search. The real cap is scaled by how far the walk is
-## (see _node_budget): an open thirty-tile trip expands a few hundred nodes, and
-## letting a blocked one expand thousands is how a 50 ms tick becomes a stutter.
-const MAX_NODES: int = 1300
-const NODES_PER_CELL: int = 22
-const MIN_NODES: int = 650
+## Node ceiling for one A* search, scaled by distance — see _node_budget. The
+## scaling is QUADRATIC because [P01]'s octile heuristic is weighted in tile
+## steps while its g-cost is weighted in terrain cost (six and up per tile), so
+## the heuristic under-estimates by roughly six to one and the search behaves
+## much more like Dijkstra than like A*: it clears a disc, not a corridor. A
+## linear budget silently failed four walks in five, and a failed walk is a
+## citizen taking the straight line through a wall.
+const MAX_NODES: int = 2200
+const NODES_PER_CELL2: int = 3
+const MIN_NODES: int = 700
 const REQUESTS_PER_TICK: int = 1
 ## Ticks a cached route is trusted for. Half an in-world day: staleness is
 ## handled by invalidate_cells when the ground actually changes, so a route has
@@ -200,9 +204,6 @@ func _solve(key: int, tick: int) -> void:
 	if path.size() < 2:
 		failures += 1
 		_failed[key] = tick
-		Log.debug("citizens.route", "FAIL %s -> %s budget %d from_ok=%s to_ok=%s" % [
-			str(from), str(to), _node_budget(from, to),
-			str(_grid.call("is_walkable", from)), str(_grid.call("is_walkable", to))])
 		return
 	var cells := PackedInt32Array()
 	cells.resize(path.size())
@@ -266,7 +267,7 @@ func _drop(route_id: int) -> void:
 ## prove it costs more than the walk is worth.
 static func _node_budget(from: Vector2i, to: Vector2i) -> int:
 	var d: int = maxi(absi(to.x - from.x), absi(to.y - from.y))
-	return clampi(d * NODES_PER_CELL, MIN_NODES, MAX_NODES)
+	return clampi(NODES_PER_CELL2 * d * d, MIN_NODES, MAX_NODES)
 
 
 ## Two cells packed into one int. The map is 256x256 (see [P01] WorldGrid), so

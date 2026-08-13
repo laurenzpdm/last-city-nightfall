@@ -61,7 +61,7 @@ func clear_stall() -> void:
 func paid_json() -> Dictionary:
 	var out: Dictionary = {}
 	var keys: Array = paid.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: StringName in keys:
 		out[String(k)] = int(paid[k])
 	return out
@@ -70,7 +70,7 @@ func paid_json() -> Dictionary:
 func missing_json() -> Dictionary:
 	var out: Dictionary = {}
 	var keys: Array = missing.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: StringName in keys:
 		out[String(k)] = int(missing[k])
 	return out
@@ -98,12 +98,12 @@ static func from_dict(data: Dictionary) -> ResearchProgress:
 	p.resumes = int(data.get("resumes", 0))
 	var raw: Dictionary = data.get("paid", {})
 	var keys: Array = raw.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: Variant in keys:
 		p.paid[StringName(String(k))] = int(raw[k])
 	var raw_missing: Dictionary = data.get("missing", {})
 	var mkeys: Array = raw_missing.keys()
-	mkeys.sort()
+	mkeys = ResearchDefs.sorted_names(mkeys)
 	for k2: Variant in mkeys:
 		p.missing[StringName(String(k2))] = int(raw_missing[k2])
 	return p

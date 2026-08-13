@@ -411,6 +411,15 @@ func city_at(cell: Vector2i) -> float:
 	return float(_city[y * _city_dim.x + x]) / 255.0
 
 
+## 0..1 industrial soot at a tile, from the same field the ground shader samples.
+func soot_at(cell: Vector2i) -> float:
+	if _soot_dim.x <= 0:
+		return 0.0
+	var x: int = clampi(cell.x / SOOT_STEP, 0, _soot_dim.x - 1)
+	var y: int = clampi(cell.y / SOOT_STEP, 0, _soot_dim.y - 1)
+	return float(_soot[y * _soot_dim.x + x]) / 255.0
+
+
 ## 0..1 local heat at a tile, from the same field the ground shader samples.
 func heat_at(cell: Vector2i) -> float:
 	if _heat_dim.x <= 0:

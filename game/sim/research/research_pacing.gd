@@ -120,7 +120,7 @@ func loudest() -> StringName:
 	var best: StringName = &""
 	var best_v: float = 0.0
 	var keys: Array = signals.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: StringName in keys:
 		var v: float = float(signals[k])
 		if v > best_v + 0.0001:
@@ -182,7 +182,7 @@ func snapshot() -> Dictionary:
 	var det_out: Dictionary = {}
 	var src_out: Dictionary = {}
 	var keys: Array = signals.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: StringName in keys:
 		var v: float = float(signals[k])
 		if v <= 0.0005:

@@ -81,6 +81,29 @@ func test_heat_stamps_are_discs_that_saturate() -> void:
 	assert_near(field.heat_at(Vector2i(64, 48)), 0.0, 0.001, "and the field clears when the fire goes out")
 
 
+## Soot is a halo of grime AROUND industry, and only around industry — a whole
+## district of chimneys must not resolve as one black crater, which is what the
+## first pass's binary decal did.
+func test_soot_settles_around_industry_and_nowhere_else() -> void:
+	var chimney := Vector2(50.0 * 32.0, 40.0 * 32.0)
+	var industry: Array[Dictionary] = [{
+		"centre": chimney, "tiles": Vector2i(3, 3), "warm": 0.8,
+		"soot": 0.5, "soot_radius": 3.0 * 32.0 * 1.5,
+	}]
+	var clean: Array[Dictionary] = [{
+		"centre": Vector2(90.0 * 32.0, 40.0 * 32.0), "tiles": Vector2i(2, 2), "warm": 0.5,
+		"soot": 0.0, "soot_radius": 0.0,
+	}]
+	field.refresh_soot(industry + clean)
+	assert_gt(field.soot_at(Vector2i(50, 40)), 0.2, "the chimney's own tile is sooty")
+	assert_gt(field.soot_at(Vector2i(52, 40)), 0.01, "and so is the ground beside it")
+	assert_near(field.soot_at(Vector2i(62, 40)), 0.0, 0.01, "ten tiles out it is clean")
+	assert_near(field.soot_at(Vector2i(90, 40)), 0.0, 0.01,
+		"and a building with no chimney lays none at all")
+	assert_lt(field.soot_at(Vector2i(50, 40)), 1.0,
+		"and even at the stack it is grime on the ground, never a hole in it")
+
+
 ## DEFECT (critic, defect 3b): "there is no ambient legibility floor, so unlit
 ## buildings vanish entirely." The city field is that floor, so it must actually
 ## spread past the buildings that make it.

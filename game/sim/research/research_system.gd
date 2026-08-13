@@ -331,7 +331,7 @@ func unlocked_recipes() -> Array[StringName]:
 ## Every unlock id currently open, sorted.
 func unlocked_ids() -> Array[StringName]:
 	var keys: Array = _unlocked.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	var out: Array[StringName] = []
 	for k: StringName in keys:
 		out.append(k)
@@ -362,7 +362,7 @@ func remaining_cost(id: StringName) -> Dictionary[StringName, int]:
 		return out
 	var p: ResearchProgress = _progress.get(id)
 	var keys: Array = n.cost.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: StringName in keys:
 		var owed: int = int(n.cost[k])
 		if p != null:
@@ -563,7 +563,7 @@ func _op_cancel(id: StringName) -> Dictionary:
 	var refund: Dictionary[StringName, int] = {}
 	if p != null:
 		var keys: Array = p.paid.keys()
-		keys.sort()
+		keys = ResearchDefs.sorted_names(keys)
 		for k: StringName in keys:
 			var back: int = int(floor(float(p.paid[k]) * CANCEL_REFUND))
 			if back > 0:
@@ -693,7 +693,7 @@ func _apply_points(n: ResearchNode, p: ResearchProgress, gain: float) -> void:
 			p.points = reached
 			return
 		var keys: Array = owed.keys()
-		keys.sort()
+		keys = ResearchDefs.sorted_names(keys)
 		for k: StringName in keys:
 			p.paid[k] = int(p.paid.get(k, 0)) + int(owed[k])
 		p.stage += 1
@@ -712,7 +712,7 @@ func _instalment(n: ResearchNode, p: ResearchProgress) -> Dictionary[StringName,
 		ResearchProgress.stage_fraction(p.stage + 1))
 	var out: Dictionary[StringName, int] = {}
 	var keys: Array = upto.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: StringName in keys:
 		var owed: int = int(upto[k]) - int(p.paid.get(k, 0))
 		if owed > 0:
@@ -992,7 +992,7 @@ func _can_open(id: StringName) -> bool:
 		ResearchProgress.stage_fraction(stage + 1))
 	var owed: Dictionary[StringName, int] = {}
 	var keys: Array = upto.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: StringName in keys:
 		var need: int = int(upto[k]) - (int(p.paid.get(k, 0)) if p != null else 0)
 		if need > 0:
@@ -1188,7 +1188,7 @@ func _eta_of(id: StringName) -> float:
 func serialize() -> Dictionary:
 	var progress: Array = []
 	var pkeys: Array = _progress.keys()
-	pkeys.sort()
+	pkeys = ResearchDefs.sorted_names(pkeys)
 	for k: StringName in pkeys:
 		progress.append((_progress[k] as ResearchProgress).to_dict())
 
@@ -1310,7 +1310,7 @@ func _is_active_stalled() -> bool:
 
 func _first_missing(p: ResearchProgress) -> String:
 	var keys: Array = p.missing.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	if keys.is_empty():
 		return "materials"
 	return String(keys[0]).replace("_", " ")
@@ -1326,7 +1326,7 @@ func _payoff_text(n: ResearchNode) -> String:
 	if not n.grants.is_empty():
 		parts.append("Opens " + ", ".join(_pretty_ids(n.grants)) + ".")
 	var ekeys: Array = n.effects.keys()
-	ekeys.sort()
+	ekeys = ResearchDefs.sorted_names(ekeys)
 	if not ekeys.is_empty():
 		parts.append(n.flavour if n.flavour != "" else "")
 	var out: String = " ".join(parts).strip_edges()
@@ -1347,7 +1347,7 @@ func _pretty_ids(ids: Array[StringName]) -> Array[String]:
 
 func _unlocked_with(prefix: String) -> Array[StringName]:
 	var keys: Array = _unlocked.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	var out: Array[StringName] = []
 	for k: StringName in keys:
 		if String(k).begins_with(prefix):
@@ -1357,7 +1357,7 @@ func _unlocked_with(prefix: String) -> Array[StringName]:
 
 func _items_text(items: Dictionary[StringName, int]) -> String:
 	var keys: Array = items.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	var parts: Array[String] = []
 	for k: StringName in keys:
 		parts.append("%d %s" % [int(items[k]), String(k).replace("_", " ")])
@@ -1367,7 +1367,7 @@ func _items_text(items: Dictionary[StringName, int]) -> String:
 func _items_json(items: Dictionary[StringName, int]) -> Dictionary:
 	var out: Dictionary = {}
 	var keys: Array = items.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: StringName in keys:
 		out[String(k)] = int(items[k])
 	return out
@@ -1376,7 +1376,7 @@ func _items_json(items: Dictionary[StringName, int]) -> Dictionary:
 func _effects_json(n: ResearchNode) -> Dictionary:
 	var out: Dictionary = {}
 	var keys: Array = n.effects.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: Variant in keys:
 		out[String(k)] = snappedf(float(n.effects[k]), 0.0001)
 	return out
@@ -1396,7 +1396,7 @@ func _id_of(cmd: Dictionary) -> StringName:
 func _ok(extra: Dictionary) -> Dictionary:
 	var out: Dictionary = {"ok": true, "code": String(CODE_OK)}
 	var keys: Array = extra.keys()
-	keys.sort()
+	keys = ResearchDefs.sorted_names(keys)
 	for k: Variant in keys:
 		out[String(k)] = extra[k]
 	return out

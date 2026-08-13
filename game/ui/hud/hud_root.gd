@@ -156,6 +156,7 @@ func select(id: int) -> void:
 	selected_id = id
 	if id < 0:
 		selection_panel.clear_entity()
+		_repaint()
 		return
 	var info: Dictionary = probe.describe_building(id)
 	if info.is_empty():

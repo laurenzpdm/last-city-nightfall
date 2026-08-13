@@ -161,11 +161,6 @@ func render(view: Rect2, grade: Dictionary, zoom: float, full: bool = false) -> 
 	_update_us = Time.get_ticks_usec() - t0
 
 
-## Compatibility shim for callers that still speak the streaming API.
-func stream(view: Rect2, budget: int = 4) -> void:
-	render(view, LcnPalette.grade_at(model.day_fraction() if model != null else 0.5), 1.0, budget < 0)
-
-
 func draw_ground(ci: CanvasItem) -> void:
 	ci.draw_texture_rect(_white, _rect, false, Color(1, 1, 1, 1))
 

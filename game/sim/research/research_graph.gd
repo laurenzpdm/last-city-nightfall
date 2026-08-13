@@ -64,7 +64,7 @@ func build(source: Array[ResearchNode]) -> void:
 		nodes[n.id] = n
 
 	var raw: Array = nodes.keys()
-	raw.sort()
+	raw = ResearchDefs.sorted_names(raw)
 	for k: StringName in raw:
 		ids.append(k)
 
@@ -78,7 +78,7 @@ func build(source: Array[ResearchNode]) -> void:
 			if kept.has(p):
 				continue
 			kept.append(p)
-		kept.sort()
+		kept = ResearchDefs.sorted_names(kept)
 		prereqs[id] = kept
 		var empty: Array[StringName] = []
 		dependents[id] = empty
@@ -89,7 +89,7 @@ func build(source: Array[ResearchNode]) -> void:
 			arr.append(id)
 	for id2: StringName in ids:
 		var d: Array = dependents[id2]
-		d.sort()
+		d = ResearchDefs.sorted_names(d)
 		dependents[id2] = d
 
 	_break_cycles()
@@ -152,7 +152,7 @@ func ancestors(id: StringName) -> Array[StringName]:
 		for p: StringName in prereqs.get(cur, []):
 			stack.append(p)
 	var out: Array = seen.keys()
-	out.sort()
+	out = ResearchDefs.sorted_names(out)
 	var typed: Array[StringName] = []
 	for k: StringName in out:
 		typed.append(k)
@@ -173,7 +173,7 @@ func descendants(id: StringName) -> Array[StringName]:
 		for d: StringName in dependents.get(cur, []):
 			stack.append(d)
 	var out: Array = seen.keys()
-	out.sort()
+	out = ResearchDefs.sorted_names(out)
 	var typed: Array[StringName] = []
 	for k: StringName in out:
 		typed.append(k)
@@ -250,7 +250,7 @@ func _topo() -> void:
 				next_ready.append(d)
 		if not next_ready.is_empty():
 			ready.append_array(next_ready)
-			ready.sort()
+			ready = ResearchDefs.sorted_names(ready)
 	if order.size() != ids.size():
 		for id3: StringName in ids:
 			if not order.has(id3):
@@ -350,7 +350,7 @@ func _layout() -> void:
 		var b2: StringName = nodes[id].branch
 		if not branches.has(b2) and not extra.has(b2):
 			extra.append(b2)
-	extra.sort()
+	extra = ResearchDefs.sorted_names(extra)
 	branches.append_array(extra)
 
 	for branch: StringName in branches:

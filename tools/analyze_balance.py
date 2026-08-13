@@ -312,6 +312,22 @@ def phase_profile(rows):
     return buckets
 
 
+def network_shape(run_dir):
+    """(networks, share of heat entities in the largest one) at the final tick."""
+    path = os.path.join(run_dir, "state.json")
+    if not os.path.exists(path):
+        return 0, 0.0
+    try:
+        state = json.load(open(path))
+    except (ValueError, OSError):
+        return 0, 0.0
+    heat = ((state.get("final") or {}).get("systems") or {}).get("heat") or {}
+    sizes = sorted((int(n.get("nodes", 0)) for n in heat.get("networks", [])), reverse=True)
+    if not sizes:
+        return 0, 0.0
+    return len(sizes), sizes[0] / float(sum(sizes))
+
+
 def bottlenecks(run_dir):
     """Per-consumer attribution out of state.json — [P02] computes it, nothing
     else reads it, so at minimum a balance report should."""
@@ -409,21 +425,56 @@ def report(run_dir, curve, args):
             print("  %-22s %-10s %3d tile(s), %4d consumer(s) behind it, %.1f load" % (
                 kind, reason, v["count"], v["consumers"], v["load"]))
 
+    nets_end, main_share = network_shape(run_dir)
+    print("\nTHE GRID  — at the final tick")
+    print("  %d network(s); %.1f%% of every heat entity is in the largest one" % (
+        nets_end, main_share * 100.0))
+
     problems = []
-    max_nets = int(expects.get("max_heat_networks", 0) or 0)
-    worst_nets = max((d["networks"] for d in days), default=0)
-    if max_nets and worst_nets > max_nets:
-        problems.append("heat grid fragmented into %d networks, %d allowed — a scenario "
-                        "with private one-node networks measures nothing"
-                        % (worst_nets, max_nets))
     wanted = [int(x) for x in (expects.get("balance_days") or [])]
     graded = {d["day"] for d in days if d["verdict"] != NO_DATA}
+
+    # The grid claim is checked over the days the scenario is GRADED on, not
+    # over the whole run. A night nobody grades is allowed to be a ruin — in
+    # first_night a drift_hound eats the Hearth on day 2 and the four arms fall
+    # apart, which is the game working, not the layout being wrong.
+    # A scenario with graded days is judged on the worst moment of those days.
+    # One without them (the perf run) is judged on where it ended up, because a
+    # city mid-construction is legitimately in pieces for a few hundred ticks.
+    max_nets = int(expects.get("max_heat_networks", 0) or 0)
+    scope = [d for d in days if d["day"] in wanted and d["day"] in graded]
+    if scope:
+        worst_nets = max(d["networks"] for d in scope)
+        where = "over the graded days"
+    else:
+        worst_nets = nets_end
+        where = "at the final tick"
+    if max_nets and worst_nets > max_nets:
+        problems.append("heat grid fragmented into %d networks %s, %d allowed — a "
+                        "scenario with private one-node networks measures nothing"
+                        % (worst_nets, where, max_nets))
+    min_share = float(expects.get("min_main_network_share", 0.0) or 0.0)
+    if min_share and main_share < min_share:
+        problems.append("only %.1f%% of the heat grid is in one component, %.1f%% "
+                        "required — the rest is producing into nothing"
+                        % (main_share * 100.0, min_share * 100.0))
     for w in wanted:
         if w not in graded:
             problems.append("day %d was supposed to be graded and produced no dark-phase "
                             "samples" % w)
-    fails = [d for d in days if d["verdict"] == FAIL]
-    for d in fails:
+    # Only the days a scenario CLAIMS are gate-worthy. Every scenario gets
+    # measured against the curve because the numbers are worth seeing, but a
+    # perf run with a thousand buildings on it was never designed to reproduce
+    # the first night's margin, and failing it on that would be noise.
+    for d in days:
+        if d["verdict"] != FAIL:
+            continue
+        if wanted and d["day"] not in wanted:
+            continue
+        if not wanted:
+            print("  (day %d missed its band; %s declares no balance_days, so this is "
+                  "information, not a gate)" % (d["day"], name or "the scenario"))
+            continue
         problems.append("day %d (%s) missed its designed band" % (d["day"], d.get("label", "")))
 
     print("\nVERDICT")

@@ -115,6 +115,18 @@ func test_the_palette_search_filters_and_enter_picks() -> void:
 	assert_eq(String(menu.armed_kind), "coal_generator", "the menu remembers what is on the cursor")
 
 
+func test_reopening_the_palette_keeps_what_you_typed() -> void:
+	_press(KEY_B)
+	menu.palette.set_query("heat")
+	assert_eq(menu.palette.query(), "heat", "the box holds it")
+	_press(KEY_B)
+	_press(KEY_B)
+	assert_eq(menu.palette.query(), "heat", "closing and reopening does not wipe the search")
+	menu.rebuild_models()
+	assert_eq(menu.palette.query(), "heat",
+		"and neither does a content rebuild — an unlock mid-search must not clear the box")
+
+
 func test_arrow_keys_move_the_cursor_before_the_search_box_sees_them() -> void:
 	_press(KEY_B)
 	var palette: LcnPalettePanel = menu.palette

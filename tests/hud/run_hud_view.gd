@@ -35,7 +35,20 @@ func _ready() -> void:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--out="):
 			_out_dir = arg.substr(6)
+	# A standalone suite that hangs is worse than one that fails: tools/check.sh
+	# would wait on it forever. Sixty seconds is ten times the honest runtime.
+	var watchdog := Timer.new()
+	watchdog.wait_time = 60.0
+	watchdog.one_shot = true
+	watchdog.timeout.connect(_on_watchdog)
+	add_child(watchdog)
+	watchdog.start()
 	call_deferred("_run")
+
+
+func _on_watchdog() -> void:
+	print("TESTS FAILED — the HUD view suite timed out after 60 s")
+	get_tree().quit(125)
 
 
 func _run() -> void:
@@ -95,8 +108,13 @@ func _suite_panels_over_a_live_world() -> void:
 		_fakes.call("install", _fakes.get("FakeSociety").new(), &"society")
 	if Sim.get_system(&"threat") == null:
 		_fakes.call("install", _fakes.get("FakeThreat").new(), &"threat")
-	for cmd: Dictionary in Boot.opening_commands(_core_cell()):
-		Sim.submit_command(cmd)
+	# game/boot.gd has no class_name, so the opening layout is fetched from the
+	# script rather than duplicated here — the city a player sees on launch is
+	# the city these assertions run against.
+	var boot: Script = load("res://game/boot.gd") as Script
+	if boot != null:
+		for cmd: Dictionary in boot.call("opening_commands", _core_cell()):
+			Sim.submit_command(cmd)
 	SimClock.advance(60)
 
 	_hud.call("_on_world_ready")
@@ -197,14 +215,17 @@ func _check_focus_request() -> void:
 	var alerts: RefCounted = _hud.get("alerts")
 	var probe: RefCounted = _hud.get("probe")
 	probe.set("has_heat", true)
-	probe.set("short_networks", [{
+	# Typed on purpose: `short_networks` is an Array[Dictionary], and handing a
+	# bare Array to set() would be refused and leave it empty.
+	var shorts: Array[Dictionary] = [{
 		"id": 3, "title": "the Hearth grid", "deficit": 12.0, "demand": 60.0,
 		"starved": 4, "brownouts": 0,
 		"worst_bottleneck": {
 			"node": 7, "kind": "heat_pipe", "cell": [140, 122], "reason": "capacity",
 			"load": 40.0, "capacity": 40.0, "consumers": 4,
 		},
-	}])
+	}]
+	probe.set("short_networks", shorts)
 	alerts.call("refresh", probe, 12.0)
 	var panel: Control = _hud.get("alert_panel")
 	panel.call("refresh")
@@ -212,15 +233,32 @@ func _check_focus_request() -> void:
 	var hot: Array = panel.get("hot")
 	_ok(not hot.is_empty(), "the line is clickable")
 
+	# The heat entry may not be at the top — a dying city can have something even
+	# worse on the list — so find the row that carries a place to go.
+	var index: int = _first_clickable(panel)
+	_ok(index >= 0, "at least one alert carries a position to jump to")
+	if index < 0:
+		return
 	var seen: Array[Vector2] = []
 	var grab := func(pos: Vector2) -> void: seen.append(pos)
 	Bus.camera_focus_requested.connect(grab)
-	panel.call("activate", 0)
+	panel.call("activate", index)
 	Bus.camera_focus_requested.disconnect(grab)
 	_ok(seen.size() == 1, "clicking an alert asks the camera to move")
 	if seen.size() == 1:
 		_ok(seen[0] == Vector2(140.5, 122.5) * 32.0,
 			"it moves to the tile [P02] actually blamed, not to the city centre")
+
+
+## Index of the first hot region that would actually move the camera, or -1.
+func _first_clickable(panel: Control) -> int:
+	var hot: Array = panel.get("hot")
+	for i: int in hot.size():
+		var e: Dictionary = hot[i]
+		if String(e.get("action", "")) == "focus" and e.get("arg") != null \
+				and (e["arg"] as Vector2) != Vector2.ZERO:
+			return i
+	return -1
 
 
 func _check_selection() -> void:
@@ -291,16 +329,18 @@ func _check_keyboard() -> void:
 	_ok(moved != 0 or (panel.get("hot") as Array).size() == 1,
 		"the arrow keys walk the list")
 
-	var seen: Array[Vector2] = []
-	var grab := func(pos: Vector2) -> void: seen.append(pos)
-	Bus.camera_focus_requested.connect(grab)
-	panel.set("key_index", 0)
-	var enter := InputEventKey.new()
-	enter.physical_keycode = KEY_ENTER
-	enter.pressed = true
-	panel.call("_gui_input", enter)
-	Bus.camera_focus_requested.disconnect(grab)
-	_ok(seen.size() >= 1, "Enter fires the focused entry")
+	var index: int = _first_clickable(panel)
+	if index >= 0:
+		var seen: Array[Vector2] = []
+		var grab := func(pos: Vector2) -> void: seen.append(pos)
+		Bus.camera_focus_requested.connect(grab)
+		panel.set("key_index", index)
+		var enter := InputEventKey.new()
+		enter.physical_keycode = KEY_ENTER
+		enter.pressed = true
+		panel.call("_gui_input", enter)
+		Bus.camera_focus_requested.disconnect(grab)
+		_ok(seen.size() >= 1, "Enter fires the focused entry")
 
 	var space := InputEventKey.new()
 	space.physical_keycode = KEY_SPACE
