@@ -114,14 +114,23 @@ func _measure(canon: Script, dir_path: String, multiplier: float, overrides: Dic
 	var floor_tps: float = float(overrides.get(scenario, expects.get("min_ticks_per_second", 100.0))) * multiplier
 	var target_tps: float = float(expects.get("target_ticks_per_second", 0.0)) * multiplier
 	var max_errors: int = int(expects.get("max_errors", 0))
+	# A perf scenario has to build the city it is named for. Measuring 46 ticks/s
+	# on a third of the advertised entities is not a performance number, it is a
+	# fiction with a decimal point.
+	var min_buildings: int = int(expects.get("min_buildings", 0))
 
 	var metrics: Dictionary = _read_metrics(dir_path)
 
 	var status: String = "ok"
 	var note: String = ""
+	var built: int = int(float(metrics.get("final", {}).get("build.buildings_total", 0)))
 	if ticks <= 0:
 		status = "error"
 		note = "the run reported zero ticks"
+	elif min_buildings > 0 and built < min_buildings:
+		status = "regressed"
+		note = "only %d buildings on the map, %d required — the workload is not what the scenario claims" % [
+			built, min_buildings]
 	elif errors.size() > max_errors:
 		status = "regressed"
 		note = "%d run error(s), %d allowed: %s" % [errors.size(), max_errors, str(errors[0])]
@@ -143,6 +152,8 @@ func _measure(canon: Script, dir_path: String, multiplier: float, overrides: Dic
 		"floor_ticks_per_second": snappedf(floor_tps, 0.1),
 		"target_ticks_per_second": snappedf(target_tps, 0.1),
 		"errors": errors.size(),
+		"buildings": built,
+		"min_buildings": min_buildings,
 		"metric_rows": int(metrics.get("rows", 0)),
 		"final_metrics": metrics.get("final", {}),
 		"status": status,

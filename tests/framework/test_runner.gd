@@ -15,6 +15,9 @@ extends RefCounted
 
 const TEST_CASE_PATH: String = "res://tests/framework/test_case.gd"
 const SKIP_DIRS: Array[String] = ["framework", "scenarios", "artifacts"]
+## The shared entry point is not a suite. Without this it discovers itself and
+## check.sh launches a runner that launches a runner.
+const SKIP_FILES: Array[String] = ["res://tests/run_tests.gd"]
 
 const RULE: String = "────────────────────────────────────────────────────────────────────────"
 
@@ -37,16 +40,62 @@ var _failures: Array[Dictionary] = []
 var _available_systems: PackedStringArray = PackedStringArray()
 
 
-## Every `tests/**/test_*.gd`, sorted. Missing directories are simply absent.
+## THE NAMING CONTRACT, written down here because it used to be enforced only by
+## a silent `f.begins_with("test_")` — which is how four suites and 2,480 lines
+## of assertions became invisible to the gate while two of them were red.
+##
+## A suite entry point is any of:
+##   tests/**/test_*.gd     a TestCase suite, or a Node suite with its own scene
+##   tests/**/run_*.gd      a SceneTree runner (executed with --script)
+##   tests/**/*.tscn        a scene runner (executed as a scene, so autoloads exist)
+##
+## A .tscn always WINS over the .gd it instantiates: a Node-based suite run with
+## --script compiles before the autoloads exist, prints nothing and exits 0 — a
+## silent false green. Preferring the scene makes that unreachable.
 static func discover(root_dirs: PackedStringArray) -> PackedStringArray:
 	var found: Array[String] = []
+	var scenes: Array[String] = []
 	for root: String in root_dirs:
-		_walk(root, found)
-	found.sort()
-	return PackedStringArray(found)
+		_walk(root, found, scenes)
+	var shadowed: Dictionary[String, bool] = {}
+	for scene: String in scenes:
+		var backing: String = _scene_script(scene)
+		if backing != "":
+			shadowed[backing] = true
+	var out: Array[String] = []
+	for f: String in found:
+		if not shadowed.has(f) and not SKIP_FILES.has(f):
+			out.append(f)
+	out.append_array(scenes)
+	out.sort()
+	return PackedStringArray(out)
 
 
-static func _walk(dir_path: String, found: Array[String]) -> void:
+## The first res://*.gd an ext_resource line in a .tscn points at, or "".
+static func _scene_script(scene_path: String) -> String:
+	var f: FileAccess = FileAccess.open(scene_path, FileAccess.READ)
+	if f == null:
+		return ""
+	var guard: int = 0
+	while not f.eof_reached() and guard < 64:
+		guard += 1
+		var line: String = f.get_line()
+		if not line.begins_with("[ext_resource"):
+			continue
+		var at: int = line.find("path=\"")
+		if at < 0:
+			continue
+		var rest: String = line.substr(at + 6)
+		var close: int = rest.find("\"")
+		if close < 0:
+			continue
+		var path: String = rest.substr(0, close)
+		if path.ends_with(".gd"):
+			return path
+	return ""
+
+
+static func _walk(dir_path: String, found: Array[String], scenes: Array[String]) -> void:
 	var dir: DirAccess = DirAccess.open(dir_path)
 	if dir == null:
 		return
@@ -59,13 +108,15 @@ static func _walk(dir_path: String, found: Array[String]) -> void:
 	for d: String in sorted_dirs:
 		if d.begins_with(".") or SKIP_DIRS.has(d):
 			continue
-		_walk("%s/%s" % [dir_path, d], found)
+		_walk("%s/%s" % [dir_path, d], found, scenes)
 	var sorted_files: Array[String] = []
 	for f: String in files:
 		sorted_files.append(f)
 	sorted_files.sort()
 	for f: String in sorted_files:
-		if f.begins_with("test_") and f.ends_with(".gd"):
+		if f.ends_with(".tscn"):
+			scenes.append("%s/%s" % [dir_path, f])
+		elif (f.begins_with("test_") or f.begins_with("run_")) and f.ends_with(".gd"):
 			found.append("%s/%s" % [dir_path, f])
 
 
@@ -120,6 +171,8 @@ func run() -> int:
 ## and loading a foreign suite merely to classify it would compile a file this
 ## runner is never going to execute.
 static func classify(path: String) -> String:
+	if path.ends_with(".tscn"):
+		return "standalone"
 	var base: String = declared_base(path)
 	if base == "TestCase":
 		return "suites"
