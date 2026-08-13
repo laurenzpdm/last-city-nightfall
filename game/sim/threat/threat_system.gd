@@ -179,6 +179,7 @@ func setup() -> void:
 	_heat_signature = 0.0
 	_sig_sum = 0.0
 	_sig_n = 0
+	_nights.clear()
 	_perf_us = 0
 	_perf_max_us = 0
 	_perf_steps = 0
@@ -925,6 +926,14 @@ func _resolve_wave(at_dawn: bool) -> void:
 		_plan.wave, detail, float(record.get("comfort", 0.0)),
 		float(record.get("pressure_before", 1.0)), float(record.get("pressure_after", 1.0)),
 		_pressure.band_label()])
+	# The night in the six numbers a player can feel, in one line, every night.
+	Log.info(TAG, ("night %d: %d spawned, %d killed, %d walked away | %d shot(s), %.1f heat "
+		+ "on the guns, %d of %d cold | %.0f structural damage, %d lost%s") % [
+		_plan.wave, int(outcome.get("spawned", 0)), int(outcome.get("killed", 0)), withdrew,
+		int(defence.get("shots", 0)), float(defence.get("heat_spent", 0.0)),
+		int(defence.get("cold", 0)), int(defence.get("turrets", 0)),
+		float(defence.get("damage_taken", 0.0)), int(outcome.get("structures_lost", 0)),
+		" | THEY GOT THROUGH" if bool(outcome.get("breached", false)) else ""])
 
 
 ## Sends whatever is left of the night home. Combat turns them around and walks
@@ -1114,6 +1123,47 @@ func _sample_night_heat() -> void:
 	var t: Dictionary = _heat_totals()
 	if t.is_empty() or float(t.get("deficit", 0.0)) <= 0.01:
 		_night_heat_ok += 1
+
+
+## What the wall is doing right now, read off [P07]. Empty when combat is absent.
+func _defence_now() -> Dictionary:
+	if _combat == null or not _combat.has_method("defence_report"):
+		return {}
+	var t0: int = _extern_begin()
+	var raw: Variant = _combat.call("defence_report")
+	_extern_end(t0)
+	if typeof(raw) != TYPE_DICTIONARY:
+		return {}
+	var r: Dictionary = raw
+	r["damage_taken"] = float(_combat.get("damage_taken")) if "damage_taken" in _combat else 0.0
+	return r
+
+
+## What the wall did between dusk and now: shots, heat, and the damage the city
+## absorbed. Monotonic counters differenced against the dusk snapshot, so a
+## bookkeeping bug in [P07] can understate a night but can never invent one.
+func _defence_delta() -> Dictionary:
+	var now: Dictionary = _defence_now()
+	if now.is_empty():
+		return {"turrets": 0, "cold": 0, "shots": 0, "heat_spent": 0.0,
+			"damage_taken": 0.0, "engaged": 0.0}
+	return {
+		"turrets": int(now.get("turrets", 0)),
+		"cold": int(now.get("cold", 0)) + int(now.get("offline", 0)),
+		"dry": int(now.get("dry", 0)),
+		"shots": maxi(0, int(now.get("shots", 0)) - _shots_at_dusk),
+		"heat_spent": snappedf(maxf(0.0, float(now.get("heat_spent", 0.0)) - _heat_at_dusk), 0.1),
+		"damage_taken": snappedf(maxf(0.0,
+			float(now.get("damage_taken", 0.0)) - _damage_at_dusk), 0.1),
+		"engaged": snappedf(float(now.get("engaged", 0.0)), 0.001),
+		"uptime": snappedf(float(now.get("uptime", 0.0)), 0.001),
+	}
+
+
+## The campaign so far, one row per night that ended. Tests, the harness dump and
+## the post-run report read this instead of trusting a summary.
+func nights() -> Array[Dictionary]:
+	return _nights.duplicate(true)
 
 
 func _building_count() -> int:
@@ -1376,6 +1426,7 @@ func serialize() -> Dictionary:
 		"pressure_state": _pressure.to_dict(),
 		"siege": _siege.to_dict(_plan),
 		"last_report": _last_report,
+		"nights": _nights,
 		"profile": String(_profile.id),
 	}
 
@@ -1417,6 +1468,10 @@ func deserialize(data: Dictionary) -> void:
 		_siege.from_dict(sg)
 	var lr: Variant = data.get("last_report", {})
 	_last_report = lr if typeof(lr) == TYPE_DICTIONARY else {}
+	_nights = []
+	for raw_night: Variant in data.get("nights", []):
+		if typeof(raw_night) == TYPE_DICTIONARY:
+			_nights.append(raw_night)
 	_was_night = _read_is_night()
 
 

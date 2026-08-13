@@ -26,6 +26,13 @@ extends Node2D
 ## an eye.
 
 const TILE: float = 32.0
+## How far a shell may be from where it was predicted to be and still count as
+## the same shell. A round crosses ~15 px in a 60 fps frame at 28 tiles/s.
+const TRACK_TOLERANCE_PX: float = 40.0
+## Impacts resolved from shell tracking in one frame. A cap, because the visual
+## harness advances hundreds of ticks between frames and a whole barrage can
+## land inside one of them.
+const MAX_IMPACTS_PER_FRAME: int = 10
 
 ## One live beam: a hitscan tracer, a muzzle flash or a flamethrower cone.
 class Beam extends RefCounted:
@@ -57,6 +64,20 @@ var _kills: int = 0
 var _impacts: int = 0
 var _shells_drawn: int = 0
 var _calm: bool = false
+
+## This frame's shells, and last frame's, for impact resolution.
+var _shell_n: int = 0
+var _sx: PackedFloat32Array = PackedFloat32Array()
+var _sy: PackedFloat32Array = PackedFloat32Array()
+var _svx: PackedFloat32Array = PackedFloat32Array()
+var _svy: PackedFloat32Array = PackedFloat32Array()
+var _sown: PackedInt32Array = PackedInt32Array()
+var _prev_n: int = 0
+var _px: PackedFloat32Array = PackedFloat32Array()
+var _py: PackedFloat32Array = PackedFloat32Array()
+var _pvx: PackedFloat32Array = PackedFloat32Array()
+var _pvy: PackedFloat32Array = PackedFloat32Array()
+var _pown: PackedInt32Array = PackedInt32Array()
 
 
 func setup(add_buffer: LcnVfxBurst, mix_buffer: LcnVfxBurst) -> void:
@@ -90,6 +111,8 @@ func _on_world_created(_seed_value: int) -> void:
 	_beams.clear()
 	_enemy_kind.clear()
 	_weapon.clear()
+	_prev_n = 0
+	_shell_n = 0
 
 
 func update(dt: float, view: Rect2, calm: bool) -> void:
@@ -106,6 +129,7 @@ func update(dt: float, view: Rect2, calm: bool) -> void:
 			_beams.remove_at(i)
 		i -= 1
 	_shells_drawn = 0
+	_read_shells(dt)
 	queue_redraw()
 
 
@@ -393,32 +417,80 @@ func _draw_cone(b: Beam, f: float) -> void:
 ## Live shells, straight out of [ProjectilePool]. Travel time, lead error and
 ## all — what is drawn here IS the round the simulation is flying.
 func _draw_shells() -> void:
-	if not _has_shells:
-		return
-	var buf: Dictionary = _combat.call("projectile_render_buffer")
-	var n: int = int(buf.get("count", 0))
+	var n: int = _shell_n
 	if n <= 0:
-		_prev_n = 0
 		return
-	var xs: PackedFloat32Array = buf["x"]
-	var ys: PackedFloat32Array = buf["y"]
-	var vx: PackedFloat32Array = buf["vx"]
-	var vy: PackedFloat32Array = buf["vy"]
-	var owners: PackedInt32Array = buf["owner"]
 	var pad: Rect2 = _view.grow(64.0)
 	var wide: bool = _view.size.x <= 1.0
 	for i: int in n:
-		var p := Vector2(xs[i], ys[i])
+		var p := Vector2(_sx[i], _sy[i])
 		if not wide and not pad.has_point(p):
 			continue
-		var w: Dictionary = _weapon.get(owners[i], {})
+		var w: Dictionary = _weapon.get(_sown[i], {})
 		var col: Color = w.get("col", Color(1.0, 0.72, 0.36))
 		var width: float = float(w.get("width", 1.6))
-		var v := Vector2(vx[i], vy[i])
-		var tail: Vector2 = p - v.normalized() * clampf(v.length() * 0.045, 6.0, 30.0)
+		var v := Vector2(_svx[i], _svy[i])
+		var dir: Vector2 = v.normalized() if v.length_squared() > 0.01 else Vector2.RIGHT
+		var tail: Vector2 = p - dir * clampf(v.length() * 0.045, 6.0, 30.0)
 		draw_line(tail, p, Color(col.r, col.g, col.b, 0.10), maxf(1.0, width * 1.6), true)
-		draw_line(p - v.normalized() * 7.0, p, col, maxf(1.0, width), true)
+		draw_line(p - dir * 7.0, p, col, maxf(1.0, width), true)
 		_shells_drawn += 1
+
+
+## Every shell that was in the air last frame and is not in the air now has
+## RESOLVED — [ProjectilePool] settles a round on arrival, dealing its direct
+## damage and its splash. So the impact belongs exactly where the shell was
+## about to be, and nowhere else. Matching by predicted position rather than by
+## id is forced on us: the pool's render buffer carries no ids, and inventing an
+## impact at the muzzle instead would put the spark on the gun.
+func _resolve_shell_impacts(dt: float) -> void:
+	var claimed := PackedByteArray()
+	claimed.resize(_shell_n)
+	var made: int = 0
+	for i: int in _prev_n:
+		if made >= MAX_IMPACTS_PER_FRAME:
+			break
+		var v := Vector2(_pvx[i], _pvy[i])
+		var pred := Vector2(_px[i] + v.x * dt, _py[i] + v.y * dt)
+		var best: int = -1
+		var best_d: float = TRACK_TOLERANCE_PX * TRACK_TOLERANCE_PX
+		for j: int in _shell_n:
+			if claimed[j] == 1 or _sown[j] != _pown[i]:
+				continue
+			var dx: float = _sx[j] - pred.x
+			var dy: float = _sy[j] - pred.y
+			var d2: float = dx * dx + dy * dy
+			if d2 < best_d:
+				best_d = d2
+				best = j
+		if best >= 0:
+			claimed[best] = 1
+			continue
+		var w: Dictionary = _weapon.get(_pown[i], {})
+		var dir: Vector2 = v.normalized() if v.length_squared() > 0.01 else Vector2.RIGHT
+		if _visible_at(pred, 64.0):
+			_impact(pred, -dir, w.get("col", Color(1.0, 0.72, 0.36)),
+				float(w.get("splash", 0.0)))
+			made += 1
+	_prev_n = _shell_n
+	_px = _sx.duplicate()
+	_py = _sy.duplicate()
+	_pvx = _svx.duplicate()
+	_pvy = _svy.duplicate()
+	_pown = _sown.duplicate()
+
+
+func _read_shells(dt: float) -> void:
+	if not _has_shells:
+		return
+	var buf: Dictionary = _combat.call("projectile_render_buffer")
+	_shell_n = int(buf.get("count", 0))
+	_sx = buf["x"]
+	_sy = buf["y"]
+	_svx = buf["vx"]
+	_svy = buf["vy"]
+	_sown = buf["owner"]
+	_resolve_shell_impacts(dt)
 
 
 func stats() -> Dictionary:

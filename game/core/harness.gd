@@ -84,7 +84,6 @@ func _run() -> void:
 	SimClock.set_manual(true)
 	Sim.create_world(_seed)
 	Bus.alert_raised.connect(_on_alert)
-	var errors_at_start: int = Log.errors
 
 	var checkpoint_every: int = maxi(1, _ticks / 8)
 	for t: int in range(1, _ticks + 1):
@@ -101,9 +100,22 @@ func _run() -> void:
 	var wall_ms: int = Time.get_ticks_msec() - t0
 	# A logged error IS a run error. Counting only severity>=2 Bus alerts meant
 	# the gate could never fire: nothing in the build emits above severity 1.
-	var logged: int = Log.errors - errors_at_start
+	#
+	# TOTAL, not a delta from the start of the tick loop. The delta version
+	# excluded everything that happened before `_run` — which is to say the
+	# entire installation of the view and the entire construction of the world.
+	# Boot can now report "the build menu is not in the scene tree" as an ERROR,
+	# and under the old arithmetic the harness would still have exited 0.
+	var logged: int = Log.errors
 	if logged > 0:
 		_errors.append("%d error(s) written to the log" % logged)
+	# The engine's own count of nodes that exist and are in no tree. A settled
+	# run has none; anything above zero was built and then dropped — which is
+	# the general shape of the orphan-CanvasLayer bug, without needing a list of
+	# subsystems to keep up to date.
+	var orphans: int = int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))
+	if orphans > 0:
+		_errors.append("%d orphan node(s) at the end of the run" % orphans)
 	var allowed: int = int((_scenario.get("expects", {}) as Dictionary).get("max_errors", 0))
 	var failed: bool = _errors.size() > allowed
 	_write_outputs(wall_ms)

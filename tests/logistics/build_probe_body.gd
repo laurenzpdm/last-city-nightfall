@@ -102,6 +102,51 @@ func _splitters() -> void:
 			str(sp.output_cells()) if sp != null else "?"])
 
 
+## What a belt the PLAYER dragged actually delivers, in items per minute, against
+## the number its own definition claims. Measured into a crate at the end of a
+## saturated line, over one whole in-world minute, with no allowance for "about".
+func _throughput() -> void:
+	print("")
+	print("-- throughput of a dragged line, one in-world minute into a crate --")
+	print(" belt        declared      measured    error")
+	for kind: String in ["belt_mk1", "belt_mk2", "belt_mk3"]:
+		var logi: LogisticsSystem = _fresh()
+		var o: Vector2i = _find_run(13)
+		if o == Vector2i.MAX:
+			print(" %-12s no clear ground for a line" % kind)
+			continue
+		Sim.submit_command({"system": &"build", "op": "place_line", "kind": kind,
+			"from": [o.x, o.y], "to": [o.x + 11, o.y], "rot": 0, "free": true})
+		Sim.submit_command({"system": &"build", "op": "place", "kind": "bunker_chest",
+			"cell": [o.x + 12, o.y], "free": true, "instant": true})
+		SimClock.advance(120)
+		var chest: LogiStore = logi.store_of(_id_at(logi, o + Vector2i(12, 0)))
+		if chest == null or logi.entity_at(o) == null:
+			print(" %-12s could not be built" % kind)
+			continue
+		_saturate(logi, o, chest, 200)             # fill the line first
+		var measured: int = _saturate(logi, o, chest, 1200)   # 60 in-world seconds
+		var declared: float = logi.def_of(StringName(kind)).belt_rate() * 60.0
+		print(" %-12s %8.0f/min %8d/min %7.2f%%" % [
+			kind, declared, measured, (float(measured) - declared) / declared * 100.0])
+
+
+## Fills the back of the line as hard as physics allows and empties the crate at
+## the far end every tick, returning what crossed. The only honest way to measure
+## a belt: a source that never runs out, a sink that never backs up, and no item
+## inserted that the belt would not have accepted anyway.
+func _saturate(logi: LogisticsSystem, entry: Vector2i, sink: LogiStore, ticks: int) -> int:
+	var delivered: int = 0
+	for _i: int in ticks:
+		for lane: int in LogiTypes.LANES:
+			var guard: int = 0
+			while logi.world.push_onto_belt(entry, lane, &"coal") and guard < 4:
+				guard += 1
+		SimClock.advance(1)
+		delivered += sink.take(&"coal", 1 << 20)
+	return delivered
+
+
 func _fuel() -> void:
 	var logi: LogisticsSystem = _fresh()
 	var heat: SimSystem = Sim.get_system(&"heat")
@@ -150,6 +195,21 @@ func _fuel() -> void:
 			SimClock.tick, float(heat.call("fuel_stock_of", gen)),
 			float((heat.call("totals") as Dictionary)["supply"]),
 			int(logi.metrics()["lines_dry"]), int(logi.metrics()["hauled_total"])])
+
+
+## The west end of a clear east-running row of `length` buildable tiles.
+func _find_run(length: int) -> Vector2i:
+	var build: SimSystem = Sim.get_system(&"build")
+	for y: int in range(30, 220, 3):
+		for x: int in range(30, 200, 3):
+			var clear: bool = true
+			for i: int in length:
+				if not bool((build.call("can_place", &"belt_mk1", Vector2i(x + i, y), 0, false, -1) as Dictionary)["ok"]):
+					clear = false
+					break
+			if clear:
+				return Vector2i(x, y)
+	return Vector2i.MAX
 
 
 ## A generator origin with ten clear tiles of ground running west out of it.

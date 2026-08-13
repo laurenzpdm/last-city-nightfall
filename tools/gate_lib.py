@@ -767,6 +767,9 @@ def _claim_vs_series(run: Run, rule: Dict[str, Any]) -> List[Finding]:
     except (KeyError, re.error) as exc:
         return [Finding(UNCHECKED, "alerts tell the truth: %s" % name, "bad rule: %s" % exc, why)]
 
+    if rule.get("implies_series"):
+        return [_claim_implies(run, rule, pat)]
+
     template = str(rule.get("series", ""))
     horizon_group = str(rule.get("horizon_seconds_group", "secs"))
     default_horizon = float(rule.get("horizon_seconds", 60.0))
@@ -810,6 +813,85 @@ def _claim_vs_series(run: Run, rule: Dict[str, Any]) -> List[Finding]:
                         % rule["match"], why)]
     return [Finding(PASS, "alerts tell the truth: %s" % name,
                     "%d matching alert(s), none contradicted by the series" % matched, why)]
+
+
+def _claim_implies(run: Run, rule: Dict[str, Any], pat: "re.Pattern[str]") -> Finding:
+    """An alert of this shape asserts that a named series is alive right then.
+
+    "Network 1 short 12 heat/s" while heat.deficit is 0, "Watchtower froze"
+    while heat.frozen_buildings is 0, "Night 1: a handful out of the south-east"
+    while nothing is on the map.  Same failure as the ATTENTION panel promising
+    a famine the timber series never delivered, in the one place a headless run
+    can still see it.
+    """
+    name = str(rule.get("id", "claim"))
+    why = str(rule.get("why", ""))
+    series_name = str(rule["implies_series"])
+    floor = float(rule.get("implies_min", 1.0))
+    window = int(rule.get("window_ticks", 40))
+    series = run.series.get(series_name)
+    if series is None:
+        return Finding(UNCHECKED, "alerts tell the truth: %s" % name,
+                       "%s is not a series this run produced" % series_name, why)
+    matched = 0
+    lies: List[str] = []
+    for alert in run.alerts:
+        text = str(alert.get("text", ""))
+        if not (pat.search(text) or pat.search(str(alert.get("key", "")))):
+            continue
+        matched += 1
+        tick = int(alert.get("tick", 0))
+        best = None
+        for t, v in zip(series.ticks, series.values):
+            if abs(t - tick) <= window and isinstance(v, float):
+                best = v if best is None else max(best, v)
+        if best is None or best < floor:
+            lies.append("t%d %r but %s was %s" % (tick, text[:70], series_name, _fmt(best)))
+    if lies:
+        return Finding(FAIL, "alerts tell the truth: %s" % name,
+                       "%d contradicted: %s" % (len(lies), " | ".join(lies[:3])), why)
+    if matched == 0:
+        return Finding(PASS, "alerts tell the truth: %s" % name,
+                       "no alert of this shape was raised in this run", why)
+    return Finding(PASS, "alerts tell the truth: %s" % name,
+                   "%d alert(s), all backed by %s" % (matched, series_name), why)
+
+
+def check_implications(run: Run, rules: Sequence[Dict[str, Any]]) -> List[Finding]:
+    """If the run got itself into state A, it has to be able to reach state B.
+
+    The one that matters: a society that raises a demand for a law, in a build
+    where no law is ever signed, is a system talking to a player who has no way
+    to answer it.
+    """
+    out: List[Finding] = []
+    for rule in rules:
+        rid = str(rule.get("id", "implication"))
+        why = str(rule.get("why", ""))
+        when = dict(rule.get("when") or {})
+        then = dict(rule.get("then") or {})
+        w_metric = str(when.pop("metric", ""))
+        t_metric = str(then.pop("metric", ""))
+        w_series = run.series.get(w_metric)
+        t_series = run.series.get(t_metric)
+        if w_series is None or t_series is None:
+            out.append(Finding(UNCHECKED, "implication: %s" % rid,
+                               "needs %s and %s" % (w_metric, t_metric), why))
+            continue
+        premise = check_metrics(run, {w_metric: dict(when, why=why)})
+        if any(f.status == FAIL for f in premise):
+            out.append(Finding(PASS, "implication: %s" % rid,
+                               "premise not met (%s stayed at %s)" % (w_metric, _fmt(w_series.peak())), why))
+            continue
+        conclusion = check_metrics(run, {t_metric: dict(then, why=why)})
+        bad = [f for f in conclusion if f.status != PASS]
+        if bad:
+            out.append(Finding(FAIL, "implication: %s" % rid,
+                               "%s happened but %s did not (%s)" % (w_metric, t_metric, bad[0].detail), why))
+        else:
+            out.append(Finding(PASS, "implication: %s" % rid,
+                               "%s happened and %s followed" % (w_metric, t_metric), why))
+    return out
 
 
 # ─────────────────────────────────────────────────────────────────────────────

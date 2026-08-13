@@ -49,10 +49,10 @@ func setup(model: LcnWorldModel) -> void:
 		"direction": Vector2.UP, "spread_deg": 30.0,
 		"speed_min": 26.0, "speed_max": 70.0, "gravity": Vector2(0.0, -18.0),
 		"damping": 0.8, "scale_min": 0.10, "scale_max": 0.30,
-		"ramp": _ramp([
+		"ramp": LcnVfxArt.ramp([
 			LcnVfxTuning.EMBER_HOT, LcnVfxTuning.EMBER_MID, LcnVfxTuning.EMBER_DIM,
 			Color(LcnVfxTuning.EMBER_DIM.r, LcnVfxTuning.EMBER_DIM.g,
-				LcnVfxTuning.EMBER_DIM.b, 0.0)]),
+				LcnVfxTuning.EMBER_DIM.b, 0.0)] as Array[Color]),
 		"turbulence": true, "turb_strength": 1.8, "turb_scale": 3.4,
 	})
 
@@ -63,7 +63,7 @@ func setup(model: LcnWorldModel) -> void:
 		"speed_min": 14.0, "speed_max": 34.0, "gravity": Vector2(0.0, -12.0),
 		"damping": 0.3, "scale_min": 0.30, "scale_max": 0.75,
 		"scale_curve": _grow_curve(),
-		"ramp": _ramp([
+		"ramp": LcnVfxArt.ramp([
 			Color(LcnVfxTuning.SMOKE_DARK.r, LcnVfxTuning.SMOKE_DARK.g,
 				LcnVfxTuning.SMOKE_DARK.b, 0.0),
 			Color(LcnVfxTuning.SMOKE_DARK.r, LcnVfxTuning.SMOKE_DARK.g,
@@ -71,7 +71,7 @@ func setup(model: LcnWorldModel) -> void:
 			Color(LcnVfxTuning.SMOKE_LIGHT.r, LcnVfxTuning.SMOKE_LIGHT.g,
 				LcnVfxTuning.SMOKE_LIGHT.b, 0.22),
 			Color(LcnVfxTuning.SMOKE_LIGHT.r, LcnVfxTuning.SMOKE_LIGHT.g,
-				LcnVfxTuning.SMOKE_LIGHT.b, 0.0)]),
+				LcnVfxTuning.SMOKE_LIGHT.b, 0.0)] as Array[Color]),
 		"turbulence": true, "turb_strength": 1.0, "turb_scale": 1.6,
 	})
 
@@ -81,9 +81,9 @@ func setup(model: LcnWorldModel) -> void:
 		"direction": Vector2.UP, "spread_deg": 110.0,
 		"speed_min": 70.0, "speed_max": 190.0, "gravity": Vector2(0.0, 240.0),
 		"damping": 2.0, "scale_min": 0.08, "scale_max": 0.18,
-		"ramp": _ramp([LcnVfxTuning.SPARK, LcnVfxTuning.EMBER_MID,
+		"ramp": LcnVfxArt.ramp([LcnVfxTuning.SPARK, LcnVfxTuning.EMBER_MID,
 			Color(LcnVfxTuning.EMBER_DIM.r, LcnVfxTuning.EMBER_DIM.g,
-				LcnVfxTuning.EMBER_DIM.b, 0.0)]),
+				LcnVfxTuning.EMBER_DIM.b, 0.0)] as Array[Color]),
 	})
 
 	haze = _add("HeatHaze", {
@@ -93,9 +93,9 @@ func setup(model: LcnWorldModel) -> void:
 		"speed_min": 12.0, "speed_max": 30.0, "gravity": Vector2(0.0, -20.0),
 		"damping": 0.5, "scale_min": 0.25, "scale_max": 0.55,
 		"scale_curve": _grow_curve(),
-		"ramp": _ramp([
+		"ramp": LcnVfxArt.ramp([
 			Color(1.0, 0.72, 0.44, 0.0), Color(1.0, 0.62, 0.34, 0.085),
-			Color(1.0, 0.62, 0.34, 0.0)]),
+			Color(1.0, 0.62, 0.34, 0.0)] as Array[Color]),
 	})
 
 
@@ -105,18 +105,6 @@ func _add(node_name: String, cfg: Dictionary) -> LcnVfxPointField:
 	add_child(f)
 	f.configure(cfg)
 	return f
-
-
-static func _ramp(cols: Array[Color]) -> Gradient:
-	var g := Gradient.new()
-	var offs := PackedFloat32Array()
-	var cs := PackedColorArray()
-	for i: int in cols.size():
-		offs.append(float(i) / float(maxi(1, cols.size() - 1)))
-		cs.append(cols[i])
-	g.offsets = offs
-	g.colors = cs
-	return g
 
 
 ## Smoke that does not expand as it rises reads as a string of beads.

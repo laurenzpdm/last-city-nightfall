@@ -70,8 +70,21 @@ const OVERLAY_WORLD: int = 62
 const HUD: int = 65
 const OVERLAY_UI: int = 72
 const BUILD_MENU: int = 74
+const STATS: int = 76
 const MODAL: int = 80
 const DEBUG: int = 90
+
+## Where boot looks for a subsystem that has not landed yet. A part is reachable
+## the moment it puts a Node class at this path; until then boot says out loud,
+## on every launch, that it is not.
+const PENDING: Array[Dictionary] = [
+	{"key": &"stats", "owner": "P20 stats", "hotkey": "G",
+		"script": "res://game/ui/stats/stats_root.gd", "layer": STATS,
+		"why": "production graphs, flow history and the night report"},
+	{"key": &"tutorial", "owner": "P21 tutorial", "hotkey": "F1 help",
+		"script": "res://game/ui/tutorial/tutorial_root.gd", "layer": MODAL,
+		"why": "the first twenty minutes"},
+]
 
 ## key → the layer it must sit on, and the node names that identify it.
 ## Matched by NAME, never by class: game/core/ must not depend on a part being
@@ -87,6 +100,8 @@ const SLOTS: Array[Dictionary] = [
 		"names": ["OverlayUi"]},
 	{"key": &"build_menu", "layer": BUILD_MENU, "owner": "P18 build menu",
 		"names": ["LcnBuildMenu", "BuildMenu"]},
+	{"key": &"stats", "layer": STATS, "owner": "P20 stats",
+		"names": ["LcnStatsRoot", "StatsRoot"]},
 ]
 
 # --- hotkeys -----------------------------------------------------------------

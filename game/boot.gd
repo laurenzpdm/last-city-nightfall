@@ -117,9 +117,28 @@ func _install_view() -> void:
 	build_menu = _install_scripted(&"build_menu", BUILD_MENU_SCRIPT, "P18")
 	_install_play()
 	_install_router()
+	_install_pending()
 
 	_apply_layer_table()
 	_report_install()
+
+
+## Parts that have a slot in LcnLayers but have not landed a root yet. Installed
+## the moment the script appears; named out loud on every launch until then, so
+## "the stats screens exist but nothing opens them" is a line in the log rather
+## than a discovery a critic makes three phases later.
+func _install_pending() -> void:
+	for entry: Dictionary in LcnLayers.PENDING:
+		var key: StringName = entry["key"]
+		var path: String = String(entry["script"])
+		if not ResourceLoader.exists(path):
+			Log.info("boot", "NOT REACHABLE YET: %s [%s] — %s. Land %s and boot installs it on %s." % [
+				String(key), String(entry["owner"]), String(entry["why"]), path,
+				String(entry["hotkey"])])
+			continue
+		var node: Node = _install_scripted(key, path, String(entry["owner"]))
+		if node != null and node is CanvasLayer:
+			(node as CanvasLayer).layer = int(entry["layer"])
 
 
 ## [P13]'s renderer, from its scene. Everything else in the view hangs off it

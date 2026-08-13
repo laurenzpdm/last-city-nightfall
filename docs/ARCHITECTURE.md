@@ -136,10 +136,25 @@ order in any of the three. Sorting once cost this build a whole phase of heat
 ticking behind logistics and production, so every consumer read last tick's power
 factor and nobody noticed. Ties break on `system_name()` so the sequence is stable.
 
-**Layer stack for anything that draws:** 60 post-process [P13] · 65 HUD [P17] ·
-70/72 readability lenses + legend [P19] · 74 build menu and browsers [P18].
-The world treatment is under the interface, a diagnosis beats a decoration, and
-an open panel is never stabbed through by a world badge.
+**Layer stack for anything that draws — the table is `game/core/ui_layers.gd`
+(`LcnLayers`), not this paragraph.** 60 post-process [P13] · **62 world-space
+lenses and badges [P19]** · 65 HUD [P17] · 72 lens legend and key rail [P19] ·
+74 build menu and browsers [P18] · 80 modal · 90 debug.
+
+The rule in one sentence: **anything drawn in world coordinates goes UNDER the
+interface, anything drawn in screen coordinates goes OVER the world.** A lens
+still beats the post stack, because a diagnostic graded along with the night is
+unreadable at exactly the hour a player needs it — but a lens is paint on the
+ground, and the ground does not get to cover the clock. The legend is chrome,
+not a lens, so it sits with the rest of the chrome.
+
+This used to read "70/72 readability lenses + legend", which put the world-space
+lens layer ABOVE the HUD and painted FROZEN badges straight across the clock
+panel in three of seven reference screenshots. Five header comments each said
+"above the HUD" and all five were internally consistent, which is why the table
+now lives in code: `game/boot.gd` calls `LcnLayers.enforce()` on every launch,
+corrects any layer that disagrees, names the part in the log, and
+`tests/boot/run_reachability.tscn` fails if the stack ever inverts again.
 
 ---
 

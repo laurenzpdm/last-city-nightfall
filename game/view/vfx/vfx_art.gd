@@ -56,6 +56,20 @@ static func atlas() -> ImageTexture:
 	return _sheet
 
 
+## Evenly spaced colour ramp, for a particle material's `color_ramp`. The first
+## colour is birth, the last is death.
+static func ramp(cols: Array[Color]) -> Gradient:
+	var g := Gradient.new()
+	var offs := PackedFloat32Array()
+	var cs := PackedColorArray()
+	for i: int in cols.size():
+		offs.append(float(i) / float(maxi(1, cols.size() - 1)))
+		cs.append(cols[i])
+	g.offsets = offs
+	g.colors = cs
+	return g
+
+
 static func _bake_single(name: String) -> Image:
 	match name:
 		"dot":

@@ -76,6 +76,8 @@ func _run() -> void:
 	await _suite_the_lenses()
 	await _suite_time_control_survives_a_full_quickbar()
 	await _suite_the_law_reaches_the_simulation()
+	_suite_every_hud_panel_is_in_the_tree()
+	await _suite_clicking_a_building_fills_the_selection_panel()
 	await _suite_build_mode_reaches_the_ghost()
 	_suite_the_pillars_exist()
 	_finish()
@@ -294,6 +296,40 @@ func _first_signable(model: Object) -> StringName:
 
 # ================================================================= suite 7 ===
 
+## The alert stack and the selection panel are the two screens with no hotkey:
+## they appear because the world did something. If they are not in the tree,
+## nothing announces it — which is the same failure with a quieter symptom.
+func _suite_every_hud_panel_is_in_the_tree() -> void:
+	if _hud == null:
+		_ok(false, "there is a HUD")
+		return
+	for panel_name: String in ["clock_panel", "heat_panel", "vitals_panel", "wave_panel",
+			"resource_panel", "alert_panel", "selection_panel", "tooltip"]:
+		var p: Node = _hud.get(StringName(panel_name))
+		_ok(p != null and p.is_inside_tree(), "the HUD's %s is in the tree" % panel_name)
+
+
+## Clicking a building is the only read-out path with no key on it. The click is
+## a real mouse event so it travels camera → selection → Bus → HUD, exactly as a
+## player's does.
+func _suite_clicking_a_building_fills_the_selection_panel() -> void:
+	var cam: Node = _boot.get(&"camera")
+	if cam == null or _hud == null or not cam.has_method(&"world_to_screen"):
+		_ok(false, "there is a camera and a HUD to select with")
+		return
+	var grid: SimSystem = Sim.get_system(&"grid")
+	if grid == null:
+		_ok(false, "there is a grid to point at")
+		return
+	# The hearth stands two tiles up and left of the core cell; aim at its middle.
+	var core: Vector2i = grid.call("core_cell")
+	var world: Vector2 = (Vector2(core) + Vector2(-1.0, -1.0)) * 32.0
+	var screen: Vector2 = cam.call(&"world_to_screen", world)
+	await _click(screen)
+	_ok(int(_hud.get(&"selected_id")) >= 0,
+		"clicking the hearth fills the selection panel (id=%d)" % int(_hud.get(&"selected_id")))
+
+
 ## A palette that cannot arm the ghost is a picture of buildings.
 func _suite_build_mode_reaches_the_ghost() -> void:
 	if _menu == null or _play == null:
@@ -337,6 +373,18 @@ func _press(code: int) -> void:
 	up.keycode = code
 	up.pressed = false
 	get_viewport().push_input(up, true)
+	await _settle(SETTLE)
+
+
+func _click(at: Vector2) -> void:
+	for pressed: bool in [true, false]:
+		var ev := InputEventMouseButton.new()
+		ev.button_index = MOUSE_BUTTON_LEFT
+		ev.pressed = pressed
+		ev.position = at
+		ev.global_position = at
+		get_viewport().push_input(ev, true)
+		await _settle(2)
 	await _settle(SETTLE)
 
 
