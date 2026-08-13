@@ -182,6 +182,22 @@ func update(cost: PackedByteArray, changed: PackedInt32Array) -> void:
 				var n: int = idx + _off[d]
 				if n >= 0 and n < _size and integration[n] != UNREACHABLE:
 					lower.append(n)
+		if cost[idx] != IMP:
+			continue
+		# A new wall also invalidates every DIAGONAL step that used to squeeze past
+		# the corner it now occupies. Those cells still point at a perfectly valid
+		# neighbour, so the back-pointer test below never sees them — without this
+		# the repaired field keeps a step the full rebuild forbids (and understates
+		# the cost of everything behind it).
+		for d2: int in range(8):
+			var m: int = idx + _off[d2]
+			if m < 0 or m >= _size or integration[m] == UNREACHABLE:
+				continue
+			var dm: int = direction[m]
+			if dm >= 8 or (dm & 1) == 0:
+				continue
+			if m + _off[(dm + 1) & 7] == idx or m + _off[(dm + 7) & 7] == idx:
+				raise_q.append(m)
 
 	var head: int = 0
 	while head < raise_q.size():

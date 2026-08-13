@@ -29,6 +29,11 @@ func run_all() -> Dictionary:
 
 	_camera = GameCamera.new()
 	_camera.name = "GameCamera"
+	# A headless viewport reports the mouse at (0, 0) forever, which is the top-left
+	# EDGE — leave edge scroll on and every case below measures edge scroll instead
+	# of the thing it names. The ramp itself is covered by CameraTests
+	# (test_edge_scroll_ramp) and by _test_edge_scroll_wiring at the end of this file.
+	_camera.edge_scroll_allowed = false
 	add_child(_camera)
 	_camera.readability_changed.connect(_on_readability)
 	_camera.overlay_requested.connect(_on_overlay)
@@ -57,6 +62,8 @@ func run_all() -> Dictionary:
 	_test_keyboard_pan()
 	_case = "settings_round_trip"
 	_test_settings_round_trip()
+	_case = "edge_scroll_wiring"
+	_test_edge_scroll_wiring()
 
 	# One real engine frame at the end: the node must survive an actual draw pass.
 	await _frames(2)
@@ -372,6 +379,34 @@ func _test_keyboard_pan() -> void:
 		_ok(not Input.is_action_pressed(&"cam_pan_right"), "the pan key stayed latched after release")
 	var moved: float = _camera.rig.position.x
 	_ok(moved > 0.0, "holding the pan key did not move the camera east (x=%.2f)" % moved)
+	_camera.rig.stop_motion()
+
+
+## The one case that deliberately turns edge scroll back on. It cannot move a real
+## cursor, so it drives the camera's own gather step with a synthetic pointer and
+## asserts the sign and the gating, which is the wiring the other cases mute.
+func _test_edge_scroll_wiring() -> void:
+	var size: Vector2 = _camera._viewport_size()
+	var margin: float = _camera.tuning.edge_margin
+	var right_edge: Vector2 = Vector2(size.x - 1.0, size.y * 0.5)
+	var middle: Vector2 = size * 0.5
+
+	_ok(CameraRig.edge_scroll_dir(middle, size, margin) == Vector2.ZERO,
+		"a cursor in the middle of the window must not scroll")
+	_ok(CameraRig.edge_scroll_dir(right_edge, size, margin).x > 0.9,
+		"a cursor on the right edge must scroll east")
+	_ok(CameraRig.edge_scroll_dir(Vector2(0.0, 0.0), size, margin) == Vector2(-1.0, -1.0),
+		"a cursor in the top-left corner scrolls up and left at full rate")
+
+	# And the camera must obey the toggle rather than the ramp alone.
+	_camera.edge_scroll_allowed = true
+	_set_setting("gameplay", "edge_scroll", false)
+	_camera._refresh_settings()
+	_ok(_camera._gather_pan_input() == Vector2.ZERO,
+		"edge_scroll=false still produced pan input")
+	_set_setting("gameplay", "edge_scroll", true)
+	_camera._refresh_settings()
+	_camera.edge_scroll_allowed = false
 	_camera.rig.stop_motion()
 
 

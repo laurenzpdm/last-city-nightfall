@@ -221,7 +221,11 @@ func harvest(cell: Vector2i, amount: int) -> int:
 func is_free(cell: Vector2i, size: Vector2i) -> bool:
 	var sx: int = maxi(size.x, 1)
 	var sy: int = maxi(size.y, 1)
-	if cell.x < 0 or cell.y < 0 or cell.x + sx > width or cell.y + sy > height:
+	# The outermost ring is impassable by contract (see _compute_cost), so a
+	# footprint there would be permanently unreachable no matter what the terrain
+	# flags say. Refusing it here keeps is_free() and the cost cache telling the
+	# same story.
+	if cell.x < 1 or cell.y < 1 or cell.x + sx > width - 1 or cell.y + sy > height - 1:
 		return false
 	for y: int in range(cell.y, cell.y + sy):
 		for x: int in range(cell.x, cell.x + sx):
@@ -335,10 +339,16 @@ func _compute_cost(x: int, y: int) -> int:
 func speed_scale(cell: Vector2i) -> float:
 	if not in_bounds(cell):
 		return 1.0
+	# The cost cache is the single source of truth for "can anything move here" —
+	# it already folds in the border ring, non-walkable terrain and blocking
+	# buildings. Reading terrain flags instead would let a unit walk a wall at the
+	# clamp floor.
+	var idx: int = cell.y * width + cell.x
+	if cost[idx] == Grid.IMPASSABLE:
+		return 0.0
 	var c: GridChunk = chunk_at(cell)
 	var li: int = _local(cell)
-	var t: int = c.terrain[li]
-	var base: float = 10.0 / float(maxi(Grid.TERRAIN_COST[t], 1)) if (Grid.TERRAIN_FLAGS[t] & Grid.F_WALK) != 0 else 0.0
+	var base: float = 10.0 / float(maxi(cost[idx], 1))
 	return clampf(base * (1.0 - float(c.snow[li]) * 0.0022), 0.28, 1.6)
 
 

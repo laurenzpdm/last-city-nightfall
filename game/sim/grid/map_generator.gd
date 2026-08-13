@@ -18,6 +18,10 @@ extends RefCounted
 ## * **ore that gets richer the further out it lies**. That gradient is the whole
 ##   economy in one line of maths.
 
+## How far past its minimum ring the guaranteed starter patch of each resource
+## may fall. Small on purpose: the first patch has to be walkable-to on day one.
+const STARTER_BAND: int = 6
+
 var profile: BiomeProfile
 var grid: WorldGrid
 var core: Vector2i = Vector2i.ZERO
@@ -457,8 +461,12 @@ func _pass_deposits(rng: RandomNumberGenerator) -> void:
 		if spec == null:
 			continue
 		var placed: Array = placed_by_kind.get(spec.kind, [])
-		for _c: int in range(spec.clusters):
-			var origin: Vector2i = _pick_deposit_site(rng, spec, placed)
+		for c_i: int in range(spec.clusters):
+			# The first cluster of every kind is a STARTER patch, pinned to the
+			# inner quarter of its ring. Area-uniform sampling alone pushes almost
+			# everything to the rim, which on a real run means the player's first
+			# coal is ninety tiles from the hearth.
+			var origin: Vector2i = _pick_deposit_site(rng, spec, placed, c_i == 0)
 			if origin.x < 0:
 				continue
 			placed.append(origin)
@@ -477,9 +485,13 @@ func _pass_deposits(rng: RandomNumberGenerator) -> void:
 				grid.set_snow(c, 0)
 
 
-func _pick_deposit_site(rng: RandomNumberGenerator, spec: DepositSpec, placed: Array) -> Vector2i:
+func _pick_deposit_site(rng: RandomNumberGenerator, spec: DepositSpec, placed: Array,
+		starter: bool = false) -> Vector2i:
+	var dmax: int = spec.max_distance
+	if starter:
+		dmax = mini(spec.max_distance, spec.min_distance + STARTER_BAND)
 	for _a: int in range(48):
-		var site: Vector2i = _pick_site(rng, spec.min_distance, spec.max_distance, 1)
+		var site: Vector2i = _pick_site(rng, spec.min_distance, dmax, 1)
 		if site.x < 0:
 			continue
 		var ok: bool = true

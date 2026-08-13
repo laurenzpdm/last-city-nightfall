@@ -198,7 +198,8 @@ func _test_flood_fill() -> void:
 		else:
 			right += 1
 	eq_int(right, 0, "wall splits the map: nothing on the far side is reachable")
-	eq_int(left, 8 * 22, "near side is fully reachable")
+	# Columns 1..9 inside the border ring, rows 1..22 (the wall spans y 1..22).
+	eq_int(left, 9 * 22, "near side is fully reachable")
 	var filled: Array[Vector2i] = Grid.flood_fill(Vector2i(2, 2), 500, func(c: Vector2i) -> bool:
 		return c.x >= 0 and c.y >= 0 and c.x < 6 and c.y < 6)
 	eq_int(filled.size(), 36, "callable flood fill respects its predicate")
@@ -318,7 +319,9 @@ func _test_flow_basic() -> void:
 
 	var straight: int = f.integration[g.index_of(Vector2i(20, 10))]
 	var diagonal: int = f.integration[g.index_of(Vector2i(10, 10))]
-	eq_int(straight, 10 * Grid.TERRAIN_COST[Grid.Terrain.SNOW] * FlowField.W_ORTHO / 10 * 10 / 10, "10 tiles straight costs 10 moves")
+	# Edge weight is terrain cost x direction weight. Ten orthogonal steps over
+	# plain snow is therefore 10 * 10 * 10.
+	eq_int(straight, 10 * Grid.TERRAIN_COST[Grid.Terrain.SNOW] * FlowField.W_ORTHO, "10 tiles straight costs 10 moves")
 	check(diagonal > straight, "the diagonal corner is further than the straight one")
 	check(f.steer(Grid.cell_to_world(Vector2i(20, 10))).length() > 0.9, "steer returns a unit vector")
 
@@ -466,6 +469,9 @@ func _test_astar() -> void:
 func _test_snow() -> void:
 	var g: WorldGrid = _plain(40, 40)
 	g.set_terrain(Vector2i(5, 5), Grid.Terrain.GEOTHERMAL)
+	# Drain the queue that terrain change legitimately produced, so the assertion
+	# below measures the snow model and nothing else.
+	g.take_dirty(1 << 30)
 	g.accumulate_snow(0, 40, 200)
 	eq_int(g.snow_at(Vector2i(5, 5)), 0, "snow never settles on warm ground")
 	eq_int(g.snow_at(Vector2i(6, 6)), 40, "snow settles everywhere else")

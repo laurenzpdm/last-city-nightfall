@@ -19,9 +19,13 @@ var zoom_default: float = 1.0
 ## One wheel notch in log space. exp(0.18) ≈ 1.197× per notch.
 var zoom_step: float = 0.18
 ## Half-life of the exponential approach to the target zoom. Short = crisp.
-var zoom_smooth_halflife: float = 0.055
+## Sized so a wheel notch is fully settled inside half a second — an exponential
+## never arrives on its own, so the epsilon below has to be able to catch it.
+var zoom_smooth_halflife: float = 0.05
 ## Below this distance in log space the zoom snaps and the anchor is released.
-var zoom_snap_epsilon: float = 0.0006
+## 0.0015 in log space is 0.15% of the zoom level: invisible, and it guarantees
+## the snap fires well before the 0.5 s settle deadline instead of just after it.
+var zoom_snap_epsilon: float = 0.0015
 
 # --- pan ----------------------------------------------------------------------
 var pan_speed: float = 1450.0
