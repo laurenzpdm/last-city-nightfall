@@ -118,6 +118,9 @@ var _breaches_at_dusk: int = 0
 var _damage_at_dusk: float = 0.0
 var _shots_at_dusk: int = 0
 var _heat_at_dusk: float = 0.0
+var _engaged_at_dusk: int = 0
+var _ready_at_dusk: int = 0
+var _gun_ticks_at_dusk: int = 0
 ## One row per night that has ended: what came, what it cost, what the wall did.
 ## This is the campaign's own record — the table a critic reads instead of
 ## being told the fight is escalating.
@@ -698,6 +701,9 @@ func _begin_wave() -> void:
 	_damage_at_dusk = float(d0.get("damage_taken", 0.0))
 	_shots_at_dusk = int(d0.get("shots", 0))
 	_heat_at_dusk = float(d0.get("heat_spent", 0.0))
+	_engaged_at_dusk = int(d0.get("engaged_ticks", 0))
+	_ready_at_dusk = int(d0.get("ready_ticks", 0))
+	_gun_ticks_at_dusk = int(d0.get("live_ticks", 0))
 	_siege.begin(_plan)
 
 	var line: String = _format(_profile.wave_started_line, 3, 0.0)
@@ -1146,7 +1152,12 @@ func _defence_delta() -> Dictionary:
 	var now: Dictionary = _defence_now()
 	if now.is_empty():
 		return {"turrets": 0, "cold": 0, "shots": 0, "heat_spent": 0.0,
-			"damage_taken": 0.0, "engaged": 0.0}
+			"damage_taken": 0.0, "engaged": 0.0, "uptime": 0.0}
+	# Gun-ticks THIS NIGHT, not since world creation. A wall that fought
+	# perfectly for three minutes reads as 1% engaged once fifteen thousand ticks
+	# of daylight are in the denominator, which is how a defence that never fires
+	# and a defence that never stops look like the same number.
+	var gun_ticks: int = maxi(1, int(now.get("live_ticks", 0)) - _gun_ticks_at_dusk)
 	return {
 		"turrets": int(now.get("turrets", 0)),
 		"cold": int(now.get("cold", 0)) + int(now.get("offline", 0)),
@@ -1155,8 +1166,11 @@ func _defence_delta() -> Dictionary:
 		"heat_spent": snappedf(maxf(0.0, float(now.get("heat_spent", 0.0)) - _heat_at_dusk), 0.1),
 		"damage_taken": snappedf(maxf(0.0,
 			float(now.get("damage_taken", 0.0)) - _damage_at_dusk), 0.1),
-		"engaged": snappedf(float(now.get("engaged", 0.0)), 0.001),
-		"uptime": snappedf(float(now.get("uptime", 0.0)), 0.001),
+		"engaged": snappedf(float(maxi(0,
+			int(now.get("engaged_ticks", 0)) - _engaged_at_dusk)) / float(gun_ticks), 0.001),
+		"uptime": snappedf(float(maxi(0,
+			int(now.get("ready_ticks", 0)) - _ready_at_dusk)) / float(gun_ticks), 0.001),
+		"gun_ticks": gun_ticks,
 	}
 
 

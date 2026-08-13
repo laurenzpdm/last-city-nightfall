@@ -14,16 +14,24 @@ extends RefCounted
 ## RandomNumberGenerator from a constant in the recipe. `Rng.stream()` is never
 ## touched, so nothing the player hears can move a replay by one bit.
 
-## Microseconds of each frame the bank may spend building. 2.5 ms of a 16 ms
-## frame finishes the whole catalogue in about four seconds without ever
-## costing a dropped frame.
+## Microseconds of each frame the bank may spend building. The catalogue is
+## about two seconds of arithmetic in total, so the budget is generous while the
+## game is opening — nobody is playing yet and the frame is already busy with
+## world generation — and drops to a background trickle afterwards.
+const EAGER_BUDGET_USEC: int = 8000
 const DEFAULT_BUDGET_USEC: int = 2500
+## Frames the eager budget lasts. Three seconds at 60 fps, which finishes the
+## whole bake with room to spare.
+const EAGER_FRAMES: int = 200
 ## Samples of work per microsecond of budget, measured on the machine that wrote
 ## this. Only used to convert the budget into a slice size; being wrong by 2x
 ## costs a fraction of a millisecond either way.
 const SAMPLES_PER_USEC: int = 5
 
 var budget_usec: int = DEFAULT_BUDGET_USEC
+var eager_budget_usec: int = EAGER_BUDGET_USEC
+
+var _pumps: int = 0
 
 var _streams: Dictionary[StringName, AudioStreamWAV] = {}
 var _queue: Array[StringName] = []
@@ -72,7 +80,10 @@ func queue(key: StringName) -> void:
 ## Spends up to `usec` microseconds finishing queued jobs. Returns how many
 ## streams became available during this call.
 func pump(usec: int = -1) -> int:
-	var allowance: int = budget_usec if usec < 0 else usec
+	_pumps += 1
+	var allowance: int = usec
+	if usec < 0:
+		allowance = eager_budget_usec if _pumps <= EAGER_FRAMES else budget_usec
 	if allowance <= 0:
 		return 0
 	var finished_now: int = 0

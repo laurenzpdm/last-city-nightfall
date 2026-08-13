@@ -234,7 +234,7 @@
         },
         "citizens.population": {
           "final_min": 25,
-          "why": "Three days of arrivals."
+          "why": "Three days of arrivals at the gate. A population that stops growing after the first night means the arrival loop is tied to day 1 and nothing after it."
         },
         "threat.waves_survived": {
           "final_min": 2,

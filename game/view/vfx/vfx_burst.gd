@@ -218,5 +218,20 @@ func _draw() -> void:
 		_drawn += 1
 
 
+## Where particle `i` is right now, in world pixels. Diagnostics and tests only —
+## nothing in the effects layer reads a particle back out.
+func position_of(i: int) -> Vector2:
+	if i < 0 or i >= count:
+		return Vector2.ZERO
+	return Vector2(_x[i], _y[i])
+
+
+## Seconds of life left on particle `i`.
+func life_of(i: int) -> float:
+	if i < 0 or i >= count:
+		return 0.0
+	return _life[i]
+
+
 func stats() -> Dictionary:
 	return {"live": count, "drawn": _drawn, "capacity": capacity, "dropped": _dropped}

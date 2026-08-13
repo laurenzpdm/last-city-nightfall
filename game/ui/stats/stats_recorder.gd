@@ -87,6 +87,16 @@ var _samples: int = 0
 
 var _values: Dictionary[StringName, float] = {}
 
+# --- prebound lookups -------------------------------------------------------
+# The per-item read is the hot loop. Composing "p.iron_plate" and reflecting a
+# call by name once per item per sample is most of what this part costs, so both
+# are done once at bind time and never again.
+var _produced_keys: Array[StringName] = []
+var _consumed_keys: Array[StringName] = []
+var _stock_keys: Array[StringName] = []
+var _produced_cb: Callable = Callable()
+var _stock_cb: Callable = Callable()
+
 
 func _init() -> void:
 	fine = LcnStatTrack.new(FINE_STRIDE, FINE_CAP, false)
@@ -173,6 +183,11 @@ func microseconds_per_sample() -> float:
 
 func sample_count() -> int:
 	return _samples
+
+
+## Entries in the per-machine craft ledger. The pruning claim, measured.
+func ledger_size() -> int:
+	return _machine_crafts.size()
 
 
 func track(id: StringName) -> LcnStatTrack:
@@ -272,14 +287,17 @@ func _read_factory(v: Dictionary[StringName, float], _tick: int) -> void:
 	if _production == null:
 		return
 	_advance_consumption()
-	var store: Object = _production.get("store")
-	for item: StringName in items:
-		var made: float = float(_production.call("produced_total", item))
+	# Bound Callables, not `Object.call(name, ...)`: two reflected calls per item
+	# per sample was the single largest line in this part's cost profile, and a
+	# recipe graph that doubles would have doubled it.
+	for i: int in items.size():
+		var item: StringName = items[i]
+		var made: float = float(_produced_cb.call(item)) if _produced_cb.is_valid() else 0.0
 		_produced[item] = made
-		v[LcnStatsDefs.produced_key(item)] = made
-		v[LcnStatsDefs.consumed_key(item)] = _consumed.get(item, 0.0)
-		if store != null:
-			v[LcnStatsDefs.stock_key(item)] = float(store.call("count", item))
+		v[_produced_keys[i]] = made
+		v[_consumed_keys[i]] = _consumed.get(item, 0.0)
+		if _stock_cb.is_valid():
+			v[_stock_keys[i]] = float(_stock_cb.call(item))
 
 
 ## One pass over every machine, differencing `crafts_done`. A machine whose

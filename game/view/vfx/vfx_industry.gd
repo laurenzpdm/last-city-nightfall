@@ -145,19 +145,19 @@ func update(view: Rect2, wind: Vector2, calm: bool, quality: float) -> void:
 
 	var q: float = clampf(quality, 0.0, 1.0) * (0.55 if calm else 1.0)
 	embers.set_points(_furnace)
-	embers.set_density(_scale(_furnace.size()) * q)
+	embers.set_density(share_for(_furnace.size()) * q)
 	smoke.set_points(_plumes())
-	smoke.set_density(_scale(_furnace.size() + _works.size()) * q)
+	smoke.set_density(share_for(_furnace.size() + _works.size()) * q)
 	sparks.set_points(_crafting)
-	sparks.set_density(_scale(_crafting.size()) * q * 0.8)
+	sparks.set_density(share_for(_crafting.size()) * q * 0.8)
 	haze.set_points(_vents)
-	haze.set_density(_scale(_vents.size()) * q * 0.7)
+	haze.set_density(share_for(_vents.size()) * q * 0.7)
 
 
 ## Density per emitter falls as the number of sources rises: forty chimneys share
 ## one particle buffer, so each one has to smoke less or the buffer starves the
 ## nearest and most visible plume to feed the far ones.
-static func _scale(n: int) -> float:
+static func share_for(n: int) -> float:
 	if n <= 0:
 		return 0.0
 	return clampf(0.35 + 0.65 * sqrt(clampf(float(n) / 12.0, 0.0, 1.0)), 0.0, 1.0)

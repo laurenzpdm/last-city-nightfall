@@ -471,6 +471,13 @@ func defence_report() -> Dictionary:
 		"offline": off,
 		"uptime": snappedf(battery.uptime(), 0.001),
 		"engaged": snappedf(battery.engagement(), 0.001),
+		# Raw counters as well as the ratios, so a caller can difference them
+		# across a night instead of reading a lifetime average and calling it
+		# tonight. A campaign-long 1% is what a perfect night looks like when it
+		# is divided by fifteen thousand ticks of daylight.
+		"engaged_ticks": battery.engaged_ticks,
+		"ready_ticks": battery.ready_ticks,
+		"live_ticks": battery.live_ticks,
 		"shots": battery.shots_fired,
 		"heat_spent": snappedf(battery.heat_spent, 0.1),
 		"first_cold": [first_cold.x, first_cold.y],

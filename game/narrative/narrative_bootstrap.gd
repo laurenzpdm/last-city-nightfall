@@ -11,12 +11,14 @@ extends Resource
 ## `setup()` and `post_setup()` are called, and it is inserted into
 ## `Sim.systems` at its declared order.
 ##
-## THE ONE RULE THIS FILE OBEYS: it never calls `add_child` and it never touches
-## the scene tree. The build menu spent a whole phase as an orphan because an
-## install ran inside `_ready`, where the root refuses to take children, and
-## nothing checked afterwards. There is nothing to parent here, so there is
-## nothing to get wrong; the check that matters is `Sim.get_system(&"narrative")`
-## and `ensure()` performs it every time.
+## It also installs `LcnNarrativeCard`, which is how the events reach a human.
+## That install happens ONLY from a deferred call, never from inside anybody's
+## `_ready`, and the node is checked with `is_inside_tree()` afterwards: an
+## `add_child` that Godot refuses returns an orphan, prints one engine error
+## into a log nobody parses, and leaves the part unreachable while every gate
+## stays green. That is not a hypothetical; it is what happened to the build
+## menu. If the parenting fails here it is freed and logged as an ERROR, which
+## fails the harness run.
 ##
 ## Idempotent from every direction: the deferred hook, a second world, a test
 ## fixture that creates and destroys ten worlds in one process, and a direct
@@ -25,6 +27,7 @@ extends Resource
 @export var id: StringName = &"narrative_bootstrap"
 
 static var _hooked: bool = false
+static var _card_done: bool = false
 
 
 func _init() -> void:
@@ -51,6 +54,7 @@ static func hook() -> void:
 	# A world may already exist: `boot.gd` creates one inside its own `_ready`,
 	# which is earlier than any deferred call can possibly run.
 	ensure()
+	install_card()
 
 
 static func _on_world_ready() -> void:
@@ -93,6 +97,50 @@ static func _slot_for(system: SimSystem) -> int:
 	return Sim.systems.size()
 
 
+# =========================================================================
+#  the card
+# =========================================================================
+
+## Puts the event card in the tree, unless somebody better already draws events.
+## Returns the presenter that is in the tree afterwards, or null.
+static func install_card() -> LcnNarrativeCard:
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	if tree == null or tree.root == null:
+		return null
+	var existing: Node = tree.get_first_node_in_group(LcnNarrativeCard.GROUP)
+	if existing != null:
+		_card_done = true
+		# [P17] or [P18] taking the group over is the intended end state, not a
+		# failure. Say so once so the log records which one is drawing.
+		return existing as LcnNarrativeCard
+	if _card_done:
+		return null
+	if not LcnLayers.view_wanted():
+		return null
+	if OS.get_cmdline_user_args().has("--no-narrative-card"):
+		Log.info(NarrativeDefs.TAG, "the event card is disabled by command line")
+		_card_done = true
+		return null
+	var card := LcnNarrativeCard.new()
+	# `is_node_ready()` is false for exactly the window in which `add_child` is
+	# refused, so it is the precise public test for "would this be an orphan".
+	if tree.root.is_node_ready():
+		tree.root.add_child(card)
+	else:
+		tree.root.add_child.call_deferred(card)
+		_card_done = true
+		return card
+	_card_done = true
+	if not card.is_inside_tree():
+		Log.error(NarrativeDefs.TAG,
+			"the event card could not be parented — dilemmas would decide themselves")
+		card.free()
+		return null
+	Log.info(NarrativeDefs.TAG, "event card installed on layer %d" % LcnNarrativeCard.LAYER)
+	return card
+
+
 ## Tests create and tear down worlds repeatedly in one process.
 static func reset() -> void:
 	_hooked = false
+	_card_done = false

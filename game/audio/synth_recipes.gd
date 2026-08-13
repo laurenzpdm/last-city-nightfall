@@ -63,11 +63,13 @@ static func spec(key: StringName) -> Dictionary:
 	return all().get(key, {})
 
 
-## Keys built before the first frame is drawn. Everything else arrives over the
-## next second or two — but the fire and the wind are the room, and a room that
-## fades in a second late reads as a bug.
+## Baked synchronously, before the first frame. Deliberately just two: the whole
+## catalogue is about two seconds of arithmetic and the fire is the only thing
+## that must be there from the first instant. Everything else arrives inside the
+## next second on the bank's frame budget, which is imperceptible and — unlike a
+## 400 ms freeze on the frame the game opens — not a bug.
 static func essential() -> Array[StringName]:
-	return [&"hearth_bed", &"wind_bed", &"city_hum", &"mus_bed", &"click"]
+	return [&"hearth_bed", &"click"]
 
 
 static func _build() -> void:

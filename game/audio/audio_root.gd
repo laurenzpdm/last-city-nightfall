@@ -111,6 +111,13 @@ func _ready() -> void:
 
 	_connect_bus()
 	_bind_world()
+	# When the harness is driving, the mix writes its own artifact next to the
+	# screenshots. A critic should not have to take a builder's word for what
+	# was audible at the moment a shot was taken.
+	var harness: Node = _autoload(&"Harness")
+	if harness != null and harness.has_signal(&"finished") \
+			and not harness.is_connected(&"finished", _on_harness_finished):
+		harness.connect(&"finished", _on_harness_finished)
 	Log.info("audio", "installed: %d buses, %d/%d streams baked in %.0f ms, %d voice slots" % [
 		AudioServer.bus_count, bank.ready_count(),
 		bank.ready_count() + bank.pending_count(),
@@ -301,6 +308,10 @@ func _passes_throttle(key: StringName) -> bool:
 
 func _on_world_ready() -> void:
 	_bind_world.call_deferred()
+
+
+func _on_harness_finished() -> void:
+	write_run_report()
 
 
 func _on_turret_fired(_id: int, from: Vector2, to: Vector2) -> void:

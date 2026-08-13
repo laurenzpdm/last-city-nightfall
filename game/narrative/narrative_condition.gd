@@ -45,6 +45,10 @@ func explain(facts: Dictionary) -> String:
 	var shown: String = NarrativeDefs.fact_value_text(fact, v)
 	if phrasing != "":
 		return phrasing.replace("{value}", shown)
+	if NarrativeDefs.is_boolean_fact(fact):
+		# "Night (yes) is at or above yes" is a sentence this build actually
+		# printed at a player. A yes or a no is stated, never compared.
+		return "%s: %s." % [NarrativeDefs.fact_label(fact), shown]
 	return "%s (%s) %s %s." % [
 		NarrativeDefs.fact_label(fact), shown,
 		NarrativeDefs.cmp_word(cmp),
