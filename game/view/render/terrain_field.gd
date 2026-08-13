@@ -77,6 +77,7 @@ var _chunks: Vector2i = Vector2i.ZERO
 var _kind_us: int = 0
 var _snow_us: int = 0
 var _src_us: int = 0
+var _soot_us: int = 0
 var _city_us: int = 0
 var _snow_chunks: int = 0
 
@@ -233,17 +234,44 @@ func _write_snow_chunk(model: LcnWorldModel, chunk: Vector2i) -> void:
 ## camera can see.
 func refresh_sources(sources: Array[Dictionary], buildings: Array[Dictionary],
 		region: Rect2 = Rect2()) -> void:
+	refresh_heat(sources, region)
+	refresh_soot(buildings, region)
+
+
+## Warm pools. Split from the soot pass so the two land on different frames and
+## neither spike is the sum of both.
+func refresh_heat(sources: Array[Dictionary], region: Rect2 = Rect2()) -> void:
 	var t0: int = Time.get_ticks_usec()
 	var cull: bool = region.size.x > 0.0
 	_heat.fill(0)
-	_soot.fill(0)
-	for s: Dictionary in sources:
+	# Strongest first. The stamp early-out can only skip work once a texel is
+	# already buried, so the order decides how much work there is: hottest first
+	# saturates the district in a handful of discs and everything after it is a
+	# single compare. Native sort on a packed key, no script callable.
+	var order := PackedInt64Array()
+	order.resize(sources.size())
+	for i: int in sources.size():
+		var v0: int = clampi(int(clampf(float(sources[i]["intensity"]), 0.0, 1.4) * 255.0), 0, 255)
+		order[i] = ((255 - v0) << 32) | i
+	order.sort()
+	for k: int in order.size():
+		var s: Dictionary = sources[int(order[k] & 0xFFFFFFFF)]
 		var pos: Vector2 = s["pos"]
 		var r: float = float(s["radius"]) / float(TILE) * 0.92
 		if cull and not region.grow(r * float(TILE)).has_point(pos):
 			continue
-		var v: int = clampi(int(clampf(float(s["intensity"]), 0.0, 1.4) * 255.0), 0, 255)
+		var v: int = 255 - int(order[k] >> 32)
 		_stamp(_heat, _heat_dim, HEAT_STEP, pos / float(TILE), r, v)
+	_heat_img = Image.create_from_data(_heat_dim.x, _heat_dim.y, false, Image.FORMAT_R8, _heat)
+	heat_tex.update(_heat_img)
+	_src_us = Time.get_ticks_usec() - t0
+
+
+## Industrial grime.
+func refresh_soot(buildings: Array[Dictionary], region: Rect2 = Rect2()) -> void:
+	var t0: int = Time.get_ticks_usec()
+	var cull: bool = region.size.x > 0.0
+	_soot.fill(0)
 	for b: Dictionary in buildings:
 		var w: float = float(b.get("soot", 0.0))
 		if w <= 0.001:
@@ -256,11 +284,9 @@ func refresh_sources(sources: Array[Dictionary], buildings: Array[Dictionary],
 			continue
 		_stamp(_soot, _soot_dim, SOOT_STEP, c / float(TILE), rad,
 			clampi(int(w * 255.0), 0, 255))
-	_heat_img = Image.create_from_data(_heat_dim.x, _heat_dim.y, false, Image.FORMAT_R8, _heat)
-	heat_tex.update(_heat_img)
 	_soot_img = Image.create_from_data(_soot_dim.x, _soot_dim.y, false, Image.FORMAT_R8, _soot)
 	soot_tex.update(_soot_img)
-	_src_us = Time.get_ticks_usec() - t0
+	_soot_us = Time.get_ticks_usec() - t0
 
 
 ## Additive disc with a squared falloff, saturating instead of wrapping.
@@ -277,8 +303,12 @@ func _stamp(field: PackedByteArray, dim: Vector2i, step: int, centre_tiles: Vect
 	var r: float = radius_tiles / float(step)
 	var cx: float = centre_tiles.x / float(step)
 	var cy: float = centre_tiles.y / float(step)
+	# Skip a stamp whose whole contribution is already buried. Four times this
+	# stamp's own peak means it can move the texel by under a quarter of a step
+	# in the visible ramp, and in a dense district almost every stamp after the
+	# first few is in that position.
 	var mid: int = clampi(int(cy), 0, dim.y - 1) * dim.x + clampi(int(cx), 0, dim.x - 1)
-	if int(field[mid]) >= 252:
+	if int(field[mid]) >= mini(250, peak * 3):
 		return
 	var x0: int = maxi(int(floor(cx - r)), 0)
 	var x1: int = mini(int(ceil(cx + r)), dim.x - 1)
@@ -425,7 +455,7 @@ func stats() -> Dictionary:
 	return {
 		"kind_us": _kind_us,
 		"snow_us": _snow_us,
-		"sources_us": _src_us,
+		"sources_us": _src_us + _soot_us,
 		"city_us": _city_us,
 		"snow_chunks": _snow_chunks,
 		"bytes": _kind.size() + _snow.size() + _heat.size() + _soot.size() + _city.size() * 3,

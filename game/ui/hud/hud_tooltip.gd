@@ -21,6 +21,7 @@ var style: LcnHudStyle = null
 var _title: String = ""
 var _body: String = ""
 var _anchor: Rect2 = Rect2()
+var _avoid: Rect2 = Rect2()
 var _wait: float = 0.0
 var _shown: bool = false
 var _alpha: float = 0.0
@@ -37,9 +38,11 @@ func setup(hud_style: LcnHudStyle) -> void:
 	style = hud_style
 
 
-## Requests the card for a region. Repeated calls with the same content are
-## free, so a widget may call this on every mouse move.
-func show_for(anchor: Rect2, title: String, body: String) -> void:
+## Requests the card for a region. `avoid` is the whole panel the region belongs
+## to, and the card is placed OUTSIDE it — a tooltip that lands on top of the
+## panel you are reading is worse than no tooltip. Repeated calls with the same
+## content are free, so a widget may call this on every mouse move.
+func show_for(anchor: Rect2, avoid: Rect2, title: String, body: String) -> void:
 	if title == "" and body == "":
 		hide_tip()
 		return
@@ -48,6 +51,7 @@ func show_for(anchor: Rect2, title: String, body: String) -> void:
 	_title = title
 	_body = body
 	_anchor = anchor
+	_avoid = avoid
 	_wait = style.tooltip_delay() if style != null else 0.35
 	if _shown:
 		# Already open: slide straight to the next card, no second wait. This is
@@ -55,6 +59,12 @@ func show_for(anchor: Rect2, title: String, body: String) -> void:
 		_wait = 0.0
 		_relayout()
 	queue_redraw()
+
+
+## True once the card has finished fading in. The screenshot rig and the view
+## tests wait on this instead of guessing at a frame count.
+func is_open() -> bool:
+	return _shown and _alpha > 0.99
 
 
 func hide_tip() -> void:
@@ -101,11 +111,19 @@ func _relayout() -> void:
 	if _title == "":
 		h -= float(title_size) * 1.5
 
-	var x: float = _anchor.position.x
-	var y: float = _anchor.position.y + _anchor.size.y + GAP
-	if y + h > size.y - 8.0:
-		y = _anchor.position.y - h - GAP
-	x = clampf(x, 8.0, maxf(8.0, size.x - w - 8.0))
+	# Beside the panel first (right, then left), because that is the only
+	# placement that cannot cover the number being explained. Under and over it
+	# are the fallbacks for a panel that spans the screen.
+	var avoid: Rect2 = _avoid if _avoid.size.x > 1.0 else _anchor
+	var x: float = avoid.position.x + avoid.size.x + GAP
+	var y: float = _anchor.position.y - 4.0
+	if x + w > size.x - 8.0:
+		x = avoid.position.x - w - GAP
+	if x < 8.0:
+		x = clampf(_anchor.position.x, 8.0, maxf(8.0, size.x - w - 8.0))
+		y = avoid.position.y + avoid.size.y + GAP
+		if y + h > size.y - 8.0:
+			y = avoid.position.y - h - GAP
 	y = clampf(y, 8.0, maxf(8.0, size.y - h - 8.0))
 	_box = Rect2(Vector2(x, y), Vector2(w, h))
 
@@ -116,13 +134,15 @@ func _draw() -> void:
 	# The card is near-opaque on purpose: it is text over a busy map, and the
 	# rest of the HUD's transparency rules do not apply to something you are
 	# actively reading.
+	draw_rect(Rect2(_box.position + Vector2(3.0, 4.0), _box.size),
+		Color(0.0, 0.0, 0.0, 0.35 * _alpha), true)
 	var pts: PackedVector2Array = LcnHudStyle.plate_points(_box, 6.0)
 	var body_col: Color = LcnHudStyle.P.COLD_DEEP
 	var cols := PackedColorArray()
 	for p: Vector2 in pts:
 		var f: float = clampf((p.y - _box.position.y) / maxf(1.0, _box.size.y), 0.0, 1.0)
 		var c: Color = LcnHudStyle.P.COLD_MID.lerp(body_col, f)
-		cols.append(Color(c.r, c.g, c.b, 0.94 * _alpha))
+		cols.append(Color(c.r, c.g, c.b, 0.985 * _alpha))
 	draw_polygon(pts, cols)
 	var closed: PackedVector2Array = pts.duplicate()
 	closed.append(pts[0])

@@ -34,6 +34,8 @@ const GAP: float = 10.0
 ## keeps the treatment, the interface stays crisp. Still below [P19]'s overlay
 ## legends (70/72), which are meant to sit on top of everything.
 const LAYER: int = 65
+## Wall-clock fallback poll, for when the simulation clock is not moving.
+const PAUSED_POLL_SECONDS: float = 0.25
 
 var style: LcnHudStyle = null
 var probe: LcnHudProbe = null
@@ -61,6 +63,7 @@ var _camera: Node = null
 var _camera_poll: float = 0.0
 var _urgency: float = 0.0
 var _urgency_target: float = 0.0
+var _since_poll: float = 0.0
 var _last_layout: Vector2 = Vector2.ZERO
 var _footer_signature: String = ""
 
@@ -160,10 +163,15 @@ func select(id: int) -> void:
 		if citizen.is_empty():
 			selection_panel.clear_entity()
 			selected_id = -1
+			_repaint()
 			return
 		selection_panel.show_entity(_citizen_view(citizen), true)
+		_repaint()
 		return
 	selection_panel.show_entity(info, false)
+	# Straight to the pixels, without waiting for the next poll: a click has to
+	# answer immediately, and the player may well have paused to make it.
+	_repaint()
 
 
 ## Selects whatever stands on a map cell. Returns the id, or -1.
@@ -173,10 +181,11 @@ func select_cell(cell: Vector2i) -> int:
 	return id
 
 
-## Tooltip plumbing, called by the widgets.
-func show_tooltip(anchor: Rect2, title: String, body: String) -> void:
+## Tooltip plumbing, called by the widgets. `panel` is the owning panel's rect,
+## which the card is placed outside of.
+func show_tooltip(anchor: Rect2, panel: Rect2, title: String, body: String) -> void:
 	if tooltip != null:
-		tooltip.show_for(anchor, title, body)
+		tooltip.show_for(anchor, panel, title, body)
 
 
 func hide_tooltip() -> void:
@@ -213,8 +222,16 @@ func _on_alert_raised(severity: int, _key: StringName, _text: String, _pos: Vect
 func _process(delta: float) -> void:
 	style.beat += delta
 	var t0: int = Time.get_ticks_usec()
+	_since_poll += delta
 	if probe.refresh():
 		_after_probe()
+		_since_poll = 0.0
+	elif _since_poll > PAUSED_POLL_SECONDS:
+		# The tick-based rate limit never fires while the game is PAUSED, and a
+		# paused city is exactly when a player reads the interface. Fall back to
+		# a slow wall-clock poll so selection, tooltips and stocks stay live.
+		_since_poll = 0.0
+		_force_refresh()
 	last_refresh_us = Time.get_ticks_usec() - t0
 
 	var speed: float = 2.4 if not style.reduce_motion else 100.0
@@ -244,6 +261,14 @@ func _force_refresh() -> void:
 		_after_probe()
 
 
+## Re-lays every panel and puts them back where they belong. Cheap: each panel
+## still decides for itself whether anything actually changed.
+func _repaint() -> void:
+	for w: LcnHudWidget in _widgets:
+		w.refresh()
+	_place_panels()
+
+
 func _after_probe() -> void:
 	alerts.refresh(probe, SimClock.seconds())
 	_urgency_target = maxf(probe.stress(), _alert_pressure())
@@ -252,9 +277,7 @@ func _after_probe() -> void:
 		var info: Dictionary = probe.describe_building(selected_id)
 		if not info.is_empty():
 			selection_panel.show_entity(info, false)
-	for w: LcnHudWidget in _widgets:
-		w.refresh()
-	_place_panels()
+	_repaint()
 
 
 func _alert_pressure() -> float:

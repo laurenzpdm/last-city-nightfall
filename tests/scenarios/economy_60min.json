@@ -36,9 +36,7 @@
           "scrap": 40000,
           "gear": 40000,
           "copper_coil": 40000,
-          "coal": 40000,
-          "grain": 9000,
-          "ration": 9000
+          "coal": 40000
         }
       }
     },
@@ -80,11 +78,11 @@
         "kind": "heat_pipe",
         "from": [
           131,
-          110
+          112
         ],
         "to": [
           131,
-          146
+          144
         ],
         "free": true,
         "instant": true
@@ -101,7 +99,7 @@
           112
         ],
         "to": [
-          116,
+          118,
           112
         ],
         "free": true,
@@ -119,26 +117,8 @@
           112
         ],
         "to": [
-          146,
+          144,
           112
-        ],
-        "free": true,
-        "instant": true
-      }
-    },
-    {
-      "tick": 5,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          131,
-          120
-        ],
-        "to": [
-          116,
-          120
         ],
         "free": true,
         "instant": true
@@ -155,7 +135,25 @@
           120
         ],
         "to": [
-          146,
+          118,
+          120
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 5,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          131,
+          120
+        ],
+        "to": [
+          144,
           120
         ],
         "free": true,
@@ -173,7 +171,7 @@
           136
         ],
         "to": [
-          116,
+          118,
           136
         ],
         "free": true,
@@ -191,7 +189,7 @@
           136
         ],
         "to": [
-          146,
+          144,
           136
         ],
         "free": true,
@@ -209,7 +207,7 @@
           144
         ],
         "to": [
-          116,
+          118,
           144
         ],
         "free": true,
@@ -227,7 +225,7 @@
           144
         ],
         "to": [
-          146,
+          144,
           144
         ],
         "free": true,
@@ -355,6 +353,17 @@
       }
     },
     {
+      "tick": 60,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "items": {
+          "grain": 6000,
+          "ration": 6000
+        }
+      }
+    },
+    {
       "tick": 400,
       "cmd": {
         "system": "build",
@@ -478,6 +487,17 @@
       }
     },
     {
+      "tick": 9660,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "items": {
+          "grain": 6000,
+          "ration": 6000
+        }
+      }
+    },
+    {
       "tick": 10000,
       "cmd": {
         "system": "build",
@@ -538,7 +558,7 @@
         "op": "place",
         "kind": "workshop",
         "cell": [
-          142,
+          120,
           117
         ]
       }
@@ -598,6 +618,17 @@
       }
     },
     {
+      "tick": 19260,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "items": {
+          "grain": 6000,
+          "ration": 6000
+        }
+      }
+    },
+    {
       "tick": 19600,
       "cmd": {
         "system": "build",
@@ -654,7 +685,7 @@
         "op": "place",
         "kind": "heat_accumulator",
         "cell": [
-          122,
+          142,
           118
         ]
       }
@@ -711,6 +742,17 @@
         "op": "fuel_all",
         "item": "coal",
         "amount": 400
+      }
+    },
+    {
+      "tick": 28860,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "items": {
+          "grain": 6000,
+          "ration": 6000
+        }
       }
     },
     {
@@ -795,8 +837,8 @@
         "op": "place",
         "kind": "granary",
         "cell": [
-          118,
-          117
+          138,
+          133
         ]
       }
     },
@@ -843,6 +885,17 @@
         "op": "fuel_all",
         "item": "coal",
         "amount": 400
+      }
+    },
+    {
+      "tick": 38460,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "items": {
+          "grain": 6000,
+          "ration": 6000
+        }
       }
     },
     {
@@ -894,7 +947,7 @@
         "op": "place",
         "kind": "housing_block",
         "cell": [
-          138,
+          120,
           132
         ]
       }
@@ -906,7 +959,7 @@
         "op": "place",
         "kind": "field_kitchen",
         "cell": [
-          143,
+          142,
           134
         ]
       }
@@ -963,6 +1016,17 @@
         "op": "fuel_all",
         "item": "coal",
         "amount": 400
+      }
+    },
+    {
+      "tick": 48060,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "items": {
+          "grain": 6000,
+          "ration": 6000
+        }
       }
     },
     {
@@ -1026,8 +1090,8 @@
         "op": "place",
         "kind": "housing_block",
         "cell": [
-          120,
-          132
+          138,
+          108
         ]
       }
     },
@@ -1047,7 +1111,7 @@
         "op": "place",
         "kind": "housing_block",
         "cell": [
-          138,
+          120,
           108
         ]
       }
@@ -1095,6 +1159,17 @@
         "op": "fuel_all",
         "item": "coal",
         "amount": 400
+      }
+    },
+    {
+      "tick": 57660,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "items": {
+          "grain": 6000,
+          "ration": 6000
+        }
       }
     },
     {
@@ -1158,7 +1233,7 @@
         "op": "place",
         "kind": "heat_booster_pump",
         "cell": [
-          116,
+          118,
           119
         ]
       }
@@ -1179,8 +1254,8 @@
         "op": "place",
         "kind": "housing_block",
         "cell": [
-          120,
-          108
+          138,
+          140
         ]
       }
     },
@@ -1234,6 +1309,17 @@
         "op": "fuel_all",
         "item": "coal",
         "amount": 400
+      }
+    },
+    {
+      "tick": 67260,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "items": {
+          "grain": 6000,
+          "ration": 6000
+        }
       }
     },
     {

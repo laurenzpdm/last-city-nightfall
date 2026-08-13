@@ -103,7 +103,6 @@ var heat_starved_ticks: int = 0
 
 var _ids: PackedInt32Array = PackedInt32Array()
 var _ids_dirty: bool = true
-var _cone_tick: int = 0
 
 
 ## Loads every WeaponDef in the registry. Returns the content problems found.
@@ -238,7 +237,6 @@ func step(tick: int, sys: Object, swarm: EnemySwarm, shells: ProjectilePool,
 		assault: AssaultField) -> void:
 	var dt: float = SimClock.DT
 	var rng: RandomNumberGenerator = Rng.stream("combat_fire")
-	_cone_tick = tick
 	for id: int in sorted_ids():
 		var t: Turret = turrets[id]
 		var w: WeaponDef = t.weapon

@@ -336,7 +336,10 @@ func _build_tunnel(e: LogiEntity) -> void:
 	var seg := LogiSegment.new(_mint_seg(), mouth.kind, d, tiles_long, mouth.def.speed, exit_e != null)
 	seg.entry_cell = mouth.cell
 	seg.exit_cell = exit_cell
-	seg.tiles = [mouth.cell] if exit_e == null else [mouth.cell, exit_cell]
+	var ends: Array[Vector2i] = [mouth.cell]
+	if exit_e != null:
+		ends.append(exit_cell)
+	seg.tiles = ends
 	segments[seg.id] = seg
 	segment_ids.append(seg.id)
 	mouth.seg_id = seg.id
@@ -376,13 +379,28 @@ func _resolve_sink(seg: LogiSegment) -> void:
 					seg.sink = LogiTypes.Sink.BELT
 					seg.sink_id = target.id
 				return  # feeding the middle of a line from behind is impossible
+			# Perpendicular. Handing over to the HEAD of a line that nothing else
+			# feeds in-line is a CORNER, and a corner carries both lanes — that is
+			# what a player means when they drag a belt round a bend. Only a line
+			# that is already fed from behind gets a true side-load, where the
+			# newcomer is squeezed onto the near lane alone.
 			var pos: float = _tile_pos_in(target, next)
 			if pos < 0.0:
+				return
+			if target.entry_cell == next and not _fed_in_line(target):
+				seg.sink = LogiTypes.Sink.BELT
+				seg.sink_id = target.id
 				return
 			seg.sink = LogiTypes.Sink.SIDE
 			seg.sink_id = target.id
 			seg.sink_lane = LogiTypes.lane_for_side(td, seg.exit_cell - next)
 			seg.sink_pos = pos
+
+
+## True when a transport line has another line feeding straight into its back.
+func _fed_in_line(seg: LogiSegment) -> bool:
+	var behind: LogiEntity = entity_at(seg.entry_cell - seg.dir)
+	return behind != null and behind.is_transport() and behind.direction() == seg.dir
 
 
 func _tile_pos_in(seg: LogiSegment, cell: Vector2i) -> float:

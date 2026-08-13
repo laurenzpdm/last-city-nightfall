@@ -174,7 +174,7 @@ func _derive_people(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 				% LcnHudFormat.percent(probe.warmth01)
 				+ "starts taking their health, and then it takes them.",
 			"Heat where they live and where they walk, now.",
-			Vector2.ZERO, maxi(1, probe.population)))
+			Vector2.ZERO, 1))
 	elif probe.city_is_cold():
 		out.append(_entry(&"cold", "freezing", S.Sev.DANGER,
 			"The city is running cold",
@@ -182,7 +182,7 @@ func _derive_people(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 				% LcnHudFormat.percent(probe.warmth01)
 				+ "an ill citizen who stays cold does not get better.",
 			"More radiators, or shorter walks between warm buildings.",
-			Vector2.ZERO, maxi(1, probe.population)))
+			Vector2.ZERO, 1))
 	if probe.food_days >= 0.0 and probe.food_days < 2.0 and probe.population > 0:
 		out.append(_entry(&"food", "sick",
 			S.Sev.CRITICAL if probe.food_days < 0.5 else S.Sev.DANGER,

@@ -25,7 +25,7 @@ policy = Dictionary[StringName, float]({
 &"labour_pool": 0.3,
 &"ration": -0.05
 })
-flags = Array[StringName]([&"press_gangs"])
+flags = Array[StringName]([&"press_gangs", &"elder_labour"])
 approval = Dictionary[StringName, float]({
 &"watch": 10.0,
 &"workers": -34.0

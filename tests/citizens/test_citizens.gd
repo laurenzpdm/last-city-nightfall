@@ -579,7 +579,8 @@ func test_metrics_are_the_contract() -> void:
 	assert_eq(int(m["population"]), int(cit.call("population")), "population agrees")
 	assert_between(float(m["avg_morale"]), 0.0, 100.0, "morale is a percentage")
 	assert_between(float(m["avg_warmth"]), 0.0, 100.0, "warmth is a percentage")
-	assert_ge(float(m["step_us"]), 0.0, "the system reports what it cost")
+	assert_ge(float(cit.call("step_micros")), 0.0, "the system reports what it cost")
+	assert_has_not(m, "step_us", "a wall-clock number never enters metrics.csv")
 
 
 func test_the_view_can_draw_them() -> void:

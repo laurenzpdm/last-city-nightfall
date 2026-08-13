@@ -519,9 +519,14 @@ func _op_queue(id: StringName) -> Dictionary:
 	# Queuing something locked is legal and useful: the queue can hold a whole
 	# path, and prerequisites already in the queue satisfy it in order.
 	_queue.append(id)
+	var position: int = _queue.size()
 	if String(_active) == "":
 		_pull_next()
-	return _ok({"id": String(id), "position": _queue.find(id) + 1})
+	return _ok({
+		"id": String(id),
+		"position": position,
+		"started": id == _active,
+	})
 
 
 func _op_unqueue(id: StringName) -> Dictionary:

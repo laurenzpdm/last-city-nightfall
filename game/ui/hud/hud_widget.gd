@@ -198,7 +198,7 @@ func _publish_tooltip(index: int) -> void:
 	var e: Dictionary = hot[index]
 	var r: Rect2 = e["rect"]
 	hud.call("show_tooltip", Rect2(global_position + r.position, r.size),
-		String(e.get("title", "")), String(e.get("body", "")))
+		Rect2(global_position, size), String(e.get("title", "")), String(e.get("body", "")))
 
 
 func _on_mouse_exited() -> void:

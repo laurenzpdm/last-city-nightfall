@@ -313,6 +313,8 @@ const FLAG_PRAYER: StringName = &"prayer"
 const FLAG_ZEALOTS: StringName = &"zealots"
 const FLAG_NEW_ORDER: StringName = &"new_order"
 const FLAG_NEW_FAITH: StringName = &"new_faith"
+## Read by [P05]: the old are put back on the work roster.
+const FLAG_ELDER_LABOUR: StringName = &"elder_labour"
 
 
 # =========================================================================
@@ -400,6 +402,11 @@ static func spell(n: int) -> String:
 ## "one person" / "three people".
 static func people(n: int) -> String:
 	return "%s %s" % [spell(n), "person" if n == 1 else "people"]
+
+
+## "is" / "are" for a spelled count.
+static func is_are(n: int) -> String:
+	return "is" if n == 1 else "are"
 
 
 ## Start of a sentence. String.capitalize() title cases every word, which turns

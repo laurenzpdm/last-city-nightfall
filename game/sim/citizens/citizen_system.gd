@@ -1338,6 +1338,13 @@ func metrics() -> Dictionary:
 	}
 
 
+## Microseconds the last step() actually took. Deliberately NOT in metrics():
+## metrics.csv is diffed between builds and a wall-clock column makes every run
+## differ from every other one. tests/citizens/test_citizen_perf.gd reads this.
+func step_micros() -> int:
+	return _step_us
+
+
 func _staffed_ratio() -> float:
 	if board.total_required <= 0:
 		return 1.0

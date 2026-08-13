@@ -208,7 +208,7 @@ func test_bottlenecks_are_carried_and_tagged() -> void:
 		"from": [at.x + 2, at.y], "to": [at.x + 20, at.y]})
 	for k: int in 6:
 		world.cmd({"system": &"heat", "op": "place", "kind": "housing_block",
-			"cell": [at.x + 4 + k * 3, at.y + 1]})
+			"cell": [at.x + 4 + k * 4, at.y + 1]})
 	world.run(20)
 	_fuel()
 	world.run(200)
@@ -232,7 +232,7 @@ func test_starved_consumers_are_flagged_and_counted() -> void:
 		"from": [at.x + 2, at.y], "to": [at.x + 16, at.y]})
 	for k: int in 8:
 		world.cmd({"system": &"heat", "op": "place", "kind": "housing_block",
-			"cell": [at.x + 3 + k * 3, at.y + 1]})
+			"cell": [at.x + 3 + k * 4, at.y + 1]})
 	world.run(20)
 	_fuel()
 	world.run(300)

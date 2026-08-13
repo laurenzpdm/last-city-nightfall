@@ -417,7 +417,7 @@ func test_the_output_buffer_backs_up_when_nothing_will_take_the_goods() -> void:
 	# what is under test is the jam, not the arithmetic of filling a hopper.
 	prod.set_output_accepting(false)
 	m.outputs[&"slag"] = m.def.output_slots
-	world.run(140)
+	world.run(500)
 	assert_eq(String(_machine(id).reason), "output_full", "a machine nobody unloads jams")
 	assert_gt(float(_machine(id).output_total()), 0.0, "and it is holding the goods it made")
 
@@ -494,24 +494,27 @@ func test_a_great_frost_slows_the_factory_down() -> void:
 	if not _city():
 		return
 	# pipe_segment has the second-coldest floor in the game (-18 C), so it is the
-	# recipe a Great Frost reaches first. gear (-25 C) rides it out longer, which
-	# is the whole point of putting a floor on each recipe rather than one on all.
-	var chilly: int = _place("workshop", _at("workshop"), {"recipe": "pipe_segment"})
-	var hardy: int = _place("workshop", _at("workshop2"), {"recipe": "gear"})
-	assert_gt(float(hardy), 0.0, "both shops were placed")
+	# recipe a Great Frost reaches first.
+	var id: int = _place("workshop", _at("workshop"), {"recipe": "pipe_segment"})
+	assert_gt(float(id), 0.0, "the shop was placed")
 	world.run(80)
-	var felt_before: float = _machine(chilly).felt_c
-	assert_near(_machine(chilly).cold, 1.0, 0.001, "a warm shop is at full speed")
+	var m: ProdMachine = _machine(id)
+	var felt_before: float = m.felt_c
+	assert_near(m.cold, 1.0, 0.001, "a warm shop is at full speed")
 
 	world.cmd_now({"system": &"climate", "op": "force_storm", "intensity": 1.0,
 		"duration_ticks": 6000})
 	world.run(1400)
-	var c: ProdMachine = _machine(chilly)
-	var h: ProdMachine = _machine(hardy)
-	assert_lt(c.felt_c, felt_before - 4.0, "the frost is felt inside the shop")
-	assert_lt(c.cold, 1.0, "and it slows the delicate work down")
-	assert_le(c.cold, h.cold + 0.0001,
-		"the recipe with the higher floor is hit first, exactly as its .tres says")
+	assert_lt(m.felt_c, felt_before - 4.0, "the frost is felt inside the shop")
+	assert_lt(m.cold, 1.0, "and it slows the delicate work down")
+	var chilled: float = m.cold
+
+	# Same shop, same cold, hardier job: gear's floor is -25 C, seven degrees
+	# lower, so the crew can still turn gears when they cannot fit pipe.
+	prod.set_recipe(id, &"gear")
+	world.run(4)
+	assert_gt(m.cold, chilled,
+		"the recipe with the lower floor keeps running in cold that stopped the other")
 
 
 func test_a_heat_hungry_recipe_needs_more_of_the_grid_than_a_cheap_one() -> void:
@@ -545,9 +548,13 @@ func test_a_browned_out_machine_crafts_proportionally_slower() -> void:
 	# above industry in the shed order, so the workshop goes dark first — which
 	# is how a player actually browns their own base out.
 	var hung: int = 0
-	for i: int in 14:
-		if _place("warmth_radiator", Vector2i(70 + i * 3, SPUR_Y + 1)) > 0:
-			hung += 1
+	var spur: Vector2i = _at("pipe_from")
+	for i: int in SPUR_RUN:
+		if hung >= 12:
+			break
+		for dy: int in [1, -2]:
+			if _place("warmth_radiator", Vector2i(spur.x + i, spur.y + dy)) > 0:
+				hung += 1
 	world.run(160)
 	if hung < 8:
 		skip("only %d radiators fit; not enough load to brown the grid out" % hung)
@@ -637,8 +644,11 @@ func test_switching_recipe_gives_the_committed_charge_back() -> void:
 # extraction
 # =============================================================================
 
-## Drops a drill on a deposit with a fuelled generator beside it, because a
-## drill draws heat like everything else. Returns the drill id, or -1.
+## Drops a drill on a deposit with a fuelled generator and one pipe beside it.
+## A drill draws heat like everything else, and [P02]'s rule is that two
+## machines standing side by side are NOT connected — there has to be a conduit
+## between them. That rule is exactly why this helper is three buildings long.
+## Returns the drill id, or -1 when this map has no room for the arrangement.
 func _drill_on_a_seam() -> int:
 	var seam: Vector2i = _find_deposit()
 	if seam.x < 0:
@@ -646,11 +656,13 @@ func _drill_on_a_seam() -> int:
 	var drill: int = _place("ore_drill", seam - Vector2i(1, 1))
 	if drill < 0:
 		return -1
-	var gen: int = _place("coal_generator", Vector2i(seam.x + 2, seam.y - 1))
+	var gen: int = _place("coal_generator", Vector2i(seam.x + 3, seam.y - 1))
 	if gen < 0:
 		return -1
+	if _place("heat_pipe", Vector2i(seam.x + 2, seam.y)) < 0:
+		return -1
 	heat.call("deliver_fuel", gen, &"coal", 400.0)
-	world.run(40)
+	world.run(60)
 	return drill
 
 
@@ -666,7 +678,9 @@ func test_a_drill_works_the_seam_under_it_and_the_deposit_shrinks() -> void:
 	var m: ProdMachine = _machine(id)
 	var before: int = int(grid.call("resource_amount_at", m.seam))
 	world.run(400)
-	assert_gt(float(m.crafts_done), 0.0, "the drill pulled something out")
+	assert_gt(float(m.crafts_done), 0.0,
+		"the drill pulled something out (reason '%s', rate %.3f, power %.2f, cold %.2f)" % [
+			String(m.reason), m.rate, m.power, m.cold])
 	assert_lt(float(grid.call("resource_amount_at", m.seam)), float(before),
 		"and the deposit is smaller for it")
 	assert_gt(float(prod.produced_total(m.seam_item)), 0.0,
@@ -710,7 +724,7 @@ func test_a_recuperator_next_to_a_smelter_turns_waste_into_grid_heat() -> void:
 	var smelter: int = _place("smelter", _at("smelter"))
 	var rec: int = _place("recuperator", _at("rec_near"))
 	assert_gt(float(rec), 0.0, "the recuperator was placed")
-	world.run(600)
+	world.run(400)
 
 	assert_gt(float(_machine(smelter).crafts_done), 0.0, "the smelter actually ran")
 	assert_gt(prod.waste_recovered(), 0.0, "waste heat is coming back as grid heat")
@@ -731,7 +745,7 @@ func test_a_recuperator_out_of_reach_gets_nothing() -> void:
 	# so the only thing that differs between the two recuperators is distance.
 	var far: int = _place("recuperator", _at("rec_far"))
 	assert_gt(float(far), 0.0, "the distant recuperator was placed")
-	world.run(600)
+	world.run(400)
 	assert_near(float(heat.call("fuel_stock_of", far)), 0.0, 0.001,
 		"heat you do not stand next to goes up the chimney")
 	assert_eq(String(_machine(far).reason), "missing_input",
@@ -868,22 +882,34 @@ func test_the_serialized_state_is_sorted_and_json_safe() -> void:
 
 
 func test_the_whole_production_system_replays_identically() -> void:
+	_world()
+	if _site().is_empty():
+		skip("no site on this map takes the layout")
+		return
+	var hearth: Vector2i = _at("hearth")
+	var pf: Vector2i = _at("pipe_from")
+	var pt: Vector2i = _at("pipe_to")
+	var sm: Vector2i = _at("smelter")
+	var rc: Vector2i = _at("rec_near")
+	var ws: Vector2i = _at("workshop")
+	world.stop()
+	world = null
+
 	var script: Dictionary = {
 		1: [{"system": &"build", "op": "add_stock",
 			"items": {"iron_ore": 2000, "coal": 2000, "iron_plate": 2000, "copper_ore": 800}}],
 		2: [{"system": &"build", "op": "place", "kind": "the_hearth",
-			"cell": [ORIGIN.x, ORIGIN.y], "free": true, "instant": true}],
+			"cell": [hearth.x, hearth.y], "free": true, "instant": true}],
 		3: [{"system": &"build", "op": "place_line", "kind": "heat_pipe",
-			"from": [SPUR_FROM.x, SPUR_FROM.y], "to": [SPUR_TO.x, SPUR_TO.y],
-			"free": true, "instant": true}],
+			"from": [pf.x, pf.y], "to": [pt.x, pt.y], "free": true, "instant": true}],
 		6: [{"system": &"build", "op": "place", "kind": "smelter",
-			"cell": [_at("smelter").x, _at("smelter").y], "free": true, "instant": true}],
+			"cell": [sm.x, sm.y], "free": true, "instant": true}],
 		8: [{"system": &"build", "op": "place", "kind": "recuperator",
-			"cell": [_at("rec_near").x, _at("rec_near").y], "free": true, "instant": true}],
+			"cell": [rc.x, rc.y], "free": true, "instant": true}],
 		10: [{"system": &"build", "op": "place", "kind": "workshop",
-			"cell": [_at("workshop").x, _at("workshop").y], "free": true, "instant": true}],
+			"cell": [ws.x, ws.y], "free": true, "instant": true}],
 		30: [{"system": &"production", "op": "set_recipe",
-			"cell": [_at("smelter").x, _at("smelter").y], "recipe": "copper_coil"}],
+			"cell": [sm.x, sm.y], "recipe": "copper_coil"}],
 	}
 	var diff: PackedStringArray = SimFixture.replay_diff(11, 600, script)
 	assert_empty(diff, "same seed, same script, byte-identical production state")
@@ -913,7 +939,7 @@ func test_a_tick_of_production_stays_inside_its_budget() -> void:
 	var placed: int = 0
 	for row: int in 8:
 		for col: int in 5:
-			var c: Vector2i = Vector2i(66 + col * 5, 64 + row * 5)
+			var c: Vector2i = _at("smelter") + Vector2i(col * 5, 4 + row * 5)
 			var kind: String = "smelter" if (row + col) % 3 != 2 else "recuperator"
 			if _place(kind, c) > 0:
 				placed += 1

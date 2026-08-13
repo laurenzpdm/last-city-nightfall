@@ -151,11 +151,16 @@ func drain_items() -> Array[Dictionary]:
 		for entry: Variant in lanes[lane].snapshot():
 			var e: Array = entry
 			var pos: float = float(e[1])
+			# `frac` is measured from the BACK edge of the tile the item is on,
+			# using the SAME clamped tile index cell_for_pos used. Deriving the two
+			# separately put every item at the exit one whole tile out of place
+			# when a line was rebuilt.
+			var idx: int = tile_index_for_pos(pos)
 			out.append({
 				"cell": cell_for_pos(pos),
 				"lane": lane,
 				"kind": int(e[0]),
-				"frac": clampf(length - pos - floorf(length - pos), 0.0, 0.999),
+				"frac": clampf(length - float(idx) - pos, 0.0, 1.0),
 			})
 	clear_items()
 	return out

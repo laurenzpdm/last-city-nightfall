@@ -83,7 +83,7 @@ func _run() -> void:
 
 	# The tooltip, on the number a player would actually interrogate.
 	_hover_first_hot(_hud.get("heat_panel"))
-	await _settle(30)
+	await _wait_for_tooltip()
 	await _shot("06_tooltip")
 
 	# Accessibility: bigger interface, bigger type, no motion.
@@ -129,6 +129,16 @@ func _install_hud() -> void:
 
 func _advance(ticks: int) -> void:
 	_node("SimClock").call("advance", ticks)
+
+
+## The card fades in on real time, so the rig waits for it to say it is open
+## instead of guessing a frame count.
+func _wait_for_tooltip() -> void:
+	var tooltip: Object = _hud.get("tooltip")
+	for _i: int in 600:
+		await process_frame
+		if tooltip != null and bool(tooltip.call("is_open")):
+			return
 
 
 func _settle(frames: int) -> void:

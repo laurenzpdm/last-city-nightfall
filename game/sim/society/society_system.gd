@@ -82,6 +82,10 @@ var _destroyed_seen: int = 0
 var _research_seen: int = 0
 var _waves_seen: int = 0
 var _law_problems: int = 0
+var _m_shift_law: String = ""
+var _m_child_labour: String = ""
+var _m_elder_labour: String = ""
+var _shift_law_sent: StringName = &""
 var _rate_hope: float = 0.0
 var _rate_discontent: float = 0.0
 
@@ -142,6 +146,8 @@ func post_setup() -> void:
 	_citizens = Sim.get_system(&"citizens")
 	_research = Sim.get_system(&"research")
 	_threat = Sim.get_system(&"threat")
+	_bind_citizens()
+	_enact_on_citizens()
 	_sample_world()
 	_set_day_length(_reading.day_ticks)
 	_day = _reading.day
@@ -262,6 +268,47 @@ func inject_reading(r: SocietyReading) -> void:
 	_rebuild_pressures()
 
 
+## Pushes the book's labour policy into [P05]. This is the difference between a
+## law that changes a number on a panel and a law that changes what happens to a
+## body: citizens exposes set_shift_law / set_child_labour / set_elder_labour
+## precisely so society can enact and it can obey, and the shift row it looks up
+## carries real fatigue, output and morale coefficients.
+##
+## Idempotent, and probed for, so this is a no-op in a build without [P05].
+func _enact_on_citizens() -> void:
+	if _citizens == null:
+		return
+	if _m_shift_law != "":
+		var hours: float = book.policy_value(&"work_hours")
+		var law: StringName = &"standard"
+		if hours >= 17.0:
+			law = &"emergency"
+		elif hours >= 12.5:
+			law = &"extended"
+		if law != _shift_law_sent:
+			_shift_law_sent = law
+			_citizens.call(_m_shift_law, law)
+	if _m_child_labour != "":
+		_citizens.call(_m_child_labour, book.policy_flag(SocietyDefs.FLAG_CHILD_LABOUR))
+	if _m_elder_labour != "":
+		_citizens.call(_m_elder_labour, book.policy_flag(SocietyDefs.FLAG_ELDER_LABOUR))
+
+
+func _bind_citizens() -> void:
+	_m_shift_law = ""
+	_m_child_labour = ""
+	_m_elder_labour = ""
+	_shift_law_sent = &""
+	if _citizens == null:
+		return
+	if _citizens.has_method(&"set_shift_law"):
+		_m_shift_law = "set_shift_law"
+	if _citizens.has_method(&"set_child_labour"):
+		_m_child_labour = "set_child_labour"
+	if _citizens.has_method(&"set_elder_labour"):
+		_m_elder_labour = "set_elder_labour"
+
+
 func _sample_world() -> void:
 	if _injected != null:
 		_reading = _injected
@@ -270,6 +317,8 @@ func _sample_world() -> void:
 		return
 	if _citizens == null:
 		_citizens = Sim.get_system(&"citizens")
+		if _citizens != null:
+			_bind_citizens()
 	if _research == null:
 		_research = Sim.get_system(&"research")
 	if _threat == null:
@@ -485,6 +534,7 @@ func _advance_seal(tick: int) -> void:
 	if law == null:
 		return
 	council.apply_law(law, tick)
+	_enact_on_citizens()
 	if absf(law.hope_on_sign) > 0.0001:
 		_impulse(SocietyDefs.METER_HOPE, StringName("law:%s" % String(law.id)),
 			law.title, law.signed_line, law.hope_on_sign)
@@ -518,6 +568,13 @@ func discontent() -> float:
 ## Points per hour hope is currently moving, summed over every reason.
 func hope_rate() -> float:
 	return _rate_hope
+
+
+## The hope this city can hold on its own conditions. Everything above it was
+## bought with events and is leaking away. A HUD should draw this as a mark on
+## the bar; it is the single most useful number society knows.
+func hope_ceiling() -> float:
+	return _pressures.hope_ceiling()
 
 
 func discontent_rate() -> float:
@@ -803,6 +860,7 @@ func serialize() -> Dictionary:
 		"discontent": snappedf(discontent_value, 0.001),
 		"hope_rate": snappedf(_rate_hope, 0.001),
 		"discontent_rate": snappedf(_rate_discontent, 0.001),
+		"hope_ceiling": snappedf(_pressures.hope_ceiling(), 0.01),
 		"day": _day,
 		"hour_ticks": _hour_ticks,
 		"reasons": ledger.serialize(),
@@ -830,9 +888,11 @@ func deserialize(data: Dictionary) -> void:
 	_day = int(data.get("day", 1))
 	ledger.deserialize(data.get("reasons", []))
 	book.deserialize(data.get("book", {}))
+	_shift_law_sent = &""
 	council.deserialize(data.get("council", {}))
 	populace.deserialize(data.get("people", {}))
 	verdict.deserialize(data.get("verdict", {}))
+	_enact_on_citizens()
 	var seen: Dictionary = data.get("seen", {})
 	_destroyed_seen = int(seen.get("destroyed", 0))
 	_research_seen = int(seen.get("research", 0))
@@ -849,6 +909,7 @@ func metrics() -> Dictionary:
 		"discontent": snappedf(discontent_value, 0.01),
 		"hope_rate": snappedf(_rate_hope, 0.01),
 		"discontent_rate": snappedf(_rate_discontent, 0.01),
+		"hope_ceiling": snappedf(_pressures.hope_ceiling(), 0.01),
 		"laws_signed": book.signed_count(),
 		"active_grievances": council.active_grievance_count(),
 		"open_demands": council.open_demands().size(),

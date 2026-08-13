@@ -663,7 +663,11 @@ func _run_wave(tick: int, night: bool) -> void:
 	# "Nothing is alive" only means the night is over once everything has been
 	# handed over AND whoever owns the bodies has had time to put them on the
 	# map. Polling on the dispatch tick itself would end every wave at dusk.
-	if _settled(tick) and _live_units() <= 0:
+	#
+	# Polled twice a second rather than every tick: asking [P07] how a wave is
+	# going costs a scan of the whole swarm, and half a second of latency on the
+	# end of a night is invisible.
+	if tick % _profile.poll_interval_ticks == 0 and _settled(tick) and _live_units() <= 0:
 		_resolve_wave(false)
 
 

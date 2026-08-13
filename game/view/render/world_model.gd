@@ -74,6 +74,7 @@ var _buildings: Dictionary[int, Dictionary] = {}
 var _building_order: Array[int] = []
 var _buildings_dirty: bool = true
 var _cached_buildings: Array[Dictionary] = []
+var _geo: PackedFloat32Array = PackedFloat32Array()
 
 var _agents: Dictionary[int, Dictionary] = {}
 
@@ -530,8 +531,29 @@ func buildings() -> Array[Dictionary]:
 		var id2: int = k & 0xFFFFFFFF
 		_building_order.append(id2)
 		_cached_buildings.append(_buildings[id2])
+	# Sprite geometry, packed flat and in the same order. The entity pass culls
+	# 1700 structures every frame and doing it through Dictionary probes cost
+	# 2.7 us per structure; reading four floats out of a packed array is a tenth
+	# of that, and this only rebuilds when the building set changes.
+	_geo.resize(_cached_buildings.size() * 4)
+	for i2: int in _cached_buildings.size():
+		var e: Dictionary = _cached_buildings[i2]
+		var c: Vector2i = e["cell"]
+		var sp2: Dictionary = _sprites.building(e["arch"], e["tiles"])
+		var tex: ImageTexture = sp2["texture"]
+		var o: int = i2 * 4
+		_geo[o] = float(c.x) * float(TILE) - float(LcnSpriteFactory.PAD)
+		_geo[o + 1] = float(c.y) * float(TILE) - float(LcnSpriteFactory.PAD) - float(e["lift"])
+		_geo[o + 2] = float(tex.get_width())
+		_geo[o + 3] = float(tex.get_height())
 	_buildings_dirty = false
 	return _cached_buildings
+
+
+## Sprite destination rects for every structure, four floats each (x, y, w, h),
+## in the same order as buildings(). Call buildings() first — this is filled by it.
+func geometry() -> PackedFloat32Array:
+	return _geo
 
 
 ## Called by the renderer on Bus.building_placed, and by the preview world.

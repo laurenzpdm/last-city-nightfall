@@ -40,6 +40,7 @@ var _rect: Rect2 = Rect2()
 var _detail: float = 1.0
 var _pending_chunks: Array[Vector2i] = []
 var _source_cooldown: int = 0
+var _source_phase: int = 0
 var _city_cooldown: int = 0
 var _buildings_stamp: int = -1
 var _ready_ok: bool = false
@@ -126,10 +127,17 @@ func render(view: Rect2, grade: Dictionary, zoom: float, full: bool = false) -> 
 	field.refresh_snow(model, (1 << 20) if full else SNOW_BUDGET, _pending_chunks)
 	_pending_chunks.clear()
 
+	# Heat and soot alternate: both are bounded by the district's area rather than
+	# by its building count, but there is no reason to pay for both in one frame.
 	_source_cooldown -= 1
 	if _source_cooldown <= 0 or full:
-		_source_cooldown = 10
-		field.refresh_sources(model.heat_sources(), model.buildings(), view.grow(OVERSCAN * 4.0))
+		_source_cooldown = 6
+		_source_phase = (_source_phase + 1) % 2
+		var region: Rect2 = view.grow(OVERSCAN * 4.0)
+		if _source_phase == 0 or full:
+			field.refresh_heat(model.heat_sources(), region)
+		if _source_phase == 1 or full:
+			field.refresh_soot(model.buildings(), region)
 
 	var stamp: int = model.building_stamp()
 	_city_cooldown -= 1

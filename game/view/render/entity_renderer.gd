@@ -66,6 +66,9 @@ var _visible_buildings: int = 0
 var _visible_agents: int = 0
 var _draw_us: int = 0
 var _collect_us: int = 0
+var _cull_us: int = 0
+var _sources_us: int = 0
+var _bucket_us: int = 0
 var _frozen: Dictionary[int, bool] = {}
 
 ## Per-frame scratch, PARALLEL arrays and reused between frames. The first pass
@@ -203,20 +206,25 @@ func _collect() -> void:
 	if model.building_stamp() != _atlas_stamp:
 		_rebuild_atlas()
 
+	# The cull reads a flat float array the model keeps in step with its building
+	# list; no Dictionary is touched until a structure has actually survived it.
+	var all: Array[Dictionary] = model.buildings()
+	var geo: PackedFloat32Array = model.geometry()
 	var pad: Rect2 = view_rect.grow(8.0)
 	var px0: float = pad.position.x
 	var py0: float = pad.position.y
 	var px1: float = pad.end.x
 	var py1: float = pad.end.y
-	var pad_px: float = float(LcnSpriteFactory.PAD)
-	for b: Dictionary in model.buildings():
+	var n: int = mini(all.size(), geo.size() / 4)
+	for i: int in n:
+		var o: int = i * 4
+		var ox: float = geo[o]
+		var oy: float = geo[o + 1]
+		if ox > px1 or oy > py1 or ox + geo[o + 2] < px0 or oy + geo[o + 3] < py0:
+			continue
+		var b: Dictionary = all[i]
 		var region: Rect2 = _regions.get(b["sprite"], Rect2())
 		if region.size.x <= 0.0:
-			continue
-		var cell: Vector2i = b["cell"]
-		var ox: float = float(cell.x) * float(TILE) - pad_px
-		var oy: float = float(cell.y) * float(TILE) - pad_px - float(b["lift"])
-		if ox > px1 or oy > py1 or ox + region.size.x < px0 or oy + region.size.y < py0:
 			continue
 		_vis_b.append(b)
 		_vis_rect.append(ox)
@@ -229,11 +237,24 @@ func _collect() -> void:
 		_vis_src.append(region.size.y)
 	_visible_buildings = _vis_b.size()
 
+	_cull_us = Time.get_ticks_usec() - t0
+	var t1: int = Time.get_ticks_usec()
 	_srcs = model.heat_sources()
+	_sources_us = Time.get_ticks_usec() - t1
 	_src_buckets.clear()
+	# The spatial hash exists for _nearest_source, and _nearest_source is only
+	# asked anything by the cast-shadow and rim passes. Below their LOD cutoff
+	# nobody calls it, and bucketing 1600 sources for nobody was 3.4 ms a frame.
+	if zoom < LOD_ZOOM:
+		_bucket_us = Time.get_ticks_usec() - t1 - _sources_us
+		_collect_us = Time.get_ticks_usec() - t0
+		return
+	var reach: Rect2 = view_rect.grow(BUCKET_PX * 2.0)
 	for i: int in _srcs.size():
 		var s: Dictionary = _srcs[i]
 		var p: Vector2 = s["pos"]
+		if not reach.has_point(p):
+			continue
 		var r: float = float(s["radius"]) * 1.4
 		var x0: int = int(floor((p.x - r) / BUCKET_PX))
 		var x1: int = int(floor((p.x + r) / BUCKET_PX))
@@ -246,6 +267,7 @@ func _collect() -> void:
 				if arr.is_empty():
 					_src_buckets[key] = arr
 				arr.append(i)
+	_bucket_us = Time.get_ticks_usec() - t1 - _sources_us
 	_collect_us = Time.get_ticks_usec() - t0
 
 
@@ -275,6 +297,9 @@ func stats() -> Dictionary:
 		"visible_agents": _visible_agents,
 		"draw_us": _draw_us,
 		"collect_us": _collect_us,
+		"cull_us": _cull_us,
+		"sources_us": _sources_us,
+		"bucket_us": _bucket_us,
 		"atlas_sprites": _regions.size(),
 	}
 

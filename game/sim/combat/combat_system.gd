@@ -66,7 +66,6 @@ var wave: int = 0
 var damage_taken: float = 0.0        ## structural damage the city has absorbed
 var structures_lost: int = 0
 var breaches: int = 0
-var leaks: int = 0
 
 var _grid: SimSystem = null
 var _build: SimSystem = null
@@ -133,7 +132,6 @@ func setup() -> void:
 	damage_taken = 0.0
 	structures_lost = 0
 	breaches = 0
-	leaks = 0
 	_next_id = ENEMY_ID_BASE
 	_weakened.clear()
 	_target_index.clear()
@@ -926,8 +924,9 @@ func _ensure_field() -> bool:
 	var t0: int = Time.get_ticks_msec()   # lint:allow log line only
 	if not assault.build(_grid):
 		return false
+	var build_ms: int = Time.get_ticks_msec() - t0   # lint:allow log line only, never state
 	Log.info(TAG, "siege surface built in %d ms (%d cells flooded, dig cost %d)" % [
-		Time.get_ticks_msec() - t0, assault.last_visited, AssaultField.DIG_COST])
+		build_ms, assault.last_visited, AssaultField.DIG_COST])
 	return true
 
 
@@ -1271,7 +1270,6 @@ func serialize() -> Dictionary:
 		"enemy_damage": snappedf(swarm.damage_dealt, 0.01),
 		"structures_lost": structures_lost,
 		"breaches": breaches,
-		"leaks": leaks,
 		"shots_fired": battery.shots_fired,
 		"heat_spent": snappedf(battery.heat_spent, 0.01),
 		"heat_stolen": snappedf(battery.heat_stolen, 0.01),
@@ -1297,7 +1295,6 @@ func deserialize(data: Dictionary) -> void:
 	swarm.damage_dealt = float(data.get("enemy_damage", 0.0))
 	structures_lost = int(data.get("structures_lost", 0))
 	breaches = int(data.get("breaches", 0))
-	leaks = int(data.get("leaks", 0))
 	battery.shots_fired = int(data.get("shots_fired", 0))
 	battery.heat_spent = float(data.get("heat_spent", 0.0))
 	battery.heat_stolen = float(data.get("heat_stolen", 0.0))

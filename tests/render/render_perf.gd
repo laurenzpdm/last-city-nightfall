@@ -208,6 +208,8 @@ func _report() -> void:
 	print("    kind %d us  snow %d us  heat+soot %d us  city %d us  (last refresh of each)" % [
 		int(ts["kind_us"]), int(ts["snow_us"]), int(ts["sources_us"]), int(ts["city_us"])])
 	print("  collect             %7.0f us avg   %7.0f us p95" % [collect, _p95(_collect)])
+	print("    cull %d us  heat sources %d us  light buckets %d us" % [
+		int(es["cull_us"]), int(es["sources_us"]), int(es["bucket_us"])])
 	print("  ground update       %7.0f us avg   %7.0f us p95" % [ground, _p95(_ground)])
 	print("  entity draw         %7.0f us avg   %7.0f us p95%s" % [
 		draw, _p95(_draw), "   (0 without a display)" if _headless else ""])

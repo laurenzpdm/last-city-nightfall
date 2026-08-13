@@ -78,7 +78,7 @@ func after_all() -> void:
 
 
 func _step_us() -> float:
-	return float((cit.call("metrics") as Dictionary).get("step_us", 0))
+	return float(cit.call("step_micros"))
 
 
 func test_a_thousand_citizens_fit_in_the_tick_budget() -> void:

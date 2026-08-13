@@ -11,7 +11,6 @@ extends LcnHudWidget
 ## It never guesses. A field only appears when a system actually answered.
 
 const WIDTH: float = 400.0
-const TOP: float = 40.0
 const LINE: float = 24.0
 
 var _info: Dictionary = {}
@@ -22,6 +21,9 @@ var _problems: Array[String] = []
 var _status: String = ""
 var _status_sev: int = S.Sev.CALM
 var _is_citizen: bool = false
+var _y_title: float = 0.0
+var _y_status: float = 0.0
+var _y_first: float = 0.0
 
 
 ## Called by LcnHud when the player's selection changes.
@@ -63,7 +65,11 @@ func layout() -> void:
 	_status = _status_text()
 	clear_hot()
 
-	var y: float = TOP + 30.0
+	_y_title = content_top() + float(style.fs(18)) * 0.80
+	_y_status = _y_title + 10.0 + float(style.fs(10))
+	_y_first = _y_status + 12.0 + float(style.fs(13))
+
+	var y: float = _y_first
 	for i: int in _lines.size():
 		var l: Dictionary = _lines[i]
 		add_hot(Rect2(12.0, y - 16.0, WIDTH - 24.0, LINE - 2.0),
@@ -123,19 +129,19 @@ func _draw() -> void:
 	draw_frame("Selected", _status_sev, 0.30)
 
 	var title: String = String(_info.get("title", "—"))
-	style.draw_text(self, Vector2(14.0, TOP), title, style.fs(18), style.ink())
+	style.draw_text(self, Vector2(15.0, _y_title), title, style.fs(18), style.ink())
 	var sub: String = "#%d" % int(_info.get("id", 0))
 	if _info.has("cell"):
 		sub += "  ·  %s" % LcnHudFormat.cell(_info["cell"] as Vector2i)
-	style.draw_text_right(self, WIDTH - 14.0, TOP, sub, style.fs(11), style.ink_faint())
+	style.draw_text_right(self, WIDTH - 15.0, _y_title, sub, style.fs(11), style.ink_faint())
 
 	var pill_col: Color = style.ink_dim() if _status_sev == S.Sev.CALM \
 		else style.sev_colour(_status_sev)
-	style.draw_caps(self, Vector2(14.0, TOP + 18.0), _status, style.fs(10), pill_col, 1.8)
+	style.draw_caps(self, Vector2(15.0, _y_status), _status, style.fs(10), pill_col, 1.8)
 
-	var y: float = TOP + 30.0
+	var y: float = _y_first
 	for l: Dictionary in _lines:
-		style.draw_caps(self, Vector2(14.0, y), String(l.get("label", "")), style.fs(10),
+		style.draw_caps(self, Vector2(15.0, y), String(l.get("label", "")), style.fs(10),
 			style.ink_faint(), 1.6)
 		var good: float = float(l.get("good", 1.0))
 		var col: Color = style.ink() if good > 0.66 else style.health_colour(good)

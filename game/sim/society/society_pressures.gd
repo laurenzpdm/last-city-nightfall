@@ -37,6 +37,29 @@ const HOPE: int = 0
 const DISCONTENT: int = 1
 const MIN_RATE: float = 0.002
 
+## HOPE HAS A CEILING AND THE CEILING IS EARNED.
+##
+## Comfort is not achievement. A warm, fed, housed city holds its hope steady
+## somewhere in the middle; it does not climb to a hundred just by continuing to
+## exist, because then the meter stops being a question and the whole system
+## stops mattering. So every STANDING positive force fades out as hope
+## approaches a ceiling set by how well the city is genuinely doing, and past
+## that ceiling hope decays back down.
+##
+## The only things that lift hope above the ceiling are things that HAPPEN: a
+## night survived, a wave held, a law kept, a promise met, research finished.
+## Those are impulses and they bypass this entirely. That is the shape of the
+## whole meter: comfort holds a floor, events buy the rest, and the rest leaks.
+const CEILING_BASE: float = 26.0
+const CEILING_SPAN: float = 40.0
+const CEILING_SOLACE: float = 14.0
+const CEILING_SOFTNESS: float = 12.0
+## Per hour, per point above the ceiling.
+const OVERSHOOT_DECAY: float = 0.075
+
+var _headroom: float = 1.0
+var _ceiling: float = 0.0
+
 
 func size() -> int:
 	return keys.size()
@@ -66,9 +89,12 @@ func compute(reading: SocietyReading, pop: SocietyPopulace, book: LawBook,
 	var strain: float = clampf((work_hours - 10.0) / 8.0, 0.0, 1.0)
 	var corpse_share: float = clampf(pop.corpses / maxf(people * 0.05, 2.0), 0.0, 1.0)
 
+	_ceiling = _hope_ceiling(reading, pop, book, homeless_share, sick_share, cold_share)
+	_headroom = clampf((_ceiling - hope) / CEILING_SOFTNESS, 0.0, 1.0)
+
 	_fill_metrics(reading, pop, book, hope, discontent, homeless_share, sick_share)
 
-	_baselines()
+	_baselines(hope)
 	_cold(reading, pop, cold_share)
 	_shelter(reading, pop, homeless_share)
 	_food(reading, pop)
@@ -77,6 +103,7 @@ func compute(reading: SocietyReading, pop: SocietyPopulace, book: LawBook,
 	_dead(pop, book, corpse_share)
 	_infrastructure(reading)
 	_weather(reading)
+	_citizen_mood(reading, pop)
 	_the_book(book)
 	_the_council(council)
 	_hope_floor(hope, discontent)
@@ -89,7 +116,35 @@ func compute(reading: SocietyReading, pop: SocietyPopulace, book: LawBook,
 #  factors
 # =========================================================================
 
+## How well the city is actually doing, 0..1, and the hope it can sustain on
+## that alone.
+func _hope_ceiling(reading: SocietyReading, pop: SocietyPopulace, book: LawBook,
+		homeless_share: float, sick_share: float, cold_share: float) -> float:
+	var warm: float = 1.0 - clampf(cold_share, 0.0, 1.0)
+	if pop.tented > 0.5:
+		warm *= 1.0 - 0.5 * clampf(pop.tented / maxf(pop.population, 1.0), 0.0, 1.0)
+	var fed: float = 1.0 - clampf(pop.hunger_share, 0.0, 1.0)
+	var housed: float = 1.0 - clampf(homeless_share * 2.0, 0.0, 1.0)
+	var well: float = 1.0 - clampf(sick_share * 3.0, 0.0, 1.0)
+	var comfort: float = clampf(0.36 * warm + 0.26 * fed + 0.22 * housed + 0.16 * well, 0.0, 1.0)
+	var solace: float = clampf(book.policy_value(&"solace"), 0.0, 1.5)
+	var ceiling: float = CEILING_BASE + CEILING_SPAN * comfort + CEILING_SOLACE * solace
+	if reading.storm:
+		ceiling -= 6.0
+	ceiling -= 2.5 * float(reading.era)
+	return clampf(ceiling, 5.0, 92.0)
+
+
+## Standing hope this city can currently justify. Exposed so a HUD can draw the
+## line on the bar: everything above it is borrowed from recent good news.
+func hope_ceiling() -> float:
+	return _ceiling
+
+
 func _push(meter: int, key: StringName, label: String, text: String, rate: float) -> void:
+	# Standing optimism fades as it approaches what the city has earned.
+	if meter == HOPE and rate > 0.0:
+		rate *= _headroom
 	if absf(rate) < MIN_RATE:
 		return
 	keys.append(key)
@@ -99,13 +154,18 @@ func _push(meter: int, key: StringName, label: String, text: String, rate: float
 	meters.append(meter)
 
 
-func _baselines() -> void:
+func _baselines(hope: float) -> void:
 	_push(HOPE, &"drift", "Nothing is getting better",
 		"Another day exactly like the last one. That costs something on its own.",
 		SocietyDefs.HOPE_DRIFT_PER_HOUR)
 	_push(DISCONTENT, &"settle", "Time passing",
 		"Anger cools when nothing is feeding it.",
 		SocietyDefs.DISCONTENT_SETTLE_PER_HOUR)
+	if hope > _ceiling + 0.5:
+		_push(HOPE, &"overshoot", "Hope is ahead of the facts",
+			"People are still living off last week's good news. This city can hold "
+			+ "about %d on what it actually has." % int(round(_ceiling)),
+			-OVERSHOOT_DECAY * (hope - _ceiling))
 
 
 func _cold(reading: SocietyReading, pop: SocietyPopulace, cold_share: float) -> void:
@@ -125,9 +185,9 @@ func _cold(reading: SocietyReading, pop: SocietyPopulace, cold_share: float) -> 
 		return
 	if cold_share > 0.02:
 		var n: int = reading.homes_cold
-		var text: String = "%s of %s homes are below twelve degrees. The coldest is at %.0f." % [
+		var text: String = "%s of %s homes %s below twelve degrees. The coldest is at %.0f." % [
 			SocietyDefs.sentence(SocietyDefs.spell(n)), SocietyDefs.spell(reading.homes_total),
-			reading.coldest_home_c]
+			SocietyDefs.is_are(n), reading.coldest_home_c]
 		_push(DISCONTENT, &"cold_homes", "Cold houses", text, 4.6 * cold_share)
 		_push(HOPE, &"cold_homes", "Cold houses", text, -2.2 * cold_share)
 	if reading.warm_share > 0.55:
@@ -135,9 +195,16 @@ func _cold(reading: SocietyReading, pop: SocietyPopulace, cold_share: float) -> 
 			"%d in a hundred of us sleep somewhere that does not hurt." % int(round(reading.warm_share * 100.0)),
 			1.9 * reading.warm_share)
 	if reading.homes_frozen > 0:
+		# Share of the housing stock, not a raw count: a city with two hundred
+		# houses and eight iced over is having a bad night, not a collapse, and
+		# a linear term would have said otherwise at the top of the curve.
+		var share: float = clampf(float(reading.homes_frozen) / maxf(float(reading.homes_total), 1.0),
+			0.0, 1.0)
 		_push(DISCONTENT, &"frozen_homes", "Frozen houses",
-			"%s houses have iced over completely. Nobody is going back into those." % SocietyDefs.sentence(SocietyDefs.spell(reading.homes_frozen)),
-			2.2 * float(reading.homes_frozen))
+			"%s of %s houses have iced over completely. Nobody is going back into those." % [
+				SocietyDefs.sentence(SocietyDefs.spell(reading.homes_frozen)),
+				SocietyDefs.spell(reading.homes_total)],
+			5.0 * share)
 
 
 func _shelter(reading: SocietyReading, pop: SocietyPopulace, homeless_share: float) -> void:
@@ -215,6 +282,21 @@ func _dead(pop: SocietyPopulace, book: LawBook, corpse_share: float) -> void:
 			"Everybody knows and nobody says it.", 1.4)
 
 
+## [P05] tracks bitterness per citizen from their own needs. That number is
+## better than anything society could infer from the outside, so when it is
+## there it gets its own line rather than being folded into an average.
+func _citizen_mood(reading: SocietyReading, pop: SocietyPopulace) -> void:
+	if reading.citizens_unrest > 0.02:
+		_push(DISCONTENT, &"bitterness", "People have had enough",
+			"%s of us are past arguing about it." % SocietyDefs.sentence(SocietyDefs.people(
+				int(round(reading.citizens_unrest * pop.population)))),
+			5.5 * reading.citizens_unrest)
+	if reading.citizens_morale >= 0.0 and reading.citizens_morale < 40.0:
+		_push(HOPE, &"morale", "Nobody talks at meals",
+			"Average morale across the city is %d out of a hundred." % int(round(reading.citizens_morale)),
+			-2.0 * (40.0 - reading.citizens_morale) / 40.0)
+
+
 func _infrastructure(reading: SocietyReading) -> void:
 	if reading.heat_deficit_share > 0.03:
 		_push(DISCONTENT, &"heat_deficit", "The grid is short",
@@ -222,10 +304,13 @@ func _infrastructure(reading: SocietyReading) -> void:
 				int(round((1.0 - reading.heat_deficit_share) * 100.0)),
 			5.0 * reading.heat_deficit_share)
 	if reading.frozen_buildings > 0:
+		var share: float = clampf(float(reading.frozen_buildings)
+			/ maxf(float(reading.buildings_operational) * 0.2, 5.0), 0.0, 1.0)
 		_push(HOPE, &"frozen_buildings", "Buildings are icing over",
-			"%s buildings have gone below the line and stopped." % \
+			"%s of %s standing buildings have gone below the line and stopped." % [
 				SocietyDefs.sentence(SocietyDefs.spell(reading.frozen_buildings)),
-			-0.55 * float(reading.frozen_buildings))
+				SocietyDefs.spell(reading.buildings_operational)],
+			-3.4 * share)
 
 
 func _weather(reading: SocietyReading) -> void:

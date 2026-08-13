@@ -563,7 +563,7 @@ def stress():
 # being true the balance report says so instead of quietly measuring a ruin.
 ECON_SPINE_DX = 3
 ECON_RUNGS = (-16, -8, 8, 16)
-ECON_ARM = 15               # rung reach either side of the spine
+ECON_ARM = 13               # rung reach either side of the spine
 ECON_GENS_PER_LANE = 2      # see THE WARMTH-COVER LAW in economy()
 
 
@@ -622,9 +622,13 @@ def economy():
     # make the heat reading harder, it makes it meaningless: a dead city draws
     # no heat. The food economy gets its own instrument when [P03] logistics can
     # actually carry grain across the map.
-    stock["grain"] = 9000
-    stock["ration"] = 9000
     L.stock(1, stock)
+    # Topped up every day rather than once: whichever system owns the city
+    # inventory when this runs, the larder has to be full at each dusk or the
+    # population starves and the heat reading turns into a graph of a graveyard.
+    for day in range(1, 9):
+        L.stock(max(1, (day - 1) * 9600 + 60),
+                {"grain": 6000, "ration": 6000})
     L.unlock(2, "thermal_storage", "pressurised_mains")
 
     # --- the city that already stands at dawn on day one ---------------------

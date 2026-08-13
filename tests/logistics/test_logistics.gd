@@ -23,6 +23,16 @@ func requires_systems() -> PackedStringArray:
 func setup() -> void:
 	world = SimFixture.new(7).start()
 	logi = world.system(&"logistics") as LogisticsSystem
+	_open_the_tech_tree()
+
+
+## Belt tiers are research-gated, which is a real rule with its own test below.
+## Every other case here is about transport, so the gates are opened first.
+func _open_the_tech_tree() -> void:
+	if world.system(&"build") == null:
+		return
+	world.cmd({"system": &"build", "op": "grant_unlock", "unlock": "belt_gearing"})
+	world.cmd_now({"system": &"build", "op": "grant_unlock", "unlock": "driven_rollers"})
 
 
 func teardown() -> void:
@@ -67,15 +77,21 @@ func _segment(cell: Vector2i) -> LogiSegment:
 # the lane — the data structure everything else stands on
 # =========================================================================
 
+## Fills a lane the only way a belt can be filled: run it, then offer an item,
+## over and over. Returns how many got on.
+func _fill_lane(lane: LogiLane, kind: int = 1, slack: float = 0.25, ticks: int = 400) -> int:
+	var put: int = 0
+	for _i: int in ticks:
+		lane.advance(slack)
+		if lane.insert_back(kind, slack):
+			put += 1
+	return put
+
+
 func test_a_lane_holds_four_items_per_tile_and_never_overlaps() -> void:
 	var lane := LogiLane.new(10.0)
 	assert_eq(lane.capacity(), 41, "ten tiles at four per tile, plus the one on the exit line")
-	var put: int = 0
-	while lane.insert_back(1, 100.0):
-		put += 1
-		if put > 200:
-			break
-	assert_eq(put, 41, "and it accepts exactly that many")
+	assert_eq(_fill_lane(lane), 41, "and it accepts exactly that many")
 	assert_empty(lane.debug_invariants(), "with every item its own width apart")
 
 
@@ -83,18 +99,19 @@ func test_a_compressed_lane_is_a_single_group() -> void:
 	# The whole performance claim of this part: ten thousand items on a full belt
 	# cost one subtraction per tick, because they are one group.
 	var lane := LogiLane.new(64.0)
-	while lane.insert_back(1, 100.0):
-		pass
+	_fill_lane(lane, 1, 0.25, 2000)
+	assert_eq(lane.size(), lane.capacity(), "the lane is full")
 	assert_eq(lane.group_count(), 1, "a compressed lane is one group")
 	lane.advance(0.1)
 	assert_eq(lane.group_count(), 1, "and stays one when it moves")
-	assert_near(lane.front_pos(), 0.0, 0.0001, "the head reaches the exit and stops there")
+	assert_near(lane.front_pos(), 0.0, 0.0001, "the head sits on the exit and waits there")
 
 
 func test_a_lane_keeps_its_order() -> void:
 	var lane := LogiLane.new(6.0)
 	for i: int in 12:
-		assert_true(lane.insert_back(i, 100.0), "item %d fits" % i)
+		lane.advance(0.25)
+		assert_true(lane.insert_back(i, 0.25), "item %d fits" % i)
 	for i: int in 12:
 		lane.advance(10.0)
 		assert_eq(lane.take_front(), i, "items leave in the order they arrived")
@@ -103,7 +120,10 @@ func test_a_lane_keeps_its_order() -> void:
 func test_taking_from_the_middle_splits_the_group_cleanly() -> void:
 	var lane := LogiLane.new(4.0)
 	for i: int in 9:
-		lane.insert_back(i, 100.0)
+		lane.advance(0.25)
+		lane.insert_back(i, 0.25)
+	lane.advance(10.0)   # let them all pile up against the exit
+	assert_eq(lane.size(), 9, "nine items on the lane")
 	assert_eq(lane.group_count(), 1, "one compressed group to start with")
 	assert_eq(lane.remove_at(4), 4, "the fifth item comes off")
 	assert_eq(lane.group_count(), 2, "leaving a hole, which is two groups")
@@ -123,13 +143,24 @@ func test_an_item_cannot_be_dropped_on_top_of_another() -> void:
 
 
 func test_a_lane_only_accepts_through_the_stretch_that_moved() -> void:
-	# Without this rule an empty belt would swallow a whole tick's burst at once
-	# and report throughput no belt could ever sustain.
-	var lane := LogiLane.new(20.0)
-	assert_true(lane.insert_back(1, 0.09), "the first item enters at the very back")
-	assert_false(lane.insert_back(1, 0.09), "a second cannot, because nothing has moved yet")
-	lane.advance(0.09)
-	assert_true(lane.insert_back(1, 0.09), "once the belt has run, there is room again")
+	# The entry rule, which is where belt throughput is actually decided: an item
+	# may only come in through the stretch of belt that passed the entrance this
+	# tick. Without it an empty belt would swallow a whole burst at once and
+	# report a number no belt could sustain.
+	var lane := LogiLane.new(40.0)
+	assert_true(lane.insert_back(1, 0.09375), "the first item enters at the very back")
+	assert_false(lane.insert_back(1, 0.09375), "a second cannot: nothing has moved yet")
+
+	# A slat belt runs 0.09375 tiles a tick and items are 0.25 apart, so the
+	# entrance can admit 0.375 items a tick — 7.5 a second on one lane, which is
+	# exactly half of the fifteen a second on the tooltip.
+	var put: int = 1
+	for _i: int in 400:
+		lane.advance(0.09375)
+		if lane.insert_back(1, 0.09375):
+			put += 1
+	assert_near(float(put) / 20.0, 7.5, 0.2,
+		"one lane admits 7.5 items a second (%d in twenty)" % put)
 
 
 # =========================================================================
@@ -143,6 +174,7 @@ func test_belt_tiers_carry_fifteen_thirty_and_forty_five_items_a_second() -> voi
 	for kind: String in kinds:
 		world.restart()
 		logi = world.system(&"logistics") as LogisticsSystem
+		_open_the_tech_tree()
 		var entry: Vector2i = O
 		_line(kind, entry, O + Vector2i(11, 0))
 		var chest: int = _place("bunker_chest", O + Vector2i(12, 0))
@@ -196,21 +228,29 @@ func test_throughput_and_saturation_answer_for_the_lens() -> void:
 # topology
 # =========================================================================
 
-func test_a_turn_is_two_lines_and_items_still_cross_it() -> void:
-	_line("belt_mk1", O, O + Vector2i(6, 0))
-	_line("belt_mk1", O + Vector2i(6, 1), O + Vector2i(6, 6))
-	var chest: int = _place("crate", O + Vector2i(6, 7))
+func test_a_corner_is_two_lines_and_carries_both_lanes_round_it() -> void:
+	_line("belt_mk1", O, O + Vector2i(6, 6))          # one drag: east, then south
+	var chest: int = _place("bunker_chest", O + Vector2i(6, 7))
 	assert_ne(_segment(O).id, _segment(O + Vector2i(6, 3)).id,
 		"a corner splits the transport line, because the two lanes travel different distances")
+	assert_eq(_segment(O).sink, LogiTypes.Sink.BELT,
+		"but a corner is a hand-over, not a side-load: both lanes go round")
 	_run_saturated(O, 400)
-	assert_gt(float(logi.world.stores[chest].total()), 100.0,
-		"and the items go round the corner anyway")
+	var store: LogiStore = logi.world.stores[chest]
+	assert_gt(float(store.total()), 200.0, "and the items go round the corner")
+	assert_between(float(store.total()) / 20.0, 13.0, 16.0,
+		"at very nearly the full fifteen a second, because nothing was lost to the bend")
 
 
 func test_side_loading_merges_onto_the_near_lane_only() -> void:
 	_line("belt_mk1", O, O + Vector2i(9, 0))            # the main line, running east
 	_line("belt_mk1", O + Vector2i(4, 3), O + Vector2i(4, 1))  # a spur coming up from the south
-	var main: LogiSegment = _segment(O)
+	# The main line is fed in-line from behind (a geared belt, so it stays its own
+	# line), which makes the spur a side-load rather than a corner: it has to
+	# squeeze onto the near lane.
+	_place("belt_mk2", O + Vector2i(-1, 0), 0)
+	world.run(1)
+	var main: LogiSegment = _segment(O + Vector2i(4, 0))
 	var spur: LogiSegment = _segment(O + Vector2i(4, 3))
 	assert_ne(main.id, spur.id, "the spur is its own line")
 	assert_eq(spur.sink, LogiTypes.Sink.SIDE, "and it side-loads into the main one")
@@ -478,6 +518,20 @@ func test_a_request_nobody_can_fill_reads_as_starvation() -> void:
 # fuel — the reason this part exists before production does
 # =========================================================================
 
+func test_a_belt_tier_stays_locked_until_it_is_researched() -> void:
+	if world.system(&"build") == null:
+		skip("research gates are answered by [P11] until [P10] lands")
+		return
+	world.restart()
+	logi = world.system(&"logistics") as LogisticsSystem      # no unlocks granted
+	var blocked: Dictionary = logi.can_place(&"belt_mk3", O, 0)
+	assert_false(bool(blocked["ok"]), "a driven belt is not available on day one")
+	assert_has(String(blocked["reason"]), "locked", "and it says why")
+	assert_true(bool(logi.can_place(&"belt_mk1", O, 0)["ok"]), "a slat belt always is")
+	world.cmd_now({"system": &"build", "op": "grant_unlock", "unlock": "driven_rollers"})
+	assert_true(bool(logi.can_place(&"belt_mk3", O, 0)["ok"]), "research opens it")
+
+
 func test_a_generator_burns_coal_that_had_to_be_delivered() -> void:
 	var heat: SimSystem = world.system(&"heat")
 	if heat == null or world.system(&"build") == null:
@@ -537,11 +591,12 @@ func test_an_arm_can_feed_a_generator_from_a_belt() -> void:
 	node.set("fuel_stock", 0.0)
 	world.run(10)
 
-	_line("belt_mk1", gen + Vector2i(-6, -1), gen + Vector2i(-3, -1))
-	_place("inserter_mk1", gen + Vector2i(-2, -1), 0)
-	for _i: int in 200:
-		logi.world.push_onto_belt(gen + Vector2i(-6, -1), 0, &"coal")
-		logi.world.push_onto_belt(gen + Vector2i(-6, -1), 1, &"coal")
+	var start: Vector2i = gen + Vector2i(-6, 0)
+	_line("belt_mk1", start, gen + Vector2i(-2, 0))
+	_place("inserter_mk1", gen + Vector2i(-1, 0), 0)   # picks up behind, drops into the furnace
+	for _i: int in 300:
+		logi.world.push_onto_belt(start, 0, &"coal")
+		logi.world.push_onto_belt(start, 1, &"coal")
 		world.run(1)
 	assert_gt(float(heat.call("fuel_stock_of", id)), 0.0,
 		"an arm off a belt fills a bunker with no porter in sight")
@@ -591,7 +646,9 @@ func test_nothing_is_ever_created_or_destroyed() -> void:
 	var put: int = 0
 	for _i: int in 300:
 		for lane: int in 2:
-			if logi.world.push_onto_belt(O, lane, &"scrap"):
+			var guard: int = 0
+			while logi.world.push_onto_belt(O, lane, &"scrap") and guard < 8:
+				guard += 1
 				put += 1
 		world.run(1)
 	var on_belts: int = logi.world.items_on_belts()
