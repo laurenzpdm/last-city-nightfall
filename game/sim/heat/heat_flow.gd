@@ -414,16 +414,24 @@ func _fill(tier: PackedInt32Array) -> bool:
 
 	var saturated: bool = false
 	var rounds: int = 0
+	# Touched-node list instead of _acc.keys().sort() every round. `active` is
+	# sorted and each _paths[c] is a fixed array, so first-touch order is a
+	# deterministic function of the world — which is all the sort was buying,
+	# and it was costing an O(k log k) sort of ~1000 keys twelve times a tick.
+	var keys: PackedInt32Array = PackedInt32Array()
 	while not active.is_empty() and rounds < MAX_ROUNDS:
 		rounds += 1
 		_acc.clear()
+		keys = PackedInt32Array()
 		for c: int in active:
 			var need: float = _rem[c] / maxf(_eta.get(c, 1.0), EPS)
 			for n: int in _paths[c]:
-				_acc[n] = _acc.get(n, 0.0) + need
+				if _acc.has(n):
+					_acc[n] += need
+				else:
+					_acc[n] = need
+					keys.append(n)
 
-		var keys: Array = _acc.keys()
-		keys.sort()
 		var t: float = 1.0
 		var binding: int = -1
 		var binding_kind: StringName = &""

@@ -37,4 +37,12 @@ func _ready() -> void:
 	for k3: String in keys:
 		print("PERF %-10s %8.3f ms/tick" % [k3, float(costs[k3]) / float(n) / 1000.0])
 	print("PERF %-10s %8.3f ms/tick  -> %.0f ticks/s" % ["TOTAL", total / float(n) / 1000.0, 1000.0 / (total / float(n) / 1000.0)])
+	var pk: Array = HeatSystem.PROF.keys()
+	pk.sort()
+	for k4: String in pk:
+		print("HEAT %-10s %8.3f ms/tick" % [k4, float(HeatSystem.PROF[k4]) / float(n + 1200) / 1000.0])
+	var fk: Array = HeatFlow.PROF.keys()
+	fk.sort()
+	for k5: String in fk:
+		print("FLOW %-10s %8.3f ms/tick" % [k5, float(HeatFlow.PROF[k5]) / float(n + 1200) / 1000.0])
 	get_tree().quit(0)
