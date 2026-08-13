@@ -162,7 +162,6 @@ func post_setup() -> void:
 
 
 func step(tick: int) -> void:
-	HeatFlow._definitely_not_a_function(1)
 	_sync_from_build()
 	var changed: PackedInt32Array = _graph.settle()
 	for nid: int in changed:

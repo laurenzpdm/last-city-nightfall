@@ -35,16 +35,15 @@ func _execute() -> int:
 		_walk(root, scripts)
 	scripts.sort()
 
+	# NOTE: load() answers from the resource cache and from the global class
+	# cache, so a null return is a floor, not a ceiling — a file that no longer
+	# compiles can still hand back the Script object compiled before the edit.
+	# The parser always writes SCRIPT ERROR / Parse Error to stderr when that
+	# happens, and tools/check.sh fails the stage on those lines. Do not treat a
+	# green exit code from this script alone as "everything compiles".
 	var broken: PackedStringArray = PackedStringArray()
 	for path: String in scripts:
-		# CACHE_MODE_IGNORE, not load(). A plain load() answers from the resource
-		# cache and from the global class cache, so it hands back a perfectly good
-		# Script object for a file that no longer compiles — this gate printed
-		# PARSE OK on a build where four SimSystems refused to load at runtime and
-		# the game came up with two systems in it. Ignoring the cache forces the
-		# parser to actually run, which is the only thing that answers the
-		# question the stage claims to answer.
-		if ResourceLoader.load(path, "Script", ResourceLoader.CACHE_MODE_IGNORE) == null:
+		if load(path) == null:
 			broken.append(path)
 
 	print("parse check: %d script(s) across %s" % [scripts.size(), ", ".join(roots)])

@@ -88,6 +88,17 @@ say "== parse =="
 "$GODOT" --headless --path "$ROOT" --script tools/parse_check.gd > "$LOGDIR/parse.log" 2>&1
 parse_code=$?
 parse_note="$(grep -m1 '^parse check:' "$LOGDIR/parse.log" | sed 's/^parse check: //')"
+# load() answers from the resource cache, so parse_check.gd can hand back a
+# perfectly good Script object for a file that no longer compiles. It printed
+# PARSE OK on a build where four SimSystems refused to load and the game came up
+# with two systems in it. The parser still SAYS so on stderr, so read that, the
+# same way the import stage already does.
+if grep -qE "SCRIPT ERROR|Parse Error|Compile Error|Failed to load script" "$LOGDIR/parse.log"; then
+  parse_code=1
+  parse_note="a script does not compile"
+  grep -nE "SCRIPT ERROR|Parse Error|Compile Error|Failed to load script" "$LOGDIR/parse.log" | head -20 > "$LOGDIR/parse.err"
+  cat "$LOGDIR/parse.err" > "$LOGDIR/parse.log"
+fi
 record "parse" "$LOGDIR/parse.log" "$parse_code" "$parse_note"
 
 # --- 3. determinism lint ---------------------------------------------------
