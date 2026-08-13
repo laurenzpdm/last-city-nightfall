@@ -96,9 +96,12 @@ static func terrain_tones(kind: int) -> Dictionary:
 				"high": Color(0.353, 0.396, 0.475), "grain": 0.150, "ridges": 0.0,
 			}
 		Terrain.ASH_FIELD:
+			# Warm volcanic grit, not a hole in the map. The caldera floor is where
+			# the whole city stands: at the old values it read as a black disc and
+			# every road, wall and citizen inside it was invisible.
 			return {
-				"base": Color(0.145, 0.129, 0.114), "low": Color(0.071, 0.063, 0.055),
-				"high": Color(0.263, 0.231, 0.196), "grain": 0.130, "ridges": 0.0,
+				"base": Color(0.262, 0.232, 0.203), "low": Color(0.171, 0.150, 0.128),
+				"high": Color(0.392, 0.344, 0.288), "grain": 0.130, "ridges": 0.0,
 			}
 		Terrain.PAVED:
 			return {

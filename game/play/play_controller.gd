@@ -256,8 +256,44 @@ func _demolish_under_cursor() -> void:
 func _process(_delta: float) -> void:
 	if hud != null:
 		hud.refresh(self)
+	if Harness.active and Harness.visual:
+		_drive_harness_tour()
 	if build_mode:
 		queue_redraw()
+
+
+## Screenshot runs should show the art from several distances, not the same frame
+## six times. Only ever runs under --harness --visual; a player's camera is the
+## player's. Keyframes are in world tiles from the city core.
+const TOUR: Array[Dictionary] = [
+	{"t": 0.0, "off": Vector2(0.0, -2.0), "zoom": 1.05},
+	{"t": 1500.0, "off": Vector2(-11.0, -6.0), "zoom": 1.55},
+	{"t": 3400.0, "off": Vector2(8.0, 5.0), "zoom": 1.30},
+	{"t": 5500.0, "off": Vector2(0.0, 1.0), "zoom": 0.85},
+	{"t": 7200.0, "off": Vector2(-2.0, -20.0), "zoom": 1.15},
+	{"t": 8800.0, "off": Vector2(0.0, 0.0), "zoom": 0.60},
+	{"t": 11000.0, "off": Vector2(0.0, -4.0), "zoom": 0.95},
+]
+
+
+func _drive_harness_tour() -> void:
+	if camera == null:
+		return
+	var centre: Vector2 = Vector2(_core_cell()) * float(TILE)
+	var t: float = float(SimClock.tick)
+	var i: int = 0
+	for k: int in range(TOUR.size() - 1):
+		if t >= float(TOUR[k]["t"]) and t <= float(TOUR[k + 1]["t"]):
+			i = k
+			break
+	if t >= float(TOUR[TOUR.size() - 1]["t"]):
+		i = TOUR.size() - 2
+	var a: Dictionary = TOUR[i]
+	var b: Dictionary = TOUR[i + 1]
+	var span: float = maxf(1.0, float(b["t"]) - float(a["t"]))
+	var f: float = smoothstep(0.0, 1.0, clampf((t - float(a["t"])) / span, 0.0, 1.0))
+	camera.focus_on(centre + (a["off"] as Vector2).lerp(b["off"] as Vector2, f) * float(TILE), true)
+	camera.set_zoom_level(lerpf(float(a["zoom"]), float(b["zoom"]), f), false)
 
 
 func _draw() -> void:

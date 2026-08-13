@@ -61,10 +61,18 @@ func _install_view() -> void:
 	if headless():
 		Log.info("boot", "no display server (or --no-view): simulation only")
 		return
-	renderer = LcnViewBootstrap.install()
+	renderer = get_tree().get_first_node_in_group(WorldRenderer.GROUP) as WorldRenderer
 	if renderer == null:
-		renderer = get_tree().get_first_node_in_group(WorldRenderer.GROUP) as WorldRenderer
-	if renderer == null:
+		# Instantiated HERE and parented to Boot, not to the scene root:
+		# tree.root is still "busy setting up children" while the main scene's
+		# _ready runs, and add_child() on it silently fails. [P13]'s self-installer
+		# stands down once the node is in its group, so this is idempotent.
+		if not ResourceLoader.exists(LcnViewBootstrap.SCENE):
+			Log.error("boot", "world_renderer.tscn missing at %s" % LcnViewBootstrap.SCENE)
+			return
+		renderer = (load(LcnViewBootstrap.SCENE) as PackedScene).instantiate() as WorldRenderer
+		add_child(renderer)
+	if renderer == null or not renderer.is_inside_tree():
 		Log.error("boot", "the world renderer failed to install — nothing will be visible")
 		return
 
