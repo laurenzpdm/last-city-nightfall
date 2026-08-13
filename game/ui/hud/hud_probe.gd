@@ -51,6 +51,10 @@ var wind: float = 0.0
 var storm_intensity: float = 0.0
 var storm_active: bool = false
 var storm_title: String = ""
+## The one that is COMING, which is a different string from the one blowing now.
+## The alert used to hardcode "A Great Frost" and would have been wrong the first
+## time [P09]'s tuning table named a storm anything else.
+var next_storm_title: String = ""
 var seconds_to_storm: float = -1.0
 var era_title: String = ""
 var heat_loss_multiplier: float = 1.0
@@ -316,6 +320,9 @@ func _read_climate() -> void:
 	storm_active = bool(_call_or(_climate, &"is_storm_active", storm_intensity > 0.01))
 	storm_title = _ask_str(_climate, [&"storm_title"], [], "")
 	seconds_to_storm = _ask(_climate, [&"seconds_until_storm"], [], -1.0)
+	next_storm_title = ""
+	if seconds_to_storm >= 0.0 and _climate.has_method("next_storm"):
+		next_storm_title = String((_climate.call("next_storm") as Dictionary).get("title", ""))
 	era_title = _ask_str(_climate, [&"era_title"], [], "")
 	heat_loss_multiplier = _ask(_climate, [&"heat_loss_multiplier"], ["heat_loss_mult"], 1.0)
 	var daylight: float = _ask(_climate, [&"daylight_seconds"], [], 0.0)

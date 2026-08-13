@@ -112,7 +112,7 @@ func refresh(probe: LcnHudProbe, now: float) -> void:
 	_derive_supplies(probe, out)
 	_derive_build(probe, out)
 	_derive_council(probe, out)
-	_carry_bus(out)
+	_carry_bus(probe, out)
 	out.sort_custom(_rank)
 	entries = _cap_families(out)
 	_expire_toasts()
@@ -315,21 +315,31 @@ static func _days_words(days: float) -> String:
 
 
 func _derive_threat(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
+	# [P08] redacts the approach until the player has scouted it, so wave_origin
+	# is legitimately zero sometimes. Falling back to the hearth keeps the row
+	# clickable and still tells the truth: that is where they are coming for.
+	var where: Vector2 = probe.wave_origin
+	if where == Vector2.ZERO:
+		where = probe.core_focus()
 	if probe.wave_active and probe.enemies_alive > 0:
 		out.append(_entry(&"wave_here", "wave", S.Sev.CRITICAL,
 			"%d in the city" % probe.enemies_alive,
 			"They are inside the perimeter.",
 			"Turrets burn heat to fire — do not let the grid brown out now.",
-			probe.wave_origin, probe.enemies_alive))
+			where, probe.enemies_alive))
 		return
 	if probe.wave_seconds >= 0.0 and probe.wave_seconds < 120.0:
-		var dir: String = LcnHudFormat.compass(probe.wave_direction)
+		var body: String = "Wave %d comes from the %s." % [maxi(1, probe.wave_number),
+			LcnHudFormat.compass(probe.wave_direction)]
+		if not probe.wave_known:
+			body = "Wave %d. Nothing has been seen yet — the direction is not known." \
+				% maxi(1, probe.wave_number)
 		out.append(_entry(&"wave", "wave",
 			S.Sev.DANGER if probe.wave_seconds < 45.0 else S.Sev.WARN,
 			"Attack %s" % LcnHudFormat.in_words(probe.wave_seconds),
-			"Wave %d comes from the %s." % [maxi(1, probe.wave_number), dir],
+			body,
 			"Guns on that side, and heat in the pipes that feed them.",
-			probe.wave_origin, 1))
+			where, 1))
 
 
 func _derive_climate(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
@@ -343,13 +353,15 @@ func _derive_climate(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 			"It is %s outside and every building is losing heat %.1f times as fast."
 				% [LcnHudFormat.temperature(probe.ambient_c), probe.heat_loss_multiplier],
 			"Burn everything you have. It passes.",
-			Vector2.ZERO, 1))
+			probe.core_focus(), 1))
 	elif probe.seconds_to_storm > 0.0 and probe.seconds_to_storm < 240.0:
+		var coming: String = probe.next_storm_title if probe.next_storm_title != "" \
+			else "A storm"
 		out.append(_entry(&"storm_warning", "storm", S.Sev.WARN,
-			"A Great Frost arrives %s" % LcnHudFormat.in_words(probe.seconds_to_storm),
+			"%s arrives %s" % [coming, LcnHudFormat.in_words(probe.seconds_to_storm)],
 			"Ambient temperature will fall hard and heat loss will roughly double.",
 			"Fill the accumulators and finish anything half-built.",
-			Vector2.ZERO, 1))
+			probe.core_focus(), 1))
 
 
 ## The one that was lying. It printed "Timber runs out in 20 seconds" from a
@@ -515,7 +527,7 @@ func _is_rewritten(key: StringName) -> bool:
 		or k == "climate_blizzard"
 
 
-func _carry_bus(out: Array[Dictionary]) -> void:
+func _carry_bus(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 	var keys: Array = _bus.keys()
 	keys.sort()
 	for k: StringName in keys:
@@ -523,7 +535,14 @@ func _carry_bus(out: Array[Dictionary]) -> void:
 		if _now - float(e.get("at", 0.0)) > BUS_TTL_SECONDS:
 			_bus.erase(k)
 			continue
-		out.append(e.duplicate())
+		var row: Dictionary = e.duplicate()
+		# A part that raised an alert without a position still gets a clickable
+		# row — the hearth is a worse answer than the real tile and a much better
+		# one than a dead entry the player learns not to click.
+		if (row.get("focus", Vector2.ZERO) as Vector2) == Vector2.ZERO \
+				and String(row.get("key", "")) != "game_over":
+			row["focus"] = probe.core_focus()
+		out.append(row)
 
 
 func _on_toast(text: String) -> void:

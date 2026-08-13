@@ -14,6 +14,12 @@ var count: int = 0
 var cost: float = 0.0
 ## Index into WavePlan.vectors.
 var vector: int = 0
+## Where in the arrival window this packet belongs, 0..1. Stamped at
+## distribution time, when the length of the night is not yet known; turned into
+## `delay_ticks` at nightfall, when it is. A night that runs from dusk to dawn
+## has to spread its arrivals over ITS length, not over a constant somebody
+## picked while there was no clock in the build.
+var delay_frac: float = 0.0
 ## Ticks after nightfall at which this group walks onto the map.
 var delay_ticks: int = 0
 ## Where it enters. Cached from the vector so a spawn never needs the grid.
@@ -31,6 +37,7 @@ func to_dict() -> Dictionary:
 		"cost": snappedf(cost, 0.01),
 		"vector": vector,
 		"delay": delay_ticks,
+		"delay_frac": snappedf(delay_frac, 0.001),
 		"cell": [spawn_cell.x, spawn_cell.y],
 		"dispatched": dispatched,
 		"handle": handle,
@@ -44,6 +51,7 @@ static func from_dict(d: Dictionary) -> WaveGroup:
 	g.cost = float(d.get("cost", 0.0))
 	g.vector = int(d.get("vector", 0))
 	g.delay_ticks = int(d.get("delay", 0))
+	g.delay_frac = float(d.get("delay_frac", 0.0))
 	var c: Variant = d.get("cell", [])
 	if typeof(c) == TYPE_ARRAY and (c as Array).size() >= 2:
 		g.spawn_cell = Vector2i(int((c as Array)[0]), int((c as Array)[1]))

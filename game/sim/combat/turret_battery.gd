@@ -107,6 +107,12 @@ var heat_stolen: float = 0.0
 var damage_dealt: float = 0.0
 var ready_ticks: int = 0
 var live_ticks: int = 0
+## Turret-ticks in which a gun actually had something in its sights. `uptime`
+## answers "is my wall armed"; this answers "is my wall in the fight", and the
+## two are different questions — a perimeter can be perfectly supplied and still
+## never see a body all night, which is exactly what a wave director aiming at
+## the undefended side produces.
+var engaged_ticks: int = 0
 var ammo_starved_ticks: int = 0
 var heat_starved_ticks: int = 0
 
@@ -295,6 +301,7 @@ func step(tick: int, sys: Object, swarm: EnemySwarm, shells: ProjectilePool,
 			t.idle = CombatTypes.Idle.NO_TARGET
 			_bank(t)
 			continue
+		engaged_ticks += 1
 
 		# --- slew --------------------------------------------------------
 		var target_pos: Vector2 = swarm.position_at(t.target_slot)
@@ -514,6 +521,13 @@ func _burn_cone(t: Turret, w: WeaponDef, swarm: EnemySwarm, sys: Object,
 ## night waiting, and would say nothing at all about the heat grid.
 func uptime() -> float:
 	return float(ready_ticks) / float(maxi(live_ticks, 1))
+
+
+## Fraction of turret-ticks in which a gun had a target. The honest answer to
+## "are the guns fighting?" — 0.00 on a wall that was armed all night and never
+## saw anything, which is a defence problem the uptime number cannot express.
+func engagement() -> float:
+	return float(engaged_ticks) / float(maxi(live_ticks, 1))
 
 
 ## Why every gun is quiet, worst case first. This is the combat half of the

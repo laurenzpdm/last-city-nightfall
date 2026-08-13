@@ -23,8 +23,15 @@ extends Resource
 # moves the night that was built to land on it.
 
 ## Budget points for nights 1..N. Past the end the curve continues geometrically.
+##
+## Night one is a handful on purpose and stays one — it is the teaching night.
+## Everything after it was measured against a real run and found empty: night two
+## put fourteen bodies on a map for twenty seconds and the whole city fired
+## forty-three shots in three days. The curve from night two on is the answer to
+## that. Night one 8, night two 26 (a pack that actually presses the line), and
+## the ramp holds the same shape it always had.
 @export var budget_table: PackedFloat32Array = PackedFloat32Array([
-	8.0, 18.0, 30.0, 44.0, 60.0, 80.0, 104.0, 132.0, 164.0, 200.0, 240.0, 286.0,
+	8.0, 26.0, 44.0, 66.0, 92.0, 122.0, 158.0, 200.0, 248.0, 302.0, 364.0, 434.0,
 ])
 ## Growth per night once the authored table runs out.
 @export var budget_growth: float = 1.14
@@ -102,7 +109,7 @@ extends Resource
 ## Vectors on night 1.
 @export var vectors_base: int = 1
 ## One more vector every N nights...
-@export var vectors_every_nights: int = 3
+@export var vectors_every_nights: int = 2
 ## ...up to this many, terrain permitting.
 @export var vectors_max: int = 4
 ## Share of the budget sent at the player's WEAKEST side. Ramps in from night
@@ -201,9 +208,24 @@ extends Resource
 #  SPAWNING AND THE NIGHT ITSELF
 # ==========================================================================
 
-## Groups of a wave arrive spread over this many ticks after nightfall, so a
-## night is a rhythm and not one blob at the gate.
+## Floor on the arrival window, in ticks, used when the length of the night is
+## not known (no [P09] in the build).
 @export var spawn_window_ticks: int = 1100
+## Share of the ACTUAL night that arrivals are spread over.
+##
+## This used to be the fixed 1100 ticks above, against a night of 3264: the
+## whole attack landed in the first third and the other hundred seconds were
+## empty. A tower-defence night is a night under pressure, not a blob at dusk
+## followed by silence — so the window is measured against dusk-to-dawn, and the
+## last packet still arrives with a quarter of the night left to fight it in.
+@export var spawn_window_share: float = 0.72
+## Largest packet that walks in at once. Anything bigger is split into pulses,
+## which is what turns "fourteen hounds" into three waves of five you can lose
+## the second of.
+@export var pulse_max_units: int = 6
+## ...but never more arrival moments than this in one night, or the player is
+## fighting a drip rather than a wave.
+@export var pulses_max: int = 12
 ## Ticks between combat polls while a wave is live.
 @export var poll_interval_ticks: int = 10
 ## Ticks after the last group is handed over before "nothing is alive" is
@@ -214,6 +236,15 @@ extends Resource
 @export var wave_settle_ticks: int = 80
 ## Survivors melt back into the dark at dawn. A wave always ends.
 @export var withdraw_at_dawn: bool = true
+## Hard ceiling on how long one night may stay ACTIVE, whatever the clock, the
+## climate system or [P07]'s bookkeeping thinks.
+##
+## THE WATCHDOG. A night that outlives this has a bug in it, so it is resolved
+## and the fact is written into the log as an error rather than left to freeze
+## the campaign: a build where wave two never ends and wave three never arrives
+## reported itself green for a whole phase. 12000 ticks is ten minutes of world
+## time against a night of under three.
+@export var wave_hard_timeout_ticks: int = 12000
 
 # ==========================================================================
 #  THE SIEGE MODEL — only used when [P07] combat is absent
@@ -347,6 +378,10 @@ func validate() -> bool:
 	max_compose_steps = maxi(4, max_compose_steps)
 
 	spawn_window_ticks = maxi(1, spawn_window_ticks)
+	spawn_window_share = clampf(spawn_window_share, 0.0, 0.9)
+	pulse_max_units = maxi(1, pulse_max_units)
+	pulses_max = maxi(1, pulses_max)
+	wave_hard_timeout_ticks = maxi(600, wave_hard_timeout_ticks)
 	poll_interval_ticks = maxi(1, poll_interval_ticks)
 	wave_settle_ticks = maxi(1, wave_settle_ticks)
 	siege_step_ticks = maxi(1, siege_step_ticks)

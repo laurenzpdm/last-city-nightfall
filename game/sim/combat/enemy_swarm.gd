@@ -683,7 +683,11 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 			var aidx: int = acy * w + acx
 			if gcost[aidx] == Grid.IMPASSABLE:
 				# Terrain refuses everyone; a structure is something to chew on.
-				if has_assault and acost[aidx] != Grid.IMPASSABLE:
+				# With the siege surface up, its cost array answers "terrain or
+				# building" for free. Without it — the seconds between a spawn and
+				# the surface landing — ask [P11] directly rather than letting a
+				# pack mill about in front of a wall it is allowed to eat.
+				if not has_assault or acost[aidx] != Grid.IMPASSABLE:
 					blocker = int(sys.call("structure_at", Vector2i(acx, acy)))
 				if blocker == 0:
 					# Slide along the obstacle rather than grinding into it.

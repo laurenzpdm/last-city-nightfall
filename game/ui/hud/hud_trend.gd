@@ -101,14 +101,20 @@ func per_second(key: StringName) -> float:
 	return _slope_per_second.get(key, 0.0)
 
 
-## The fall per in-world minute that this class is willing to stand behind, or
-## 0.0 when nothing here is trustworthy. Always <= |per_minute|.
+## The SIGNED change per in-world minute this class is willing to stand behind:
+## negative for a real drain, positive for a real gain, 0.0 when the movement was
+## a step rather than a trend. Always no steeper than `per_minute()`.
 func sustained_per_minute(key: StringName) -> float:
 	return _drain_per_second.get(key, 0.0) * 60.0
 
 
 ## True when a countdown may be shown for this key at all.
 func is_draining(key: StringName) -> bool:
+	return _drain_per_second.get(key, 0.0) < 0.0
+
+
+## True when this key is reliably going up rather than having been topped up once.
+func is_filling(key: StringName) -> bool:
 	return _drain_per_second.get(key, 0.0) > 0.0
 
 
@@ -131,7 +137,7 @@ func direction(key: StringName, deadzone: float = 0.5) -> int:
 ## no honest prediction is available. The number that turns a stock into a
 ## deadline — and the number that has to be refused when it would be a lie.
 func seconds_to_zero(key: StringName) -> float:
-	var drain: float = _drain_per_second.get(key, 0.0)
+	var drain: float = -_drain_per_second.get(key, 0.0)
 	if drain <= 0.0:
 		return -1.0
 	var v: float = value(key)
@@ -144,7 +150,7 @@ func seconds_to_zero(key: StringName) -> float:
 ## uses it to hold a warning back until it is properly established.
 func confidence(key: StringName) -> float:
 	var ring: PackedFloat32Array = _values.get(key, PackedFloat32Array())
-	if ring.size() < 2 or _drain_per_second.get(key, 0.0) <= 0.0:
+	if ring.size() < 2 or is_zero_approx(_drain_per_second.get(key, 0.0)):
 		return 0.0
 	return clampf(float(ring.size()) / float(history_size), 0.0, 1.0)
 
@@ -202,8 +208,9 @@ func reset() -> void:
 
 # ==================================================================  internals =
 
-## The four gates, in the cheap-first order. Returns a POSITIVE drain per second,
-## or 0.0 for "do not predict from this".
+## The four gates, in the cheap-first order. Returns a SIGNED sustained rate per
+## second (negative = draining, positive = filling), or 0.0 for "this moved in a
+## step, do not build a prediction on it".
 func _measure_drain(ring: PackedFloat32Array) -> float:
 	var n: int = ring.size()
 	if n < PROJECTION_MIN_SAMPLES:
@@ -211,31 +218,37 @@ func _measure_drain(ring: PackedFloat32Array) -> float:
 	if float(n - 1) * sample_seconds < PROJECTION_MIN_SPAN:
 		return 0.0
 
-	# Gate 3 first: it is one pass and it rejects the common case (a purchase).
-	var falls: int = 0
-	for i: int in range(1, n):
-		if ring[i] < ring[i - 1]:
-			falls += 1
-	if float(falls) < float(n - 1) * SUSTAIN_SHARE:
-		return 0.0
-
 	var whole: float = _fit_slope(ring)
-	if whole >= 0.0:
+	if is_zero_approx(whole):
 		return 0.0
-	var half_from: int = n / 2
-	var recent: PackedFloat32Array = ring.slice(half_from)
-	var half: float = _fit_slope(recent)
-	if half >= 0.0:
+	var sign: float = signf(whole)
+
+	# Gate 3: moved REPEATEDLY, not once. A single 220-unit purchase inside a
+	# 30-sample window scores 1/29 and is refused here; a burner eating coal every
+	# tick scores ~1.0 and gets through. This is the gate that does the work.
+	var steps: int = 0
+	for i: int in range(1, n):
+		var d: float = ring[i] - ring[i - 1]
+		if d * sign > 0.0:
+			steps += 1
+	if float(steps) < float(n - 1) * SUSTAIN_SHARE:
 		return 0.0
 
-	var net_recent: float = ring[half_from] - ring[n - 1]
-	var floor_units: float = maxf(1.0, absf(ring[n - 1]) * NOISE_FLOOR_SHARE)
-	if net_recent < floor_units:
+	# Gate 2: still moving. A step that has since gone flat fails, because the
+	# recent half of the window is flat even though the whole of it is not.
+	var half_from: int = n / 2
+	var half: float = _fit_slope(ring.slice(half_from))
+	if half * sign <= 0.0:
+		return 0.0
+
+	# Gate 4: bigger than integer jitter.
+	var net_recent: float = (ring[n - 1] - ring[half_from]) * sign
+	if net_recent < maxf(1.0, absf(ring[n - 1]) * NOISE_FLOOR_SHARE):
 		return 0.0
 
 	# The shallower of the two, so a disagreement always resolves in the player's
 	# favour: a longer countdown, never a shorter one.
-	return -maxf(whole, half)
+	return sign * minf(absf(whole), absf(half))
 
 
 ## Least squares over evenly spaced samples. x is in seconds, so the slope comes

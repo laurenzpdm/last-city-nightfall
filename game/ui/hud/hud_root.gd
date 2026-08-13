@@ -71,6 +71,15 @@ var _last_layout: Vector2 = Vector2.ZERO
 var _footer_signature: String = ""
 
 
+## Name and layer are set in _init, not _ready: `LcnLayers.audit()` identifies a
+## canvas by node NAME, and boot runs that audit over a tree that may contain a
+## HUD which has not been notified yet. A node that only names itself once it is
+## ready is a node the allocation table cannot see.
+func _init() -> void:
+	name = "LcnHud"
+	layer = LAYER
+
+
 func _ready() -> void:
 	name = "LcnHud"
 	layer = LAYER

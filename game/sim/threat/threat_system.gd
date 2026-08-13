@@ -115,6 +115,13 @@ var _alive_at_dusk: int = 0
 var _kills_at_dusk: int = 0
 var _lost_at_dusk: int = 0
 var _breaches_at_dusk: int = 0
+var _damage_at_dusk: float = 0.0
+var _shots_at_dusk: int = 0
+var _heat_at_dusk: float = 0.0
+## One row per night that has ended: what came, what it cost, what the wall did.
+## This is the campaign's own record — the table a critic reads instead of
+## being told the fight is escalating.
+var _nights: Array[Dictionary] = []
 ## [P02]'s balance sheet, cached for the tick it was read on.
 var _totals: Dictionary = {}
 var _totals_tick: int = -1
@@ -459,15 +466,19 @@ func _distribute(p: WavePlan) -> void:
 		for i: int in p.vectors.size():
 			if counts[i] <= 0:
 				continue
-			var g := WaveGroup.new()
-			g.enemy = StringName(String(entry.get("enemy", "")))
-			g.count = counts[i]
-			g.cost = per_unit * float(counts[i])
-			g.vector = i
-			g.spawn_cell = p.vectors[i].entry_cell
-			p.spent += g.cost
-			rows.append({"g": g, "tier": def.tier if def != null else 1,
-				"cost": def.cost if def != null else 0.0})
+			# One packet per pulse, not one packet per kind. Fourteen hounds
+			# arriving on one tick is a blob the wall deletes in twenty seconds;
+			# the same fourteen in three pulses is a night.
+			for share: int in _pulses(counts[i]):
+				var g := WaveGroup.new()
+				g.enemy = StringName(String(entry.get("enemy", "")))
+				g.count = share
+				g.cost = per_unit * float(share)
+				g.vector = i
+				g.spawn_cell = p.vectors[i].entry_cell
+				p.spent += g.cost
+				rows.append({"g": g, "tier": def.tier if def != null else 1,
+					"cost": def.cost if def != null else 0.0})
 
 	# Arrival order: the small and the quick first, the heavy last. A night that
 	# opens with its anchor is one decision; a night that ends with it is five.
@@ -480,13 +491,51 @@ func _distribute(p: WavePlan) -> void:
 			return float(a["cost"]) < float(b["cost"])
 		if ga.vector != gb.vector:
 			return ga.vector < gb.vector
+		if ga.count != gb.count:
+			return ga.count > gb.count
 		return String(ga.enemy) < String(gb.enemy))
 
 	var n: int = rows.size()
 	for i: int in n:
 		var g2: WaveGroup = rows[i]["g"]
-		g2.delay_ticks = 0 if n <= 1 else int(round(float(_profile.spawn_window_ticks) * float(i) / float(n - 1)))
+		g2.delay_frac = 0.0 if n <= 1 else float(i) / float(n - 1)
+		g2.delay_ticks = int(round(float(_profile.spawn_window_ticks) * g2.delay_frac))
 		p.groups.append(g2)
+	_stamp_arrivals(p)
+
+
+## Splits one packet into pulses of at most `pulse_max_units`, largest first, so
+## the counts always add back up exactly and the split is identical everywhere.
+func _pulses(total: int) -> PackedInt32Array:
+	var out: PackedInt32Array = PackedInt32Array()
+	if total <= 0:
+		return out
+	var per: int = maxi(1, _profile.pulse_max_units)
+	var n: int = mini(_profile.pulses_max, (total + per - 1) / per)
+	if n <= 1:
+		out.append(total)
+		return out
+	var base: int = total / n
+	var extra: int = total % n
+	for i: int in n:
+		out.append(base + (1 if i < extra else 0))
+	return out
+
+
+## Turns each packet's place in the arrival window into a tick, against the
+## length of the night it will actually be fought in. Called again at nightfall,
+## when dawn_tick is known — before that it uses the profile's floor.
+func _stamp_arrivals(p: WavePlan) -> void:
+	var window: int = _profile.spawn_window_ticks
+	var night: int = p.dawn_tick - p.night_start_tick
+	if night > 0:
+		# The last packet still arrives with a real slice of the night left to
+		# fight it in, so a wave is never decided by the sunrise.
+		window = clampi(int(round(float(night) * _profile.spawn_window_share)),
+			mini(_profile.spawn_window_ticks, night / 2),
+			maxi(1, night - _profile.wave_settle_ticks * 2))
+	for g: WaveGroup in p.groups:
+		g.delay_ticks = int(round(float(window) * g.delay_frac))
 
 
 ## Largest-remainder split of `total` units over the vectors' shares. Every
@@ -633,6 +682,9 @@ func _begin_wave() -> void:
 	_wave_saw_night = _read_is_night()
 	_plan.night_start_tick = _tick
 	_plan.dawn_tick = _tick + _ticks_until_dawn()
+	# The length of the night is only knowable now. Re-stamp the arrivals against
+	# it so the attack is spread over THIS night rather than over a constant.
+	_stamp_arrivals(_plan)
 	_waves_started += 1
 	_night_samples = 0
 	_night_heat_ok = 0
@@ -641,6 +693,10 @@ func _begin_wave() -> void:
 	_kills_at_dusk = _combat_counter("kills")
 	_lost_at_dusk = _combat_counter("structures_lost")
 	_breaches_at_dusk = _combat_counter("breaches")
+	var d0: Dictionary = _defence_now()
+	_damage_at_dusk = float(d0.get("damage_taken", 0.0))
+	_shots_at_dusk = int(d0.get("shots", 0))
+	_heat_at_dusk = float(d0.get("heat_spent", 0.0))
 	_siege.begin(_plan)
 
 	var line: String = _format(_profile.wave_started_line, 3, 0.0)
@@ -684,6 +740,18 @@ func _run_wave(tick: int, night: bool) -> void:
 		return
 	elif tick - _night_start_tick > _profile.fallback_day_ticks:
 		# Safety valve: a wave that somehow never sees a night still ends.
+		_resolve_wave(true)
+		return
+
+	# THE WATCHDOG. Everything above depends on somebody else's clock — [P09]'s
+	# day, [P09]'s dawn, [P07]'s idea of what is still alive. This depends on
+	# nothing: a night that has run this long is a bug, it is said out loud as
+	# one, and the campaign carries on instead of freezing on wave two for ever.
+	if tick - _night_start_tick > _profile.wave_hard_timeout_ticks:
+		Log.error(TAG, ("wave %d has been live for %d ticks (limit %d) with %d unit(s) "
+			+ "still reported alive — resolving it by watchdog") % [
+			_plan.wave, tick - _night_start_tick, _profile.wave_hard_timeout_ticks,
+			_live_units()])
 		_resolve_wave(true)
 		return
 	# "Nothing is alive" only means the night is over once everything has been
@@ -767,11 +835,13 @@ func _check_breach() -> void:
 func _resolve_wave(at_dawn: bool) -> void:
 	var withdrew: int = 0
 	if at_dawn:
-		# The siege model sends survivors back onto the plain, because a wave has
-		# to end. When [P07] owns the bodies they simply stay where they are and
-		# become the day's problem — either way they are survivors, and the night
-		# is not counted as cleared.
-		withdrew = _siege.withdraw() if not _combat_resolves() else maxi(0, _live_units())
+		# Survivors go back onto the plain, because a wave has to END. Leaving
+		# [P07]'s bodies standing where they were and calling them "the day's
+		# problem" is what produced a keener that outlived its own night by six
+		# thousand ticks, ate a storage yard and a heat main at four damage a
+		# second, and kept `live` above zero so no later night could ever finish.
+		# A survivor is now ordered to break off and walk back out, visibly.
+		withdrew = _withdraw_survivors()
 	var night_ticks: int = maxi(1, _tick - _night_start_tick)
 	var heat_ok: int = night_ticks if _night_samples <= 0 else int(
 		round(float(night_ticks) * float(_night_heat_ok) / float(_night_samples)))
@@ -794,9 +864,34 @@ func _resolve_wave(at_dawn: bool) -> void:
 	var line: String = _profile.wave_cleared_line \
 		.replace("{wave}", str(_plan.wave)).replace("{detail}", detail)
 
+	var defence: Dictionary = _defence_delta()
+	_nights.append({
+		"night": _plan.wave,
+		"day": _plan.day,
+		"budget": snappedf(_plan.budget, 0.01),
+		"band": _plan.band_label(),
+		"set_piece": _plan.set_piece,
+		"vectors": _plan.direction_labels(),
+		"spawned": int(outcome.get("spawned", 0)),
+		"killed": int(outcome.get("killed", 0)),
+		"withdrew": withdrew,
+		"cleared": wiped,
+		"structures_lost": int(outcome.get("structures_lost", 0)),
+		"breached": bool(outcome.get("breached", false)),
+		"damage_taken": defence.get("damage_taken", 0.0),
+		"shots_fired": defence.get("shots", 0),
+		"heat_spent": defence.get("heat_spent", 0.0),
+		"turrets": defence.get("turrets", 0),
+		"cold_turrets": defence.get("cold", 0),
+		"engaged": defence.get("engaged", 0.0),
+		"night_ticks": int(outcome.get("night_ticks", 0)),
+		"comfort": record.get("comfort", 0.0),
+	})
+
 	_last_report = {
 		"wave": _plan.wave,
 		"day": _plan.day,
+		"defence": defence,
 		"budget": snappedf(_plan.budget, 0.01),
 		"breakdown": _plan.breakdown,
 		"set_piece": _plan.set_piece,
@@ -830,6 +925,26 @@ func _resolve_wave(at_dawn: bool) -> void:
 		_plan.wave, detail, float(record.get("comfort", 0.0)),
 		float(record.get("pressure_before", 1.0)), float(record.get("pressure_after", 1.0)),
 		_pressure.band_label()])
+
+
+## Sends whatever is left of the night home. Combat turns them around and walks
+## them off the map; the siege model melts them back into the dark. Either way
+## the field is empty afterwards and nothing survives into tomorrow.
+func _withdraw_survivors() -> int:
+	if not _combat_resolves():
+		return _siege.withdraw()
+	var live: int = maxi(0, _live_units())
+	if _combat.has_method("withdraw_wave"):
+		var t0: int = _extern_begin()
+		var n: int = int(_combat.call("withdraw_wave", -1))
+		_extern_end(t0)
+		return maxi(n, live)
+	# No withdrawal contract in this build of [P07]: say so rather than quietly
+	# leaving bodies standing on the map for the rest of the campaign.
+	if live > 0:
+		Log.warn(TAG, ("[P07] has no withdraw_wave(); %d survivor(s) of wave %d are being "
+			+ "left on the map") % [live, _plan.wave])
+	return live
 
 
 ## The night's numbers, from combat when it owns the field and from the siege

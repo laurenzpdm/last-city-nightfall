@@ -43,6 +43,9 @@ func _run() -> void:
 
 	await _settle(30)
 	await _shoot("00_opening", "the session as it opens")
+	# [P18] restores whatever the player left open last session, so a tour that
+	# assumed a clean desk would photograph a CLOSE and call it an open.
+	await _close_everything()
 
 	# --- the five [P18] screens, each on its own hotkey -----------------------
 	var index: int = 1
@@ -122,6 +125,15 @@ func _shoot(shot_name: String, caption: String) -> void:
 
 
 # ------------------------------------------------------------------ reading --
+
+func _close_everything() -> void:
+	if build_menu == null or not build_menu.has_method(&"open_panels"):
+		return
+	for _i: int in 8:
+		if (build_menu.call(&"open_panels") as Array).is_empty():
+			return
+		await _press(KEY_ESCAPE)
+
 
 func _panel_open(id: StringName) -> bool:
 	if build_menu == null or not build_menu.has_method(&"panel"):

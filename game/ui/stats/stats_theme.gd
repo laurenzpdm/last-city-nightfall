@@ -39,6 +39,15 @@ const TEXT_DIM: Color = Color(0.618, 0.688, 0.784)
 const TEXT_FAINT: Color = Color(0.420, 0.490, 0.596)
 const ACCENT: Color = Color(1.000, 0.541, 0.239)
 
+## Status hues, re-exported from the palette so a screen never reaches past this
+## file for a colour and the whole part shifts when the art direction does.
+const GOOD: Color = P.GOOD
+const WARN: Color = P.CAUTION
+const BAD: Color = P.DANGER
+const COOL: Color = P.ICE_BLUE
+const HOT: Color = P.WARM_EDGE
+const EMBER: Color = P.EMBER
+
 # --- metrics -----------------------------------------------------------------
 const PAD: float = 16.0
 const GAP: float = 8.0

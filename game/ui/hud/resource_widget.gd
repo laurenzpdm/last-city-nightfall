@@ -31,8 +31,9 @@ func signature() -> String:
 		return ""
 	var parts: PackedStringArray = PackedStringArray()
 	for id: StringName in _pick():
-		parts.append("%s:%d:%d" % [id, probe.stock.get(id, 0),
-			probe.trend.direction(id, _deadzone(id))])
+		parts.append("%s:%d:%d:%d" % [id, probe.stock.get(id, 0),
+			probe.trend.direction(id, _deadzone(id)),
+			int(roundf(probe.trend.sustained_per_minute(id)))])
 	return "|".join(parts)
 
 
@@ -68,19 +69,33 @@ func _chip_rect(i: int) -> Rect2:
 	return Rect2(PAD + float(i) * CHIP.x, _top, CHIP.x - 7.0, CHIP.y)
 
 
+## The tooltip is where the distinction between "what I measured" and "what I am
+## willing to predict" gets spelled out, because that is exactly the distinction
+## the old HUD collapsed. The window length is named so the player can judge the
+## claim rather than take it on trust.
 func _explain(id: StringName) -> String:
 	var amount: int = probe.stock.get(id, 0)
 	var per_minute: float = probe.trend.per_minute(id)
+	var window: String = LcnHudFormat.clock(probe.trend.span_seconds(id))
 	var body: String = "%s in store." % LcnHudFormat.count(amount)
-	if absf(per_minute) < _deadzone(id):
-		body += " Holding steady."
+	if probe.trend.samples(id) < 3:
+		body += " Not watched for long enough to say which way it is going yet."
+	elif absf(per_minute) < _deadzone(id):
+		body += " Holding steady over the last %s." % window
 	elif per_minute > 0.0:
-		body += " Rising by %s a minute." % LcnHudFormat.rate(per_minute)
+		body += " Up %s over the last %s." % [
+			LcnHudFormat.amount(per_minute * probe.trend.span_seconds(id) / 60.0), window]
 	else:
-		body += " Falling by %s a minute." % LcnHudFormat.rate(-per_minute)
+		body += " Down %s over the last %s." % [
+			LcnHudFormat.amount(-per_minute * probe.trend.span_seconds(id) / 60.0), window]
 		var empty: float = probe.trend.seconds_to_zero(id)
 		if empty >= 0.0:
-			body += " Empty in %s at this rate." % LcnHudFormat.clock(empty)
+			body += " It has been draining steadily at %s a minute, so at that rate " \
+				% LcnHudFormat.amount(probe.trend.sustained_per_minute(id))
+			body += "it is empty in %s." % LcnHudFormat.clock(empty)
+		else:
+			body += " That was spent rather than drained, so there is no countdown "
+			body += "on it."
 	return body + " Construction takes from this store; so does anything that "\
 		+ "burns it."
 
@@ -110,7 +125,6 @@ func _draw() -> void:
 
 func _draw_chip(id: StringName, rect: Rect2) -> void:
 	var amount: int = probe.stock.get(id, 0)
-	var per_minute: float = probe.trend.per_minute(id)
 	var dir: int = probe.trend.direction(id, _deadzone(id))
 	var empty_in: float = probe.trend.seconds_to_zero(id)
 	var alarmed: bool = amount == 0 or (empty_in >= 0.0 and empty_in < 180.0)
@@ -136,9 +150,17 @@ func _draw_chip(id: StringName, rect: Rect2) -> void:
 	elif dir < 0:
 		arrow_col = style.sev_colour(S.Sev.WARN if not alarmed else S.Sev.DANGER)
 	style.draw_arrow(self, Vector2(x + 4.0, baseline - 5.0), dir, 8.0, arrow_col)
-	if dir != 0:
+	# The NUMBER only appears for a rate that survived LcnHudTrend's gates. A
+	# one-off spend still tilts the arrow — the stock really did move — but it no
+	# longer prints "▼ 1.1k" beside a stock of 495 that is about to sit flat for
+	# three minutes. The tooltip carries the measured window either way.
+	var sustained: float = probe.trend.sustained_per_minute(id)
+	if dir != 0 and absf(sustained) >= 0.05:
 		style.draw_text(self, Vector2(x + 13.0, baseline),
-			LcnHudFormat.rate(absf(per_minute)), style.fs(11), arrow_col)
+			LcnHudFormat.rate(absf(sustained)), style.fs(11), arrow_col)
+	elif dir != 0:
+		style.draw_text(self, Vector2(x + 13.0, baseline), "—", style.fs(11),
+			style.ink_faint())
 
 
 ## A shape per material family, so the rail can be read at a glance without

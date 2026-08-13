@@ -118,6 +118,8 @@ var _waves: Dictionary[int, Dictionary] = {}
 var _tags_cache: Array[StringName] = []
 ## Gates ordered open or shut before the siege surface existed.
 var _pending_gates: Dictionary[int, bool] = {}
+## Watchdog findings said out loud so far this run.
+var _watchdog_seen: int = 0
 
 
 func _init() -> void:
@@ -155,6 +157,7 @@ func setup() -> void:
 	_waves.clear()
 	_discontent_carry = 0.0
 	_handover_logged = false
+	_watchdog_seen = 0
 
 	for problem: String in swarm.load_defs():
 		Log.error(TAG, "enemy content rejected — %s" % problem)
@@ -467,6 +470,8 @@ func defence_report() -> Dictionary:
 		"dry": dry,
 		"offline": off,
 		"uptime": snappedf(battery.uptime(), 0.001),
+		"engaged": snappedf(battery.engagement(), 0.001),
+		"shots": battery.shots_fired,
 		"heat_spent": snappedf(battery.heat_spent, 0.1),
 		"first_cold": [first_cold.x, first_cold.y],
 	}
@@ -1509,6 +1514,10 @@ func serialize() -> Dictionary:
 		"next_id": _next_id,
 		"kills": swarm.kills,
 		"leaked": swarm.leaked,
+		"withdrawn": swarm.withdrawn,
+		"stalls": swarm.stalls,
+		"stalls_resolved": swarm.stalls_resolved,
+		"retreating": swarm.retreating_count(),
 		"damage_taken": snappedf(damage_taken, 0.01),
 		"damage_dealt": snappedf(battery.damage_dealt, 0.01),
 		"enemy_damage": snappedf(swarm.damage_dealt, 0.01),
@@ -1535,6 +1544,9 @@ func deserialize(data: Dictionary) -> void:
 	_next_id = maxi(ENEMY_ID_BASE, int(data.get("next_id", ENEMY_ID_BASE)))
 	swarm.kills = int(data.get("kills", 0))
 	swarm.leaked = int(data.get("leaked", 0))
+	swarm.withdrawn = int(data.get("withdrawn", 0))
+	swarm.stalls = int(data.get("stalls", 0))
+	swarm.stalls_resolved = int(data.get("stalls_resolved", 0))
 	damage_taken = float(data.get("damage_taken", 0.0))
 	battery.damage_dealt = float(data.get("damage_dealt", 0.0))
 	swarm.damage_dealt = float(data.get("enemy_damage", 0.0))
@@ -1566,11 +1578,16 @@ func metrics() -> Dictionary:
 	# No wall-clock column: tools/determinism.sh diffs metrics.csv, and a timing
 	# number in a diffed artifact is a tripwire. _step_us lives in the log only.
 	return {
-		"enemies_alive": swarm.count,
+		"enemies_alive": swarm.fighting_count(),
+		"bodies": swarm.count,
 		"kills": swarm.kills,
+		"withdrawn": swarm.withdrawn,
+		"stalls": swarm.stalls,
 		"damage_taken": snappedf(damage_taken, 0.01),
 		"damage_dealt": snappedf(battery.damage_dealt, 0.01),
 		"turret_uptime": snappedf(battery.uptime(), 0.0001),
+		"turret_engaged": snappedf(battery.engagement(), 0.0001),
+		"shots_fired": battery.shots_fired,
 		"heat_spent_on_defence": snappedf(battery.heat_spent, 0.01),
 		"turrets": battery.count(),
 		"projectiles": shells.count,
