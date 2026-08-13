@@ -5,15 +5,13 @@ extends RefCounted
 
 var id: int = 0
 
-# --- cached routing (rebuilt only when the graph or the live source set moves) ---
-var dist: Dictionary[int, int] = {}
-var eta: Dictionary[int, float] = {}
-var parent: Dictionary[int, int] = {}
-var root: Dictionary[int, int] = {}
-var paths: Dictionary[int, PackedInt32Array] = {}
-var route_version: int = -1     ## graph version the routing was built from
-var route_sig: int = 0          ## hash of the live source set
-var route_dirty: bool = true    ## set when an in-tick reroute overwrote the cache
+# --- dense topology + cached routing -----------------------------------------
+# `topo` holds the index space, the CSR adjacency and BOTH routing solutions:
+# the cross-tick cache and the in-tick residual scratch. Keeping them apart is
+# why a network running a deficit no longer re-routes from scratch every tick.
+var topo: HeatTopology = null
+var route_sig: int = 0          ## hash of every routing-relevant gate
+var route_dirty: bool = true    ## something changed that the signature cannot see
 var routed_ticks: int = 0       ## how often we had to rebuild — a perf tell
 
 # --- last solved balance sheet ---
@@ -43,12 +41,23 @@ func _init(net_id: int) -> void:
 	id = net_id
 
 
+## The dense view of this network, rebuilt only when the graph version moves.
+## Everything expensive about a solve is addressed through this.
+func topology(members: PackedInt32Array, nodes: Dictionary[int, HeatNode],
+		neigh: Dictionary[int, PackedInt32Array], graph_version: int) -> HeatTopology:
+	if topo == null:
+		topo = HeatTopology.new()
+	if not topo.matches(graph_version, members):
+		topo.build(members, nodes, neigh, graph_version)
+		route_dirty = true
+	return topo
+
+
 func clear_routing() -> void:
-	dist.clear()
-	eta.clear()
-	parent.clear()
-	root.clear()
-	paths.clear()
+	if topo != null:
+		topo.primary.valid = false
+		topo.primary.bump()
+		topo.scratch.bump()
 	route_dirty = true
 
 

@@ -35,6 +35,25 @@ extends RefCounted
 ## tile `n` on its path is `eta[n] * (rem / eta)`. That one identity keeps the
 ## whole solve linear — no per-edge bookkeeping, and conservation holds by
 ## construction: delivered + loss == drawn.
+##
+## HOW IT IS REPRESENTED, AND WHY THAT IS PART OF THE DESIGN
+## Every table here is a PackedArray addressed by a LOCAL NODE INDEX handed out
+## by HeatTopology in ascending building-id order, not a Dictionary keyed by
+## building id. Two consequences, both load-bearing:
+##
+##   * Determinism stops depending on remembering to sort. Iterating 0..n-1 is
+##     iterating in sorted-id order by construction, so the `keys.sort()` calls
+##     that used to guard every dictionary walk are gone rather than trusted —
+##     including the one that sat INSIDE the progressive-filling round loop,
+##     re-sorting a thousand keys twelve times per tier per pass for an order
+##     that could not change.
+##   * The solve got roughly five times cheaper. A hashed lookup and a method
+##     call per graph edge is what made a 1400-node network cost 24 ms a tick.
+##
+## The residual reroutes in step 3 write to a SEPARATE routing object from the
+## cross-tick cache (HeatTopology.scratch vs .primary), so a network that runs a
+## deficit no longer invalidates its own routing every tick. That single change
+## is worth more than every micro-optimisation in this file.
 
 const EPS: float = 0.000001
 const BIG: float = 1.0e12
@@ -43,35 +62,58 @@ const MAX_PASSES: int = 3        ## rerouting attempts per tier
 const MAX_LEVELS: int = 8192
 const LOCAL_RECHARGE_RATE: float = 0.08  ## fraction of a building's own store per second
 
+## Bottleneck reasons, stored as bytes on the hot path and worded on the way out.
+const B_NONE: int = 0
+const B_CAPACITY: int = 1
+const B_SUPPLY: int = 2
+
 var _nodes: Dictionary[int, HeatNode] = {}
-var _neigh: Dictionary[int, PackedInt32Array] = {}
 var _net: HeatNetwork = null
+var _topo: HeatTopology = null
+var _n: int = 0
 var _dt: float = 0.05
 
-# routing — either aliases into the network's cross-tick cache, or scratch
-var _dist: Dictionary[int, int] = {}
-var _eta: Dictionary[int, float] = {}
-var _parent: Dictionary[int, int] = {}
-var _root: Dictionary[int, int] = {}
-var _paths: Dictionary[int, PackedInt32Array] = {}
+# --- current routing ----------------------------------------------------------
+# Either the network's cross-tick cache or the residual scratch. The PackedArrays
+# are read-only aliases (CoW keeps that free); `_route_cur` is the object that
+# owns the lazily-built path cache, which is an Array and therefore aliases by
+# reference exactly like the dictionary it replaced.
+var _route_cur: HeatRoute = null
+var _dist: PackedInt32Array = PackedInt32Array()
+var _eta: PackedFloat64Array = PackedFloat64Array()
+var _parent: PackedInt32Array = PackedInt32Array()
 
-# per-solve scratch
-var _cap: Dictionary[int, float] = {}          ## residual throughput per tile
-var _cap_full: Dictionary[int, float] = {}     ## nominal throughput per tile
-var _avail: Dictionary[int, float] = {}        ## residual availability per live source
-var _prod_avail: Dictionary[int, float] = {}   ## producer share offered this tick
-var _buf_avail: Dictionary[int, float] = {}    ## buffer share offered in phase B
-var _load: Dictionary[int, float] = {}         ## flow that actually passed a tile
-var _rem: Dictionary[int, float] = {}          ## unmet demand per sink, u/s
-var _got: Dictionary[int, float] = {}          ## delivered per sink, u/s
-var _acc: Dictionary[int, float] = {}          ## per-round accumulator
-var _choked: Dictionary[int, int] = {}         ## tile id -> consumers it choked
-var _choked_kind: Dictionary[int, StringName] = {}
+# --- per-solve scratch, grown to the largest network ever solved --------------
+var _size: int = 0
+var _cap: PackedFloat64Array = PackedFloat64Array()       ## residual throughput per tile
+var _cap_full: PackedFloat64Array = PackedFloat64Array()  ## nominal throughput per tile
+var _avail: PackedFloat64Array = PackedFloat64Array()     ## residual availability per source
+var _has_avail: PackedByteArray = PackedByteArray()       ## it IS a source, even at zero left
+var _prod_avail: PackedFloat64Array = PackedFloat64Array()## producer share offered this tick
+var _buf_avail: PackedFloat64Array = PackedFloat64Array() ## buffer share offered in phase B
+var _load: PackedFloat64Array = PackedFloat64Array()      ## flow that actually passed a tile
+var _rem: PackedFloat64Array = PackedFloat64Array()       ## unmet demand per sink, u/s
+var _got: PackedFloat64Array = PackedFloat64Array()       ## delivered per sink, u/s
+var _acc: PackedFloat64Array = PackedFloat64Array()       ## per-round accumulator
+var _choked: PackedInt32Array = PackedInt32Array()        ## consumers this tile choked
+var _choked_kind: PackedByteArray = PackedByteArray()
+var _eta_mult: PackedFloat64Array = PackedFloat64Array()  ## per-tile efficiency factor
+var _eta_reset: PackedByteArray = PackedByteArray()       ## a live repeater restores 1.0
+var _mark: PackedInt32Array = PackedInt32Array()          ## stamp for the touched-node union
+var _mark_epoch: int = 0
 
+# --- BFS scratch, likewise grown once -----------------------------------------
+var _cand_eta: PackedFloat64Array = PackedFloat64Array()
+var _cand_par: PackedInt32Array = PackedInt32Array()
+var _cand_mark: PackedInt32Array = PackedInt32Array()
+var _cand_epoch: int = 0
+
+var _avail_ids: PackedInt32Array = PackedInt32Array()
 var _producers: PackedInt32Array = PackedInt32Array()
 var _buffers: PackedInt32Array = PackedInt32Array()
 var _sinks: PackedInt32Array = PackedInt32Array()
-var _tiers: Array[int] = []
+var _choked_list: PackedInt32Array = PackedInt32Array()
+var _tiers: PackedInt32Array = PackedInt32Array()
 var _tier_members: Dictionary[int, PackedInt32Array] = {}
 var _loss_acc: float = 0.0
 ## Hash of every routing-relevant gate this tick. See solve().
@@ -95,11 +137,13 @@ func solve(net: HeatNetwork, members: PackedInt32Array, nodes: Dictionary[int, H
 		neigh: Dictionary[int, PackedInt32Array], dt: float, cold_mult: float,
 		graph_version: int, autarky: bool) -> void:
 	_nodes = nodes
-	_neigh = neigh
 	_net = net
 	_dt = dt
+	_topo = net.topology(members, nodes, neigh, graph_version)
+	_n = _topo.count
+	_grow(_n)
 	_reset()
-	_classify(members, cold_mult, autarky)
+	_classify(cold_mult, autarky)
 
 	var live: PackedInt32Array = _live_sources(_producers)
 	# The cache key has to cover EVERYTHING the router branches on, not just which
@@ -107,41 +151,69 @@ func solve(net: HeatNetwork, members: PackedInt32Array, nodes: Dictionary[int, H
 	# pump all change the routes. Keying on sources alone made identical world
 	# state produce two different answers depending on cache history.
 	var sig: int = _route_sig
-	if net.route_dirty or net.route_version != graph_version or net.route_sig != sig:
+	if not _topo.primary.valid or net.route_dirty or net.route_sig != sig:
 		_route(live, false)
-		net.route_version = graph_version
 		net.route_sig = sig
+		net.route_dirty = false
 		net.routed_ticks += 1
 	else:
-		_dist = net.dist
-		_eta = net.eta
-		_parent = net.parent
-		_root = net.root
-		_paths = net.paths
+		_use_route(_topo.primary)
 
 	for tier: int in _tiers:
 		_serve_tier(_tier_members[tier])
 	_phase_buffers()
-	_phase_charge(members)
-	_write_back(members)
+	_phase_charge()
+	_write_back()
+
+
+## Grows every scratch table to hold the largest network solved so far. Nothing
+## ever shrinks: a tick that solves six networks then reuses the same buffers,
+## and .fill() on the whole array is a memset, so the slack costs nothing.
+func _grow(n: int) -> void:
+	if n <= _size:
+		return
+	_size = n
+	_cap.resize(n)
+	_cap_full.resize(n)
+	_avail.resize(n)
+	_has_avail.resize(n)
+	_prod_avail.resize(n)
+	_buf_avail.resize(n)
+	_load.resize(n)
+	_rem.resize(n)
+	_got.resize(n)
+	_acc.resize(n)
+	_choked.resize(n)
+	_choked_kind.resize(n)
+	_eta_mult.resize(n)
+	_eta_reset.resize(n)
+	_mark.resize(n)
+	_cand_eta.resize(n)
+	_cand_par.resize(n)
+	_cand_mark.resize(n)
+	_mark.fill(-1)
+	_cand_mark.fill(-1)
 
 
 func _reset() -> void:
-	_cap.clear()
-	_cap_full.clear()
-	_avail.clear()
-	_prod_avail.clear()
-	_buf_avail.clear()
-	_load.clear()
-	_rem.clear()
-	_got.clear()
-	_acc.clear()
-	_choked.clear()
-	_choked_kind.clear()
-	_producers = PackedInt32Array()
-	_buffers = PackedInt32Array()
-	_sinks = PackedInt32Array()
-	_tiers = []
+	_cap.fill(0.0)
+	_cap_full.fill(0.0)
+	_avail.fill(0.0)
+	_has_avail.fill(0)
+	_prod_avail.fill(0.0)
+	_buf_avail.fill(0.0)
+	_load.fill(0.0)
+	_rem.fill(0.0)
+	_got.fill(0.0)
+	_acc.fill(0.0)
+	_choked.fill(0)
+	_choked_kind.fill(0)
+	_choked_list.resize(0)
+	_avail_ids.resize(0)
+	_producers.resize(0)
+	_buffers.resize(0)
+	_sinks.resize(0)
+	_tiers.resize(0)
 	_tier_members.clear()
 	_loss_acc = 0.0
 	_route_sig = 1469598103
@@ -151,8 +223,14 @@ func _reset() -> void:
 
 
 ## Classifies every member, sizes this tick's supply and demand, and fills the
-## per-tile capacity table. Members arrive sorted, so everything downstream is.
-func _classify(members: PackedInt32Array, cold_mult: float, autarky: bool) -> void:
+## per-tile capacity table. Local indices ascend with building id, so everything
+## downstream of here is in a stable order without a single sort.
+func _classify(cold_mult: float, autarky: bool) -> void:
+	var topo: HeatTopology = _topo
+	var ids: PackedInt32Array = topo.ids
+	var conducts: PackedByteArray = topo.conducts
+	var loss: PackedFloat64Array = topo.loss_per_tile
+	var refs: Array[HeatNode] = topo.refs
 	var supply: float = 0.0
 	var demand: float = 0.0
 	var buffer: float = 0.0
@@ -160,28 +238,40 @@ func _classify(members: PackedInt32Array, cold_mult: float, autarky: bool) -> vo
 	var producers: int = 0
 	var consumers: int = 0
 	var by_tier: Dictionary[int, Array] = {}
+	var sig: int = _route_sig
 
-	for id: int in members:
-		var n: HeatNode = _nodes[id]
+	for i: int in _n:
+		var bid: int = ids[i]
+		var n: HeatNode = refs[i]
 		var d: HeatDef = n.def
 		n.delivered = 0.0
 		n.throughput = 0.0
 		n.bottleneck_node = -1
 		n.bottleneck_kind = &""
-		if d.conducts():
+		if conducts[i] != 0:
 			# A conduit that is switched off or frozen carries nothing. Without this
 			# the player-facing switch was inert for every pipe, buffer and pump in
 			# the game, and a frozen trunk kept conducting at full throughput.
-			_cap_full[id] = d.capacity * tech_throughput if (n.enabled and not n.frozen) else 0.0
-			if _cap_full[id] > EPS:
-				_route_sig = ((_route_sig * 31) ^ (id * 4 + 1)) & 0x7FFFFFFF
-				if d.repeater and n.repeater_live:
-					_route_sig = ((_route_sig * 31) ^ (id * 4 + 2)) & 0x7FFFFFFF
+			var cap: float = d.capacity * tech_throughput if (n.enabled and not n.frozen) else 0.0
+			_cap_full[i] = cap
+			var boosting: bool = topo.repeater[i] != 0 and n.repeater_live
+			if cap > EPS:
+				sig = ((sig * 31) ^ (bid * 4 + 1)) & 0x7FFFFFFF
+				if boosting:
+					sig = ((sig * 31) ^ (bid * 4 + 2)) & 0x7FFFFFFF
+			if boosting:
+				_eta_reset[i] = 1
+				_eta_mult[i] = 1.0
+			else:
+				_eta_reset[i] = 0
+				_eta_mult[i] = 1.0 - clampf(loss[i] * tech_loss, 0.0, 0.95)
 		else:
-			_cap_full[id] = BIG
-		_cap[id] = _cap_full[id]
+			_cap_full[i] = BIG
+			_eta_reset[i] = 0
+			_eta_mult[i] = 1.0
+		_cap[i] = _cap_full[i]
 
-		if d.is_producer():
+		if topo.producer[i] != 0:
 			producers += 1
 			n.fuel_factor = _fuel_factor(n, autarky)
 			var peak: float = d.output * n.site_bonus * tech_output
@@ -190,18 +280,20 @@ func _classify(members: PackedInt32Array, cold_mult: float, autarky: bool) -> vo
 			if not n.enabled or n.frozen:
 				avail = 0.0
 			if avail > EPS:
-				_prod_avail[id] = avail
-				_avail[id] = avail
-				_producers.append(id)
-				_route_sig = ((_route_sig * 31) ^ (id * 4 + 3)) & 0x7FFFFFFF
+				_prod_avail[i] = avail
+				_avail[i] = avail
+				_has_avail[i] = 1
+				_avail_ids.append(i)
+				_producers.append(i)
+				sig = ((sig * 31) ^ (bid * 4 + 3)) & 0x7FFFFFFF
 			supply += avail
-		if d.is_buffer():
+		if topo.buffer[i] != 0:
 			buffer += n.stored
 			buffer_cap += d.storage * tech_buffer
 			if n.enabled and not n.frozen:
-				_buffers.append(id)
+				_buffers.append(i)
 
-		if d.is_consumer():
+		if topo.consumer[i] != 0:
 			consumers += 1
 			var base: float = d.demand * tech_demand \
 				* (1.0 + (cold_mult - 1.0) * d.cold_sensitivity)
@@ -221,8 +313,8 @@ func _classify(members: PackedInt32Array, cold_mult: float, autarky: bool) -> vo
 			n.demand = base + recharge
 			if n.demand > EPS:
 				demand += n.demand
-				_rem[id] = n.demand
-				_got[id] = 0.0
+				_rem[i] = n.demand
+				_got[i] = 0.0
 				# A machine that BOTH makes and burns heat serves itself first,
 				# at no transmission loss, and only then queues for the network.
 				# Without this it was seeded as its own BFS root, became its own
@@ -231,17 +323,20 @@ func _classify(members: PackedInt32Array, cold_mult: float, autarky: bool) -> vo
 				# 4, consumes 14) ran at 27% forever and blamed itself in its own
 				# bottleneck report. Self-service is also physically the truth —
 				# the heat never leaves the building.
-				if d.is_producer():
-					var own: float = minf(_avail.get(id, 0.0), n.demand)
+				if topo.producer[i] != 0:
+					var own: float = minf(_avail[i], n.demand)
 					if own > EPS:
-						_got[id] = own
-						_rem[id] = n.demand - own
-						_avail[id] = _avail[id] - own
-						if _avail[id] <= EPS:
-							_avail.erase(id)
-				_sinks.append(id)
+						_got[i] = own
+						_rem[i] = n.demand - own
+						_avail[i] = _avail[i] - own
+						if _avail[i] <= EPS:
+							_avail[i] = 0.0
+							_has_avail[i] = 0
+				_sinks.append(i)
+				# Array, not PackedInt32Array: a packed array inside a Dictionary
+				# copies on write, which would make this grouping quadratic.
 				var tier: Array = by_tier.get(n.priority, [])
-				tier.append(id)
+				tier.append(i)
 				by_tier[n.priority] = tier
 			else:
 				n.served = 1.0
@@ -250,17 +345,21 @@ func _classify(members: PackedInt32Array, cold_mult: float, autarky: bool) -> vo
 			n.demand = 0.0
 			n.served = 1.0
 
+	# Research moves transmission loss and conduit capacity, and both of those
+	# decide routes. Folding them into the signature is what makes a finished
+	# node reroute the grid instead of waiting for the next placement.
+	sig = ((sig * 31) ^ (hash(tech_loss) & 0x7FFFFFFF)) & 0x7FFFFFFF
+	sig = ((sig * 31) ^ (hash(tech_throughput) & 0x7FFFFFFF)) & 0x7FFFFFFF
+	_route_sig = sig
+
 	var tiers: Array = by_tier.keys()
 	tiers.sort()
 	tiers.reverse()
 	for t: int in tiers:
 		_tiers.append(t)
-		var ids: Array = by_tier[t]
-		ids.sort()
-		var arr: PackedInt32Array = PackedInt32Array()
-		for i: int in ids:
-			arr.append(i)
-		_tier_members[t] = arr
+		# Members were appended in ascending local index, which is ascending
+		# building id — already the order the old code paid a sort to reach.
+		_tier_members[t] = PackedInt32Array(by_tier[t])
 
 	_net.supply = supply
 	_net.demand = demand
@@ -286,118 +385,135 @@ func _fuel_factor(n: HeatNode, autarky: bool) -> float:
 
 func _live_sources(candidates: PackedInt32Array) -> PackedInt32Array:
 	var out: PackedInt32Array = PackedInt32Array()
-	for id: int in candidates:
-		if _avail.get(id, 0.0) > EPS:
-			out.append(id)
-	return out
-
-
-func _all_source_ids() -> PackedInt32Array:
-	var keys: Array = _avail.keys()
-	keys.sort()
-	var out: PackedInt32Array = PackedInt32Array()
-	for k: int in keys:
-		out.append(k)
+	for i: int in candidates:
+		if _avail[i] > EPS:
+			out.append(i)
 	return out
 
 
 # --- routing --------------------------------------------------------------
 
+## Points the solver at an already-laid routing solution without recomputing it.
+func _use_route(r: HeatRoute) -> void:
+	_route_cur = r
+	_dist = r.dist
+	_eta = r.eta
+	_parent = r.parent
+
+
 ## Level-synchronous multi-source BFS. Exact for "fewest hops, then best
 ## efficiency", because efficiency only shrinks along a path: the best route of
 ## length L+1 must extend a best route of length L.
+##
+## `residual` picks the scratch routing object instead of the cross-tick cache.
+## The two are separate storage on purpose — an in-tick reroute over the
+## saturated graph is a different answer to a different question, and letting it
+## overwrite the cache is what used to force a full BFS every tick for any
+## network carrying a deficit.
 func _route(seeds: PackedInt32Array, residual: bool) -> void:
-	if residual:
-		# Residual routing is scratch, never the cross-tick cache.
-		_dist = {}
-		_eta = {}
-		_parent = {}
-		_root = {}
-		_paths = {}
-		_net.route_dirty = true
-	else:
-		_net.clear_routing()
-		_dist = _net.dist
-		_eta = _net.eta
-		_parent = _net.parent
-		_root = _net.root
-		_paths = _net.paths
-		_net.route_dirty = false
+	var topo: HeatTopology = _topo
+	var r: HeatRoute = topo.scratch if residual else topo.primary
+
+	var dist: PackedInt32Array = r.dist
+	var eta: PackedFloat64Array = r.eta
+	var parent: PackedInt32Array = r.parent
+	var root: PackedInt32Array = r.root
+	dist.fill(-1)
+	eta.fill(1.0)
+	parent.fill(-1)
+	root.fill(-1)
 
 	var frontier: PackedInt32Array = seeds.duplicate()
 	frontier.sort()
 	for s: int in frontier:
-		_dist[s] = 0
-		_eta[s] = 1.0
-		_parent[s] = -1
-		_root[s] = s
+		dist[s] = 0
+		eta[s] = 1.0
+		parent[s] = -1
+		root[s] = s
 
+	var nb_start: PackedInt32Array = topo.nb_start
+	var nb_list: PackedInt32Array = topo.nb_list
+	var conducts: PackedByteArray = topo.conducts
 	var level: int = 0
 	while not frontier.is_empty() and level < MAX_LEVELS:
-		var cand_eta: Dictionary[int, float] = {}
-		var cand_par: Dictionary[int, int] = {}
+		_cand_epoch += 1
+		var epoch: int = _cand_epoch
+		var touched: PackedInt32Array = PackedInt32Array()
 		for u: int in frontier:
-			var nu: HeatNode = _nodes[u]
-			var u_conducts: bool = nu.def.conducts()
+			var u_conducts: bool = conducts[u] != 0
 			# Only a conductor forwards heat. A source that is not a conductor
 			# (a lone hearth) still pushes into whatever conductor touches it.
-			if not u_conducts and _dist[u] != 0:
+			if not u_conducts and dist[u] != 0:
 				continue
-			if u_conducts and _cap.get(u, 0.0) <= EPS:
+			if u_conducts and _cap[u] <= EPS:
 				continue
-			var eu: float = _eta[u]
-			for v: int in _neigh.get(u, PackedInt32Array()):
-				if _dist.has(v):
+			var eu: float = eta[u]
+			var e: int = nb_start[u]
+			var e_end: int = nb_start[u + 1]
+			while e < e_end:
+				var v: int = nb_list[e]
+				e += 1
+				if dist[v] >= 0:
 					continue
-				var nv: HeatNode = _nodes.get(v)
-				if nv == null:
+				var v_conducts: bool = conducts[v] != 0
+				if v_conducts and _cap[v] <= EPS:
 					continue
-				var v_conducts: bool = nv.def.conducts()
-				if v_conducts and _cap.get(v, 0.0) <= EPS:
-					continue
+
 				var ev: float = eu
 				if v_conducts:
-					if nv.def.repeater and nv.repeater_live:
-						ev = 1.0
-					else:
-						ev = eu * (1.0 - clampf(nv.def.loss_per_tile * tech_loss, 0.0, 0.95))
-				var have: float = cand_eta.get(v, -1.0)
-				if ev > have + EPS or (absf(ev - have) <= EPS and u < cand_par.get(v, 0x7FFFFFFF)):
-					cand_eta[v] = ev
-					cand_par[v] = u
-		var keys: Array = cand_eta.keys()
-		keys.sort()
+					ev = 1.0 if _eta_reset[v] != 0 else eu * _eta_mult[v]
+				if _cand_mark[v] != epoch:
+					_cand_mark[v] = epoch
+					_cand_eta[v] = ev
+					_cand_par[v] = u
+					touched.append(v)
+				else:
+					var have: float = _cand_eta[v]
+					if ev > have + EPS or (absf(ev - have) <= EPS and u < _cand_par[v]):
+						_cand_eta[v] = ev
+						_cand_par[v] = u
+		# Ascending local index is ascending building id, so the level is settled
+		# in the same stable order the old sorted key walk produced.
+		touched.sort()
 		var next_frontier: PackedInt32Array = PackedInt32Array()
-		for v: int in keys:
-			_dist[v] = level + 1
-			_eta[v] = cand_eta[v]
-			_parent[v] = cand_par[v]
-			_root[v] = _root[cand_par[v]]
+		for v: int in touched:
+			dist[v] = level + 1
+			eta[v] = _cand_eta[v]
+			parent[v] = _cand_par[v]
+			root[v] = root[_cand_par[v]]
 			next_frontier.append(v)
 		frontier = next_frontier
 		level += 1
+
+	r.dist = dist
+	r.eta = eta
+	r.parent = parent
+	r.root = root
+	r.valid = true
+	r.bump()
+	_use_route(r)
 
 
 ## Path from a sink up to its source, source last. The sink itself is on the
 ## path when it conducts (its own throughput limits its intake) or when it is
 ## its own source (a generator that also consumes).
 func _path_for(sink: int) -> PackedInt32Array:
-	var cached: PackedInt32Array = _paths.get(sink, PackedInt32Array())
-	if not cached.is_empty():
-		return cached
-	if not _dist.has(sink):
+	var r: HeatRoute = _route_cur
+	if r.stamp[sink] == r.epoch:
+		return r.paths[sink]
+	if _dist[sink] < 0:
 		return PackedInt32Array()
 	var p: PackedInt32Array = PackedInt32Array()
-	var n: HeatNode = _nodes[sink]
-	if n.def.conducts() or _avail.has(sink):
+	if _topo.conducts[sink] != 0 or _has_avail[sink] != 0:
 		p.append(sink)
-	var cur: int = _parent.get(sink, -1)
+	var cur: int = _parent[sink]
 	var guard: int = 0
 	while cur >= 0 and guard < MAX_LEVELS:
 		p.append(cur)
-		cur = _parent.get(cur, -1)
+		cur = _parent[cur]
 		guard += 1
-	_paths[sink] = p
+	r.paths[sink] = p
+	r.stamp[sink] = r.epoch
 	return p
 
 
@@ -412,7 +528,7 @@ func _serve_tier(tier: PackedInt32Array) -> void:
 			return
 		if pass_i == MAX_PASSES - 1:
 			return
-		var live: PackedInt32Array = _live_sources(_all_source_ids())
+		var live: PackedInt32Array = _live_sources(_avail_ids)
 		if live.is_empty():
 			return
 		_route(live, true)
@@ -421,7 +537,7 @@ func _serve_tier(tier: PackedInt32Array) -> void:
 func _tier_unmet(tier: PackedInt32Array) -> float:
 	var s: float = 0.0
 	for c: int in tier:
-		s += _rem.get(c, 0.0)
+		s += _rem[c]
 	return s
 
 
@@ -430,10 +546,10 @@ func _tier_unmet(tier: PackedInt32Array) -> float:
 func _fill(tier: PackedInt32Array) -> bool:
 	var active: PackedInt32Array = PackedInt32Array()
 	for c: int in tier:
-		if _rem.get(c, 0.0) <= EPS:
+		if _rem[c] <= EPS:
 			continue
 		if _path_for(c).is_empty():
-			var un: HeatNode = _nodes[c]
+			var un: HeatNode = _topo.refs[c]
 			if un.bottleneck_node < 0:
 				un.bottleneck_kind = &"unreachable"
 			continue
@@ -441,57 +557,71 @@ func _fill(tier: PackedInt32Array) -> bool:
 	if active.is_empty():
 		return false
 
+	# The union of every active path, sorted ONCE. `active` only ever shrinks
+	# across rounds, so this superset stays correct for all of them and a node
+	# that drops out simply accumulates zero and is skipped. The old code
+	# rebuilt and re-sorted this key set inside the round loop — twelve sorts of
+	# a thousand keys per tier per pass, for an order that cannot change.
+	_mark_epoch += 1
+	var epoch: int = _mark_epoch
+	var touched: PackedInt32Array = PackedInt32Array()
+	var r: HeatRoute = _route_cur
+	for c: int in active:
+		for node: int in r.paths[c]:
+			if _mark[node] != epoch:
+				_mark[node] = epoch
+				touched.append(node)
+	touched.sort()
+
 	var saturated: bool = false
 	var rounds: int = 0
 	while not active.is_empty() and rounds < MAX_ROUNDS:
 		rounds += 1
-		_acc.clear()
+		for node: int in touched:
+			_acc[node] = 0.0
 		for c: int in active:
-			var need: float = _rem[c] / maxf(_eta.get(c, 1.0), EPS)
-			for n: int in _paths[c]:
-				_acc[n] = _acc.get(n, 0.0) + need
+			var need: float = _rem[c] / maxf(_eta[c], EPS)
+			for node: int in r.paths[c]:
+				_acc[node] += need
 
-		var keys: Array = _acc.keys()
-		keys.sort()
 		var t: float = 1.0
 		var binding: int = -1
-		var binding_kind: StringName = &""
-		for n: int in keys:
-			var a: float = _acc[n]
+		var binding_kind: int = B_NONE
+		for node: int in touched:
+			var a: float = _acc[node]
 			if a <= EPS:
 				continue
-			var through: float = _eta.get(n, 1.0) * a
+			var through: float = _eta[node] * a
 			if through > EPS:
-				var tn: float = _cap.get(n, BIG) / through
+				var tn: float = _cap[node] / through
 				if tn < t:
 					t = tn
-					binding = n
-					binding_kind = &"capacity"
-			if _avail.has(n):
-				var tr: float = _avail[n] / a
+					binding = node
+					binding_kind = B_CAPACITY
+			if _has_avail[node] != 0:
+				var tr: float = _avail[node] / a
 				if tr < t:
 					t = tr
-					binding = n
-					binding_kind = &"supply"
+					binding = node
+					binding_kind = B_SUPPLY
 		t = clampf(t, 0.0, 1.0)
 
 		for c: int in active:
 			var give: float = t * _rem[c]
 			if give <= 0.0:
 				continue
-			_got[c] = _got.get(c, 0.0) + give
-			_loss_acc += give * (1.0 / maxf(_eta.get(c, 1.0), EPS) - 1.0)
+			_got[c] += give
+			_loss_acc += give * (1.0 / maxf(_eta[c], EPS) - 1.0)
 			_rem[c] = maxf(0.0, _rem[c] - give)
-		for n: int in keys:
-			var used: float = _acc[n] * t
+		for node: int in touched:
+			var used: float = _acc[node] * t
 			if used <= 0.0:
 				continue
-			var flow: float = _eta.get(n, 1.0) * used
-			_load[n] = _load.get(n, 0.0) + flow
-			if _cap.has(n):
-				_cap[n] = maxf(0.0, _cap[n] - flow)
-			if _avail.has(n):
-				_avail[n] = maxf(0.0, _avail[n] - used)
+			var flow: float = _eta[node] * used
+			_load[node] += flow
+			_cap[node] = maxf(0.0, _cap[node] - flow)
+			if _has_avail[node] != 0:
+				_avail[node] = maxf(0.0, _avail[node] - used)
 
 		if t >= 1.0 - EPS or binding < 0:
 			break
@@ -499,11 +629,13 @@ func _fill(tier: PackedInt32Array) -> bool:
 		var next_active: PackedInt32Array = PackedInt32Array()
 		var froze_any: bool = false
 		for c: int in active:
-			if _paths[c].has(binding):
-				var nd: HeatNode = _nodes[c]
-				nd.bottleneck_node = binding
-				nd.bottleneck_kind = binding_kind
-				_choked[binding] = _choked.get(binding, 0) + 1
+			if r.paths[c].has(binding):
+				var nd: HeatNode = _topo.refs[c]
+				nd.bottleneck_node = _topo.ids[binding]
+				nd.bottleneck_kind = &"capacity" if binding_kind == B_CAPACITY else &"supply"
+				if _choked[binding] == 0:
+					_choked_list.append(binding)
+				_choked[binding] += 1
 				_choked_kind[binding] = binding_kind
 				froze_any = true
 			else:
@@ -522,71 +654,76 @@ func _phase_buffers() -> void:
 		return
 	var unmet: float = 0.0
 	for c: int in _sinks:
-		unmet += _rem.get(c, 0.0)
+		unmet += _rem[c]
 	if unmet <= EPS:
 		return
 	var added: bool = false
-	for id: int in _buffers:
-		var n: HeatNode = _nodes[id]
+	for i: int in _buffers:
+		var n: HeatNode = _topo.refs[i]
 		var out: float = minf(n.def.discharge_rate, n.stored / _dt)
 		if out <= EPS:
 			continue
-		_buf_avail[id] = out
-		_avail[id] = _avail.get(id, 0.0) + out
+		_buf_avail[i] = out
+		if _has_avail[i] == 0:
+			_has_avail[i] = 1
+			_avail_ids.append(i)
+		_avail[i] += out
 		added = true
 	if not added:
 		return
-	_route(_live_sources(_all_source_ids()), true)
+	_route(_live_sources(_avail_ids), true)
 	for tier: int in _tiers:
 		_serve_tier(_tier_members[tier])
 
 
 ## Whatever production is left over after every consumer is served tops up the
 ## buffers, routed and capacity-limited exactly like any other draw.
-func _phase_charge(members: PackedInt32Array) -> void:
+func _phase_charge() -> void:
 	var sources: PackedInt32Array = PackedInt32Array()
-	for id: int in _producers:
-		if _avail.get(id, 0.0) > EPS and _buf_avail.get(id, 0.0) <= 0.0:
-			sources.append(id)
+	for i: int in _producers:
+		if _avail[i] > EPS and _buf_avail[i] <= 0.0:
+			sources.append(i)
 	if sources.is_empty():
 		return
 
 	var tier: PackedInt32Array = PackedInt32Array()
-	var saved_rem: Dictionary[int, float] = {}
-	var saved_got: Dictionary[int, float] = {}
-	for id: int in members:
-		var n: HeatNode = _nodes[id]
-		if not n.def.is_buffer() or not n.enabled or n.frozen:
-			continue
-		if _buf_avail.get(id, 0.0) > 0.0:
+	var saved_rem: PackedFloat64Array = PackedFloat64Array()
+	var saved_got: PackedFloat64Array = PackedFloat64Array()
+	for i: int in _buffers:
+		var n: HeatNode = _topo.refs[i]
+		if _buf_avail[i] > 0.0:
 			continue  # it discharged this tick; do not turn around and refill it
 		var room: float = maxf(0.0, n.def.storage * tech_buffer - n.stored) / _dt
 		var want: float = minf(n.def.charge_rate, room)
 		if want <= EPS:
 			continue
-		saved_rem[id] = _rem.get(id, 0.0)
-		saved_got[id] = _got.get(id, 0.0)
-		_rem[id] = want
-		_got[id] = 0.0
-		tier.append(id)
+		saved_rem.append(_rem[i])
+		saved_got.append(_got[i])
+		_rem[i] = want
+		_got[i] = 0.0
+		tier.append(i)
 	if tier.is_empty():
 		return
 
 	_route(sources, true)
 	_fill(tier)
-	for id: int in tier:
-		var n2: HeatNode = _nodes[id]
-		var got: float = _got.get(id, 0.0)
+	for k: int in tier.size():
+		var i2: int = tier[k]
+		var n2: HeatNode = _topo.refs[i2]
+		var got: float = _got[i2]
 		n2.stored = minf(n2.def.storage * tech_buffer, n2.stored + got * _dt)
 		_net.charge += got
 		# Charging is not demand: it must never show up as a deficit.
-		_rem[id] = saved_rem.get(id, 0.0)
-		_got[id] = saved_got.get(id, 0.0)
+		_rem[i2] = saved_rem[k]
+		_got[i2] = saved_got[k]
 
 
 # --- write back -----------------------------------------------------------
 
-func _write_back(members: PackedInt32Array) -> void:
+func _write_back() -> void:
+	var topo: HeatTopology = _topo
+	var ids: PackedInt32Array = topo.ids
+	var refs: Array[HeatNode] = topo.refs
 	var delivered: float = 0.0
 	var unmet: float = 0.0
 	var supply_used: float = 0.0
@@ -595,22 +732,22 @@ func _write_back(members: PackedInt32Array) -> void:
 	var brownouts: int = 0
 	var starved: int = 0
 
-	for id: int in members:
-		var n: HeatNode = _nodes[id]
+	for i: int in _n:
+		var n: HeatNode = refs[i]
 		var d: HeatDef = n.def
-		n.throughput = _load.get(id, 0.0)
-		n.route_dist = _dist.get(id, -1)
-		n.route_eta = _eta.get(id, 1.0)
+		n.throughput = _load[i]
+		n.route_dist = _dist[i]
+		n.route_eta = _eta[i]
 
-		if d.is_producer() or d.is_buffer():
-			var offered: float = _prod_avail.get(id, 0.0) + _buf_avail.get(id, 0.0)
-			var used: float = maxf(0.0, offered - _avail.get(id, 0.0))
-			var from_prod: float = minf(used, _prod_avail.get(id, 0.0))
+		if topo.producer[i] != 0 or topo.buffer[i] != 0:
+			var offered: float = _prod_avail[i] + _buf_avail[i]
+			var used: float = maxf(0.0, offered - _avail[i])
+			var from_prod: float = minf(used, _prod_avail[i])
 			var from_buf: float = maxf(0.0, used - from_prod)
-			if d.is_producer():
+			if topo.producer[i] != 0:
 				n.output = from_prod
 				supply_used += from_prod
-			if d.is_buffer():
+			if topo.buffer[i] != 0:
 				if from_buf > 0.0:
 					n.stored = maxf(0.0, n.stored - from_buf * _dt)
 					discharge += from_buf
@@ -618,9 +755,9 @@ func _write_back(members: PackedInt32Array) -> void:
 					n.stored = maxf(0.0, n.stored * (1.0 - d.leak * _dt))
 				buffer_now += n.stored
 
-		if d.is_consumer():
+		if topo.consumer[i] != 0:
 			if n.demand > EPS:
-				var got: float = _got.get(id, 0.0)
+				var got: float = _got[i]
 				var base: float = n.base_demand
 				var to_base: float = minf(got, base)
 				var surplus: float = got - to_base
@@ -642,7 +779,7 @@ func _write_back(members: PackedInt32Array) -> void:
 				n.delivered = 0.0
 				n.served = 1.0
 
-		n.starved_fuel = d.is_producer() and n.fuel_factor < 0.999
+		n.starved_fuel = topo.producer[i] != 0 and n.fuel_factor < 0.999
 		if n.starved_fuel:
 			starved += 1
 		if d.repeater:
@@ -662,24 +799,25 @@ func _write_back(members: PackedInt32Array) -> void:
 
 
 func _collect_bottlenecks() -> void:
-	if _choked.is_empty():
+	if _choked_list.is_empty():
 		return
-	var keys: Array = _choked.keys()
-	keys.sort()
+	var ids: PackedInt32Array = _topo.ids
+	var choked: PackedInt32Array = _choked_list.duplicate()
+	choked.sort()
 	var out: Array[Dictionary] = []
-	for n: int in keys:
-		var node: HeatNode = _nodes.get(n)
+	for i: int in choked:
+		var node: HeatNode = _nodes.get(ids[i])
 		if node == null:
 			continue
-		var cap: float = _cap_full.get(n, BIG)
+		var cap: float = _cap_full[i]
 		out.append({
-			"node": n,
+			"node": ids[i],
 			"kind": String(node.kind),
 			"cell": [node.cell.x, node.cell.y],
-			"reason": String(_choked_kind.get(n, &"capacity")),
-			"load": snappedf(_load.get(n, 0.0), 0.001),
+			"reason": "supply" if _choked_kind[i] == B_SUPPLY else "capacity",
+			"load": snappedf(_load[i], 0.001),
 			"capacity": snappedf(0.0 if cap >= BIG else cap, 0.001),
-			"consumers": _choked[n],
+			"consumers": _choked[i],
 		})
 	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		var ca: int = int(a["consumers"])

@@ -26,6 +26,7 @@ var count: int = 0
 
 var ids: PackedInt32Array = PackedInt32Array()      ## local index -> building id, ascending
 var index: Dictionary[int, int] = {}                ## building id -> local index
+var refs: Array[HeatNode] = []                      ## local index -> the node itself
 
 var nb_start: PackedInt32Array = PackedInt32Array() ## size count+1, CSR offsets
 var nb_list: PackedInt32Array = PackedInt32Array()  ## neighbour local indices
@@ -59,6 +60,7 @@ func build(members: PackedInt32Array, nodes: Dictionary[int, HeatNode],
 	count = members.size()
 	ids = members.duplicate()
 	index.clear()
+	refs.resize(count)
 	for i: int in count:
 		index[ids[i]] = i
 
@@ -75,6 +77,7 @@ func build(members: PackedInt32Array, nodes: Dictionary[int, HeatNode],
 	for i: int in count:
 		nb_start[i] = written
 		var node: HeatNode = nodes.get(ids[i])
+		refs[i] = node
 		if node == null:
 			conducts[i] = 0
 			producer[i] = 0
