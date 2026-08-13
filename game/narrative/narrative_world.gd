@@ -216,8 +216,13 @@ func _read_machine() -> void:
 			for item: StringName in NarrativeDefs.STOCK_ITEMS:
 				facts[StringName("stock_" + String(item))] = float(int(stock.call("count", item)))
 	if _production != null:
-		facts[&"machines"] = float(int(_production.call("machine_count")))
-		facts[&"stalled_machines"] = float((_production.call("stalled_machines") as Array).size())
+		# totals(), not stalled_machines(): the latter sorts every machine and
+		# builds a worded Dictionary per stall, which is the right thing for a
+		# panel that draws them and the wrong thing to do once a second for a
+		# count. It was the largest single line in this system's tick.
+		var pt: Dictionary = _production.call("totals")
+		facts[&"machines"] = float(int(pt.get("machines", 0)))
+		facts[&"stalled_machines"] = float(int(pt.get("stalled", 0)))
 	if _logistics != null:
 		var lt: Dictionary = _logistics.call("totals")
 		facts[&"belt_lines"] = float(int(lt.get("belts", 0)))

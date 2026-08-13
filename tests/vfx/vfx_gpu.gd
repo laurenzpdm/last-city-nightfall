@@ -92,7 +92,9 @@ func _process(_delta: float) -> void:
 		_scene_index = 0
 		_scene_frame = 0
 		return
+	var t0: int = Time.get_ticks_usec()
 	_drive(SCENES[_scene_index])
+	_costs.append(float(Time.get_ticks_usec() - t0))
 	_scene_frame += 1
 	if _scene_frame >= FRAMES_PER_SCENE:
 		_capture(String(SCENES[_scene_index]["name"]))
@@ -112,8 +114,13 @@ func _build() -> void:
 	if grid != null and grid.has_method("core_cell"):
 		var c: Vector2i = grid.call("core_cell")
 		_core = Vector2(float(c.x) * 32.0 + 16.0, float(c.y) * 32.0 + 16.0)
-		for cmd: Dictionary in Boot.opening_commands(c):
-			Sim.submit_command(cmd)
+		# The reference settlement, straight out of the integrator's own opening,
+		# so what this suite photographs is the scene a player sees on launch.
+		# Loaded rather than named: game/boot.gd carries no class_name.
+		var boot: Script = load("res://game/boot.gd") as Script
+		var opening: Array = boot.call("opening_commands", c) if boot != null else []
+		for cmd: Variant in opening:
+			Sim.submit_command(cmd as Dictionary)
 	# Two ticks: one to apply the placements, one to let heat adopt them.
 	SimClock.advance(2)
 
@@ -125,13 +132,25 @@ func _build() -> void:
 		add_child(_camera)
 		_camera.make_current()
 
-	_renderer = LcnViewBootstrap.install()
+	# Instantiated directly rather than through LcnViewBootstrap, for the reason
+	# tests/render/render_perf.gd gives: the bootstrap declines under a headless
+	# display server, and everything this suite measures except the pixels still
+	# runs there. With a display the bootstrap may already have installed one, in
+	# which case that is the one to use.
+	_renderer = get_tree().get_first_node_in_group(WorldRenderer.GROUP) as WorldRenderer
 	if _renderer == null:
-		_renderer = get_tree().get_first_node_in_group(WorldRenderer.GROUP) as WorldRenderer
-	LcnVfxBootstrap.reset()
-	_vfx = LcnVfxBootstrap.install()
+		var packed: PackedScene = load(LcnViewBootstrap.SCENE) as PackedScene
+		if packed != null:
+			_renderer = packed.instantiate() as WorldRenderer
+			if _renderer != null:
+				add_child(_renderer)
+	if _renderer == null:
+		_fail("no world renderer could be installed")
+		return
+	_vfx = LcnVfx.current()
 	if _vfx == null:
-		_vfx = LcnVfx.current()
+		_vfx = LcnVfx.new()
+		_renderer.add_child(_vfx)
 	if _vfx != null:
 		# The suite drives the modules itself so it can photograph a Great Frost
 		# without waiting three campaign days for one.
@@ -153,7 +172,7 @@ func _drive(scene: Dictionary) -> void:
 	_vfx.decay.update(1.0 / 60.0, view, wind, 1.0)
 	_vfx.breath.update(view, -28.0, wind, 1.0)
 	_vfx.combat.update(1.0 / 60.0, view, false)
-	if bool(scene["combat"]) and _scene_frame < 5:
+	if bool(scene["combat"]) and _scene_frame < FRAMES_PER_SCENE - 1:
 		_fake_battle(view)
 	if bool(scene["frost"]) and _scene_frame == 0:
 		_fake_frost()
@@ -220,7 +239,9 @@ func _capture(name: String) -> void:
 		"beams": int(stats.get("beams", 0)),
 	}
 	if not _headless:
-		await RenderingServer.frame_post_draw
+		# No await: the scene has been held still for FRAMES_PER_SCENE frames, so
+		# the framebuffer already shows it, and a suspended _capture would let
+		# _verdict run against an empty measurement table.
 		var img: Image = get_viewport().get_texture().get_image()
 		img.save_png("%s/%s.png" % [
 			ProjectSettings.globalize_path(OUT_DIR), name])

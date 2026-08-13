@@ -90,6 +90,13 @@ var _citizens: SimSystem = null
 var _society: SimSystem = null
 var _threat: SimSystem = null
 
+## Built once. `NarrativeCampaign.chapters()` and `NarrativeFlavour.gates()`
+## each allocate their whole structure on every call, and the sample runs
+## fifty times a second of in-world time; rebuilding seven chapters and
+## fourteen conditions that often was two thirds of this system's tick.
+var _chapters: Array[NarrativeCampaign.Chapter] = []
+var _gates: Array[Dictionary] = []
+
 
 func system_name() -> StringName:
 	return &"narrative"
@@ -129,6 +136,8 @@ func setup() -> void:
 	_waves_seen = 0
 	_laws_seen = 0
 	_obit_tick_seen = -1
+	_chapters = NarrativeCampaign.chapters()
+	_gates = NarrativeFlavour.gates()
 	_load_content()
 
 
@@ -211,7 +220,7 @@ func _own_facts() -> Dictionary:
 # =========================================================================
 
 func _advance_chapter() -> void:
-	var all: Array[NarrativeCampaign.Chapter] = NarrativeCampaign.chapters()
+	var all: Array[NarrativeCampaign.Chapter] = _chapters
 	# Chapters only ever go forward: a run's shape must not oscillate because a
 	# storm ended. Walk from the one after the current, and take the furthest
 	# whose conditions hold, so a late arrival never skips its own prose.
@@ -583,7 +592,7 @@ func _maybe_say_something() -> void:
 	_flavour_next = _tick + _flavour_interval()
 	var open: Array[Dictionary] = []
 	var weight_total: int = 0
-	for gate: Dictionary in NarrativeFlavour.gates():
+	for gate: Dictionary in _gates:
 		var ok: bool = true
 		for c: NarrativeCondition in (gate["all_of"] as Array[NarrativeCondition]):
 			if not c.holds(world.facts):
@@ -732,7 +741,8 @@ func acknowledge(id: StringName) -> bool:
 
 
 func chapter() -> Dictionary:
-	var all: Array[NarrativeCampaign.Chapter] = NarrativeCampaign.chapters()
+	var all: Array[NarrativeCampaign.Chapter] = _chapters if not _chapters.is_empty() \
+		else NarrativeCampaign.chapters()
 	var i: int = clampi(chapter_index, 0, all.size() - 1)
 	if chapter_index < 0:
 		return {"index": -1, "key": "", "title": "", "subtitle": "", "of": all.size()}

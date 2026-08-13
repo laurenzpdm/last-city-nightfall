@@ -52,7 +52,7 @@ static func build(recorder: LcnStatsRecorder, journal: LcnStatsJournal,
 		"produced": _top_items(recorder, track, a, b, LcnStatsDefs.P_PRODUCED),
 		"consumed": _top_items(recorder, track, a, b, LcnStatsDefs.P_CONSUMED),
 	}
-	report["heat"] = _heat(track, a, b)
+	report["heat"] = _heat(track, a, b, seconds)
 	report["combat"] = _combat(track, a, b)
 	report["society"] = _society(track, a, b)
 	report["city"] = _city(track, a, b)
@@ -98,7 +98,12 @@ static func _top_items(recorder: LcnStatsRecorder, track: LcnStatTrack,
 	return out.slice(0, TOP_N)
 
 
-static func _heat(track: LcnStatTrack, a: int, b: int) -> Dictionary:
+## A SAMPLE is a moment; an INTERVAL is time. Counting samples and multiplying
+## by the stride reports one stride more than the night contains, which is how a
+## report ends up claiming the grid was short for seventy seconds of a
+## sixty-seven second night. Extremes are read over the closed range a..b;
+## durations are counted over the intervals (a, b] and clamped to the night.
+static func _heat(track: LcnStatTrack, a: int, b: int, night_seconds: float) -> Dictionary:
 	var deficit: LcnStatSeries = track.series(&"heat_deficit")
 	var buffer: LcnStatSeries = track.series(&"heat_buffer")
 	var frozen: LcnStatSeries = track.series(&"heat_frozen")
@@ -107,7 +112,7 @@ static func _heat(track: LcnStatTrack, a: int, b: int) -> Dictionary:
 	var min_buffer: float = INF
 	var start_buffer: float = buffer.at(a) if buffer != null else 0.0
 	var peak_frozen: float = 0.0
-	var deficit_samples: int = 0
+	var deficit_intervals: int = 0
 	var longest_run: int = 0
 	var run: int = 0
 	for i: int in range(a, b + 1):
@@ -115,9 +120,10 @@ static func _heat(track: LcnStatTrack, a: int, b: int) -> Dictionary:
 			var d: float = deficit.at(i)
 			worst_deficit = maxf(worst_deficit, d)
 			if d > 0.01:
-				deficit_samples += 1
-				run += 1
-				longest_run = maxi(longest_run, run)
+				if i > a:
+					deficit_intervals += 1
+					run += 1
+					longest_run = maxi(longest_run, run)
 			else:
 				run = 0
 		if buffer != null:
@@ -127,10 +133,11 @@ static func _heat(track: LcnStatTrack, a: int, b: int) -> Dictionary:
 	if min_buffer == INF:
 		min_buffer = 0.0
 	var sample_s: float = track.sample_seconds()
+	var cap: float = maxf(0.0, night_seconds)
 	return {
 		"worst_deficit": worst_deficit,
-		"deficit_seconds": float(deficit_samples) * sample_s,
-		"longest_deficit_seconds": float(longest_run) * sample_s,
+		"deficit_seconds": minf(float(deficit_intervals) * sample_s, cap),
+		"longest_deficit_seconds": minf(float(longest_run) * sample_s, cap),
 		"min_buffer": min_buffer,
 		"start_buffer": start_buffer,
 		"end_buffer": buffer.at(b) if buffer != null else 0.0,

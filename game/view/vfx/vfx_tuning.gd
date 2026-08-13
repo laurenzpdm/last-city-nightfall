@@ -157,6 +157,11 @@ const FX_CLASS: Dictionary[StringName, StringName] = {
 	&"survey_hall": &"works",
 	&"warmth_radiator": &"vent", &"heat_booster_pump": &"vent",
 	&"recuperator": &"vent", &"heat_accumulator": &"vent",
+	# A pipe is a buried conduit, not a vent. Left in, the mains alone filled the
+	# entire emission-point budget and the radiators they feed — the things that
+	# actually put warmth into the air — never got an emitter.
+	&"heat_pipe": &"none", &"heat_pipe_insulated": &"none",
+	&"heat_trunk_main": &"none", &"rubble_road": &"none", &"wall": &"none",
 }
 
 # ------------------------------------------------------------------- colours --
@@ -184,7 +189,9 @@ static func fx_class(kind: StringName, arch: StringName) -> StringName:
 	if a.contains("generator") or a.contains("hearth") or a.contains("furnace") \
 			or a.contains("smelt"):
 		return &"furnace"
-	if a.contains("radiator") or a.contains("pipe") or a.contains("accumulator"):
+	if a.contains("pipe") or a.contains("road") or a.contains("wall"):
+		return &"none"
+	if a.contains("radiator") or a.contains("accumulator"):
 		return &"vent"
 	if a.contains("workshop") or a.contains("factory") or a.contains("drill") \
 			or a.contains("assembly") or a.contains("mine"):
