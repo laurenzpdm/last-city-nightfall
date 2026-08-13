@@ -231,11 +231,3 @@ func collect_metrics() -> Dictionary:
 		for k: String in m:
 			out["%s.%s" % [s.system_name(), k]] = m[k]
 	return out
-
-
-## Same reason as Registry._exit_tree: every system holds BuildingDefs, recipes
-## and enemy defs, and a system still holding them when the engine clears its
-## resource cache is an `ERROR: N resources still in use at exit` that nobody
-## can attribute. Let go on the way out.
-func _exit_tree() -> void:
-	teardown()

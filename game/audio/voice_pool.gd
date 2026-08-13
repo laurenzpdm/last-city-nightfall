@@ -32,6 +32,13 @@ class Voice extends RefCounted:
 	var category: StringName = &""
 	var priority: int = 0
 	var started_usec: int = 0
+	## When this voice's sound is over, computed from the stream's own length.
+	## Deliberately NOT `player.playing`: that flag is owned by the audio thread
+	## and is simply false under the dummy driver every headless suite runs on,
+	## which silently turned every cap and stealing rule into a no-op in the
+	## tests that were supposed to prove them.
+	var ends_usec: int = 0
+	var at: Vector2 = Vector2.ZERO
 	var db: float = 0.0
 	var busy: bool = false
 
@@ -98,14 +105,15 @@ func bind(bank: LcnSoundBank) -> void:
 ## Call once per frame, before any play() of that frame.
 func begin_frame() -> void:
 	_starts_this_frame = 0
+	var now: int = Time.get_ticks_usec()
 	var live: int = 0
 	for v: Voice in _world:
-		if v.busy and not v.playing():
+		if v.busy and now >= v.ends_usec:
 			v.busy = false
 		if v.busy:
 			live += 1
 	for v: Voice in _flat:
-		if v.busy and not v.playing():
+		if v.busy and now >= v.ends_usec:
 			v.busy = false
 		if v.busy:
 			live += 1
@@ -126,7 +134,7 @@ func play(cue: StringName, at: Vector2 = Vector2.ZERO, positional: bool = true,
 		return null
 
 	var now: int = Time.get_ticks_usec()
-	var merged: Voice = _try_coalesce(cue, now)
+	var merged: Voice = _try_coalesce(cue, now, at, positional)
 	if merged != null:
 		coalesced += 1
 		return merged
@@ -157,8 +165,13 @@ func play(cue: StringName, at: Vector2 = Vector2.ZERO, positional: bool = true,
 	voice.category = category
 	voice.priority = priority
 	voice.started_usec = now
+	voice.at = at
 	voice.busy = true
-	var bus: String = String(spec.get("bus", LcnAudioDefs.BUS_SFX))
+	voice.ends_usec = now + int(stream.get_length() / maxf(0.05, pitch) * 1_000_000.0) + 1
+	# A cue naming a bus the mixer has not created would make Godot log and fall
+	# back to Master. Falling back HERE instead keeps the log clean and keeps the
+	# pool usable in a suite that never installed a desk.
+	var bus: String = _bus_or_master(String(spec.get("bus", LcnAudioDefs.BUS_SFX)))
 	# A pitch_scale of zero or a NaN volume is an engine-level error, and a
 	# stream player is the easiest place in a codebase to produce one by
 	# accident. Everything reaching an audio property goes through LcnDsp.safe.
@@ -191,10 +204,31 @@ func stop_all() -> void:
 		v.stop()
 
 
+var _bus_ok: Dictionary[String, bool] = {}
+
+
+func _bus_or_master(bus: String) -> String:
+	var known: Variant = _bus_ok.get(bus)
+	if known == null:
+		known = AudioServer.get_bus_index(bus) >= 0
+		_bus_ok[bus] = known
+	return bus if bool(known) else "Master"
+
+
+## The mixer installed after this pool did. Forget what we learned about buses.
+func forget_buses() -> void:
+	_bus_ok.clear()
+
+
 # ================================================================== policy ===
 
-## Two of the same cue in the same instant is one louder cue.
-func _try_coalesce(cue: StringName, now: int) -> Voice:
+## Two of the same cue in the same instant, IN THE SAME PLACE, is one louder cue.
+##
+## The distance term is not a nicety. Without it a wave hitting the north and
+## south walls at once collapsed into a single voice at one of them: the mix
+## said the city was being attacked in one place while the screen showed two.
+## Merging is for a volley, not for a battle.
+func _try_coalesce(cue: StringName, now: int, at: Vector2, positional: bool) -> Voice:
 	var row: Array = _recent.get(cue, [])
 	if row.size() < 2:
 		return null
@@ -202,6 +236,9 @@ func _try_coalesce(cue: StringName, now: int) -> Voice:
 		return null
 	var v: Voice = row[1] as Voice
 	if v == null or not v.busy or v.cue != cue:
+		return null
+	if positional and v.positional \
+			and v.at.distance_to(at) > LcnAudioDefs.COALESCE_TILES * LcnAudioDefs.TILE:
 		return null
 	var ceiling: float = float(LcnAudioDefs.CUES[cue].get("db", -8.0)) \
 		+ LcnAudioDefs.COALESCE_GAIN_MAX_DB

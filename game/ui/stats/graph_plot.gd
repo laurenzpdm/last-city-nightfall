@@ -100,13 +100,18 @@ func refresh() -> void:
 	queue_redraw()
 
 
+## The legend rides in the header beside the title rather than under the time
+## axis. Below the chart it lands on top of the clock labels in the one corner
+## the eye already has two things to read, which is exactly where a legend must
+## not be.
 func plot_rect() -> Rect2:
 	var t: LcnStatsTheme = _theme()
 	var left: float = t.AXIS_L
-	var top: float = t.AXIS_T + (18.0 if title != "" else 0.0)
-	var bottom: float = t.AXIS_B + (16.0 if show_legend else 0.0)
+	var head: float = float(t.fs(t.FS_SMALL)) + 10.0
+	var top: float = t.AXIS_T + (head if (title != "" or show_legend) else 0.0)
+	var bottom: float = t.AXIS_B + 8.0
 	return Rect2(Vector2(left, top),
-		Vector2(maxf(MIN_PLOT_W, size.x - left - 10.0),
+		Vector2(maxf(MIN_PLOT_W, size.x - left - 14.0),
 			maxf(MIN_PLOT_H, size.y - top - bottom)))
 
 
@@ -145,9 +150,9 @@ func _draw() -> void:
 	var t: LcnStatsTheme = _theme()
 	var r: Rect2 = plot_rect()
 	t.plate(self, Rect2(Vector2.ZERO, size), t.PLOT_BG, t.RIM_SOFT)
+	var head_base: float = r.position.y - 8.0
 	if title != "":
-		t.caps(self, Vector2(t.AXIS_L, t.fs(t.FS_SMALL) + 2.0), title,
-			t.fs(t.FS_SMALL), t.TEXT_DIM)
+		t.caps(self, Vector2(t.AXIS_L, head_base), title, t.fs(t.FS_SMALL), t.TEXT_DIM)
 
 	if track == null or track.sample_count() < 2 or entries.is_empty():
 		t.text_centre(self, size.x * 0.5, size.y * 0.5, empty_note,
@@ -162,7 +167,12 @@ func _draw() -> void:
 	_draw_marks(t, r)
 	_draw_crosshair(t, r)
 	if show_legend:
-		_draw_legend(t)
+		_draw_legend(t, r, head_base)
+	# A chart of nothing has to say so, or a player reads a flat line at zero as
+	# a broken graph rather than as a factory that has not started.
+	if is_zero_approx(_hi - _lo) or (absf(_hi) < 0.0001 and absf(_lo) < 0.0001):
+		t.text_centre(self, r.position.x + r.size.x * 0.5,
+			r.position.y + r.size.y * 0.5, empty_note, t.fs(t.FS_BODY), t.TEXT_FAINT)
 	last_draw_usec = Time.get_ticks_usec() - t0
 
 
@@ -377,20 +387,28 @@ func _draw_crosshair(t: LcnStatsTheme, r: Rect2) -> void:
 		y += float(small) + 5.0
 
 
-func _draw_legend(t: LcnStatsTheme) -> void:
+## Right-aligned in the header, so it never competes with the time axis and
+## never grows into the plot. Entries are laid out from the right edge inward.
+func _draw_legend(t: LcnStatsTheme, r: Rect2, baseline: float) -> void:
 	var small: int = t.fs(t.FS_SMALL)
-	var y: float = size.y - 4.0
-	var x: float = t.AXIS_L
+	var widths: Array[float] = []
+	var total: float = 0.0
+	for e: Dictionary in entries:
+		var w: float = t.text_width(String(e["label"]), small) + 15.0
+		widths.append(w)
+		total += w + 12.0
+	var title_w: float = t.caps_width(title, small) + 20.0 if title != "" else 0.0
+	var x: float = r.position.x + r.size.x - maxf(0.0, total - 12.0)
+	if x < t.AXIS_L + title_w:
+		x = t.AXIS_L + title_w
 	for i: int in entries.size():
-		var e: Dictionary = entries[i]
-		var label: String = String(e["label"])
-		var w: float = t.text_width(label, small)
-		if x + w + 20.0 > size.x:
+		if x + widths[i] > r.position.x + r.size.x + 2.0:
 			break
-		t.swatch(self, Rect2(Vector2(x, y - float(small) + 1.0), Vector2(9.0, 9.0)),
-			e["colour"])
-		t.text(self, Vector2(x + 13.0, y), label, small, t.TEXT_DIM)
-		x += w + 26.0
+		t.swatch(self, Rect2(Vector2(x, baseline - float(small) + 2.0), Vector2(9.0, 9.0)),
+			entries[i]["colour"])
+		t.text(self, Vector2(x + 14.0, baseline), String(entries[i]["label"]), small,
+			t.TEXT_DIM)
+		x += widths[i] + 12.0
 
 
 # ===============================================================  geometry ===

@@ -138,15 +138,17 @@ func test_no_sustained_loop_clicks_at_its_loop_point() -> void:
 	# already takes on its own. A bed whose seam is four times its own p99 step
 	# ticks audibly once a cycle, which is exactly what the first bake did.
 	#
-	# Event-only loops are excluded because their first sample IS a percussive
-	# attack on the downbeat — a drum hit at the loop point is the sound, not a
-	# defect — and they are covered by the wrap test below instead.
+	# Loops with a hit ON the downbeat are excluded: their first sample IS a
+	# percussive attack, and a drum on the loop point is the sound rather than a
+	# defect. Everything that is supposed to be continuous is measured.
+	var measured: int = 0
 	for key: StringName in _keys():
 		var spec: Dictionary = LcnSynthRecipes.spec(key)
 		if not bool(spec.get("loop", false)):
 			continue
-		if float(spec.get("bed", 1.0)) <= 0.0:
+		if float(spec.get("bed", 1.0)) <= 0.0 or _hits_the_downbeat(spec):
 			continue
+		measured += 1
 		var pcm: PackedByteArray = _built[key].stream.data
 		var n: int = pcm.size() / 2
 		if n < 64:

@@ -83,8 +83,11 @@ const CATEGORY_CAP: Dictionary[StringName, int] = {
 ## voices and the mix becomes a wall.
 const MAX_STARTS_PER_FRAME: int = 10
 
-## Two requests for the same cue closer than this merge into one, louder start.
+## Two requests for the same cue, this close in time AND in space, merge into one
+## louder start. The distance term is what keeps a volley a volley and stops two
+## simultaneous attacks on opposite walls collapsing into one.
 const COALESCE_MS: int = 45
+const COALESCE_TILES: float = 7.0
 const COALESCE_GAIN_DB: float = 1.6
 const COALESCE_GAIN_MAX_DB: float = 5.0
 

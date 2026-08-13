@@ -213,8 +213,11 @@ func _draw() -> void:
 		var v := Vector2(_vx[i], _vy[i])
 		var len_px: float = clampf(v.length() * 0.035, 3.0, 26.0) * (0.4 + f * 0.6)
 		var dir: Vector2 = v.normalized() if v.length_squared() > 0.01 else Vector2.RIGHT
+		# NOT antialiased: an antialiased line is its own mesh in the Compatibility
+		# renderer and breaks canvas batching, which measured as ~370 extra draw
+		# calls for 370 sparks. Aliased, the whole spray is one batch.
 		draw_line(Vector2(px, py), Vector2(px, py) - dir * len_px,
-			Color(_r[i], _g[i], _b[i], _a[i] * f), maxf(1.0, _size[i] * 0.5), true)
+			Color(_r[i], _g[i], _b[i], _a[i] * f), maxf(1.0, _size[i] * 0.5), false)
 		_drawn += 1
 
 

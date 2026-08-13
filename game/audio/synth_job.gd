@@ -70,10 +70,17 @@ var _lp_b: float = 0.0
 var _hp: float = 0.0
 var _svf_low: float = 0.0
 var _svf_band: float = 0.0
+var _bp_low: float = 0.0
+var _bp_band: float = 0.0
 var _sub_ph: float = 0.0
-var _am_ph: PackedFloat32Array = PackedFloat32Array()
-var _bp_ph: PackedFloat32Array = PackedFloat32Array()
-var _osc_ph: PackedFloat32Array = PackedFloat32Array()
+## 64-bit ON PURPOSE. These are the only fields written by the inner loop AND
+## carried across a chunk boundary. Held as PackedFloat32Array they were rounded
+## to single precision once per slice and left untouched inside a slice, so the
+## same recipe rendered whole and rendered in 997-sample slices diverged — which
+## is precisely the property the across-frames bake depends on.
+var _am_ph: PackedFloat64Array = PackedFloat64Array()
+var _bp_ph: PackedFloat64Array = PackedFloat64Array()
+var _osc_ph: PackedFloat64Array = PackedFloat64Array()
 
 # --- precomputed recipe terms ------------------------------------------------
 var _brown_mix: float = 0.0
@@ -192,7 +199,7 @@ func _prepare() -> void:
 	_bp_hz = float(_spec.get("bp_hz", 400.0))
 	_bp_qd = LcnDsp.svf_q(float(_spec.get("bp_q", 1.0)))
 	_bp_lfo = _snap_rates(_spec.get("bp_lfo", []), seconds)
-	_bp_ph = PackedFloat32Array()
+	_bp_ph = PackedFloat64Array()
 	_bp_ph.resize(maxi(1, _bp_lfo.size()))
 	_bp_ph.fill(0.0)
 
@@ -205,7 +212,7 @@ func _prepare() -> void:
 	# Every modulator has to complete a whole number of cycles over the body too,
 	# or the loop point lands mid-swell and the bed breathes with a stutter in it.
 	_am = _snap_rates(_spec.get("am", []), seconds)
-	_am_ph = PackedFloat32Array()
+	_am_ph = PackedFloat64Array()
 	_am_ph.resize(maxi(1, _am.size()))
 	_am_ph.fill(0.0)
 
@@ -222,6 +229,7 @@ func _prepare() -> void:
 	_mult.resize(n)
 	_amp.resize(n)
 	_wave.resize(n)
+	_osc_ph = PackedFloat64Array()
 	_osc_ph.resize(maxi(1, n))
 	_osc_ph.fill(0.0)
 	for i: int in n:
@@ -349,6 +357,11 @@ func _render_noise(from: int, to: int) -> void:
 	var lp_b: float = _lp_b
 	var svf_low: float = _svf_low
 	var svf_band: float = _svf_band
+	# The band gets its OWN state. Sharing one filter's registers between the
+	# lowpass and the bandpass stage is a latent cross-modulation that no recipe
+	# currently triggers and every future one would.
+	var bp_low: float = _bp_low
+	var bp_band: float = _bp_band
 	var bp_mix: float = _bp_mix
 	var bp_qd: float = _bp_qd
 	var sub_ph: float = _sub_ph
@@ -357,7 +370,7 @@ func _render_noise(from: int, to: int) -> void:
 	var bed: float = _bed
 	var total: float = float(maxi(1, _render_len))
 	var inv_sr: float = 1.0 / float(_sr)
-	var nyq: float = float(_sr) * 0.15
+	var nyq: float = float(_sr) * LcnDsp.SVF_MAX_RATIO
 
 	var n_am: int = _am.size()
 	var am_hz0: float = float(_am[0][0]) * inv_sr if n_am > 0 else 0.0
@@ -408,10 +421,10 @@ func _render_noise(from: int, to: int) -> void:
 				if bl_p1 >= 1.0:
 					bl_p1 -= 1.0
 				cut *= 1.0 + bl_a1 * sin(bl_p1 * TAU)
-			var bf: float = clampf(TAU * minf(cut, nyq) * inv_sr, 0.001, 0.9)
-			svf_low += bf * svf_band
-			svf_band += bf * (x - svf_low - bp_qd * svf_band)
-			x = x * (1.0 - bp_mix) + svf_band * bp_mix * 2.2
+			var bf: float = clampf(TAU * minf(cut, nyq) * inv_sr, 0.001, LcnDsp.SVF_MAX_F)
+			bp_low += bf * bp_band
+			bp_band += bf * (x - bp_low - bp_qd * bp_band)
+			x = x * (1.0 - bp_mix) + bp_band * bp_mix * 2.2
 
 		if sub_amt > 0.0:
 			sub_ph += sub_inc
@@ -441,6 +454,8 @@ func _render_noise(from: int, to: int) -> void:
 	_lp_b = lp_b
 	_svf_low = svf_low
 	_svf_band = svf_band
+	_bp_low = bp_low
+	_bp_band = bp_band
 	_sub_ph = sub_ph
 	if _am_ph.size() > 0:
 		_am_ph[0] = am_p0
@@ -567,7 +582,8 @@ func _render_event(e: Dictionary) -> void:
 	var lp_a: float = LcnDsp.lp_coeff(hz * 1.6, _sr)
 	var bp_low: float = 0.0
 	var bp_band: float = 0.0
-	var bf: float = clampf(TAU * minf(hz, float(_sr) * 0.15) / float(_sr), 0.001, 0.9)
+	var bf: float = clampf(TAU * minf(hz, float(_sr) * LcnDsp.SVF_MAX_RATIO) / float(_sr),
+		0.001, LcnDsp.SVF_MAX_F)
 	var inv_sr: float = 1.0 / float(_sr)
 	var drop: float = pow(0.55, 1.0 / float(maxi(1, length)))
 	var f: float = hz * inv_sr

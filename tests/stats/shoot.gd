@@ -5,10 +5,11 @@ extends SceneTree
 ##   /Applications/Godot.app/Contents/MacOS/Godot --path . --resolution 1920x1080 \
 ##       --script tests/stats/shoot.gd
 ##
-## It boots the REAL game (world, renderer, camera, HUD, build menu, play shell),
-## builds a factory, runs a full day and a full night through the real
-## simulation, then opens the statistics screen and photographs every tab. Every
-## number and every curve in those frames came out of the running world.
+## It boots the REAL game (world, renderer, camera, HUD, build menu, play shell)
+## and replays `tests/scenarios/first_night.json` — the SAME reference run every
+## other part screenshots against — through the real command path, then opens the
+## statistics screen and photographs every tab. Every number and every curve in
+## those frames came out of that run. Where a line is flat, the factory was flat.
 ##
 ## Autoloads are named through the tree rather than referenced directly: this
 ## file is the entry script, and an entry script compiles before the autoloads
@@ -16,6 +17,7 @@ extends SceneTree
 
 const OUT_DIR: String = "res://artifacts/p20/shots"
 const BOOT: String = "res://game/boot.tscn"
+const SCENARIO: String = "res://tests/scenarios/first_night.json"
 ## Night starts at tick 8256 of a 9600-tick day.
 const DUSK: int = 8100
 const DEEP_NIGHT: int = 8900
@@ -45,8 +47,9 @@ func _run() -> void:
 		quit(1)
 		return
 
-	_build_a_factory()
-	_advance(DUSK)
+	_hide_layers_above_me()
+	_load_scenario()
+	_advance_to(DUSK)
 	await _settle(6)
 
 	# --- the production screen, over the whole run ------------------------
@@ -63,7 +66,7 @@ func _run() -> void:
 	await _shot("02_production_last_minute")
 
 	# --- heat, over the whole run, with the night shaded ------------------
-	_advance(DEEP_NIGHT - DUSK)
+	_advance_to(DEEP_NIGHT)
 	await _settle(6)
 	_stats.call("show_tab", 1)
 	_stats.call("set_window", &"run")
@@ -78,7 +81,7 @@ func _run() -> void:
 	await _shot("04_society_annotated")
 
 	# --- dawn: the after-action report ------------------------------------
-	_advance(DAWN - DEEP_NIGHT)
+	_advance_to(DAWN)
 	await _settle(10)
 	_stats.call("show_tab", 3)
 	await _settle(8)
@@ -108,35 +111,60 @@ func _run() -> void:
 
 # ==================================================================  world ==
 
-## A drill on a seam, smelters to eat what it digs, a sorter and a workshop —
-## enough of a chain that the production table has tiers in it.
-func _build_a_factory() -> void:
+## The reference run's own command script, keyed by tick. Using it rather than a
+## hand-placed factory means these frames photograph the city every other part
+## screenshots, on the same seed, with the same buildings in the same holes —
+## and a flat line here is a flat line in the build, not in the rig.
+var _script_by_tick: Dictionary[int, Array] = {}
+var _tick: int = 0
+
+
+func _load_scenario() -> void:
+	if not FileAccess.file_exists(SCENARIO):
+		print("shoot: no scenario at %s — photographing the opening city only" % SCENARIO)
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(SCENARIO))
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return
+	for entry: Dictionary in (parsed as Dictionary).get("script", []):
+		var t: int = int(entry.get("tick", 0))
+		var arr: Array = _script_by_tick.get(t, [])
+		arr.append(entry.get("cmd", {}))
+		_script_by_tick[t] = arr
+
+
+## Runs the simulation to an absolute tick, submitting the scenario's commands
+## on the ticks it asks for. Exactly what the harness does.
+func _advance_to(target: int) -> void:
 	var sim: Node = _node("Sim")
-	var c: Vector2i = _core_cell()
-	var place := func(kind: String, cell: Vector2i) -> void:
-		sim.call("submit_command", {"system": &"build", "op": "place", "kind": kind,
-			"cell": [cell.x, cell.y], "rot": 0, "free": true, "instant": true})
-	place.call("ore_drill", c + Vector2i(6, -8))
-	place.call("ore_drill", c + Vector2i(-8, -8))
-	place.call("ore_drill", c + Vector2i(11, -12))
-	place.call("scrap_collector", c + Vector2i(9, -4))
-	place.call("scrap_collector", c + Vector2i(-11, -4))
-	place.call("smelter", c + Vector2i(4, 8))
-	place.call("smelter", c + Vector2i(-6, 8))
-	place.call("rubble_sorter", c + Vector2i(8, 8))
-	place.call("workshop", c + Vector2i(-2, 14))
-	place.call("workshop", c + Vector2i(6, 14))
-	place.call("coal_generator", c + Vector2i(-7, 14))
-	place.call("heat_accumulator", c + Vector2i(2, -6))
-	place.call("turret_mount", c + Vector2i(-14, 9))
-	_advance(2)
+	var clock: Node = _node("SimClock")
+	while _tick < target:
+		_tick += 1
+		for cmd: Variant in _script_by_tick.get(_tick, []):
+			sim.call("submit_command", cmd as Dictionary)
+		clock.call("advance", 1)
 
 
-func _core_cell() -> Vector2i:
-	var grid: Object = _node("Sim").call("get_system", &"grid")
-	if grid != null and grid.has_method("core_cell"):
-		return grid.call("core_cell")
-	return Vector2i(128, 128)
+## The narrative and tutorial bands sit ABOVE this part by design — a dilemma
+## the city is waiting on must cover a chart. For a screenshot of the charts,
+## they are in the way, so the rig hides them and says so.
+func _hide_layers_above_me() -> void:
+	var mine: int = int(_stats.get("layer"))
+	var found: Array[CanvasLayer] = []
+	_collect_layers(root, found)
+	for cl: CanvasLayer in found:
+		if cl != _stats and cl.layer > mine:
+			cl.visible = false
+			print("shoot: hid %s (layer %d) so it does not cover the charts" % [
+				cl.name, cl.layer])
+
+
+func _collect_layers(node: Node, out: Array[CanvasLayer]) -> void:
+	var cl := node as CanvasLayer
+	if cl != null:
+		out.append(cl)
+	for child: Node in node.get_children():
+		_collect_layers(child, out)
 
 
 # ===============================================================  plumbing ==

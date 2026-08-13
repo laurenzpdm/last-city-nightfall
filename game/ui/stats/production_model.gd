@@ -91,6 +91,38 @@ func sort_by(column: StringName, ascending: bool = false) -> void:
 		return fa < fb if ascending else fa > fb)
 
 
+## The item the screen should open on: the bottleneck if there is one, the
+## busiest line otherwise, and the first row if the factory is asleep.
+func default_selection() -> StringName:
+	if _bottleneck != &"":
+		return _bottleneck
+	if _rows.is_empty():
+		return &""
+	var best: Dictionary = _rows[0]
+	for r: Dictionary in _rows:
+		if float(r["made"]) > float(best["made"]):
+			best = r
+	return StringName(String(best["item"]))
+
+
+## Totals across the window, for the strip above the table.
+## {items_per_min, active_lines, deepest, starved_machines, blocked_machines}
+func summary() -> Dictionary:
+	var per_min: float = 0.0
+	var lines: int = 0
+	var starved: int = 0
+	var blocked: int = 0
+	for r: Dictionary in _rows:
+		var made: float = float(r["made"])
+		per_min += made
+		if made > 0.001:
+			lines += 1
+		starved += int(r["starving"])
+		blocked += int(r["blocked"])
+	return {"items_per_min": per_min, "active_lines": lines, "items": _rows.size(),
+		"starved_machines": starved, "blocked_machines": blocked}
+
+
 func row_for(item: StringName) -> Dictionary:
 	for r: Dictionary in _rows:
 		if StringName(String(r["item"])) == item:
@@ -209,6 +241,11 @@ func _pick_bottleneck() -> void:
 		for r: Dictionary in _rows:
 			if float(r["made"]) > float(busiest["made"]):
 				busiest = r
+		if float(busiest["made"]) <= 0.001:
+			# "Nothing is starved, the busiest line is at 0/min" is technically
+			# true and useless. A factory that has not started says so.
+			_headline = "Nothing has been made in this window. No machine finished a craft."
+			return
 		_headline = "Nothing is starved. %s is the busiest line at %s/min." % [
 			String(busiest["label"]), LcnStatsTheme.compact(float(busiest["made"]))]
 		return

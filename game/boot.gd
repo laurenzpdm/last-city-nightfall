@@ -116,8 +116,9 @@ func _install_view() -> void:
 	overlays = _install_scripted(&"overlays", OVERLAY_SCRIPT, "P19")
 	build_menu = _install_scripted(&"build_menu", BUILD_MENU_SCRIPT, "P18")
 	_install_play()
-	_install_router()
 	_install_pending()
+	# LAST, so that in reverse tree order it is FIRST to see a key.
+	_install_router()
 
 	_apply_layer_table()
 	_report_install()

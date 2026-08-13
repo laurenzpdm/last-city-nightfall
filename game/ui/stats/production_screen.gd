@@ -21,6 +21,7 @@ const COL_MADE: float = 0.17
 const COL_USED: float = 0.17
 const COL_STOCK: float = 0.15
 const HEADLINE_H: float = 40.0
+const STRIP_H: float = 54.0
 const TABLE_W: float = 470.0
 
 var model: LcnProductionModel = LcnProductionModel.new()
@@ -54,20 +55,18 @@ func _layout() -> void:
 		return
 	var t: LcnStatsTheme = _theme()
 	var table_w: float = minf(TABLE_W, size.x * 0.42)
-	plot.position = Vector2(0.0, HEADLINE_H)
-	plot.size = Vector2(maxf(200.0, size.x - table_w - t.GAP), maxf(120.0, size.y - HEADLINE_H))
+	plot.position = Vector2(0.0, HEADLINE_H + STRIP_H)
+	plot.size = Vector2(maxf(200.0, size.x - table_w - t.GAP),
+		maxf(120.0, size.y - HEADLINE_H - STRIP_H))
 	_visible_rows = maxi(1, int((size.y - HEADLINE_H - t.ROW_H * 1.6) / t.ROW_H))
 
 
 func _refresh() -> void:
 	model.refresh(window_id, _window_samples())
-	_rows = model.rows()
 	model.sort_by(sort_column, sort_ascending)
 	_rows = model.rows()
-	if selected == &"" and not _rows.is_empty():
-		selected = StringName(String(_rows[0]["item"]))
-	if model.bottleneck() != &"" and selected == &"":
-		selected = model.bottleneck()
+	if selected == &"" or model.row_for(selected).is_empty():
+		selected = model.default_selection()
 	_bind_plot()
 	var t: LcnStatTrack = track()
 	if dirty("%s/%d/%s/%s/%d" % [String(window_id), 0 if t == null else t.latest_tick,
@@ -86,6 +85,8 @@ func _bind_plot() -> void:
 		return
 	var colour: Color = LcnStatsDefs.item_colour(selected)
 	plot.title = "%s — units per minute" % LcnStatsDefs.item_label(selected)
+	plot.empty_note = "No %s has been made or used in this window." % \
+		LcnStatsDefs.item_label(selected).to_lower()
 	plot.add_entry(LcnStatsDefs.produced_key(selected), "Made",
 		colour, LcnGraphPlot.Mode.RATE, true)
 	plot.add_entry(LcnStatsDefs.consumed_key(selected), "Used",
@@ -109,7 +110,57 @@ func _draw() -> void:
 	var t: LcnStatsTheme = _theme()
 	clear_hot()
 	_draw_headline(t)
+	_draw_strip(t)
 	_draw_table(t)
+
+
+## Five numbers about the whole factory, so the screen still says something when
+## the selected line happens to be flat.
+func _draw_strip(t: LcnStatsTheme) -> void:
+	var w: float = plot.size.x
+	var rect := Rect2(Vector2(0.0, HEADLINE_H), Vector2(w, STRIP_H - 6.0))
+	t.plate(self, rect, t.PANEL, t.RIM_SOFT)
+	var s: Dictionary = model.summary()
+	var machines: Dictionary = _machine_counts()
+	var cells: Array[Dictionary] = [
+		{"label": "OUTPUT", "value": "%s/min" % LcnStatsTheme.compact(
+			float(s["items_per_min"])), "colour": t.TEXT_BRIGHT},
+		{"label": "LINES RUNNING", "value": "%d of %d" % [int(s["active_lines"]),
+			int(s["items"])], "colour": t.TEXT},
+		{"label": "MACHINES", "value": "%d running" % int(machines["active"]),
+			"colour": t.GOOD if int(machines["active"]) > 0 else t.TEXT_DIM},
+		{"label": "STALLED", "value": "%d" % int(machines["stalled"]),
+			"colour": t.BAD if int(machines["stalled"]) > 0 else t.TEXT_DIM},
+		{"label": "WAITING ON AN ITEM", "value": "%d" % int(s["starved_machines"]),
+			"colour": t.WARN if int(s["starved_machines"]) > 0 else t.TEXT_DIM},
+		{"label": "BACKED UP", "value": "%d" % int(s["blocked_machines"]),
+			"colour": t.WARN if int(s["blocked_machines"]) > 0 else t.TEXT_DIM},
+	]
+	var cell_w: float = w / float(cells.size())
+	for i: int in cells.size():
+		var c: Dictionary = cells[i]
+		var x: float = float(i) * cell_w + 14.0
+		if i > 0:
+			draw_line(Vector2(float(i) * cell_w, rect.position.y + 9.0),
+				Vector2(float(i) * cell_w, rect.position.y + rect.size.y - 9.0),
+				t.RIM_SOFT, 1.0)
+		t.caps(self, Vector2(x, rect.position.y + 18.0), String(c["label"]),
+			t.fs(t.FS_TINY), t.TEXT_FAINT)
+		t.text(self, Vector2(x, rect.position.y + 39.0), String(c["value"]),
+			t.fs(t.FS_HEAD), c["colour"])
+
+
+func _machine_counts() -> Dictionary:
+	var production: Object = _production()
+	if production == null or not production.has_method("totals"):
+		return {"active": 0, "stalled": 0}
+	var totals: Dictionary = production.call("totals")
+	return {"active": int(totals.get("active", 0)), "stalled": int(totals.get("stalled", 0))}
+
+
+func _production() -> Object:
+	var sim: Node = _autoload("Sim")
+	return null if sim == null else sim.call("get_system", &"production")
 
 
 func _draw_headline(t: LcnStatsTheme) -> void:

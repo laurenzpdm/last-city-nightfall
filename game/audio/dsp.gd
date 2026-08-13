@@ -31,18 +31,27 @@ static func lp_coeff(cutoff_hz: float, sr: int) -> float:
 	return clampf(1.0 - exp(-TAU * fc / rate), 0.0, 1.0)
 
 
-## Chamberlin state-variable frequency term. Stable well below sr/4, which is
-## where the clamp puts it — a resonant sweep that runs off the top of the band
-## is how a "wind" loop turns into a burst of NaN.
+## Chamberlin state-variable frequency term.
+##
+## The stability condition is `f * damping < 2`, and `f` grows with the cutoff.
+## The first version of this clamped the cutoff at sr * 0.22, which gives
+## f = 0.91; with the lowest resonance the damping term is 2.0 and the product
+## is 1.82 — close enough to the edge that four thousand samples of a hard sine
+## drove it to NaN in `tests/audio/test_dsp.gd`. Clamping at sr * 0.11 caps the
+## product at 1.09 with a comfortable margin, and the only recipes that ask for
+## a band that high are noise bursts where the exact corner is inaudible.
+const SVF_MAX_RATIO: float = 0.11
+const SVF_MAX_F: float = 0.68
+
 static func svf_f(cutoff_hz: float, sr: int) -> float:
 	var rate: float = maxf(1.0, float(sr))
-	var fc: float = clampf(cutoff_hz, 1.0, rate * 0.22)
-	return clampf(2.0 * sin(PI * fc / rate), 0.0001, 1.2)
+	var fc: float = clampf(cutoff_hz, 1.0, rate * SVF_MAX_RATIO)
+	return clampf(2.0 * sin(PI * fc / rate), 0.0001, SVF_MAX_F)
 
 
 ## Damping term for the same filter. `q` is resonance: 0.7 flat, 8 whistling.
 static func svf_q(q: float) -> float:
-	return clampf(1.0 / maxf(0.5, q), 0.02, 2.0)
+	return clampf(1.0 / maxf(0.625, q), 0.02, 1.6)
 
 
 # --- gain --------------------------------------------------------------------

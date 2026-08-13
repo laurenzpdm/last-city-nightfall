@@ -55,9 +55,10 @@ const LADDER_CURVE: Array[int] = [
 
 ## Delay between successive items in a staggered group (a row of icons, a line
 ## of pipes being placed). Long enough to read as a sequence, short enough that
-## twelve of them still finish inside SETTLE.
-const STAGGER: float = 0.035
-const STAGGER_MAX: int = 12
+## a whole group plus its own SETTLE still lands inside SWELL — a stagger the
+## player has to wait out is a stagger that has stopped being a flourish.
+const STAGGER: float = 0.022
+const STAGGER_MAX: int = 8
 
 ## The longest an effect may live regardless of what it asks for. A juice layer
 ## that leaks a ten-second particle is a juice layer that eventually costs a

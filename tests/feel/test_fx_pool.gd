@@ -18,12 +18,13 @@ func test_the_pool_never_grows() -> void:
 
 
 func test_a_full_pool_overwrites_its_oldest_row() -> void:
-	var pool := LcnFxPool.new(4)
-	for i: int in 4:
+	# 8 rows, not 4: the pool has a floor, so asking for 4 gets you 8.
+	var pool := LcnFxPool.new(8)
+	for i: int in 8:
 		pool.spawn(LcnFxPool.Kind.DUST, Vector2(float(i), 0.0), Vector2.ZERO, 9.0, 1.0, Color.WHITE)
-	assert_eq(pool.count(), 4, "full")
+	assert_eq(pool.count(), 8, "full")
 	pool.spawn(LcnFxPool.Kind.RING, Vector2(99.0, 0.0), Vector2.ZERO, 9.0, 1.0, Color.WHITE)
-	assert_eq(pool.count(), 4, "still full — the newcomer took a seat, it did not add one")
+	assert_eq(pool.count(), 8, "still full — the newcomer took a seat, it did not add one")
 	var found: bool = false
 	for i: int in pool.capacity:
 		if pool.alive_at(i) and pool.kind_at(i) == int(LcnFxPool.Kind.RING):
@@ -35,7 +36,8 @@ func test_life_is_clamped_to_the_vocabulary() -> void:
 	var pool := LcnFxPool.new(4)
 	var i: int = pool.spawn(LcnFxPool.Kind.EMBER, Vector2.ZERO, Vector2.ZERO,
 		9999.0, 1.0, Color.WHITE)
-	assert_le(pool.field(i, LcnFxPool.F_LIFE), LcnTiming.MAX_EFFECT_LIFE,
+	# +1e-3: the row is stored as a float32, so the clamp comes back a hair high.
+	assert_le(pool.field(i, LcnFxPool.F_LIFE), LcnTiming.MAX_EFFECT_LIFE + 0.001,
 		"nobody gets to leak a ten-second particle")
 	var j: int = pool.spawn(LcnFxPool.Kind.EMBER, Vector2.ZERO, Vector2.ZERO,
 		-5.0, 1.0, Color.WHITE)

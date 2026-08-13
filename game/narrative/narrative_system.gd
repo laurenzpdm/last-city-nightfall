@@ -58,7 +58,6 @@ var epilogue: Dictionary = {}
 
 var _tick: int = 0
 var _hour_ticks: int = NarrativeDefs.DEFAULT_DAY_TICKS / NarrativeDefs.HOURS_PER_DAY
-var _next_seq: int = 1
 
 ## event id -> tick it last fired. -1 means never.
 var _fired_at: Dictionary[StringName, int] = {}
@@ -120,7 +119,6 @@ func setup() -> void:
 	ended = false
 	epilogue = {}
 	_tick = 0
-	_next_seq = 1
 	_fired_at.clear()
 	_fire_count.clear()
 	_hold_since.clear()
@@ -417,7 +415,22 @@ func _raise(def: NarrativeEventDef) -> void:
 	var body: String = world.fill(def.body)
 	var row: Dictionary = journal.record(_tick, _day(), def.category, def.id,
 		def.title, body, causes)
+	var card: Dictionary = _build_card(def, causes, int(row["seq"]), _tick,
+		_linger_deadline(def))
+	_push(card)
 
+	Log.info(TAG, "%s: %s" % [String(def.category), def.title])
+	Bus.narrative_event.emit(NarrativeDefs.EV_RAISED, card.duplicate(true))
+	Bus.alert_raised.emit(
+		NarrativeDefs.SEV_WARN if def.is_dilemma() else NarrativeDefs.SEV_NOTE,
+		StringName("narrative_" + String(def.id)), def.title, _focus_of(def))
+
+
+## The card, as plain data. Nothing in here is a class from this folder, so a
+## HUD can draw it, a save can hold it and a test can read it without compiling
+## against [P22] at all.
+func _build_card(def: NarrativeEventDef, causes: PackedStringArray, seq: int,
+		raised: int, deadline: int) -> Dictionary:
 	var opts: Array = []
 	for i: int in def.options.size():
 		var o: NarrativeOption = def.options[i]
@@ -430,32 +443,22 @@ func _raise(def: NarrativeEventDef) -> void:
 			"tags": _names(o.tags),
 			"is_default": o.is_default,
 		})
-
-	var deadline: int = _linger_deadline(def)
-
-	var card: Dictionary = {
-		"seq": int(row["seq"]),
+	return {
+		"seq": seq,
 		"id": String(def.id),
 		"category": String(def.category),
 		"title": def.title,
 		"lede": world.fill(def.lede),
-		"body": body,
+		"body": world.fill(def.body),
 		"cause_prose": world.fill(def.cause_prose),
-		"causes": row["causes"],
+		"causes": _to_array(causes),
 		"options": opts,
-		"raised_tick": _tick,
+		"raised_tick": raised,
 		"day": _day(),
 		"deadline_tick": deadline,
 		"priority": def.priority,
 		"focus": [] if def.focus_cell.x < -9000 else [def.focus_cell.x, def.focus_cell.y],
 	}
-	_push(card)
-
-	Log.info(TAG, "%s: %s" % [String(def.category), def.title])
-	Bus.narrative_event.emit(NarrativeDefs.EV_RAISED, card.duplicate(true))
-	Bus.alert_raised.emit(
-		NarrativeDefs.SEV_WARN if def.is_dilemma() else NarrativeDefs.SEV_NOTE,
-		StringName("narrative_" + String(def.id)), def.title, _focus_of(def))
 
 
 ## When this card comes off the pile by itself. A decision has the deadline its
@@ -886,7 +889,16 @@ func deserialize(data: Dictionary) -> void:
 		var def: NarrativeEventDef = by_id.get(StringName(String(stub.get("id", ""))))
 		if def == null:
 			continue
-		_raise(def)
+		# Rebuilt, not re-raised. Calling _raise() here would count the event a
+		# second time, write a second chronicle entry and announce it on the Bus
+		# as if it had just happened, which is how loading a save ends up
+		# claiming a delegation arrived twice.
+		var causes: PackedStringArray = PackedStringArray()
+		for line: Variant in stub.get("causes", []):
+			causes.append(String(line))
+		var card: Dictionary = _build_card(def, causes, int(stub.get("seq", 0)),
+			int(stub.get("raised_tick", _tick)), int(stub.get("deadline_tick", 0)))
+		_push(card)
 	Log.info(TAG, "restored: chapter %d, %d fired, %d waiting" % [
 		chapter_index, _events_fired, pending.size()])
 

@@ -356,6 +356,13 @@ func _suite_build_mode_reaches_the_ghost() -> void:
 	_ok(not entries.is_empty(), "the palette lists something to build (%d)" % entries.size())
 	if entries.is_empty():
 		return
+	# THE automation finding, as an assertion: belts were not BuildingDefs, so
+	# they never reached the build catalogue, so there was no path at all from a
+	# human to the logistics pillar. Typed exactly as a player would type it.
+	var belts: Array = catalog.call(&"view", &"__all", "belt")
+	_ok(not belts.is_empty(),
+		"typing 'belt' into the palette finds something placeable (%d)" % belts.size())
+
 	var kind: StringName = entries[0].get(&"id")
 	_menu.call(&"_on_palette_picked", kind)
 	await _settle(SETTLE)

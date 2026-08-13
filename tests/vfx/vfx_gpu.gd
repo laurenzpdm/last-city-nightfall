@@ -157,6 +157,29 @@ func _build() -> void:
 		_vfx.enabled = false
 	# Warm the city up so heat has decided who it is serving.
 	SimClock.advance(200)
+	_hide_interface()
+
+
+## The interface is not this part's to photograph, and it covers half the frame.
+## Everything from layer 62 up belongs to [P17], [P19] and [P18]; [P13]'s post
+## stack at 60 stays, because the effects layer is graded by it and hiding it
+## would flatter these numbers. What is left on screen is the world.
+func _hide_interface() -> void:
+	for n: Node in _all_nodes(get_tree().root):
+		var cl: CanvasLayer = n as CanvasLayer
+		if cl != null and cl.layer >= 62:
+			cl.visible = false
+
+
+func _all_nodes(root: Node) -> Array[Node]:
+	var out: Array[Node] = []
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		out.append(n)
+		for c: Node in n.get_children():
+			stack.append(c)
+	return out
 
 
 func _drive(scene: Dictionary) -> void:
@@ -165,7 +188,12 @@ func _drive(scene: Dictionary) -> void:
 		view = Rect2(_core - Vector2(960, 540), Vector2(1920, 1080))
 	var wind := Vector2(-150.0, 28.0)
 	var grade: Dictionary = _renderer.current_grade() if _renderer != null else {}
-	_vfx.weather.update(1.0 / 60.0, view, wind, StringName(scene["weather"]),
+	# The veil eases in and out over WHITEOUT_LERP seconds, which is right in a
+	# game and wrong in a suite that holds each condition for a sixth of a
+	# second. The first frame of a scene is given a long step so the weather has
+	# actually arrived by the time it is photographed.
+	var step: float = 3.0 if _scene_frame == 0 else 1.0 / 60.0
+	_vfx.weather.update(step, view, wind, StringName(scene["weather"]),
 		float(scene["intensity"]), float(scene["storm"]), float(scene["visibility"]),
 		float(scene["snow"]), grade, 1.0, false)
 	_vfx.industry.update(view, wind, false, 1.0)
@@ -187,7 +215,9 @@ func _drive(scene: Dictionary) -> void:
 ## Fires the same Bus signals [P07] fires, at real coordinates inside the view,
 ## so what is exercised is the production path and not a test-only shortcut.
 func _fake_battle(view: Rect2) -> void:
-	var mid: Vector2 = view.get_center()
+	# Low and right of centre, clear of where the interface sits, so what the
+	# analyser counts is the fire-fight and not a panel.
+	var mid: Vector2 = view.get_center() + Vector2(view.size.x * 0.18, view.size.y * 0.26)
 	for i: int in 5:
 		var from: Vector2 = mid + Vector2(_rng.randf_range(-260.0, 260.0),
 			_rng.randf_range(-160.0, 160.0))
@@ -267,6 +297,8 @@ func _analyse(img: Image) -> Dictionary:
 	var total: int = 0
 	var sum: float = 0.0
 	var sum2: float = 0.0
+	var detail: float = 0.0
+	var speckle: int = 0
 	for y: int in range(y0, y1, 2):
 		for x: int in range(x0, x1, 2):
 			var c: Color = img.get_pixel(x, y)
@@ -280,13 +312,36 @@ func _analyse(img: Image) -> Dictionary:
 				warm += 1
 			if c.b > 0.30 and c.b > c.r * 1.35 and l > 0.16:
 				cold += 1
+			# Local detail: how different this pixel is from one eight pixels to
+			# its right. This is the number a veil between the camera and the
+			# city is supposed to destroy, and it is the honest measure of
+			# "genuinely reduced visibility" — mean brightness alone would rise
+			# for a bright fog that hid nothing.
+			if x + 8 < x1:
+				var c2: Color = img.get_pixel(x + 8, y)
+				detail += absf(l - (c2.r * 0.30 + c2.g * 0.59 + c2.b * 0.11))
+			# A flake is a small bright thing with darker ground on BOTH sides of
+			# it. Fog is not, a wall edge is not, and a lit window is not. This
+			# is the count that separates "there is snow falling" from "the frame
+			# got brighter", and it is the one the snow assertions use.
+			if x - 3 >= x0 and x + 3 < x1:
+				var lo: float = _luma(img.get_pixel(x - 3, y))
+				var hi: float = _luma(img.get_pixel(x + 3, y))
+				if l > lo + 0.055 and l > hi + 0.055:
+					speckle += 1
 	var n: float = float(maxi(total, 1))
 	var mean: float = sum / n
 	return {
 		"bright": bright, "warm": warm, "cold": cold, "sampled": total,
 		"mean_luma": snappedf(mean, 0.0001),
 		"contrast": snappedf(sqrt(maxf(0.0, sum2 / n - mean * mean)), 0.0001),
+		"detail": snappedf(detail / n, 0.00001),
+		"speckle": speckle,
 	}
+
+
+static func _luma(c: Color) -> float:
+	return c.r * 0.30 + c.g * 0.59 + c.b * 0.11
 
 
 # ------------------------------------------------------------------ verdict --
@@ -328,15 +383,21 @@ func _verdict() -> void:
 		return
 
 	# --- things only a real frame can say ---
-	var c_bright: int = int(clear.get("bright", 0))
-	var s_bright: int = int(snowfall.get("bright", 0))
-	_expect(s_bright > c_bright + int(float(clear.get("sampled", 1)) * 0.004),
-		"snowfall added only %d bright pixels over clear (%d -> %d)" % [
-			s_bright - c_bright, c_bright, s_bright])
+	# Flakes are small, discrete and brighter than what is behind them, which is
+	# what `speckle` counts and what a fog bank would not produce. The count has
+	# to scale with the weather, not merely be non-zero.
+	var c_snow: int = int(clear.get("speckle", 0))
+	var s_snow: int = int(snowfall.get("speckle", 0))
+	var b_snow: int = int(_measure.get("blizzard", {}).get("speckle", 0))
+	_expect(s_snow > c_snow + 400,
+		"snowfall put %d discrete flakes on screen against %d specks in clear weather"
+		% [s_snow, c_snow])
+	_expect(b_snow > s_snow,
+		"a blizzard (%d flakes) was no thicker than ordinary snowfall (%d)" % [b_snow, s_snow])
 
-	_expect(float(frost_scene.get("contrast", 1.0)) < float(snowfall.get("contrast", 0.0)),
-		"a whiteout did not flatten the frame (contrast %.3f vs %.3f)" % [
-			float(frost_scene.get("contrast", -1.0)), float(snowfall.get("contrast", -1.0))])
+	_expect(float(frost_scene.get("detail", 1.0)) < float(snowfall.get("detail", 0.0)) * 0.92,
+		"a whiteout did not actually cost visibility (local detail %.4f vs %.4f)" % [
+			float(frost_scene.get("detail", -1.0)), float(snowfall.get("detail", -1.0))])
 	_expect(float(frost_scene.get("mean_luma", 0.0)) > float(snowfall.get("mean_luma", 1.0)),
 		"a whiteout did not lift the frame (luma %.3f vs %.3f)" % [
 			float(frost_scene.get("mean_luma", -1.0)), float(snowfall.get("mean_luma", -1.0))])

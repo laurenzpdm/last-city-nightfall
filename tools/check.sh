@@ -1,15 +1,36 @@
 #!/usr/bin/env bash
 # THE GATE. One command, one answer, one exit code.
 #
-#   tools/check.sh              # import + parse + lint + tests + determinism + perf
-#   tools/check.sh --fast       # skip determinism and perf (pre-commit loop)
+#   tools/check.sh              # everything below
+#   tools/check.sh --fast       # skip determinism, perf, and the slow gate runs
 #   tools/check.sh --no-perf    # everything but the perf gate
+#   tools/check.sh --no-gate    # skip reachability + contracts + the visual run
+#   tools/check.sh --no-visual  # keep the gate, skip the windowed run
 #   tools/check.sh --quiet      # only the summary and the failures
+#
+#   import · parse · sim lint · tests · standalone suites · determinism · perf
+#   · ENGINE ERRORS · REACHABILITY · SCENARIO CONTRACTS · a VISUAL run
+#
+# The last four are new, and they are why this file exists in this shape. On
+# 2026-08-13 this script printed CHECK GREEN on a build where:
+#
+#   * the build menu was never in the scene tree, so the palette, tech tree,
+#     recipe browser, blueprint library and Book of Laws did not exist in the
+#     running game and no human could reach the logistics pillar at all;
+#   * 70 engine errors printed per visual run, none of which Log.errors counts,
+#     and line 154 of this very file filtered `^ERROR` out of the output before
+#     a human could read it;
+#   * first_night ran 24000 ticks with logistics.items_moved flat at 0.
+#
+# 768 tests, a determinism replay and a perf gate all said green, because all
+# three test the simulation and none of them asked whether anything HAPPENED or
+# whether a player could reach it.
 #
 # Every stage runs even when an earlier one fails: a builder wants the whole
 # list of what is wrong, not the first item on it.
 #
 # Exit code 0 means the build is green and a critic can be handed the artifacts.
+# "CHECK GREEN, PARTIAL" means some stage never ran. It is not green.
 set -uo pipefail
 GODOT="${GODOT:-/Applications/Godot.app/Contents/MacOS/Godot}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

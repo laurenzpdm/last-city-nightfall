@@ -59,7 +59,7 @@ const BACK_C: float = 1.42
 
 ## Number of enum entries. Kept as a constant so a test can walk every curve
 ## without depending on Kind.size() existing.
-const KIND_COUNT: int = 24
+const KIND_COUNT: int = 23
 
 
 ## The dispatcher. `k` is clamped, so a caller that overshoots its own timer
@@ -185,8 +185,11 @@ static func elastic_out(t: float) -> float:
 		return 0.0
 	if t >= 1.0:
 		return 1.0
+	# Amplitude damped to 0.72: the textbook constant overshoots by 35%, which on
+	# a top-down grid reads as a cartoon rather than as a spring, and it broke the
+	# ±30% band every other curve in this file lives inside.
 	const P: float = 0.32
-	return pow(2.0, -10.0 * t) * sin((t - P * 0.25) * TAU / P) + 1.0
+	return 0.72 * pow(2.0, -10.0 * t) * sin((t - P * 0.25) * TAU / P) + 1.0
 
 
 static func bounce_out(t: float) -> float:
@@ -216,9 +219,12 @@ static func settle(t: float) -> float:
 
 ## Instant to full, then a decaying fall. Flashes, muzzle light, impact tint —
 ## anything that must be at full strength on the first frame it exists.
+##
+## No `if t <= 0.0: return 0.0` guard here, and that is the point: this is an
+## ENVELOPE, not a transition. The guard was in this function for exactly one
+## test run and it made every flash in the game fade IN, which is the difference
+## between a hit and a sunrise.
 static func impact(t: float) -> float:
-	if t <= 0.0:
-		return 0.0
 	return 1.0 - expo_in(t)
 
 

@@ -156,11 +156,11 @@
         },
         "logistics.items_moved": {
           "final_min": 1,
-          "why": "THE 0-BELTS FINDING. 24000 ticks with items_moved flat at 0 is the automation pillar \u2014 one of the three genres in the pitch \u2014 not running at all. Belts are not BuildingDefs, so no scenario can place one and no player can either. Until an item moves, this gate stays red on purpose."
+          "why": "THE 0-BELTS FINDING. A reference day in which the logistics pillar moves not one item is one of the three genres in the pitch not running at all. As of 2026-08-13 belt_mk1..3, inserters and splitters exist as BuildingDefs, so the remaining gap is that no shipped scenario places one and therefore nothing has ever proved an item can travel. This band stays red until something moves."
         },
         "logistics.belt_lines": {
           "peak_min": 1,
-          "why": "Same finding from the other side: a build with zero belt lines has no automation to read, no throughput to optimise and nothing for the logistics lens to draw."
+          "why": "The same finding from the other side: a run with zero belt lines has no automation to read, no throughput to optimise and nothing for [P19]'s logistics lens to draw. A belt that exists in the catalogue but never appears in a run is a menu entry, not a pillar."
         },
         "climate.day": {
           "final_min": 2,
@@ -282,7 +282,7 @@
         },
         "logistics.items_moved": {
           "final_min": 1,
-          "why": "Seven and a half days of a growing city with not one item moved by the logistics pillar is the clearest statement possible that automation does not exist in this build."
+          "why": "Seven and a half days of a growing city with not one item moved by the logistics pillar is the clearest statement possible that automation is not part of this game yet, whatever the build catalogue lists."
         },
         "climate.day": {
           "final_min": 7,

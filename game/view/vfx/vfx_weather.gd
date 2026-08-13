@@ -33,7 +33,7 @@ const DRIFT_POINTS: int = 28
 ## not the camera, so the ribbons do not swim when the camera pans.
 const DRIFT_STEP: float = 128.0
 ## Soft blobs painted into the whiteout veil.
-const VEIL_BLOBS: int = 7
+const VEIL_BLOBS: int = 5
 ## Weather strength each snow layer waits for. Far haze arrives first, the big
 ## near flakes only in real weather; all three arriving together is what makes
 ## game snow read as a switch being thrown.
@@ -83,7 +83,7 @@ func setup() -> void:
 		m.set_param_min(ParticleProcessMaterial.PARAM_INITIAL_LINEAR_VELOCITY, 6.0)
 		m.set_param_max(ParticleProcessMaterial.PARAM_INITIAL_LINEAR_VELOCITY, 22.0)
 		m.gravity = Vector3(0.0, float(spec["fall"]), 0.0)
-		m.set_param_min(ParticleProcessMaterial.PARAM_SCALE, float(spec["size"]) * 0.6)
+		m.set_param_min(ParticleProcessMaterial.PARAM_SCALE, float(spec["size"]) * 0.55)
 		m.set_param_max(ParticleProcessMaterial.PARAM_SCALE, float(spec["size"]))
 		var spin: float = float(spec["spin"])
 		if spin > 0.0:
@@ -263,7 +263,7 @@ class Veil extends Node2D:
 		var w: float = host._whiteout
 		var base: Color = host._fog.lerp(LcnVfxTuning.SNOW_FLAKE, 0.35)
 		draw_rect(Rect2(view.position - Vector2(64, 64), view.size + Vector2(128, 128)),
-			Color(base.r, base.g, base.b, w * 0.72))
+			Color(base.r, base.g, base.b, w * 0.62))
 		if host._calm:
 			return
 		# Torn sheets of snow crossing the frame. Four large soft blobs is the
@@ -281,4 +281,4 @@ class Veil extends Node2D:
 			var c: Vector2 = view.get_center() + dir * phase + perp * lateral
 			var r: float = span * (0.30 + 0.12 * float(i % 3))
 			draw_texture_rect(haze, Rect2(c - Vector2(r, r) * 0.5, Vector2(r, r)), false,
-				Color(base.r, base.g, base.b, w * 0.30))
+				Color(base.r, base.g, base.b, w * 0.22))

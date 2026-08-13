@@ -42,12 +42,16 @@ const ENEMY_MEMORY_MAX: int = 2048
 
 ## Snow layers. Near flakes are big, fast and blurred; far flakes are a haze.
 ## amount is the fixed GPU buffer; ratio is what the weather scales.
+## `size` multiplies a 32 px crystal, so 0.10 is a three-pixel mote and 0.34 is
+## an eleven-pixel flake. The first pass shipped these at 1.05/1.9/3.4 — a
+## hundred-pixel snowflake per particle — which read as decorative symbols
+## printed over the city rather than as weather. Snow is small.
 const SNOW_LAYERS: Array[Dictionary] = [
-	{"name": "SnowFar", "amount": 420, "size": 1.05, "fall": 34.0, "alpha": 0.30,
+	{"name": "SnowFar", "amount": 420, "size": 0.10, "fall": 34.0, "alpha": 0.34,
 		"drift": 0.45, "spin": 0.0, "z": 52},
-	{"name": "SnowMid", "amount": 300, "size": 1.9, "fall": 62.0, "alpha": 0.52,
+	{"name": "SnowMid", "amount": 300, "size": 0.18, "fall": 62.0, "alpha": 0.55,
 		"drift": 0.75, "spin": 1.2, "z": 54},
-	{"name": "SnowNear", "amount": 150, "size": 3.4, "fall": 104.0, "alpha": 0.42,
+	{"name": "SnowNear", "amount": 150, "size": 0.34, "fall": 104.0, "alpha": 0.46,
 		"drift": 1.15, "spin": 2.4, "z": 57},
 ]
 

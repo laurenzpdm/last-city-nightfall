@@ -54,6 +54,7 @@ extends RefCounted
 ##   T      research              [P18]
 ##   N      blueprint library     [P18]
 ##   L      the Book of Laws      [P18]
+##   G / P  statistics screens    [P20]
 ##   Esc    close the top panel   [P18], then cancel     [P16]
 ##   Q E    cycle the ghost       play shell
 ##   R      rotate the ghost      [P16] action → play shell

@@ -52,6 +52,14 @@ static func install() -> LcnFeel:
 		return null
 	if not LcnLayers.view_wanted():
 		return null
+	# Bisect switch, same family as --feel-disable in feel_root.gd. This one
+	# separates "the script was loaded" from "the node is in the tree", which is
+	# the only way to tell a bootstrap problem from a behaviour problem.
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--feel-disable=") and a.contains("install"):
+			Log.warn("feel", "--feel-disable=install: the layer was loaded but not installed")
+			_installed = true
+			return null
 	var parent: Node = tree.current_scene
 	if parent == null or not parent.is_inside_tree():
 		parent = tree.root

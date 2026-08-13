@@ -52,8 +52,8 @@ func test_an_unknown_rung_is_visible_not_invisible() -> void:
 func test_stagger_reads_as_a_sequence_and_still_finishes_in_time() -> void:
 	assert_near(LcnTiming.stagger(0), 0.0, 1.0e-6)
 	assert_gt(LcnTiming.stagger(1), 0.0)
-	assert_lt(LcnTiming.stagger(12) + LcnTiming.SNAP, LcnTiming.SETTLE + LcnTiming.SNAP + 0.01,
-		"a dozen staggered items still land inside a settle")
+	assert_le(LcnTiming.stagger(LcnTiming.STAGGER_MAX) + LcnTiming.SETTLE, LcnTiming.SWELL,
+		"a whole staggered group plus its own settle lands inside a swell")
 	assert_eq(LcnTiming.stagger(400), LcnTiming.stagger(LcnTiming.STAGGER_MAX),
 		"the stagger is capped, so a hundred items do not take four seconds")
 
