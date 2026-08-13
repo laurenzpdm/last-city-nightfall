@@ -21,7 +21,7 @@
     {"tick": 2, "cmd": {"system": "build", "op": "grant_unlock", "unlock": "thermal_storage"}},
 
     {"tick": 3, "cmd": {"system": "build", "op": "place", "kind": "the_hearth", "cell": [127, 126], "free": true, "instant": true}},
-    {"tick": 4, "cmd": {"system": "build", "op": "place_line", "kind": "heat_pipe", "from": [132, 128], "to": [153, 128], "free": true, "instant": true}},
+    {"tick": 4, "cmd": {"system": "build", "op": "place_line", "kind": "heat_pipe", "from": [132, 128], "to": [160, 128], "free": true, "instant": true}},
 
     {"tick": 6, "cmd": {"system": "build", "op": "place", "kind": "smelter", "cell": [132, 129], "free": true, "instant": true, "meta": {"recipe": "iron_plate"}}},
     {"tick": 7, "cmd": {"system": "build", "op": "place", "kind": "smelter", "cell": [136, 129], "free": true, "instant": true, "meta": {"recipe": "copper_coil"}}},
@@ -36,13 +36,19 @@
     {"tick": 18, "cmd": {"system": "build", "op": "place", "kind": "housing_block", "cell": [147, 129], "free": true, "instant": true}},
     {"tick": 19, "cmd": {"system": "build", "op": "place", "kind": "housing_block", "cell": [151, 129], "free": true, "instant": true}},
 
+    {"tick": 20, "cmd": {"system": "build", "op": "place", "kind": "coal_generator", "cell": [154, 126], "free": true, "instant": true}},
+    {"tick": 21, "cmd": {"system": "build", "op": "place", "kind": "coal_generator", "cell": [157, 126], "free": true, "instant": true}},
+    {"tick": 22, "cmd": {"system": "build", "op": "place", "kind": "coal_generator", "cell": [158, 129], "free": true, "instant": true}},
+
     {"tick": 24, "cmd": {"system": "build", "op": "place", "kind": "coal_generator", "cell": [166, 131], "free": true, "instant": true}},
     {"tick": 25, "cmd": {"system": "build", "op": "place", "kind": "heat_pipe", "cell": [165, 132], "free": true, "instant": true}},
     {"tick": 26, "cmd": {"system": "build", "op": "place", "kind": "ore_drill", "cell": [162, 131], "free": true, "instant": true}},
+    {"tick": 27, "cmd": {"system": "build", "op": "place", "kind": "warmth_radiator", "cell": [165, 133], "free": true, "instant": true}},
 
     {"tick": 30, "cmd": {"system": "build", "op": "place", "kind": "coal_generator", "cell": [128, 98], "free": true, "instant": true}},
     {"tick": 31, "cmd": {"system": "build", "op": "place", "kind": "heat_pipe", "cell": [127, 99], "free": true, "instant": true}},
     {"tick": 32, "cmd": {"system": "build", "op": "place", "kind": "ore_drill", "cell": [124, 98], "free": true, "instant": true}},
+    {"tick": 33, "cmd": {"system": "build", "op": "place", "kind": "warmth_radiator", "cell": [127, 100], "free": true, "instant": true}},
 
     {"tick": 60, "cmd": {"system": "production", "op": "ratios"}},
     {"tick": 2000, "cmd": {"system": "production", "op": "dump"}},

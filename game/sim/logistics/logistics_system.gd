@@ -401,12 +401,15 @@ func _serve_requests() -> void:
 			var need: int = st.shortfall(kind)
 			if need <= 0:
 				continue
+			var was_short: bool = haul.is_starved(id)
 			var got: int = haul.serve(world, _stock(), id, cell, kind, need)
 			if got > 0:
 				var placed: int = st.insert(kind, got)
 				if placed < got:
 					_return_items(cell, kind, got - placed)
-			else:
+			elif not was_short:
+				# On the edge only. A building that has been starving for a minute
+				# is one alert, not a hundred and twenty.
 				Bus.machine_stalled.emit(id, &"no_items")
 
 

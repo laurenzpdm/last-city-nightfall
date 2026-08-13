@@ -638,7 +638,10 @@ func test_a_machine_buffer_is_the_seam_production_plugs_into() -> void:
 		return
 	world.cmd_now({"system": &"build", "op": "place", "kind": "smelter",
 		"cell": [O.x, O.y + 24], "free": true, "instant": true})
-	world.run(5)
+	# The sweep of [P11]'s buildings runs twice a second rather than every tick;
+	# a machine joins the logistics world within that, and anything asking from
+	# inside the simulation adopts it on the spot.
+	world.run(LogisticsSystem.SYNC_EVERY + 2)
 	var id: int = int(world.system(&"build").call("building_at", Vector2i(O.x, O.y + 24)).get("id"))
 	var st: LogiStore = logi.store_of(id)
 	assert_not_null(st, "[P04] finds a smelter's buffer through store_of()")
