@@ -123,22 +123,38 @@ func _draw_chokes() -> void:
 ## The wire between the dying building and the tile that is killing it. This is
 ## the sentence the whole part exists to say.
 func _draw_leaders(victims: Array[int]) -> void:
+	# Fallback culprit per grid. A consumer that was never admitted to the fill
+	# (a frozen one, or one shed by priority) carries no tile of its own, but the
+	# solver still named a binding constraint for its network — and pointing at
+	# that is a truthful answer where drawing nothing is merely an unhelpful one.
+	var per_net: Dictionary[int, Vector2] = {}
+	for b: Dictionary in snap.bottlenecks:
+		var nid: int = int(b.get("net", -1))
+		if nid < 0 or per_net.has(nid):
+			continue
+		var cell: Array = b.get("cell", [0, 0])
+		per_net[nid] = Vector2(float(cell[0]) + 0.5, float(cell[1]) + 0.5) * TILE
+
 	var n: int = 0
 	for i: int in victims:
 		if n >= MAX_LEADERS:
 			break
-		var bx: int = snap.node_bx[i]
-		if bx < 0:
+		var to: Vector2 = Vector2.ZERO
+		var direct: bool = snap.node_bx[i] >= 0
+		if direct:
+			to = Vector2(float(snap.node_bx[i]) + 0.5, float(snap.node_by[i]) + 0.5) * TILE
+		elif per_net.has(snap.node_net[i]):
+			to = per_net[snap.node_net[i]]
+		else:
 			continue
 		var from: Vector2 = snap.node_center(i)
-		var to: Vector2 = Vector2(float(bx) + 0.5, float(snap.node_by[i]) + 0.5) * TILE
 		if from.distance_squared_to(to) < 4.0:
 			continue
 		n += 1
 		var before: int = _leads.size()
 		var dir: Vector2 = LcnOverlayGeometry.leader(from, to, _leads)
 		LcnOverlayGeometry.arrow(to - dir * px(7.0), dir, px(8.0), _leads)
-		var c: Color = LcnOverlayPalette.with_a(pal.bad(), 0.78)
+		var c: Color = LcnOverlayPalette.with_a(pal.bad(), 0.78 if direct else 0.42)
 		for _k: int in (_leads.size() - before) / 2:
 			_lead_cols.append(c)
 	if _leads.size() >= 2:

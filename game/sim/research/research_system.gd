@@ -43,7 +43,8 @@ const TAG: String = ResearchDefs.TAG
 ## Ticks between pacing samples. The measurements it reads move on the scale of
 ## a minute; sampling every tick would be twenty times the cost for no signal.
 const PACING_INTERVAL: int = 100
-## Ticks between recomputing the insight rate (a scan over the city's workshops).
+## Ticks between recomputing the insight rate from the cached census plus the
+## live heat and temperature readings. No scan; three dictionary lookups.
 const RATE_INTERVAL: int = 20
 ## Insight per second with nothing built at all. The city always has engineers;
 ## a save with no workshops still crawls forward instead of deadlocking.
@@ -112,6 +113,10 @@ var _next_pick_tick: int = 0
 ## player just set it aside or cancelled it.
 var _pick_lock: StringName = &""
 
+## One pass over the city, shared by the insight rate and the pacing engine.
+## Refreshed with the pacing sample; see _take_census().
+var _census: Dictionary = {}
+
 ## Cached availability, invalidated whenever the done-set changes.
 var _available: Array[StringName] = []
 var _available_dirty: bool = true
@@ -154,7 +159,9 @@ func setup() -> void:
 	_stall_events = 0
 	_last_idle_nudge = -100000
 	_next_pick_tick = 0
+	_pick_lock = &""
 	_suggestion = {}
+	_census.clear()
 	_effects.clear()
 	_available_dirty = true
 
@@ -186,10 +193,11 @@ func post_setup() -> void:
 	_build = _wref(Sim.get_system(&"build"))
 	_ledger.bind()
 	_pacing.bind()
+	_take_census()
 	_recompute_rate()
 	# Sample once before the first tick so the very first auto-pick is already an
 	# answer to the world the player woke up in, not a guess.
-	_pacing.sample(0)
+	_pacing.sample(0, _census)
 	_refresh_suggestion()
 	Log.info(TAG, "ready: %s, %s, %.2f insight/s at rest" % [
 		_ledger.describe(), _pacing.describe(), _rate,
@@ -202,7 +210,8 @@ func step(tick: int) -> void:
 		return
 
 	if tick % PACING_INTERVAL == 0:
-		_pacing.sample(tick)
+		_take_census()
+		_pacing.sample(tick, _census)
 		_refresh_suggestion()
 	if tick % RATE_INTERVAL == 0:
 		_recompute_rate()
@@ -1028,30 +1037,50 @@ func _take_census() -> void:
 	if b == null:
 		return
 	var all: Array = b.call("all_buildings")
-	_census["total"] = all.size()
+	var labs: int = 0
+	var shops: int = 0
+	var machines: int = 0
+	var extractors: int = 0
+	var stores: int = 0
+	var conduits: int = 0
 	for entry: Variant in all:
 		var inst: BuildingInstance = entry as BuildingInstance
 		if inst == null or inst.def == null:
 			continue
-		var tags: Array[StringName] = inst.def.tags
-		var running: bool = inst.is_running()
-		for t: StringName in tags:
+		var is_lab: bool = false
+		var is_crafter: bool = false
+		var is_machine: bool = false
+		for t: StringName in inst.def.tags:
 			match t:
 				&"research":
-					if running:
-						_census["labs"] = int(_census["labs"]) + 1
+					is_lab = true
 				&"crafter":
-					if running:
-						_census["workshops"] = int(_census["workshops"]) + 1
-					_census["machines"] = int(_census["machines"]) + 1
+					is_crafter = true
 				&"machine":
-					_census["machines"] = int(_census["machines"]) + 1
+					is_machine = true
 				&"extractor":
-					_census["extractors"] = int(_census["extractors"]) + 1
+					extractors += 1
 				&"storage":
-					_census["stores"] = int(_census["stores"]) + 1
+					stores += 1
 				&"conduit":
-					_census["conduits"] = int(_census["conduits"]) + 1
+					conduits += 1
+		# A workshop carries both &"crafter" and &"machine"; counting per tag
+		# would count it twice and make the base look busier than it is.
+		if is_machine or is_crafter:
+			machines += 1
+		if is_lab or is_crafter:
+			var running: bool = inst.is_running()
+			if running and is_lab:
+				labs += 1
+			if running and is_crafter:
+				shops += 1
+	_census["total"] = all.size()
+	_census["labs"] = labs
+	_census["workshops"] = shops
+	_census["machines"] = machines
+	_census["extractors"] = extractors
+	_census["stores"] = stores
+	_census["conduits"] = conduits
 
 
 ## How fast the city thinks. Workshops and labs do the work, heat keeps their
@@ -1081,16 +1110,6 @@ func _recompute_rate() -> void:
 			* _effects.multiplier(ResearchDefs.E_RESEARCH_SPEED_MULT))
 	_rate_reason = "%d lab(s), %d workshop(s), heat %d%%, cold %d%%" % [
 		labs, shops, int(heat_factor * 100.0), int(cold_factor * 100.0)]
-
-
-func _running_with_tag(build: Object, tag: StringName) -> int:
-	var arr: Array = build.call("buildings_with_tag", tag)
-	var n: int = 0
-	for entry: Variant in arr:
-		var inst: Object = entry
-		if inst != null and inst.has_method("is_running") and bool(inst.call("is_running")):
-			n += 1
-	return n
 
 
 # ==========================================================================

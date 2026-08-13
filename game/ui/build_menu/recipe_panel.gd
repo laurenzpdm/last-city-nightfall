@@ -118,7 +118,7 @@ func refresh() -> void:
 	if graph == null:
 		return
 	if String(subject_id) == "" and graph.item_count() > 0:
-		focus("item", graph.item_ids()[0], false)
+		focus("item", graph.busiest_item(), false)
 	_rebuild_results()
 	_rebuild_detail()
 

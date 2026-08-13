@@ -26,9 +26,9 @@ const MAX_ROUTES: int = 512
 ## Hard ceiling on one A* search. The real cap is scaled by how far the walk is
 ## (see _node_budget): an open thirty-tile trip expands a few hundred nodes, and
 ## letting a blocked one expand thousands is how a 50 ms tick becomes a stutter.
-const MAX_NODES: int = 900
-const NODES_PER_CELL: int = 16
-const MIN_NODES: int = 260
+const MAX_NODES: int = 1300
+const NODES_PER_CELL: int = 22
+const MIN_NODES: int = 650
 const REQUESTS_PER_TICK: int = 1
 ## Ticks a cached route is trusted for. One in-world minute.
 const ROUTE_TTL: int = 1200

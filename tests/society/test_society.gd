@@ -209,13 +209,35 @@ func test_lighting_the_fire_keeps_the_camp_alive() -> void:
 
 
 func test_the_canvas_runs_out() -> void:
-	soc.inject_reading(_city({"homes": 0, "capacity": 0.0, "hearths": 3}))
+	# The first thirty hours go through the system. The rest is driven straight
+	# on the people, because a camp with no houses loses the city inside two
+	# days and the run ends before the canvas does. That is the correct
+	# behaviour and it is covered elsewhere; this test is about the clock the
+	# opening act runs on.
+	var reading: SocietyReading = _city({"homes": 0, "capacity": 0.0, "hearths": 3})
+	soc.inject_reading(reading)
 	var start: float = soc.populace.tent_capacity
-	_run(HOUR * 24)
-	assert_lt(soc.populace.tent_capacity, start * 0.75, "a day of wind costs you tents")
-	_run(HOUR * 50)
-	assert_near(soc.populace.tent_capacity, 0.0, 0.01, "and after three days there are none")
-	assert_gt(soc.populace.homeless, 0.0, "which is when people start sleeping on the ice")
+	_run(HOUR * 30)
+	assert_lt(soc.populace.tent_capacity, start * 0.62, "thirty hours of wind costs you tents")
+	assert_gt(soc.populace.tent_capacity, 0.0, "but not all of them")
+	assert_near(soc.populace.homeless, 0.0, 0.01, "and nobody is out on the ice yet")
+	var went_out_on_the_ice: bool = false
+	for _i: int in 80:
+		soc.populace.step(reading, soc.book, 1.0)
+		if soc.populace.homeless > 0.0:
+			went_out_on_the_ice = true
+	assert_lt(soc.populace.tent_capacity, 2.0, "after three days there is no canvas worth the name")
+	assert_true(went_out_on_the_ice, "and that is when people start sleeping on the open ice")
+	assert_gt(soc.populace.deaths_total, 0.0, "which is what the third day costs")
+
+
+func test_a_camp_with_no_houses_loses_the_city() -> void:
+	# The other half of the same rule, and the reason the opening has urgency:
+	# canvas and a lit hearth buy you about a day and a half, not a week.
+	soc.inject_reading(_city({"homes": 0, "capacity": 0.0, "hearths": 3}))
+	_run(HOUR * 40)
+	assert_true(soc.is_over(), "a camp that never becomes a city does not survive two days")
+	assert_ne(soc.end_reason(), "", "and the run says which way it went")
 
 
 func test_a_housed_city_stops_dying() -> void:

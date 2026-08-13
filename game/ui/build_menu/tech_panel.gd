@@ -357,9 +357,19 @@ class _Graph extends Control:
 				continue
 			draw_string(font, r.position + Vector2(8.0, 20.0), n.display_name,
 				HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 16.0, font_size, text_colour)
-			var sub: String = "%d opens" % n.unlocks.size() if not n.unlocks.is_empty() else n.cost_label()
-			draw_string(font, r.position + Vector2(8.0, 38.0), sub,
+			draw_string(font, r.position + Vector2(8.0, 38.0), _node_subtitle(n),
 				HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 16.0, LcnUiStyle.FS_TINY, LcnUiStyle.TEXT_FAINT)
+
+	## One line under the name, in a box 168 pixels wide. What it opens if it
+	## opens anything, otherwise what it costs to think about.
+	static func _node_subtitle(n: LcnTechModel.TechNode) -> String:
+		if not n.unlocks.is_empty():
+			return "%d building%s" % [n.unlocks.size(), "" if n.unlocks.size() == 1 else "s"]
+		if not n.grants.is_empty():
+			return "%d unlock%s" % [n.grants.size(), "" if n.grants.size() == 1 else "s"]
+		if n.cost_points > 0.0:
+			return "%s insight" % LcnUiFormat.num(n.cost_points)
+		return LcnUiFormat.item_name(n.branch)
 
 	func _is_done(id: StringName) -> bool:
 		if model == null:

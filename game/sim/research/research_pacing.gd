@@ -92,14 +92,17 @@ func describe() -> String:
 
 ## Reads the world once. Called every ResearchSystem.PACING_INTERVAL ticks, not
 ## every tick — the numbers it looks at move on the scale of a minute.
-func sample(tick: int) -> void:
+## `census` is [P10]'s single pass over the city — see ResearchSystem._take_census.
+## Scanning the building list again here would double the only expensive read in
+## the whole part.
+func sample(tick: int, census: Dictionary = {}) -> void:
 	sampled_tick = tick
 	signals.clear()
 	details.clear()
 	sources.clear()
 	_sample_climate()
 	_sample_heat()
-	_sample_build()
+	_sample_build(census)
 	_sample_threat()
 	_sample_people()
 
@@ -311,23 +314,23 @@ const MATERIALS_COMFORTABLE: float = 500.0
 const LABOUR_FLOOR_SITES: float = 10.0
 const LABOUR_SHARE: float = 0.35    ## queue as a share of the city that is a problem
 
-func _sample_build() -> void:
+func _sample_build(census: Dictionary) -> void:
 	var b: Object = _live(_build)
 	if b == null:
 		return
-	var total: int = int(b.call("building_count"))
+	var total: int = int(census.get("total", 0))
 	# Sprawl is not tile count — a hundred pipe segments are one decision. What
 	# makes a base hard to run is the number of things that have to be SUPPLIED.
-	var machines: int = (b.call("buildings_with_tag", &"machine") as Array).size()
-	var extractors: int = (b.call("buildings_with_tag", &"extractor") as Array).size()
-	var stores: int = (b.call("buildings_with_tag", &"storage") as Array).size()
+	var machines: int = int(census.get("machines", 0))
+	var extractors: int = int(census.get("extractors", 0))
+	var stores: int = int(census.get("stores", 0))
 	var supplied: int = machines + extractors + stores
 	_put(ResearchDefs.SIG_SPRAWL, clampf(float(supplied) / SPRAWL_FULL, 0.0, 1.0),
 		"%d machines, drills and stores to keep fed" % supplied, &"measured")
 
 	# Tangle needs BOTH: a lot of pipe, and a lot of things the pipe has to get
 	# around. Either one on its own is just a big base.
-	var conduits: int = (b.call("buildings_with_tag", &"conduit") as Array).size()
+	var conduits: int = int(census.get("conduits", 0))
 	var tangle: float = clampf(float(conduits) / TANGLE_CONDUITS, 0.0, 1.0) \
 			* clampf(float(machines + extractors) / TANGLE_MACHINES, 0.0, 1.0)
 	_put(ResearchDefs.SIG_TANGLE, tangle,

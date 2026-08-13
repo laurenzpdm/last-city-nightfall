@@ -123,6 +123,9 @@ func set_sheet(sheet: Dictionary) -> void:
 
 	_footer.text = String(sheet.get("footer", ""))
 	_footer.visible = _footer.text != ""
+	# Shrink back to the new content. Without this the box keeps the height of
+	# the tallest sheet it ever showed and a two-line read-out draws a hole.
+	reset_size.call_deferred()
 
 
 func clear() -> void:

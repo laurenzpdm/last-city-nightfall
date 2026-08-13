@@ -125,7 +125,7 @@ func _build_panels() -> void:
 	palette.picked.connect(_on_palette_picked)
 	palette.hovered.connect(_on_palette_hovered)
 	_screen.add_child(palette)
-	palette.place(Vector2(24.0, 130.0), Vector2(LcnPalettePanel.PANEL_W, LcnPalettePanel.PANEL_H))
+	palette.place(Vector2(24.0, 152.0), Vector2(LcnPalettePanel.PANEL_W, LcnPalettePanel.PANEL_H))
 
 	recipes = LcnRecipePanel.new()
 	recipes.store = store

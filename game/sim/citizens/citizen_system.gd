@@ -98,6 +98,7 @@ var _has_ambient: bool = false
 var _has_wind: bool = false
 var _has_snow: bool = false
 var _has_warmth_field: bool = false
+var _has_walkable: bool = false
 var _m_hope: String = ""
 var _m_stock_count: bool = false
 
@@ -169,6 +170,7 @@ func post_setup() -> void:
 	_has_wind = _climate != null and _climate.has_method("wind")
 	_has_snow = _climate != null and _climate.has_method("snow_depth")
 	_has_warmth_field = _heat != null and _heat.has_method("warmth_field")
+	_has_walkable = _grid != null and _grid.has_method("is_walkable")
 	if _has_warmth_field:
 		_warmth = _heat.call("warmth_field")
 	_m_hope = _find_method(_society, ["citizen_morale_offset", "morale_offset", "hope"], 0)
@@ -602,6 +604,12 @@ func _retarget(s: int, building: int, tick: int) -> void:
 		var previous: Vector2i = board.door_of(pool.dest[s])
 		if previous.x >= 0:
 			origin = previous
+	elif _has_walkable and not bool(_grid.call("is_walkable", origin)):
+		# The city was built on top of them — a hearth dropped on the square
+		# they were standing in. Standing inside a wall means no path can ever
+		# start from here, so step out before asking for one.
+		origin = _walkable_near(origin, 4)
+		pool.set_position(s, origin)
 	pool.from_x[s] = origin.x
 	pool.from_y[s] = origin.y
 	pool.dest[s] = building
@@ -1261,7 +1269,7 @@ func serialize() -> Dictionary:
 		"grief": snappedf(_grief, 0.01),
 		"next_id": _next_id,
 		"hire_counter": _hire_counter,
-		"routes": router.cached_routes(),
+		"pathing": router.stats(),
 	}
 
 
@@ -1339,7 +1347,6 @@ func metrics() -> Dictionary:
 		"food_days": food_days_remaining(),
 		"staffed": snappedf(_staffed_ratio(), 0.001),
 		"routes": router.cached_routes(),
-		"step_us": _step_us,
 	}
 
 

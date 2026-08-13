@@ -134,6 +134,7 @@ func rebuild(research: Object, build_system: Object, registry: Object = null) ->
 		_source = &"buildings"
 
 	_attach_unlocked_buildings(build_system)
+	_normalise_unlocks(build_system)
 	_layout()
 	refresh_state(research, build_system)
 
@@ -344,6 +345,32 @@ func _attach_unlocked_buildings(build_system: Object) -> void:
 		if not n.unlocks.has(kind):
 			n.unlocks.append(kind)
 			n.unlocks.sort_custom(func(a: StringName, b: StringName) -> bool: return String(a) < String(b))
+
+
+## `unlocks` arrives as an unlock-id list, and [P10] includes the node's own id
+## in it (a BuildingDef gates on the node id directly). Anything in there that is
+## not a building belongs under "also grants" — otherwise the screen tells a
+## player that researching Ballistics opens a building called Ballistics.
+func _normalise_unlocks(build_system: Object) -> void:
+	for n: TechNode in nodes:
+		var buildings: Array[StringName] = []
+		for kind: StringName in n.unlocks:
+			if kind == n.id:
+				continue
+			var is_building: bool = false
+			if build_system != null and build_system.has_method(&"def_of"):
+				is_building = build_system.call(&"def_of", kind) != null
+			if is_building:
+				buildings.append(kind)
+			elif not n.grants.has(kind):
+				n.grants.append(kind)
+		n.unlocks = buildings
+		var kept: Array[StringName] = []
+		for g: StringName in n.grants:
+			if g != n.id and not n.unlocks.has(g):
+				kept.append(g)
+		n.grants = kept
+		n.grants.sort_custom(func(a: StringName, b: StringName) -> bool: return String(a) < String(b))
 
 
 func _add(n: TechNode) -> void:

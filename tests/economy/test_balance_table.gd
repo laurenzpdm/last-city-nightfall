@@ -211,3 +211,36 @@ func test_defence_investment_target_tracks_the_threat_curve() -> void:
 	assert_lt(Balance.defence_investment_target(2), Balance.defence_investment_target(8),
 		"a harder night expects more turret standing")
 	assert_gt(Balance.defence_investment_target(8), 0.0)
+
+
+# --- the tick budget ----------------------------------------------------------
+
+func test_reading_the_table_costs_the_tick_budget_nothing() -> void:
+	# [P12] is not a SimSystem: it adds exactly 0 ms to step(). What it CAN do is
+	# make somebody else's step() slow, if a system calls a balance question ten
+	# thousand times a tick and each call re-resolves the registry. It does not —
+	# the table is cached on first touch. This is the assertion that keeps it so.
+	Balance.table()
+	var t0: int = Time.get_ticks_usec()
+	var sink: float = 0.0
+	for i: int in 20000:
+		sink += Balance.table().heat_per_resident
+	var us: int = Time.get_ticks_usec() - t0
+	assert_gt(sink, 0.0)
+	assert_lt(float(us), 20000.0,
+		"20 000 table() calls took %d us — that is more than a microsecond each "
+		% us + "and means the cache is not holding")
+
+
+func test_the_audit_is_cached_between_calls() -> void:
+	if Registry.ids("buildings").is_empty():
+		skip("game/content/buildings/ is empty")
+		return
+	Balance.audit()
+	var t0: int = Time.get_ticks_usec()
+	for i: int in 500:
+		Balance.audit()
+	var us: int = Time.get_ticks_usec() - t0
+	assert_lt(float(us), 25000.0,
+		"500 audit() calls took %d us; the audit walks the whole registry and "
+		% us + "must only do it once")

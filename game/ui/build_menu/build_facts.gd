@@ -404,10 +404,16 @@ static func _output_section(def: Resource, ctx: Ctx, link_items: Array) -> Dicti
 	var ore := LcnUiFormat.as_name(def.get(&"extracts"))
 	if String(ore) != "":
 		var rate: float = LcnUiFormat.as_number(def.get(&"extract_rate"))
-		_row(rows, "Extracts", "%s  (%s)" % [
-			LcnUiFormat.item_name(ore), LcnUiFormat.per_minute(rate, " %s/min" % LcnUiFormat.item_name(ore))],
-			LcnUiStyle.Tone.ACCENT)
-		link_items.append(String(ore))
+		if String(ore) == "*":
+			# The wildcard extractor digs whatever seam it is standing on; there
+			# is no item called "*" and pretending there is puts one in the browser.
+			_row(rows, "Extracts", "whatever seam it stands on  (%s)" % \
+				LcnUiFormat.per_minute(rate, "/min"), LcnUiStyle.Tone.ACCENT)
+		else:
+			_row(rows, "Extracts", "%s  (%s)" % [
+				LcnUiFormat.item_name(ore), LcnUiFormat.per_minute(rate, " %s/min" % LcnUiFormat.item_name(ore))],
+				LcnUiStyle.Tone.ACCENT)
+			link_items.append(String(ore))
 	var recipes: Variant = def.get(&"recipes")
 	if typeof(recipes) == TYPE_ARRAY and not (recipes as Array).is_empty():
 		var names: PackedStringArray = PackedStringArray()
@@ -484,8 +490,11 @@ static func _placement_warnings(def: Resource, kind: StringName, ctx: Ctx, warni
 		var have: int = int(ctx.build.call(&"count_of", kind))
 		var cap: int = LcnUiFormat.as_int(def.get(&"max_count"))
 		if have >= cap:
-			_warn(warnings, Sev.BLOCKING, &"max_count",
-				"The city already has its %d %s." % [cap, LcnUiFormat.as_text(def.get(&"display_name"))])
+			var what: String = LcnUiFormat.as_text(def.get(&"display_name"))
+			var text: String = "The city already has its %s." % what
+			if cap > 1:
+				text = "The city already has all %d of its %s." % [cap, what]
+			_warn(warnings, Sev.BLOCKING, &"max_count", text)
 	if not ctx.has_cell or not ctx.build.has_method(&"can_place"):
 		return
 	var check: Dictionary = ctx.build.call(&"can_place", kind, ctx.cell, ctx.rot, true, -1)

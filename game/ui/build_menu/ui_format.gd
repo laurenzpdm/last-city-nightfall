@@ -167,6 +167,28 @@ static func items(bill: Dictionary, separator: String = ", ") -> String:
 	return separator.join(parts)
 
 
+## The same bill, short enough for a list row: "60 iron · 40 steel · 140 stone".
+## A palette row has about 140 pixels for a cost and "60 Iron Plate, 40 Steel
+## Plate, 140 Stone" is not going to fit in them.
+static func items_compact(bill: Dictionary) -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	for k: StringName in sorted_names(bill.keys()):
+		var amount: int = int(bill[k])
+		if amount == 0:
+			continue
+		parts.append("%s %s" % [group(amount), short_item(k)])
+	return " · ".join(parts)
+
+
+## First word of an item name, lower case: "iron_plate" -> "iron". Ambiguous by
+## design — the full name is one hover away and the row has to be scannable.
+static func short_item(id: StringName) -> String:
+	var words: PackedStringArray = String(id).split("_", false)
+	if words.is_empty():
+		return String(id)
+	return words[0].to_lower()
+
+
 ## Prose list: "a, b and c". Used in warnings, where commas alone read like code.
 static func prose_list(parts: PackedStringArray, conjunction: String = "and") -> String:
 	if parts.is_empty():

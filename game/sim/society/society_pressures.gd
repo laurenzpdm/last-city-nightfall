@@ -65,6 +65,16 @@ func size() -> int:
 	return keys.size()
 
 
+## Drops every standing force without touching the history. Used when a run
+## ends: the bars stop where they stopped.
+func clear_forces() -> void:
+	keys.clear()
+	labels.clear()
+	texts.clear()
+	rates.clear()
+	meters.clear()
+
+
 ## Rebuilds every factor from scratch. Called once per sample, not per tick.
 func compute(reading: SocietyReading, pop: SocietyPopulace, book: LawBook,
 		council: SocietyCouncil, hope: float, discontent: float) -> void:
@@ -307,9 +317,8 @@ func _infrastructure(reading: SocietyReading) -> void:
 		var share: float = clampf(float(reading.frozen_buildings)
 			/ maxf(float(reading.buildings_operational) * 0.2, 5.0), 0.0, 1.0)
 		_push(HOPE, &"frozen_buildings", "Buildings are icing over",
-			"%s of %s standing buildings have gone below the line and stopped." % [
-				SocietyDefs.sentence(SocietyDefs.spell(reading.frozen_buildings)),
-				SocietyDefs.spell(reading.buildings_operational)],
+			"%d of the %d standing buildings have gone below the line and stopped."
+				% [reading.frozen_buildings, reading.buildings_operational],
 			-3.4 * share)
 
 

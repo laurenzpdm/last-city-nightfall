@@ -21,6 +21,9 @@ extends RefCounted
 
 const DEMAND_COOLDOWN_HOURS: float = 14.0
 const RNG_STREAM: String = "society"
+## Settled demands are kept for the end screen, but not forever: a seven day run
+## produces dozens and state.json is not an archive.
+const DEMAND_HISTORY: int = 12
 
 ## grievance kind -> array of demand shapes. The first is the shape a faction
 ## reaches for when the city can still fix the problem with heat and hands; the
@@ -207,6 +210,7 @@ func sample(pressures: Dictionary, details: Dictionary, values: Dictionary,
 
 	events.append_array(_resolve_demands(values, book, tick, hour_ticks))
 	events.append_array(_issue_demands(book, tick, hour_ticks))
+	_prune_demands()
 
 	for id: StringName in SocietyDefs.FACTION_IDS:
 		(factions[id] as SocietyFaction).drift(hours)
@@ -303,6 +307,24 @@ func _issue_demands(book: LawBook, tick: int, hour_ticks: int) -> Array[Dictiona
 			"hours": snappedf(d.hours_left(tick, hour_ticks), 0.1),
 		})
 	return events
+
+
+## Keeps every open demand and the most recent DEMAND_HISTORY settled ones.
+func _prune_demands() -> void:
+	var settled: int = 0
+	for d: SocietyDemand in demands:
+		if not d.is_open():
+			settled += 1
+	if settled <= DEMAND_HISTORY:
+		return
+	var drop: int = settled - DEMAND_HISTORY
+	var kept: Array[SocietyDemand] = []
+	for d: SocietyDemand in demands:
+		if not d.is_open() and drop > 0:
+			drop -= 1
+			continue
+		kept.append(d)
+	demands = kept
 
 
 func _has_open_demand(faction: StringName) -> bool:

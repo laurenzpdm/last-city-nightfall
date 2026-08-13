@@ -42,6 +42,10 @@ const SYSTEM_ORDER: int = 60
 const TAG: String = "society"
 const RNG_STREAM: String = "society"
 
+## A third way to lose, and the only one that needs no warning ladder: every
+## death on the way here was already announced by name and by cause.
+const REASON_EXTINCT: String = "extinct"
+
 ## Bus.hope_changed / discontent_changed are emitted at most this often, and
 ## only when the meter actually moved.
 const ANNOUNCE_EVERY: int = SocietyDefs.SAMPLE_EVERY
@@ -233,6 +237,11 @@ func _integrate() -> void:
 ## Once per second: re-read the world, re-run the people, re-rank the forces,
 ## poll the council, and let the verdict escalate.
 func _sample(tick: int) -> void:
+	if verdict.ended:
+		# The run is over. A dead city that keeps issuing demands with deadlines
+		# is noise in the end screen and noise in state.json, and the ledger a
+		# player reads afterwards should describe the run, not the aftermath.
+		return
 	ledger.decay(_sample_hours)
 	_sample_world()
 	if _reading.day != _day:
@@ -250,8 +259,39 @@ func _sample(tick: int) -> void:
 	for ev: Dictionary in events:
 		_on_council_event(ev)
 
+	_check_extinction(tick)
 	for ev: Dictionary in verdict.step(hope_value, discontent_value, tick, _hour_ticks, _verdict_context()):
 		_on_verdict_event(ev)
+	if verdict.ended:
+		_freeze()
+
+
+## A city with nobody left in it is over, and it does not need a fourth warning:
+## every one of those deaths was already announced by name and cause.
+func _check_extinction(tick: int) -> void:
+	if populace.deaths_total < 1.0 or populace.population > 0.0:
+		return
+	if not _reading.has_source(&"citizens") and populace.authoritative and _tick < _hour_ticks:
+		return
+	verdict.ended = true
+	verdict.end_reason = REASON_EXTINCT
+	verdict.end_tick = tick
+	var text: String = ("The last of them went in the night. The generator is still "
+		+ "running and the pipes are still warm and there is nobody in any of the rooms. "
+		+ "%s came here with you and none of them are left." % SocietyDefs.sentence(
+			SocietyDefs.people(int(round(populace.deaths_total)))))
+	Log.warn(TAG, "run over (%s): %s" % [REASON_EXTINCT, text])
+	Bus.narrative_event.emit(SocietyDefs.EV_DESPAIR, {
+		"kind": "game_over", "reason": REASON_EXTINCT, "text": text,
+	})
+	Bus.game_over.emit(REASON_EXTINCT)
+
+
+## Stops every standing force. The meters keep whatever value the run ended on.
+func _freeze() -> void:
+	_pressures.clear_forces()
+	_rate_hope = 0.0
+	_rate_discontent = 0.0
 
 
 ## Drives society against a city the caller describes instead of one it scans.

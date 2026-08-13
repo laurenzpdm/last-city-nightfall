@@ -550,8 +550,8 @@ def stress():
 # this run IS the designed difficulty curve, and moving a generator moves it.
 #
 # Layout: a vertical spine at dx = +3 hanging off the Hearth's east face, with
-# horizontal rungs every ten rows. Plots hug a rung on one side or the other,
-# which is what puts every building on the same network as the Hearth.
+# four horizontal rungs (dy -16, -8, +8, +16). Plots hug a rung above or below
+# it, which is what puts every building on the same network as the Hearth.
 
 # Kept close to the caldera floor on purpose. The map is generated at runtime
 # and this script cannot see terrain, so a rung that reaches thirty tiles out
@@ -617,15 +617,13 @@ def economy():
     # build.materials in the report as a sanity line, not as the constraint.
     stock = {k: 40000 for k in ["iron_plate", "steel_plate", "stone", "timber",
                                 "scrap", "gear", "copper_coil", "coal"]}
-    # Food is PROVISIONED, not simulated. This run measures the heat curve, and
-    # an unbuilt salvage-to-kitchen chain starving the city on day four does not
-    # make the heat reading harder, it makes it meaningless: a dead city draws
-    # no heat. The food economy gets its own instrument when [P03] logistics can
-    # actually carry grain across the map.
     L.stock(1, stock)
-    # Topped up every day rather than once: whichever system owns the city
-    # inventory when this runs, the larder has to be full at each dusk or the
-    # population starves and the heat reading turns into a graph of a graveyard.
+    # Food is PROVISIONED, not simulated, and topped up every single day: this
+    # run measures the heat curve, and an unbuilt salvage-to-kitchen chain
+    # starving the city on day four does not make the heat reading harder, it
+    # makes it meaningless — a dead city draws no heat. See BALANCE.md open
+    # finding 1: as of this writing the population still dies on day 4 despite
+    # this, which is a seam between [P05] and [P03], not a balance number.
     for day in range(1, 9):
         L.stock(max(1, (day - 1) * 9600 + 60),
                 {"grain": 6000, "ration": 6000})

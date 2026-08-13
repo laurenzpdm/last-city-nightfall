@@ -441,7 +441,7 @@ class _PaletteRow extends PanelContainer:
 		var text: String = ""
 		var tone: int = LcnUiStyle.Tone.DIM
 		if typeof(bill) == TYPE_DICTIONARY:
-			text = LcnUiFormat.items(bill, "  ")
+			text = LcnUiFormat.items_compact(bill)
 			if stock != null and stock.has_method(&"missing"):
 				var missing: Dictionary = stock.call(&"missing", bill)
 				if not missing.is_empty():

@@ -231,7 +231,9 @@ func _ingest_buildings(build_system: Object) -> void:
 				})
 
 		var ore := LcnUiFormat.as_name(def.get(&"extracts"))
-		if String(ore) != "":
+		# "*" means "whatever seam it stands on". It is a wildcard, not an item,
+		# and a browser that lists it has an entry nobody can ever hold.
+		if String(ore) != "" and String(ore) != "*":
 			var rate: float = LcnUiFormat.as_number(def.get(&"extract_rate"))
 			_node(ore).made_by.append({
 				"how": String(HOW_EXTRACT), "recipe": "", "building": String(kind),
@@ -310,6 +312,21 @@ func consumers_of(id: StringName) -> Array[Dictionary]:
 	return [] if n == null else n.used_by.duplicate()
 
 
+## The item the browser should open on: the one with the most edges, because
+## that is the one the city's economy actually turns on. Alphabetical order
+## would open on whatever happens to start with 'a'.
+func busiest_item() -> StringName:
+	var best: StringName = &""
+	var best_score: int = -1
+	for id: StringName in _item_ids:
+		var n: ItemNode = _items[id]
+		var score: int = n.made_by.size() + n.used_by.size()
+		if score > best_score:
+			best_score = score
+			best = id
+	return best
+
+
 ## Items with no producer at all — the shopping list of things the city cannot
 ## currently make. This is the single most useful derived fact in the browser.
 func orphans() -> Array[StringName]:
@@ -374,8 +391,13 @@ func search(query: String, build_system: Object = null, limit: int = 40) -> Arra
 	var q: String = query.strip_edges().to_lower()
 	var out: Array[Dictionary] = []
 	if q == "":
+		# An empty box lists the whole shelf: items first, then the crafts.
 		for id: StringName in _item_ids:
 			out.append(_item_row(id, 0))
+		for rid: StringName in _recipe_ids:
+			var recipe: Recipe = _recipes[rid]
+			out.append({"kind": "recipe", "id": String(rid), "label": recipe.display_name,
+				"detail": recipe.summary(), "score": 0})
 		return out.slice(0, limit)
 
 	for id2: StringName in _item_ids:
