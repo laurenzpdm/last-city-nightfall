@@ -17,8 +17,14 @@ const WIDTH: float = 508.0
 const ROW: float = 21.0
 const MARGIN: float = 22.0
 ## The panel sits this far off the bottom edge, leaving [P17]'s HUD strip room
-## to exist underneath it instead of fighting it for the same pixels.
-const BOTTOM_CLEARANCE: float = 78.0
+## to exist underneath it instead of fighting it for the same pixels. Measured
+## against the real stores shelf in artifacts/p00_shots: at 78 the legend's last
+## line landed on the word STORES.
+const BOTTOM_CLEARANCE: float = 108.0
+## The lens rail hangs down the right edge BELOW [P17]'s vitals and wave panels.
+## As a fraction of viewport height, so it survives a different resolution and a
+## HUD scaled up by Settings.graphics.ui_scale.
+const RAIL_TOP_FRACTION: float = 0.375
 
 var pal: LcnOverlayPalette = null
 var snap: LcnOverlaySnapshot = null
@@ -83,7 +89,7 @@ func _draw_rail() -> void:
 	if mode == LcnOverlayDefs.Mode.NONE and not alt:
 		return
 	var x: float = size.x - MARGIN
-	var y: float = MARGIN + 108.0     # under the [P17]/play HUD strip
+	var y: float = maxf(MARGIN + 108.0, size.y * RAIL_TOP_FRACTION)
 	for m: int in range(1, LcnOverlayDefs.MODE_COUNT):
 		var active: bool = m == mode
 		var key: String = keys[m] if m < keys.size() else "?"

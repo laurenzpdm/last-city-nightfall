@@ -223,6 +223,22 @@ func _classify(members: PackedInt32Array, cold_mult: float, autarky: bool) -> vo
 				demand += n.demand
 				_rem[id] = n.demand
 				_got[id] = 0.0
+				# A machine that BOTH makes and burns heat serves itself first,
+				# at no transmission loss, and only then queues for the network.
+				# Without this it was seeded as its own BFS root, became its own
+				# exclusive supply, and could never draw the rest of what it
+				# needed from the grid it was standing on: the smelter (produces
+				# 4, consumes 14) ran at 27% forever and blamed itself in its own
+				# bottleneck report. Self-service is also physically the truth —
+				# the heat never leaves the building.
+				if d.is_producer():
+					var own: float = minf(_avail.get(id, 0.0), n.demand)
+					if own > EPS:
+						_got[id] = own
+						_rem[id] = n.demand - own
+						_avail[id] = _avail[id] - own
+						if _avail[id] <= EPS:
+							_avail.erase(id)
 				_sinks.append(id)
 				var tier: Array = by_tier.get(n.priority, [])
 				tier.append(id)
