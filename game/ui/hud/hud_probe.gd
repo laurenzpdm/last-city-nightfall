@@ -669,7 +669,16 @@ func _read_build() -> void:
 	has_build = _build != null
 	if not has_build:
 		return
-	sites_pending = int(_ask(_build, [], ["sites", "pending"], 0.0))
+	# [P11] publishes the site count split three ways and under none of the names
+	# this used to ask for, so `sites_pending` was structurally 0 and the footer
+	# never once said "3 sites building" in any run. Read the real keys and add
+	# them: a ghost waiting on materials and a half-built wall are both work the
+	# city has not finished. Verified against artifacts/*/metrics.csv.
+	var bm: Dictionary = _metrics(_build)
+	sites_pending = int(bm.get("under_construction", 0)) + int(bm.get("ghosts", 0)) \
+		+ int(bm.get("queued", 0))
+	buildings_total = int(bm.get("buildings_total", 0))
+	buildings_frozen = int(bm.get("frozen", 0))
 	if _production != null:
 		stalled_machines = int(_ask(_production, [], ["stalled"], 0.0))
 	_read_stock()

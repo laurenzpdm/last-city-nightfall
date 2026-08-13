@@ -48,15 +48,25 @@ const BURNER_RESCAN_TICKS: int = 200
 ## every pipe in the city; once every twenty ticks is a quarter of a second of
 ## latency on a bunker that starts empty anyway.
 const BURNER_RESCAN_MIN: int = 20
-## Ticks between sweeps of [P11]'s building list. A finished chest joining the
-## logistics world a second late is invisible; walking seventeen hundred
-## buildings every tick to find out sooner is not.
-const SYNC_EVERY: int = 20
+## Ticks between sweeps of [P11]'s building list when its roster has not moved.
+## Nothing can have changed, so this is only a tripwire against a change we
+## failed to notice; the real trigger is roster_version.
+const SYNC_EVERY: int = 200
+## Fastest a sweep may happen while the roster IS moving. A player dragging a
+## belt wants it carrying coal a fifth of a second later, not a second later,
+## and a mass build must still not walk seventeen hundred buildings every tick.
+const SYNC_MIN: int = 4
 ## How often the profiling line is written at DEBUG.
 const LOG_PERF_EVERY: int = 1000
 
+## Ticks between recomputing which burners have an arm loading them. Cheap
+## (it walks the arms, not the city), but there is no reason to pay it a tick.
+const LINE_FED_EVERY: int = 20
+
 var world: LogiWorld = LogiWorld.new()
 var haul: LogiHaul = LogiHaul.new()
+## Placement through [P11]: the palette, the ghost, the drag. See LogiBuildLink.
+var link: LogiBuildLink = LogiBuildLink.new()
 
 var _items: Dictionary[StringName, LogiItem] = {}
 var _defs: Dictionary[StringName, LogiDef] = {}
@@ -96,6 +106,14 @@ var _in_sim: bool = false
 var _placed_total: int = 0
 var _removed_total: int = 0
 var _fuel_short: int = 0
+var _roster_v: int = -1
+var _adopted_transport: Array[int] = []
+## Burner id -> true while an arm is loading it. Recomputed on a slow timer.
+var _line_fed: Dictionary[int, bool] = {}
+var _line_fed_tick: int = -100000
+var _line_dry: int = 0
+var _line_fed_logged: Dictionary[int, bool] = {}
+var _items_moved_total: int = 0
 
 
 func _init() -> void:
@@ -114,6 +132,7 @@ func setup() -> void:
 	order = SYSTEM_ORDER
 	world = LogiWorld.new()
 	haul = LogiHaul.new()
+	link = LogiBuildLink.new()
 	_items = {}
 	_defs = {}
 	_adopted = {}
@@ -133,6 +152,13 @@ func setup() -> void:
 	_burner_scan_size = -1
 	_burner_scan_tick = -100000
 	_bootstrap_logged = false
+	_roster_v = -1
+	_adopted_transport = []
+	_line_fed = {}
+	_line_fed_tick = -100000
+	_line_fed_logged = {}
+	_line_dry = 0
+	_items_moved_total = 0
 	_load_content()
 
 
@@ -150,6 +176,44 @@ func post_setup() -> void:
 	Log.info("logistics", "ready — %d items, %d transport definitions, heat=%s build=%s haulers=%s" % [
 		_items.size(), _defs.size(), str(_heat != null), str(_build != null),
 		_m_haulers if _m_haulers != "" else "base crew"])
+	_report_reachability()
+
+
+## Says out loud how much of the transport ladder a player can actually put down.
+##
+## This part spent a whole phase carrying belts nothing could place: every piece
+## existed, every test passed, and `logistics.belt_lines` was 0 for the entire
+## reference run because no belt was a BuildingDef and so no build menu ever
+## listed one. A pillar that is unreachable is not a pillar, and a build that
+## cannot see the difference will ship it twice. So the count is printed on the
+## ready line, and tests/logistics/test_logistics_build.gd fails if it drops.
+func _report_reachability() -> void:
+	if _build == null or not _build.has_method("def_of"):
+		Log.warn("logistics", "no build system — transport cannot be placed by a player in this build")
+		return
+	var placeable: PackedStringArray = PackedStringArray()
+	var orphan: PackedStringArray = PackedStringArray()
+	for def: LogiDef in all_defs():
+		if _build.call("def_of", def.id) != null:
+			placeable.append(String(def.id))
+		else:
+			orphan.append(String(def.id))
+	if orphan.is_empty():
+		Log.info("logistics", "buildable — all %d transport pieces are in the build catalogue" % placeable.size())
+	else:
+		Log.warn("logistics", "%d of %d transport pieces have no BuildingDef and cannot be placed by a player: %s" % [
+			orphan.size(), _defs.size(), ", ".join(orphan)])
+
+
+## Every transport piece a player can actually select in the build menu.
+func placeable_kinds() -> Array[StringName]:
+	var out: Array[StringName] = []
+	if _build == null or not _build.has_method("def_of"):
+		return out
+	for def: LogiDef in all_defs():
+		if _build.call("def_of", def.id) != null:
+			out.append(def.id)
+	return out
 
 
 func _load_content() -> void:
@@ -437,40 +501,92 @@ func _sync_from_build() -> void:
 	if _build == null or not _build.has_method("all_buildings"):
 		return
 	# Walking seventeen hundred buildings every tick to find the two that gained
-	# a chest is most of what this system would cost in a big city. The list is
-	# swept when it grew or shrank, and otherwise twice a second.
-	if _tick - _sync_tick < SYNC_EVERY:
+	# a chest is most of what this system would cost in a big city. [P11] keeps a
+	# monotonic roster counter for exactly this question, so the sweep runs when
+	# something actually moved — at most every SYNC_MIN ticks during a mass
+	# build — and otherwise idles on a slow tripwire.
+	var version: int = int(_build.call("roster_version")) if _build.has_method("roster_version") else _tick
+	var waited: int = _tick - _sync_tick
+	var moved: bool = version != _roster_v
+	if not ((moved and waited >= SYNC_MIN) or waited >= SYNC_EVERY):
 		return
+	_roster_v = version
 	_sync_tick = _tick
 	var raw: Variant = _build.call("all_buildings")
 	if typeof(raw) != TYPE_ARRAY:
 		return
 	var list: Array = raw
 	var seen: Dictionary[int, bool] = {}
+	var pending: Array[Object] = []
 	for entry: Variant in list:
 		var b: Object = entry
-		if b == null or not b.has_method("is_complete") or not bool(b.call("is_complete")):
+		if b == null or not b.has_method("is_complete"):
 			continue
 		var id: int = int(b.get("id"))
+		var mine: LogiDef = _defs.get(StringName(String(b.get("kind"))))
+		if mine != null:
+			# Recorded the moment the site exists, finished or not: the facing of
+			# a dragged run is decided by the run, and the run is only visible
+			# while all of it is still fresh.
+			link.note(id, mine.id, b.get("cell"), int(b.get("rot")), int(b.get("placed_tick")))
+		if not bool(b.call("is_complete")):
+			continue
 		seen[id] = true
 		if not _seen_build.has(id):
 			_seen_build[id] = true
 			_clear_ground_for(b)
-		if _not_ours.has(id) or _adopted.has(id):
+		if _not_ours.has(id):
 			continue
-		_adopt(b, id)
+		if _adopted.has(id):
+			pending.append(b)
+			continue
+		pending.append(b)
+	_apply_run_facings()
+	for b2: Object in pending:
+		var id2: int = int(b2.get("id"))
+		if _adopted.has(id2):
+			_resync_entity(b2, id2)
+		else:
+			_adopt(b2, id2)
 	var known: Array = _adopted.keys()
 	known.sort()
-	for id2: int in known:
-		if not seen.has(id2):
-			_release(id2)
+	for id3: int in known:
+		if not seen.has(id3):
+			_release(id3)
 	if _not_ours.size() > seen.size():
 		var stale: Array = _not_ours.keys()
 		stale.sort()
-		for id3: int in stale:
-			if not seen.has(id3):
-				_not_ours.erase(id3)
-				_seen_build.erase(id3)
+		for id4: int in stale:
+			if not seen.has(id4):
+				_not_ours.erase(id4)
+				_seen_build.erase(id4)
+
+
+## Turns each dragged run into a line of belts that faces the way the cursor
+## went, and writes that rotation back onto [P11]'s instance so the build
+## system, the renderer and the transport line all describe the same belt.
+func _apply_run_facings() -> void:
+	if not link.has_pending():
+		return
+	var decided: Array[Dictionary] = link.resolve()
+	for row: Dictionary in decided:
+		var id: int = int(row["id"])
+		var rot: int = int(row["rot"])
+		var b: Object = _building(id)
+		if b == null:
+			continue
+		var def: LogiDef = _defs.get(StringName(String(b.get("kind"))))
+		if def == null or not def.is_rotatable():
+			continue
+		# Only a one-tile piece. Rotating anything larger moves its footprint and
+		# that is [P11]'s bookkeeping, not ours.
+		if def.size != Vector2i.ONE:
+			continue
+		if int(b.get("rot")) == rot:
+			continue
+		b.set("rot", rot)
+		if b.has_method("refresh_cells"):
+			b.call("refresh_cells")
 
 
 ## [P11] owns the ground. Anything of ours under a new building is torn out and

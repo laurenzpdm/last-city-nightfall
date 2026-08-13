@@ -992,28 +992,41 @@ func _spawn_slot(slot: int, at: Vector2, count: int, tick: int) -> int:
 	return made
 
 
-## Seconds of warning before nightfall at which the siege surface is built.
-## Flooding a 256x256 map costs about 80 ms once, and a one-off 80 ms hitch is a
-## non-event in the quiet before dusk and four dropped frames if it lands on the
-## tick the first wave touches the map.
-const PREBUILD_BEFORE_NIGHT: float = 45.0
-const PREBUILD_CHECK_TICKS: int = 40
+## Seconds of warning before nightfall at which the siege surface starts being
+## prepared. Flooding a 256x256 map costs 83 ms in one go — the largest single
+## spike in the whole build. It is now paid in slices ([AssaultField.advance]),
+## which only works if it starts early enough to finish before anything walks on
+## it: two minutes of warning against about a second of work.
+const PREBUILD_BEFORE_NIGHT: float = 120.0
+const PREBUILD_CHECK_TICKS: int = 20
 
 
+## Keeps the siege surface ahead of the night. Starts the preparation when dusk
+## is close and pays one slice a tick until it is up, so the player never eats
+## the flood as a dropped frame.
 func _prebuild_field(tick: int) -> void:
-	if assault.ready or tick % PREBUILD_CHECK_TICKS != 0:
+	if assault.ready:
+		return
+	if assault.building:
+		if assault.advance():
+			Log.info(TAG, "siege surface ready — %d cells flooded over %d slice(s), dig cost %d" % [
+				assault.last_visited, assault.build_slices, AssaultField.DIG_COST])
+		return
+	if tick % PREBUILD_CHECK_TICKS != 0 or _grid == null:
 		return
 	if _climate == null or not _climate.has_method("seconds_until_night"):
 		return
 	var left: float = float(_climate.call("seconds_until_night"))
 	if left <= 0.0 or left > PREBUILD_BEFORE_NIGHT:
 		return
-	if _ensure_field():
-		Log.info(TAG, "dusk in %.0f s — siege surface prepared ahead of the night" % left)
+	if assault.begin(_grid):
+		Log.info(TAG, "dusk in %.0f s — preparing the siege surface in slices" % left)
 
 
-## Builds the siege surface the first time anything is actually going to walk on
-## it. A scenario with no combat in it never pays for this.
+## Builds the siege surface RIGHT NOW, because something is about to walk on it.
+## The prepared path above is the one that normally wins the race; this is the
+## fallback for a body that appears on a map with no surface under it, and it is
+## synchronous on purpose — a wrong route this tick is worse than a slow tick.
 func _ensure_field() -> bool:
 	if assault.ready:
 		return true

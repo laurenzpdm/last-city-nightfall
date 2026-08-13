@@ -53,9 +53,40 @@ static func install() -> LcnBuildMenu:
 		_installed = true
 		return null
 	var menu := LcnBuildMenu.new()
-	tree.root.add_child(menu)
+	_parent(tree, menu)
 	_installed = true
+	if not menu.is_inside_tree():
+		Log.error("ui.build_menu", "the build menu could not be parented — the UI is unreachable")
+		return null
 	return menu
+
+
+## Parents the menu WITHOUT tripping "Parent node is busy setting up children".
+##
+## THIS IS THE BUG THAT MADE THE WHOLE BUILD UI UNREACHABLE. `boot.gd` calls
+## install() from inside its own `_ready()`. Godot's `_propagate_ready()` walks
+## the tree top-down with `blocked++` held on every ancestor and only releases a
+## node's own lock immediately before notifying it, so during boot's `_ready`:
+##
+##   * `boot.add_child(x)`      works — boot's own lock is already released,
+##   * `tree.root.add_child(x)` is REFUSED — the window root is still walking.
+##
+## Refused means an engine error on stderr and a node that never enters the
+## tree. `Log.errors` cannot see an engine error, so `tools/check.sh` stayed
+## green while the palette, the tech tree, the Book of Laws, the recipe browser
+## and the blueprint library were all sitting on an orphan CanvasLayer.
+##
+## So: parent to the CURRENT SCENE, which is the node that called us and is
+## therefore demonstrably unlocked (boot's own `add_child(hud)` two lines
+## earlier proves it). `SceneTree.current_scene` is assigned before the scene is
+## added to the root, so it is already valid this early. The root stays the
+## fallback for the autoload/`.tres` path, which runs from a deferred call where
+## nothing is propagating and the root is free.
+static func _parent(tree: SceneTree, menu: LcnBuildMenu) -> void:
+	var host: Node = tree.current_scene
+	if host == null or not host.is_inside_tree():
+		host = tree.root
+	host.add_child(menu)
 
 
 ## Tests install and uninstall repeatedly in one process.

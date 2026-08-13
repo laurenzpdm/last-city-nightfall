@@ -51,7 +51,25 @@ const SCAN_SLICE: int = 4096
 ## whole district is placed or flattened on one tick.
 const MAX_REPAIR_CELLS: int = 256
 
+## Cells of setup work done per slice while the surface is being PREPARED, and
+## cells the first flood may settle per slice.
+##
+## Building this surface in one call cost 83 ms on a 256x256 map — the largest
+## single spike anywhere in the build, one and a half whole tick budgets, five
+## dropped frames. It is not urgent work: the trigger is "dusk is coming", not
+## "something is standing on it". So it is paid in slices instead, starting two
+## minutes before nightfall, and the peak becomes a rounding error. The
+## synchronous path still exists ([method build]) and is taken only when a body
+## appears on a map that has no surface yet, because a wrong answer now is worse
+## than a slow one.
+const SETUP_SLICE: int = 16384
+const FLOOD_SLICE: int = 9000
+
+enum Phase { IDLE, TERRAIN, COST, FLOOD }
+
 var ready: bool = false
+## True while the surface is being prepared in slices. Queries must not use it.
+var building: bool = false
 var field: FlowField = null
 ## Assault-side movement cost, cell for cell with [WorldGrid.cost].
 var cost: PackedByteArray = PackedByteArray()
@@ -60,6 +78,8 @@ var full_rebuilds: int = 0
 var repairs: int = 0
 var cells_repaired: int = 0
 var last_visited: int = 0
+## Slices the current (or last) preparation took. Log and metrics only.
+var build_slices: int = 0
 
 var _w: int = 0
 var _h: int = 0
@@ -75,12 +95,31 @@ var _sweep_target: int = -1
 var _seen_version: int = -1
 var _weakened: Dictionary[int, bool] = {}
 var _open_gates: Dictionary[int, bool] = {}
+var _phase: int = Phase.IDLE
+var _cursor: int = 0
+var _grid: SimSystem = null
 
 
-## Builds the surface and floods it once. Call at the first spawn, not at world
-## creation — see the class docs. Returns false when [P01] is absent.
+## Builds the surface and floods it in ONE call. The synchronous path: correct
+## the instant it returns, and expensive. Everything that can see dusk coming
+## uses [method begin] + [method advance] instead.
 func build(grid_system: SimSystem) -> bool:
 	if ready:
+		return true
+	if not begin(grid_system):
+		return false
+	# 0 = no limit on either phase, so this finishes inside one call.
+	while not advance(0, 0):
+		if not building:
+			return false
+	return ready
+
+
+## Starts preparing the surface. Cheap: allocates the arrays and snapshots the
+## grid, then leaves the work to [method advance]. Returns false when [P01] is
+## absent, in which case nothing was started.
+func begin(grid_system: SimSystem) -> bool:
+	if ready or building:
 		return true
 	if grid_system == null or not grid_system.has_method("world"):
 		return false
@@ -96,34 +135,82 @@ func build(grid_system: SimSystem) -> bool:
 	if gc.size() != _size:
 		return false
 
+	_grid = grid_system
+	# A snapshot, not a live read: every slice below must see ONE version of the
+	# map or the cost array and the terrain mask disagree about the same cell.
+	# Anything the grid changes mid-preparation is picked up by the ordinary
+	# sweep afterwards, because _seen_version is stamped here.
+	_shadow = gc.duplicate()
 	_static_block = PackedByteArray()
 	_static_block.resize(_size)
-	for i: int in range(_size):
-		_static_block[i] = 1 if gc[i] == Grid.IMPASSABLE else 0
-	# Everything a player put down is diggable; everything else that refuses
-	# passage is terrain, and terrain stays refused.
-	_unmark_buildings(grid_system)
-
 	cost = PackedByteArray()
 	cost.resize(_size)
-	for i2: int in range(_size):
-		var c: int = gc[i2]
-		cost[i2] = c if (c != Grid.IMPASSABLE or _static_block[i2] == 1) else DIG_COST
-	_shadow = gc.duplicate()
-
 	field = FlowField.new()
 	if not field.setup(_w, _h, &"assault"):
 		return false
-	var goals: PackedInt32Array = grid_system.call("core_goals")
-	field.set_goals(goals)
-	field.rebuild(cost)
-	full_rebuilds += 1
-	last_visited = field.last_visited
 	_scan_cursor = 0
 	_sweep_target = -1
 	_seen_version = int(world.get("cost_changes_total"))
-	ready = true
+	_phase = Phase.TERRAIN
+	_cursor = 0
+	build_slices = 0
+	building = true
 	return true
+
+
+## One slice of preparation. Returns true once the surface is usable.
+## A slice size of 0 means "no limit", which is what [method build] passes.
+func advance(setup_slice: int = SETUP_SLICE, flood_slice: int = FLOOD_SLICE) -> bool:
+	if ready:
+		return true
+	if not building:
+		return false
+	build_slices += 1
+	match _phase:
+		Phase.TERRAIN:
+			var stop: int = _size if setup_slice <= 0 else mini(_cursor + setup_slice, _size)
+			var i: int = _cursor
+			while i < stop:
+				_static_block[i] = 1 if _shadow[i] == Grid.IMPASSABLE else 0
+				i += 1
+			_cursor = stop
+			if _cursor >= _size:
+				# Everything a player put down is diggable; everything else that
+				# refuses passage is terrain, and terrain stays refused.
+				_unmark_buildings(_grid)
+				_phase = Phase.COST
+				_cursor = 0
+		Phase.COST:
+			var stop2: int = _size if setup_slice <= 0 else mini(_cursor + setup_slice, _size)
+			var j: int = _cursor
+			while j < stop2:
+				var c: int = _shadow[j]
+				cost[j] = c if (c != Grid.IMPASSABLE or _static_block[j] == 1) else DIG_COST
+				j += 1
+			_cursor = stop2
+			if _cursor >= _size:
+				field.set_goals(_grid.call("core_goals"))
+				field.rebuild(cost, maxi(0, flood_slice))
+				full_rebuilds += 1
+				last_visited = field.last_visited
+				_phase = Phase.FLOOD
+		Phase.FLOOD:
+			if field.unfinished:
+				field.resume(cost, maxi(0, flood_slice))
+				last_visited = field.last_visited
+		_:
+			building = false
+			return false
+	if _phase == Phase.FLOOD and not field.unfinished:
+		_phase = Phase.IDLE
+		building = false
+		ready = true
+	return ready
+
+
+## True while the surface is neither ready nor being prepared.
+func idle() -> bool:
+	return not ready and not building
 
 
 ## Re-points the field at a new goal set and re-floods. Only for a moved core.
@@ -260,6 +347,8 @@ func pending_count() -> int:
 func stats() -> Dictionary:
 	return {
 		"ready": ready,
+		"building": building,
+		"build_slices": build_slices,
 		"full_rebuilds": full_rebuilds,
 		"repairs": repairs,
 		"cells_repaired": cells_repaired,

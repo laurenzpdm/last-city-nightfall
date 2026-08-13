@@ -75,10 +75,15 @@ func layout() -> void:
 			+ "people are warm, fed and see the place growing, and falls with every "
 			+ "death and every cold night. " + _reason_line())
 		y += ROW
+		# The parentheses are load-bearing. `%` binds tighter than `+` in GDScript,
+		# so `"a %s " + "b" % x` formats "b" — a literal with no placeholder — and
+		# the engine writes "String formatting error" to stderr on every layout.
+		# That one missing pair of brackets produced 68 engine errors in a single
+		# visual run, none of which Log.errors could see. See tests/hud/test_hud_logic.gd.
 		_row(y, "discontent", "Discontent",
-			"How angry they are with you. Harsh laws and hard shifts raise it. Let "
+			("How angry they are with you. Harsh laws and hard shifts raise it. Let "
 			+ "it fill and the city stops doing what you tell it. %s of the city is "
-			+ "already bitter enough to make trouble."
+			+ "already bitter enough to make trouble.")
 			% LcnHudFormat.percent(probe.unrest01))
 		y += ROW
 	_height = y + 6.0

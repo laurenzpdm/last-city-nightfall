@@ -32,8 +32,11 @@ const PALETTE_ORDER: Array[StringName] = [
 signal palette_changed(kind: StringName, index: int, total: int)
 signal build_mode_changed(active: bool)
 
-var camera: GameCamera = null
-var hud: LcnHud = null
+## Duck-typed on purpose: boot loads [P16] and [P17] by path so that a part
+## being deleted mid-phase costs one logged line instead of a shell that will
+## not compile. Everything used here is checked with has_method first.
+var camera: Node = null
+var hud: Node = null
 
 var build_mode: bool = false
 var kind: StringName = &"heat_pipe"
@@ -48,6 +51,7 @@ var _cells: Array[Vector2i] = []
 var _drag_from: Vector2i = Vector2i.ZERO
 var _dragging: bool = false
 var _selected: int = -1
+var _hud_refreshes: bool = false
 var _build: SimSystem = null
 var _grid: SimSystem = null
 var _heat: SimSystem = null
@@ -62,11 +66,15 @@ func _ready() -> void:
 		_on_world_ready()
 
 
-func attach(cam: GameCamera, overlay: LcnHud) -> void:
+func attach(cam: Node, overlay: Node) -> void:
 	camera = cam
 	hud = overlay
-	camera.action_pressed.connect(_on_action)
-	camera.hover_cell_changed.connect(_on_hover)
+	_hud_refreshes = hud != null and hud.has_method(&"refresh")
+	if camera != null:
+		camera.connect(&"action_pressed", _on_action)
+		camera.connect(&"hover_cell_changed", _on_hover)
+	else:
+		Log.error("play", "no camera to attach to — build mode, rotate and cancel are dead")
 	if Sim.alive:
 		# The world may already exist (harness, or a reload): world_ready has
 		# fired and is not coming back.
@@ -259,8 +267,8 @@ func _demolish_under_cursor() -> void:
 # -------------------------------------------------------------------- draw ---
 
 func _process(_delta: float) -> void:
-	if hud != null:
-		hud.refresh(self)
+	if _hud_refreshes:
+		hud.call(&"refresh", self)
 	if Harness.active and Harness.visual:
 		_drive_harness_tour()
 	if build_mode:
