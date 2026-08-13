@@ -21,6 +21,16 @@ const CORE_FIELD: StringName = &"core"
 ## Cells of cost repair allowed per tick. Bounds worst-case work after a storm
 ## or a mass demolition; the remainder simply waits for the next tick.
 const COST_BUDGET: int = 3000
+## Cells a flow field may settle in one tick. A from-scratch flood over the
+## 54 000 reachable cells of a 256x256 plain is 75 ms in GDScript — 435 000 edge
+## relaxations, already at the language's floor, so it cannot be made to fit in
+## a frame; it can only be PAID OVER SEVERAL of them. A single wall coming down
+## next to the core improves the integration of half the map and triggers exactly
+## that flood, which is why the worst tick in a stress run was 69 ms and it
+## happened mid-assault. With this cap the same event costs ~11 ms a tick for
+## seven ticks, and the field stays usable throughout: correct where the wave has
+## passed, stale behind it, converging on the identical answer.
+const FLOW_BUDGET: int = 8000
 const SNOW_INTERVAL: int = 5
 const SNOW_CHUNKS_PER_PASS: int = 4
 const MAX_FIELDS: int = 8
@@ -444,17 +454,39 @@ func _flush_cost_changes() -> void:
 	_flush_us = 0
 	_flush_cells = 0
 	_flow_cells = 0
-	if grid == null or grid.dirty_count() == 0 or _field_order.is_empty():
+	if grid == null or _field_order.is_empty():
 		return
-	var dirty: PackedInt32Array = grid.take_dirty(COST_BUDGET)
 	# Wall-clock is read here and NOWHERE else. It is a LOG line only: it must
 	# never reach metrics(), because tools/determinism.sh diffs metrics.csv and a
 	# wall-clock column in a diffed artifact is a tripwire waiting for the first
 	# scenario with pathfinding churn on a sampled tick.
 	var t0: int = Time.get_ticks_usec()
+
+	# A field mid-flood is finished before any new cost change is looked at.
+	# Taking new dirty cells now would reset the wavefront it is standing on, and
+	# the changes are perfectly happy to wait one more tick in grid's dirty set —
+	# that back-pressure is the point.
+	var still_flooding: bool = false
 	for n: StringName in _field_order:
 		var f: FlowField = _fields[n]
-		f.update(grid.cost, dirty)
+		if f.unfinished:
+			f.resume(grid.cost, FLOW_BUDGET)
+			_flow_cells += f.last_visited
+			still_flooding = still_flooding or f.unfinished
+	if still_flooding:
+		_flush_us = Time.get_ticks_usec() - t0
+		_flush_cells = 0
+		if _flush_us > SLOW_REPAIR_US:
+			Log.debug("grid", "flow flood continued: %d cells in %.2f ms" % [
+				_flow_cells, float(_flush_us) / 1000.0])
+		return
+	if grid.dirty_count() == 0:
+		return
+
+	var dirty: PackedInt32Array = grid.take_dirty(COST_BUDGET)
+	for n: StringName in _field_order:
+		var f: FlowField = _fields[n]
+		f.update(grid.cost, dirty, FLOW_BUDGET)
 		_flow_cells += f.last_visited
 	_flush_us = Time.get_ticks_usec() - t0
 	_flush_cells = dirty.size()
