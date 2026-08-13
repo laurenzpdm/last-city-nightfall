@@ -306,13 +306,22 @@ func _process(delta: float) -> void:
 			snap.node_count, snap.bld_count, snap.nets.size()])
 
 
+## Polled rather than signalled: [P24] owns Settings and has no change signal for
+## accessibility yet, and twice a second is free. Every change is logged, so
+## "the overlays respect the accessibility settings" is checkable in a run's log
+## instead of only by looking at a screenshot.
 func _refresh_settings() -> void:
 	_settings_timer = SETTINGS_REFRESH
 	var a: Dictionary = Settings.accessibility
-	pal.configure(
-		String(a.get("colorblind_mode", "off")),
-		bool(a.get("high_contrast_overlays", false)),
-		bool(a.get("reduce_motion", false)))
+	var mode: String = String(a.get("colorblind_mode", "off"))
+	var contrast: bool = bool(a.get("high_contrast_overlays", false))
+	var motion_off: bool = bool(a.get("reduce_motion", false))
+	var before: String = "%d|%s|%s" % [pal.vision, str(pal.high_contrast), str(pal.reduce_motion)]
+	pal.configure(mode, contrast, motion_off)
+	var after: String = "%d|%s|%s" % [pal.vision, str(pal.high_contrast), str(pal.reduce_motion)]
+	if before != after or _frames == 0:
+		Log.info("overlay", "accessibility: palette=%s high_contrast=%s reduce_motion=%s" % [
+			LcnOverlayPalette.vision_name(pal.vision), str(contrast), str(motion_off)])
 
 
 func _update_view() -> void:
