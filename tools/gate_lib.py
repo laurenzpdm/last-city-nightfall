@@ -176,6 +176,7 @@ class AllowEntry:
     expires: Optional[_dt.date]
     kinds: List[str] = field(default_factory=list)
     blame: Optional["re.Pattern[str]"] = None
+    source: Optional["re.Pattern[str]"] = None
     max_per_run: int = -1
     problems: List[str] = field(default_factory=list)
 
@@ -183,6 +184,8 @@ class AllowEntry:
         if self.kinds and rec.kind not in self.kinds:
             return False
         if self.blame and not self.blame.search(rec.blame or ""):
+            return False
+        if self.source and not self.source.search(rec.source or ""):
             return False
         return bool(self.match.search(rec.message))
 
@@ -255,11 +258,17 @@ def load_allowlist(path: str, today: Optional[_dt.date] = None) -> Tuple[List[Al
                 blame = re.compile(b["blame"].strip())
             except re.error as exc:
                 problems.append("blame: is not a regex (%s)" % exc)
+        source = None
+        if b.get("source", "").strip():
+            try:
+                source = re.compile(b["source"].strip())
+            except re.error as exc:
+                problems.append("source: is not a regex (%s)" % exc)
         entry = AllowEntry(
             id=eid, match=pat, klass=klass or "tracked",
             owner=b.get("owner", "").strip(), why=why, expires=expires,
             kinds=[k.strip() for k in b.get("kinds", "").split(",") if k.strip()],
-            blame=blame,
+            blame=blame, source=source,
             max_per_run=int(b["max_per_run"]) if b.get("max_per_run", "").strip().isdigit() else -1,
             problems=problems,
         )

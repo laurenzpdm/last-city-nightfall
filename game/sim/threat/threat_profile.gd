@@ -25,16 +25,21 @@ extends Resource
 ## Budget points for nights 1..N. Past the end the curve continues geometrically.
 ##
 ## Night one is a handful on purpose and stays one — it is the teaching night.
-## Everything after it was measured against a real run and found empty: night two
-## put fourteen bodies on a map for twenty seconds and the whole city fired
-## forty-three shots in three days. The curve from night two on is the answer to
-## that. Night one 8, night two 26 (a pack that actually presses the line), and
-## the ramp holds the same shape it always had.
+## Everything after it was measured against a real run and found empty. Four
+## burner cannons sustain about 139 damage a second all night; a hundred and
+## sixty seconds of night is therefore a wall capable of killing some seven
+## hundred drift hounds, and night two used to send fourteen. The whole "43 shots
+## and 19 kills across three days" finding is that one ratio: the waves were two
+## orders of magnitude smaller than the defence they exist to test.
+##
+## So the curve keeps night one at a handful and then climbs to meet the wall
+## instead of ambling toward it: night three is a real fight, night seven is a
+## siege, and the top of the table is roughly double what it was.
 @export var budget_table: PackedFloat32Array = PackedFloat32Array([
-	8.0, 26.0, 44.0, 66.0, 92.0, 122.0, 158.0, 200.0, 248.0, 302.0, 364.0, 434.0,
+	8.0, 30.0, 54.0, 84.0, 120.0, 162.0, 210.0, 266.0, 330.0, 402.0, 484.0, 576.0,
 ])
 ## Growth per night once the authored table runs out.
-@export var budget_growth: float = 1.14
+@export var budget_growth: float = 1.18
 ## Nothing past this, ever. A number a designer can reason about is worth more
 ## than an exponential that eventually asks for forty thousand units.
 @export var budget_ceiling: float = 12000.0
@@ -222,10 +227,10 @@ extends Resource
 ## Largest packet that walks in at once. Anything bigger is split into pulses,
 ## which is what turns "fourteen hounds" into three waves of five you can lose
 ## the second of.
-@export var pulse_max_units: int = 6
+@export var pulse_max_units: int = 4
 ## ...but never more arrival moments than this in one night, or the player is
 ## fighting a drip rather than a wave.
-@export var pulses_max: int = 12
+@export var pulses_max: int = 16
 ## Ticks between combat polls while a wave is live.
 @export var poll_interval_ticks: int = 10
 ## Ticks after the last group is handed over before "nothing is alive" is

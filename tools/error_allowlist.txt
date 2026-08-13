@@ -56,3 +56,19 @@ why: Same event as exit_resource_leak seen from the object side, and reported by
      a jump from hundreds to thousands is readable in the report instead of being
      filtered out of it, which is what the old check.sh did with grep -v ERROR.
 expires: 2026-10-01
+
+id: deliberate_log_error_in_a_test
+class: tracked
+kinds: LOG_ERROR
+source: (tests|standalone_|gate_contracts)
+match: .
+owner: whichever suite raised it — the blame line names the file
+why: A suite that exercises an error path calls Log.error on purpose, and half a
+     dozen of them do: "boom", "once", "unknown command op
+     'definitely_not_an_op'". Log.error is already gated where it matters — the
+     harness fails a scenario run on Log.errors against expects.max_errors — so
+     counting it a second time inside the test process would only make the gate
+     permanently red for the one class of error that already has an owner and a
+     mechanism. SCRIPT ERROR and ENGINE ERROR inside a test log stay blocking:
+     nothing deliberately raises those.
+expires: 2026-12-01

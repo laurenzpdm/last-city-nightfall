@@ -16,7 +16,7 @@ extends TestCase
 ## Ticks of real simulation the shared pass records. Two minutes of world time:
 ## long enough for all three tracks to fill and for the numbers to be honest,
 ## short enough that the gate does not notice.
-const RECORDED_TICKS: int = 2400
+const RECORDED_TICKS: int = 3000
 
 var world: SimFixture
 var rec: LcnStatsRecorder = null
@@ -74,12 +74,14 @@ func test_it_samples_all_three_resolutions_at_their_own_stride() -> void:
 		"one fine sample every ten ticks, up to its capacity")
 	assert_eq(rec.mid.sample_count(), RECORDED_TICKS / LcnStatsRecorder.MID_STRIDE,
 		"one mid sample every hundred ticks")
-	assert_eq(rec.run.sample_count(), RECORDED_TICKS / LcnStatsRecorder.RUN_STRIDE,
-		"one run sample every four hundred")
+	assert_eq(rec.run.sample_count(),
+		1 + (RECORDED_TICKS - LcnStatsRecorder.FINE_STRIDE) / LcnStatsRecorder.RUN_STRIDE,
+		"one run sample every four hundred, from the first tick recorded")
 	assert_true(rec.fine.latest_tick >= RECORDED_TICKS - LcnStatsRecorder.FINE_STRIDE,
 		"and the newest sample is the one just taken")
 	assert_true(rec.run.tick_at(0) < rec.fine.tick_at(0),
-		"the coarse track reaches further back than the fine one")
+		"the coarse track reaches further back than the fine one once the fine "
+		+ "window has slid (run %d, fine %d)" % [rec.run.tick_at(0), rec.fine.tick_at(0)])
 
 
 func test_the_readings_are_the_simulation_s_own_numbers() -> void:
@@ -151,7 +153,7 @@ func test_the_whole_run_track_covers_an_unbounded_run_in_bounded_memory() -> voi
 	assert_true(solo.run.halvings >= 2,
 		"the run track halved twice rather than forgetting the beginning (%d)" % solo.run.halvings)
 	assert_eq(solo.run.memory_bytes(), before, "and it costs exactly what it did before")
-	assert_eq(solo.run.tick_at(0), LcnStatsRecorder.RUN_STRIDE,
+	assert_eq(solo.run.tick_at(0), LcnStatsRecorder.FINE_STRIDE,
 		"the first sample of the run is still the first sample of the run")
 	assert_true(solo.run.stride >= LcnStatsRecorder.RUN_STRIDE * 4,
 		"at four times the stride it started with")

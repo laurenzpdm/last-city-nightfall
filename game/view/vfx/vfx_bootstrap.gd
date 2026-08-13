@@ -47,6 +47,12 @@ func _init() -> void:
 func _try() -> void:
 	if install() != null or _gave_up:
 		return
+	# `_installed` with nothing returned means this build decided it should not
+	# have an effects layer at all — headless, --no-view, --no-vfx. That is a
+	# decision, not a failure, and retrying it would end in a spurious error that
+	# fails a run which asked for exactly this.
+	if _installed:
+		return
 	_attempts += 1
 	if _attempts >= MAX_ATTEMPTS:
 		_gave_up = true

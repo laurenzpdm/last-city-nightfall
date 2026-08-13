@@ -139,14 +139,29 @@ func bind(overrides: Dictionary = {}) -> void:
 	_samples = 0
 	last_tick = 0
 
+	_produced_keys.clear()
+	_consumed_keys.clear()
+	_stock_keys.clear()
+	for item: StringName in items:
+		_produced_keys.append(LcnStatsDefs.produced_key(item))
+		_consumed_keys.append(LcnStatsDefs.consumed_key(item))
+		_stock_keys.append(LcnStatsDefs.stock_key(item))
+	_produced_cb = Callable()
+	_stock_cb = Callable()
+	if _production != null and _production.has_method("produced_total"):
+		_produced_cb = Callable(_production, "produced_total")
+	var store: Object = _production.get("store") if _production != null else null
+	if store != null and store.has_method("count"):
+		_stock_cb = Callable(store, "count")
+
 	for track: LcnStatTrack in [fine, mid, run]:
 		track.clear()
 		for key: StringName in LcnStatsDefs.ordered_keys():
 			track.declare(key, LcnStatsDefs.kind_of(key) == LcnStatsDefs.Kind.COUNTER)
-		for item: StringName in items:
-			track.declare(LcnStatsDefs.produced_key(item), true)
-			track.declare(LcnStatsDefs.consumed_key(item), true)
-			track.declare(LcnStatsDefs.stock_key(item), false)
+		for i: int in items.size():
+			track.declare(_produced_keys[i], true)
+			track.declare(_consumed_keys[i], true)
+			track.declare(_stock_keys[i], false)
 
 
 ## Call once per simulation tick. Everything above the modulo is the cost the
