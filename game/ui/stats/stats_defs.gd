@@ -263,6 +263,19 @@ static func item_colour(key: StringName) -> Color:
 	return Color.from_hsv(float(h % 997) / 997.0, 0.52, 0.92)
 
 
+## Is the grid MEANINGFULLY short? [P02] reports a deficit down to the last
+## hundredth of a heat unit, and a numerical residue of 0.02 heat/s against a
+## demand of 150 is not a shortage — counting it made the heat screen claim the
+## grid was short for "8 min 15 s of 8 min 15 s charted" while the deficit curve
+## sat visibly on zero. One per cent of demand, with a floor, is a shortage.
+const SHORT_FLOOR: float = 0.5
+const SHORT_FRACTION: float = 0.01
+
+
+static func is_short(deficit: float, demand: float) -> bool:
+	return deficit > maxf(SHORT_FLOOR, demand * SHORT_FRACTION)
+
+
 static func _kind_of_item_key(key: StringName) -> int:
 	var s: String = String(key)
 	if s.begins_with(P_STOCK):

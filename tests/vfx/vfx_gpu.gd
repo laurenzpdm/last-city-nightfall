@@ -77,6 +77,14 @@ const SCENES: Array[Dictionary] = [
 		"visibility": 0.85, "snow": 0.4, "combat": true, "frost": false},
 	{"name": "frostbite", "weather": "clear", "intensity": 0.0, "storm": 0.0,
 		"visibility": 1.0, "snow": 0.1, "combat": false, "frost": true},
+	# The two settings contracts, photographed against `great_frost` above:
+	# a player who turned snow down, and a player who cannot take the motion.
+	{"name": "frost_quarter_density", "weather": "great_frost", "intensity": 1.0,
+		"storm": 1.0, "visibility": 0.10, "snow": 0.95, "combat": false,
+		"frost": false, "density": 0.25},
+	{"name": "frost_reduce_motion", "weather": "great_frost", "intensity": 1.0,
+		"storm": 1.0, "visibility": 0.10, "snow": 0.95, "combat": false,
+		"frost": false, "calm": true},
 ]
 
 
@@ -215,13 +223,15 @@ func _drive(scene: Dictionary) -> void:
 	# second. The first frame of a scene is given a long step so the weather has
 	# actually arrived by the time it is photographed.
 	var step: float = 3.0 if _scene_frame == 0 else 1.0 / 60.0
+	var density: float = float(scene.get("density", 1.0))
+	var calm: bool = bool(scene.get("calm", false))
 	_vfx.weather.update(step, view, wind, StringName(scene["weather"]),
 		float(scene["intensity"]), float(scene["storm"]), float(scene["visibility"]),
-		float(scene["snow"]), grade, 1.0, false)
-	_vfx.industry.update(view, wind, false, 1.0)
+		float(scene["snow"]), grade, density, calm)
+	_vfx.industry.update(view, wind, calm, 1.0)
 	_vfx.decay.update(1.0 / 60.0, view, wind, 1.0)
 	_vfx.breath.update(view, -28.0, wind, 1.0)
-	_vfx.combat.update(1.0 / 60.0, view, false)
+	_vfx.combat.update(1.0 / 60.0, view, calm)
 	if bool(scene["combat"]) and _scene_frame < FRAMES_PER_SCENE - 1:
 		_fake_battle(view)
 	if bool(scene["frost"]) and _scene_frame == 0:
@@ -482,6 +492,20 @@ func _verdict() -> void:
 		"a fire-fight produced no additive particles at all")
 	_expect(int(frostbite.get("frosting", 0)) > 0,
 		"twelve frozen structures produced no frost creep")
+
+	# --- the two settings contracts ---
+	var full: Dictionary = _measure.get("great_frost", {})
+	var quarter: Dictionary = _measure.get("frost_quarter_density", {})
+	var calm_row: Dictionary = _measure.get("frost_reduce_motion", {})
+	_expect(int(quarter.get("snow_particles", 1)) < int(full.get("snow_particles", 0)) / 2,
+		"Settings.graphics.snow_density=0.25 left %d flakes against %d at full"
+		% [int(quarter.get("snow_particles", -1)), int(full.get("snow_particles", -1))])
+	_expect(float(calm_row.get("whiteout", 1.0)) <= LcnVfxTuning.WHITEOUT_MAX_CALM + 0.001,
+		"accessibility.reduce_motion left the whiteout at %.2f, above the calm ceiling %.2f"
+		% [float(calm_row.get("whiteout", -1.0)), LcnVfxTuning.WHITEOUT_MAX_CALM])
+	_expect(int(calm_row.get("snow_particles", 1)) < int(full.get("snow_particles", 0)),
+		"accessibility.reduce_motion did not calm the snow (%d against %d)"
+		% [int(calm_row.get("snow_particles", -1)), int(full.get("snow_particles", -1))])
 
 	var cost: float = _peak_cost()
 	print("  effects layer peak %.3f ms/frame (budget %.2f ms)" % [

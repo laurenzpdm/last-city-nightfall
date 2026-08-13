@@ -343,6 +343,7 @@ func test_the_night_report_reads_the_window_it_was_given() -> void:
 		rec.mid.push_sample(i * LcnStatsRecorder.MID_STRIDE, {
 			&"night": 1.0 if night else 0.0,
 			&"heat_deficit": 3.0 if (night and i < 50) else 0.0,
+			&"heat_demand": 120.0,
 			&"heat_buffer": 40.0 - (30.0 if night else 0.0),
 			&"heat_frozen": 2.0 if (night and i > 40 and i < 45) else 0.0,
 			&"deaths": 0.0 if i < 60 else 3.0,
@@ -397,6 +398,17 @@ func test_the_verdict_and_the_closest_call_are_worded_from_the_worst_thing() -> 
 
 
 # =============================================================== journal ====
+
+func test_a_rounding_residue_is_not_a_shortage() -> void:
+	# [P02] reports a deficit to the hundredth. Counting 0.02 heat/s against a
+	# demand of 150 as "the grid was short" made the heat screen claim the city
+	# ran dry for the whole window while the curve sat visibly on zero.
+	assert_false(LcnStatsDefs.is_short(0.02, 150.0), "a numerical residue is not a shortage")
+	assert_false(LcnStatsDefs.is_short(1.2, 150.0), "nor is under one per cent of demand")
+	assert_true(LcnStatsDefs.is_short(4.0, 150.0), "four heat a second against 150 is")
+	assert_false(LcnStatsDefs.is_short(0.3, 2.0), "and a tiny grid has an absolute floor")
+	assert_true(LcnStatsDefs.is_short(0.8, 2.0), "which a real shortage still clears")
+
 
 func test_the_journal_clips_night_bands_to_the_window_it_is_asked_about() -> void:
 	var j := LcnStatsJournal.new()
@@ -466,6 +478,7 @@ func _report_with(spec: Dictionary) -> Dictionary:
 			&"structures_lost": 0.0 if i < 20 else float(spec["structures"]),
 			&"heat_frozen": float(spec["frozen"]) if i > 22 and i < 26 else 0.0,
 			&"heat_deficit": 2.0 if i >= 10 and i < 10 + deficit_samples else 0.0,
+			&"heat_demand": 100.0,
 			&"hope": float(spec["hope_low"]),
 			&"discontent": float(spec["discontent_high"]),
 			&"pop": 30.0,

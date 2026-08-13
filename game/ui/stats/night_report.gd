@@ -108,6 +108,7 @@ static func _top_items(recorder: LcnStatsRecorder, track: LcnStatTrack,
 ## durations are counted over the intervals (a, b] and clamped to the night.
 static func _heat(track: LcnStatTrack, a: int, b: int, night_seconds: float) -> Dictionary:
 	var deficit: LcnStatSeries = track.series(&"heat_deficit")
+	var demand: LcnStatSeries = track.series(&"heat_demand")
 	var buffer: LcnStatSeries = track.series(&"heat_buffer")
 	var frozen: LcnStatSeries = track.series(&"heat_frozen")
 	var brownouts: LcnStatSeries = track.series(&"heat_brownouts")
@@ -122,7 +123,7 @@ static func _heat(track: LcnStatTrack, a: int, b: int, night_seconds: float) -> 
 		if deficit != null:
 			var d: float = deficit.at(i)
 			worst_deficit = maxf(worst_deficit, d)
-			if d > 0.01:
+			if LcnStatsDefs.is_short(d, demand.at(i) if demand != null else 0.0):
 				if i > a:
 					deficit_intervals += 1
 					run += 1

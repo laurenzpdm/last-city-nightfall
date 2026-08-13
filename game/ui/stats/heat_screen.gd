@@ -103,7 +103,8 @@ func _read_stats(t: LcnStatTrack) -> Array[Dictionary]:
 	var short_intervals: int = 0
 	if deficit != null:
 		for i: int in range(1, n):
-			if deficit.at(i) > 0.01:
+			if LcnStatsDefs.is_short(deficit.at(i),
+					demand.at(i) if demand != null else 0.0):
 				short_intervals += 1
 	var window_s: float = t.window_seconds()
 	var short_seconds: float = minf(float(short_intervals) * t.sample_seconds(), window_s)
@@ -118,7 +119,7 @@ func _read_stats(t: LcnStatTrack) -> Array[Dictionary]:
 	out.append(_stat("WORST DEFICIT",
 		LcnStatsTheme.compact(deficit.max_value() if deficit != null else 0.0),
 		"heat/s at the worst moment",
-		_theme().BAD if deficit != null and deficit.max_value() > 0.01 else _theme().TEXT_DIM))
+		_theme().BAD if short_intervals > 0 else _theme().TEXT_DIM))
 	out.append(_stat("TIME SHORT", LcnStatsTheme.duration(short_seconds),
 		"of %s charted" % LcnStatsTheme.duration(window_s),
 		_theme().WARN if short_seconds > 1.0 else _theme().TEXT_DIM))
