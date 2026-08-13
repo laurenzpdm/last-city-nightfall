@@ -151,7 +151,7 @@ func step(tick: int) -> void:
 		var net: HeatNetwork = _network(nid)
 		_flow.solve(net, _graph.members[nid], nodes, _graph.neigh,
 			SimClock.DT, _cold_mult, _graph.version, _fuel_autarky)
-		_total_supply += net.supply * 0.5   # AUDIT_MUTATION halve all heat supply
+		_total_supply += net.supply
 		_total_demand += net.demand
 		_total_delivered += net.delivered
 		_total_deficit += net.deficit
