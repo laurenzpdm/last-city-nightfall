@@ -1,8 +1,7 @@
 {
  "name": "j_factory",
- "description": "judge: does a real belt factory read",
  "seed": 7,
- "ticks": 8200,
+ "ticks": 8000,
  "sample_every": 20,
  "expects": {
   "max_errors": 99
@@ -62,22 +61,6 @@
    "cmd": {
     "system": "build",
     "op": "grant_unlock",
-    "unlock": "belt_underground"
-   }
-  },
-  {
-   "tick": 2,
-   "cmd": {
-    "system": "build",
-    "op": "grant_unlock",
-    "unlock": "recipe_belt_underground"
-   }
-  },
-  {
-   "tick": 2,
-   "cmd": {
-    "system": "build",
-    "op": "grant_unlock",
     "unlock": "splitter"
    }
   },
@@ -122,14 +105,6 @@
    }
   },
   {
-   "tick": 2,
-   "cmd": {
-    "system": "build",
-    "op": "grant_unlock",
-    "unlock": "long_arm"
-   }
-  },
-  {
    "tick": 3,
    "cmd": {
     "system": "build",
@@ -155,7 +130,7 @@
     ],
     "to": [
      128,
-     133
+     135
     ],
     "free": true,
     "instant": true
@@ -169,11 +144,11 @@
     "kind": "heat_pipe",
     "from": [
      128,
-     133
+     135
     ],
     "to": [
      142,
-     133
+     135
     ],
     "free": true,
     "instant": true
@@ -187,7 +162,7 @@
     "kind": "coal_generator",
     "cell": [
      124,
-     133
+     135
     ],
     "free": true,
     "instant": true
@@ -201,7 +176,7 @@
     "kind": "coal_generator",
     "cell": [
      120,
-     133
+     135
     ],
     "free": true,
     "instant": true
@@ -215,20 +190,6 @@
     "kind": "housing_block",
     "cell": [
      133,
-     124
-    ],
-    "free": true,
-    "instant": true
-   }
-  },
-  {
-   "tick": 9,
-   "cmd": {
-    "system": "build",
-    "op": "place",
-    "kind": "housing_block",
-    "cell": [
-     119,
      124
     ],
     "free": true,
@@ -264,34 +225,6 @@
    }
   },
   {
-   "tick": 22,
-   "cmd": {
-    "system": "build",
-    "op": "place",
-    "kind": "workshop",
-    "cell": [
-     132,
-     143
-    ],
-    "free": true,
-    "instant": true
-   }
-  },
-  {
-   "tick": 23,
-   "cmd": {
-    "system": "build",
-    "op": "place",
-    "kind": "storage_yard",
-    "cell": [
-     124,
-     144
-    ],
-    "free": true,
-    "instant": true
-   }
-  },
-  {
    "tick": 40,
    "cmd": {
     "system": "logistics",
@@ -302,42 +235,8 @@
      140
     ],
     "to": [
-     142,
+     144,
      140
-    ],
-    "free": true
-   }
-  },
-  {
-   "tick": 41,
-   "cmd": {
-    "system": "logistics",
-    "op": "place_line",
-    "kind": "belt_mk1",
-    "from": [
-     142,
-     141
-    ],
-    "to": [
-     142,
-     146
-    ],
-    "free": true
-   }
-  },
-  {
-   "tick": 42,
-   "cmd": {
-    "system": "logistics",
-    "op": "place_line",
-    "kind": "belt_mk1",
-    "from": [
-     141,
-     146
-    ],
-    "to": [
-     128,
-     146
     ],
     "free": true
    }
@@ -399,47 +298,6 @@
    }
   },
   {
-   "tick": 46,
-   "cmd": {
-    "system": "logistics",
-    "op": "place",
-    "kind": "inserter_mk1",
-    "cell": [
-     134,
-     139
-    ],
-    "rot": 1,
-    "free": true
-   }
-  },
-  {
-   "tick": 47,
-   "cmd": {
-    "system": "logistics",
-    "op": "place",
-    "kind": "splitter_mk1",
-    "cell": [
-     130,
-     140
-    ],
-    "rot": 1,
-    "free": true
-   }
-  },
-  {
-   "tick": 48,
-   "cmd": {
-    "system": "logistics",
-    "op": "place",
-    "kind": "bunker_chest",
-    "cell": [
-     128,
-     147
-    ],
-    "free": true
-   }
-  },
-  {
    "tick": 50,
    "cmd": {
     "system": "production",
@@ -464,18 +322,6 @@
    }
   },
   {
-   "tick": 52,
-   "cmd": {
-    "system": "production",
-    "op": "set_recipe",
-    "cell": [
-     132,
-     143
-    ],
-    "recipe": "gear"
-   }
-  },
-  {
    "tick": 60,
    "cmd": {
     "system": "logistics",
@@ -489,20 +335,7 @@
    }
   },
   {
-   "tick": 80,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 160,
+   "tick": 120,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -520,15 +353,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 260,
+   "tick": 240,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -541,16 +374,16 @@
    }
   },
   {
-   "tick": 280,
+   "tick": 300,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -567,20 +400,7 @@
    }
   },
   {
-   "tick": 380,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 460,
+   "tick": 420,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -598,15 +418,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 560,
+   "tick": 540,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -619,16 +439,16 @@
    }
   },
   {
-   "tick": 580,
+   "tick": 600,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -645,20 +465,7 @@
    }
   },
   {
-   "tick": 680,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 760,
+   "tick": 720,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -676,15 +483,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 860,
+   "tick": 840,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -697,16 +504,16 @@
    }
   },
   {
-   "tick": 880,
+   "tick": 900,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -723,20 +530,7 @@
    }
   },
   {
-   "tick": 980,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 1060,
+   "tick": 1020,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -754,15 +548,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 1160,
+   "tick": 1140,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -775,16 +569,16 @@
    }
   },
   {
-   "tick": 1180,
+   "tick": 1200,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -801,20 +595,7 @@
    }
   },
   {
-   "tick": 1280,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 1360,
+   "tick": 1320,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -832,15 +613,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 1460,
+   "tick": 1440,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -853,16 +634,16 @@
    }
   },
   {
-   "tick": 1480,
+   "tick": 1500,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -879,20 +660,7 @@
    }
   },
   {
-   "tick": 1580,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 1660,
+   "tick": 1620,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -910,15 +678,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 1760,
+   "tick": 1740,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -931,16 +699,16 @@
    }
   },
   {
-   "tick": 1780,
+   "tick": 1800,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -957,20 +725,7 @@
    }
   },
   {
-   "tick": 1880,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 1960,
+   "tick": 1920,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -988,15 +743,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 2060,
+   "tick": 2040,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1009,16 +764,16 @@
    }
   },
   {
-   "tick": 2080,
+   "tick": 2100,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -1035,20 +790,7 @@
    }
   },
   {
-   "tick": 2180,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 2260,
+   "tick": 2220,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1066,15 +808,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 2360,
+   "tick": 2340,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1087,16 +829,16 @@
    }
   },
   {
-   "tick": 2380,
+   "tick": 2400,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -1113,20 +855,7 @@
    }
   },
   {
-   "tick": 2480,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 2560,
+   "tick": 2520,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1144,15 +873,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 2660,
+   "tick": 2640,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1165,16 +894,16 @@
    }
   },
   {
-   "tick": 2680,
+   "tick": 2700,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -1191,20 +920,7 @@
    }
   },
   {
-   "tick": 2780,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 2860,
+   "tick": 2820,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1222,15 +938,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 2960,
+   "tick": 2940,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1243,16 +959,16 @@
    }
   },
   {
-   "tick": 2980,
+   "tick": 3000,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -1269,20 +985,7 @@
    }
   },
   {
-   "tick": 3080,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 3160,
+   "tick": 3120,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1300,15 +1003,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 3260,
+   "tick": 3240,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1321,16 +1024,16 @@
    }
   },
   {
-   "tick": 3280,
+   "tick": 3300,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -1347,20 +1050,7 @@
    }
   },
   {
-   "tick": 3380,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 3460,
+   "tick": 3420,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1378,15 +1068,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 3560,
+   "tick": 3540,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1399,16 +1089,16 @@
    }
   },
   {
-   "tick": 3580,
+   "tick": 3600,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -1425,20 +1115,7 @@
    }
   },
   {
-   "tick": 3680,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 3760,
+   "tick": 3720,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1456,15 +1133,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 3860,
+   "tick": 3840,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1477,16 +1154,16 @@
    }
   },
   {
-   "tick": 3880,
+   "tick": 3900,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -1503,20 +1180,7 @@
    }
   },
   {
-   "tick": 3980,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 4060,
+   "tick": 4020,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1534,15 +1198,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 4160,
+   "tick": 4140,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1555,16 +1219,16 @@
    }
   },
   {
-   "tick": 4180,
+   "tick": 4200,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -1581,20 +1245,7 @@
    }
   },
   {
-   "tick": 4280,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 4360,
+   "tick": 4320,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1612,15 +1263,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 4460,
+   "tick": 4440,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1633,16 +1284,16 @@
    }
   },
   {
-   "tick": 4480,
+   "tick": 4500,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -1659,20 +1310,7 @@
    }
   },
   {
-   "tick": 4580,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 4660,
+   "tick": 4620,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1690,15 +1328,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 4760,
+   "tick": 4740,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1711,16 +1349,16 @@
    }
   },
   {
-   "tick": 4780,
+   "tick": 4800,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -1737,20 +1375,7 @@
    }
   },
   {
-   "tick": 4880,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 4960,
+   "tick": 4920,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1768,15 +1393,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 5060,
+   "tick": 5040,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1789,16 +1414,16 @@
    }
   },
   {
-   "tick": 5080,
+   "tick": 5100,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -1815,20 +1440,7 @@
    }
   },
   {
-   "tick": 5180,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 5260,
+   "tick": 5220,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1846,15 +1458,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 5360,
+   "tick": 5340,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1867,16 +1479,16 @@
    }
   },
   {
-   "tick": 5380,
+   "tick": 5400,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -1893,20 +1505,7 @@
    }
   },
   {
-   "tick": 5480,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 5560,
+   "tick": 5520,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1924,15 +1523,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 5660,
+   "tick": 5640,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -1945,16 +1544,16 @@
    }
   },
   {
-   "tick": 5680,
+   "tick": 5700,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -1971,20 +1570,7 @@
    }
   },
   {
-   "tick": 5780,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 5860,
+   "tick": 5820,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -2002,15 +1588,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 5960,
+   "tick": 6000,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -2020,19 +1606,6 @@
     ],
     "item": "iron_ore",
     "count": 4
-   }
-  },
-  {
-   "tick": 5980,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
    }
   },
   {
@@ -2049,20 +1622,7 @@
    }
   },
   {
-   "tick": 6080,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 6160,
+   "tick": 6120,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -2080,15 +1640,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 6260,
+   "tick": 6240,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -2101,16 +1661,16 @@
    }
   },
   {
-   "tick": 6280,
+   "tick": 6300,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -2127,20 +1687,7 @@
    }
   },
   {
-   "tick": 6380,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 6460,
+   "tick": 6420,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -2158,15 +1705,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 6560,
+   "tick": 6540,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -2179,16 +1726,16 @@
    }
   },
   {
-   "tick": 6580,
+   "tick": 6600,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -2205,20 +1752,7 @@
    }
   },
   {
-   "tick": 6680,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 6760,
+   "tick": 6720,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -2236,15 +1770,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 6860,
+   "tick": 6840,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -2257,16 +1791,16 @@
    }
   },
   {
-   "tick": 6880,
+   "tick": 6900,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -2283,20 +1817,7 @@
    }
   },
   {
-   "tick": 6980,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 7060,
+   "tick": 7020,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -2314,15 +1835,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 7160,
+   "tick": 7140,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -2335,16 +1856,16 @@
    }
   },
   {
-   "tick": 7180,
+   "tick": 7200,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -2361,20 +1882,7 @@
    }
   },
   {
-   "tick": 7280,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 7360,
+   "tick": 7320,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -2392,15 +1900,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 7460,
+   "tick": 7440,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -2413,16 +1921,16 @@
    }
   },
   {
-   "tick": 7480,
+   "tick": 7500,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -2439,20 +1947,7 @@
    }
   },
   {
-   "tick": 7580,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 7660,
+   "tick": 7620,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -2470,15 +1965,15 @@
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
-   "tick": 7760,
+   "tick": 7740,
    "cmd": {
     "system": "logistics",
     "op": "insert",
@@ -2491,16 +1986,16 @@
    }
   },
   {
-   "tick": 7780,
+   "tick": 7800,
    "cmd": {
     "system": "logistics",
     "op": "insert",
     "cell": [
-     127,
+     126,
      140
     ],
-    "item": "coal",
-    "count": 2
+    "item": "iron_ore",
+    "count": 4
    }
   },
   {
@@ -2515,63 +2010,24 @@
     "item": "iron_ore",
     "count": 4
    }
-  },
-  {
-   "tick": 7880,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
-  },
-  {
-   "tick": 7960,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     126,
-     140
-    ],
-    "item": "iron_ore",
-    "count": 4
-   }
-  },
-  {
-   "tick": 7980,
-   "cmd": {
-    "system": "logistics",
-    "op": "insert",
-    "cell": [
-     127,
-     140
-    ],
-    "item": "coal",
-    "count": 2
-   }
   }
  ],
  "shots": [
   {
-   "tick": 2000,
-   "name": "f_early"
+   "tick": 600,
+   "name": "f_plain"
   },
   {
-   "tick": 5000,
-   "name": "f_mid"
+   "tick": 2500,
+   "name": "f_heatlens"
   },
   {
-   "tick": 7900,
+   "tick": 7700,
    "name": "f_logistics"
   },
   {
-   "tick": 8100,
-   "name": "f_late"
+   "tick": 7900,
+   "name": "f_logistics2"
   }
  ]
 }
