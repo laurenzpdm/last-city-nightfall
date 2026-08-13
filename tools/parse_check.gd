@@ -37,7 +37,14 @@ func _execute() -> int:
 
 	var broken: PackedStringArray = PackedStringArray()
 	for path: String in scripts:
-		if load(path) == null:
+		# CACHE_MODE_IGNORE, not load(). A plain load() answers from the resource
+		# cache and from the global class cache, so it hands back a perfectly good
+		# Script object for a file that no longer compiles — this gate printed
+		# PARSE OK on a build where four SimSystems refused to load at runtime and
+		# the game came up with two systems in it. Ignoring the cache forces the
+		# parser to actually run, which is the only thing that answers the
+		# question the stage claims to answer.
+		if ResourceLoader.load(path, "Script", ResourceLoader.CACHE_MODE_IGNORE) == null:
 			broken.append(path)
 
 	print("parse check: %d script(s) across %s" % [scripts.size(), ", ".join(roots)])
