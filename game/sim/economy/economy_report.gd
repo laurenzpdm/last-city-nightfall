@@ -64,6 +64,7 @@ static func analyse(rows: Array, curve: DifficultyCurve, day_ticks: int = 0) -> 
 	var days: Array[Dictionary] = []
 	var failures: Array[String] = []
 	var worst: StringName = EconomyDefs.VERDICT_PASS
+	var graded_any: bool = false
 	var peak_buffer: float = 0.0
 
 	for d: int in order:
@@ -92,11 +93,20 @@ static func analyse(rows: Array, curve: DifficultyCurve, day_ticks: int = 0) -> 
 				if v == EconomyDefs.VERDICT_FAIL:
 					failures.append("day %d: %s" % [d, String(c["text"])])
 		entry["verdict"] = day_verdict
+		if day_verdict != EconomyDefs.VERDICT_NO_DATA:
+			graded_any = true
 		if day_verdict == EconomyDefs.VERDICT_FAIL:
 			worst = EconomyDefs.VERDICT_FAIL
 		elif day_verdict == EconomyDefs.VERDICT_SOFT and worst == EconomyDefs.VERDICT_PASS:
 			worst = EconomyDefs.VERDICT_SOFT
 		days.append(entry)
+
+	# A run that graded nothing is NOT a pass. A scenario whose nights never
+	# happened — because the world failed to build, or because every sample
+	# landed in daylight — has to read as "this proved nothing", or a broken
+	# balance run reports green forever.
+	if not graded_any:
+		worst = EconomyDefs.VERDICT_NO_DATA
 
 	return {
 		"days": days,

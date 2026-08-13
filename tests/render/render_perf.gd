@@ -41,6 +41,7 @@ var _draw: Array[float] = []
 var _ground: Array[float] = []
 var _headless: bool = false
 var _placed: int = 0
+var _centre: Vector2 = Vector2.ZERO
 
 
 var _done: bool = false
@@ -63,6 +64,10 @@ func _process(_delta: float) -> void:
 		_finish(1)
 		return
 	if _frame <= WARMUP_FRAMES + 1:
+		# The renderer installs its fallback camera inside its own _process, which
+		# has not necessarily run when the world is built. Keep asserting the
+		# framing through warm-up so the measurement really is of a full screen.
+		_frame_camera()
 		return
 	if _frame <= WARMUP_FRAMES + 1 + SAMPLE_FRAMES:
 		var es: Dictionary = _renderer.entities.stats()
@@ -109,12 +114,19 @@ func _build_world() -> void:
 	var centre := Vector2(float(20 + side * 3) * 0.5, float(20 + side * 3) * 0.5) * 32.0
 	_renderer.terrain.bind_world()
 	_renderer.entities.bind_field(_renderer.terrain.field)
+	_centre = centre
+	_frame_camera()
+
+
+## Far enough out that the WHOLE stress city is on screen. A partial view would
+## be measuring the culler, not the renderer.
+func _frame_camera() -> void:
 	var cam: Camera2D = _find_camera(get_tree().root)
-	if cam != null:
-		cam.position = centre
-		# Far enough out that the WHOLE stress city is on screen. A partial view
-		# would be measuring the culler, not the renderer.
-		cam.zoom = Vector2(0.42, 0.42)
+	if cam == null:
+		return
+	cam.position = _centre
+	cam.zoom = Vector2(0.30, 0.30)
+	cam.force_update_scroll()
 
 
 ## An id that resolves back to the archetype we want, so add_building exercises

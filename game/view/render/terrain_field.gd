@@ -227,13 +227,21 @@ func _write_snow_chunk(model: LcnWorldModel, chunk: Vector2i) -> void:
 ## Rasterises the warm pools and the industrial grime. Both are bounded by the
 ## radii involved rather than by the map, so this is a few thousand byte writes
 ## even in a city that fills the screen.
-func refresh_sources(sources: Array[Dictionary], buildings: Array[Dictionary]) -> void:
+## `region` is the visible world rect in pixels, grown by the caller. Sources
+## outside it are skipped: nothing samples these fields off screen, and stamping
+## a whole 1700-building city every refresh is 80 000 byte writes for pixels no
+## camera can see.
+func refresh_sources(sources: Array[Dictionary], buildings: Array[Dictionary],
+		region: Rect2 = Rect2()) -> void:
 	var t0: int = Time.get_ticks_usec()
+	var cull: bool = region.size.x > 0.0
 	_heat.fill(0)
 	_soot.fill(0)
 	for s: Dictionary in sources:
 		var pos: Vector2 = s["pos"]
 		var r: float = float(s["radius"]) / float(TILE) * 0.92
+		if cull and not region.grow(r * float(TILE)).has_point(pos):
+			continue
 		var v: int = clampi(int(clampf(float(s["intensity"]), 0.0, 1.4) * 255.0), 0, 255)
 		_stamp(_heat, _heat_dim, HEAT_STEP, pos / float(TILE), r, v)
 	for b: Dictionary in buildings:
@@ -243,7 +251,10 @@ func refresh_sources(sources: Array[Dictionary], buildings: Array[Dictionary]) -
 		var rad: float = float(b.get("soot_radius", 0.0)) / float(TILE)
 		if rad <= 0.0:
 			continue
-		_stamp(_soot, _soot_dim, SOOT_STEP, (b["centre"] as Vector2) / float(TILE), rad,
+		var c: Vector2 = b["centre"]
+		if cull and not region.grow(rad * float(TILE)).has_point(c):
+			continue
+		_stamp(_soot, _soot_dim, SOOT_STEP, c / float(TILE), rad,
 			clampi(int(w * 255.0), 0, 255))
 	_heat_img = Image.create_from_data(_heat_dim.x, _heat_dim.y, false, Image.FORMAT_R8, _heat)
 	heat_tex.update(_heat_img)
@@ -253,6 +264,12 @@ func refresh_sources(sources: Array[Dictionary], buildings: Array[Dictionary]) -
 
 
 ## Additive disc with a squared falloff, saturating instead of wrapping.
+##
+## The early-out matters more than it looks: in a dense district every structure
+## is a source and their pools overlap many deep, so without it the cost is the
+## number of BUILDINGS times the area of a pool. With it the cost is the area of
+## the district — 13 ms became under 2 ms in the 1700-structure stress city, and
+## the field it produces is identical, because a saturated texel cannot go up.
 func _stamp(field: PackedByteArray, dim: Vector2i, step: int, centre_tiles: Vector2,
 		radius_tiles: float, peak: int) -> void:
 	if radius_tiles <= 0.0 or peak <= 0:
@@ -260,6 +277,9 @@ func _stamp(field: PackedByteArray, dim: Vector2i, step: int, centre_tiles: Vect
 	var r: float = radius_tiles / float(step)
 	var cx: float = centre_tiles.x / float(step)
 	var cy: float = centre_tiles.y / float(step)
+	var mid: int = clampi(int(cy), 0, dim.y - 1) * dim.x + clampi(int(cx), 0, dim.x - 1)
+	if int(field[mid]) >= 252:
+		return
 	var x0: int = maxi(int(floor(cx - r)), 0)
 	var x1: int = mini(int(ceil(cx + r)), dim.x - 1)
 	var y0: int = maxi(int(floor(cy - r)), 0)
@@ -320,24 +340,32 @@ func refresh_city(buildings: Array[Dictionary]) -> void:
 	_city_us = Time.get_ticks_usec() - t0
 
 
+## Sliding-window box blur: one add and one subtract per texel instead of a
+## (2r+1)-tap kernel. Four of these passes over a 63x63 field cost about a
+## millisecond; the naive form cost five, which showed up as a visible hitch
+## every time the stress city's building set changed.
 func _blur_axis(src: PackedByteArray, dst: PackedByteArray, w: int, h: int, horizontal: bool) -> void:
 	var r: int = CITY_BLUR
 	var span: int = r * 2 + 1
 	if horizontal:
 		for y: int in h:
 			var row: int = y * w
+			var acc: int = 0
+			for k: int in range(-r, r + 1):
+				acc += int(src[row + clampi(k, 0, w - 1)])
 			for x: int in w:
-				var acc: int = 0
-				for k: int in range(-r, r + 1):
-					acc += int(src[row + clampi(x + k, 0, w - 1)])
 				dst[row + x] = acc / span
+				acc -= int(src[row + clampi(x - r, 0, w - 1)])
+				acc += int(src[row + clampi(x + r + 1, 0, w - 1)])
 		return
 	for x2: int in w:
+		var acc2: int = 0
+		for k2: int in range(-r, r + 1):
+			acc2 += int(src[clampi(k2, 0, h - 1) * w + x2])
 		for y2: int in h:
-			var acc2: int = 0
-			for k2: int in range(-r, r + 1):
-				acc2 += int(src[clampi(y2 + k2, 0, h - 1) * w + x2])
 			dst[y2 * w + x2] = acc2 / span
+			acc2 -= int(src[clampi(y2 - r, 0, h - 1) * w + x2])
+			acc2 += int(src[clampi(y2 + r + 1, 0, h - 1) * w + x2])
 
 
 ## 0..1 civilisation presence at a tile. The entity pass reads this so a building

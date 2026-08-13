@@ -139,16 +139,50 @@ func test_replay_is_byte_identical() -> void:
 	soc = world.system(&"society")
 
 
-func test_it_fits_in_the_tick_budget() -> void:
+func test_it_fits_in_the_tick_budget_at_full_scale() -> void:
 	if not need_system(&"society"):
 		return
-	# Warm the caches the same way a real run would before measuring.
-	world.run(300)
+	# A base worth measuring, built instantly the way the stress scenario does.
+	# Measuring society against an empty map would be measuring nothing: the only
+	# thing in this part that scales with the city is the building scan.
+	_build_a_real_city()
+	world.run(120)
+	var buildings: int = int((soc.call("city_reading") as Dictionary).get("buildings", 0))
+	assert_gt(float(buildings), 600.0, "the measurement is taken against a real base")
+
 	var t0: int = Time.get_ticks_usec()
 	for t: int in range(1, PERF_TICKS + 1):
 		soc.call("step", 100000 + t)
 	var per_tick_ms: float = float(Time.get_ticks_usec() - t0) / float(PERF_TICKS) / 1000.0
-	Log.info("society", "perf: society.step() is %.4f ms/tick over %d ticks (%d buildings)" % [
-		per_tick_ms, PERF_TICKS, int((soc.call("city_reading") as Dictionary).get("buildings", 0))])
+	Log.info("society", "perf: society.step() is %.4f ms/tick over %d ticks, %d buildings, %d homes" % [
+		per_tick_ms, PERF_TICKS, buildings,
+		int((soc.call("city_reading") as Dictionary).get("homes", 0))])
 	assert_lt(per_tick_ms, BUDGET_MS_PER_TICK,
 		"society.step() stays well inside its share of the 50 ms tick")
+
+
+## Roughly a thousand structures on one grid, in one tick, with `instant`.
+func _build_a_real_city() -> void:
+	var build: SimSystem = world.system(&"build")
+	if build == null:
+		return
+	world.cmd({"system": &"build", "op": "add_stock", "items": {
+		"iron_plate": 90000, "steel_plate": 90000, "stone": 90000, "timber": 90000,
+		"scrap": 90000, "gear": 90000, "copper_coil": 90000, "coal": 90000,
+	}})
+	world.cmd({"system": &"build", "op": "place", "kind": "the_hearth",
+		"cell": [126, 126], "free": true, "instant": true})
+	for i: int in 12:
+		var y: int = 98 + i * 6
+		world.cmd({"system": &"build", "op": "place_line", "kind": "heat_pipe",
+			"from": [88, y], "to": [168, y], "free": true, "instant": true})
+	for i: int in 11:
+		var x: int = 88 + i * 8
+		world.cmd({"system": &"build", "op": "place_line", "kind": "heat_pipe",
+			"from": [x, 96], "to": [x, 160], "free": true, "instant": true})
+	# Housing is what society actually walks, so there has to be a lot of it.
+	for row: int in 10:
+		for col: int in 9:
+			world.cmd({"system": &"build", "op": "place", "kind": "housing_block",
+				"cell": [90 + col * 9, 99 + row * 6], "free": true, "instant": true})
+	world.run(4)

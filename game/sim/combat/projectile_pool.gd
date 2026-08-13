@@ -73,8 +73,9 @@ func launch(from: Vector2, aim: Vector2, speed_px: float, damage: float, channel
 
 
 ## Flies everything one tick and resolves whatever arrives. Returns the total
-## damage delivered, which [CombatSystem] reports as the defence's output.
-func step(tick: int, swarm: EnemySwarm) -> float:
+## damage delivered, and credits each hit back to the gun that fired it — a
+## per-turret damage column is worth nothing if every shell lands in one bucket.
+func step(tick: int, swarm: EnemySwarm, battery: TurretBattery = null) -> float:
 	var dt: float = SimClock.DT
 	var dealt: float = 0.0
 	var i: int = 0
@@ -91,6 +92,7 @@ func step(tick: int, swarm: EnemySwarm) -> float:
 		var iy: float = p_y[i] + p_vy[i] * over
 		var impact: Vector2 = Vector2(ix, iy)
 		var hit: bool = false
+		var shot_damage: float = 0.0
 		var slot: int = p_target[i]
 		if swarm.alive_at(slot) and swarm.id_at(slot) == p_target_id[i]:
 			var tp: Vector2 = swarm.position_at(slot)
@@ -99,6 +101,7 @@ func step(tick: int, swarm: EnemySwarm) -> float:
 				var d: float = swarm.hurt(slot, p_target_id[i], p_damage[i], p_channel[i], p_pierce[i], tick)
 				if d > 0.0:
 					dealt += d
+					shot_damage += d
 					hit = true
 					if p_burn[i] > 0.0:
 						swarm.ignite(slot, p_target_id[i], p_burn[i], p_burn_t[i])
@@ -107,11 +110,14 @@ func step(tick: int, swarm: EnemySwarm) -> float:
 				p_pierce[i], p_falloff[i], tick)
 			if s > 0.0:
 				dealt += s
+				shot_damage += s
 				hit = true
 		if hit:
 			hits_total += 1
 		else:
 			misses_total += 1
+		if battery != null and shot_damage > 0.0:
+			battery.credit(p_owner[i], shot_damage)
 		_remove(i)
 	return dealt
 

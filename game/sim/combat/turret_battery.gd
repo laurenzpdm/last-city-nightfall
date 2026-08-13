@@ -286,6 +286,7 @@ func step(tick: int, sys: Object, swarm: EnemySwarm, shells: ProjectilePool,
 			_acquire(t, swarm, assault, range_px, w)
 		if t.target_slot < 0:
 			t.idle = CombatTypes.Idle.NO_TARGET
+			_bank(t)
 			continue
 
 		# --- slew --------------------------------------------------------
@@ -304,21 +305,26 @@ func step(tick: int, sys: Object, swarm: EnemySwarm, shells: ProjectilePool,
 		var dist: float = to.length()
 		if dist < w.min_range_tiles * TILE:
 			t.idle = CombatTypes.Idle.NO_TARGET
+			_bank(t)
 			continue
 		if absf(err) > deg_to_rad(w.aim_tolerance):
 			t.idle = CombatTypes.Idle.TURNING
+			_bank(t)
 			continue
 
 		# --- fire --------------------------------------------------------
 		if w.delivery_index() == CombatTypes.Delivery.CONE:
 			_burn_cone(t, w, swarm, sys, tick, dt)
+			_bank(t)
 			continue
 		if t.burst_left > 0:
 			if t.burst_timer > 0.0:
 				t.idle = CombatTypes.Idle.RELOADING
+				_bank(t)
 				continue
 		elif t.reload_left > 0.0:
 			t.idle = CombatTypes.Idle.RELOADING
+			_bank(t)
 			continue
 		if t.charge < w.heat_per_shot:
 			t.idle = CombatTypes.Idle.NO_HEAT
@@ -339,8 +345,28 @@ func step(tick: int, sys: Object, swarm: EnemySwarm, shells: ProjectilePool,
 			t.reload_left = w.reload
 		t.idle = CombatTypes.Idle.FIRING
 		t.last_fired_tick = tick
+		_bank(t)
+
+
+## Banks one tick of "this gun was armed" against the uptime counters.
+func _bank(t: Turret) -> void:
+	if _is_armed(t.idle):
 		ready_ticks += 1
 		t.ready_ticks += 1
+
+
+## Credits damage a shell delivered back to the gun that fired it.
+func credit(turret_id: int, amount: float) -> void:
+	var t: Turret = turrets.get(turret_id)
+	if t == null:
+		return
+	t.damage_dealt += amount
+
+
+## True while the only thing keeping this gun quiet is the absence of a target.
+static func _is_armed(idle: int) -> bool:
+	return idle == CombatTypes.Idle.FIRING or idle == CombatTypes.Idle.NO_TARGET \
+		or idle == CombatTypes.Idle.TURNING or idle == CombatTypes.Idle.RELOADING
 
 
 func _acquire(t: Turret, swarm: EnemySwarm, assault: AssaultField,
@@ -462,8 +488,6 @@ func _burn_cone(t: Turret, w: WeaponDef, swarm: EnemySwarm, sys: Object,
 	shots_fired += 1
 	t.idle = CombatTypes.Idle.FIRING
 	t.last_fired_tick = tick
-	ready_ticks += 1
-	t.ready_ticks += 1
 	if tick % CONE_SIGNAL_TICKS == 0:
 		var tip: Vector2 = t.centre + Vector2(cos(t.facing), sin(t.facing)) * reach
 		Bus.turret_fired.emit(t.id, t.centre, tip)
@@ -475,9 +499,11 @@ func _burn_cone(t: Turret, w: WeaponDef, swarm: EnemySwarm, sys: Object,
 # readouts
 # =========================================================================
 
-## Fraction of turret-ticks in which a gun actually put damage out. The single
-## number that says "is my wall armed?" — a wall of mounts with no heat reads
-## near zero however many of them there are.
+## Fraction of turret-ticks in which a gun was ABLE to fire — supplied, thawed
+## and switched on — whether or not anything happened to be in range. That is the
+## number that answers "is my wall armed?"; counting only ticks where a trigger
+## was actually pulled would read as 1% on a perfectly healthy wall that spent the
+## night waiting, and would say nothing at all about the heat grid.
 func uptime() -> float:
 	return float(ready_ticks) / float(maxi(live_ticks, 1))
 

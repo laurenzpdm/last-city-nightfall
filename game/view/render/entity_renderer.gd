@@ -34,7 +34,12 @@ extends Node2D
 const TILE: int = 32
 ## Camera zoom under which detail passes are dropped.
 const LOD_ZOOM: float = 0.42
-const RIM_ZOOM: float = 0.30
+const RIM_ZOOM: float = 0.45
+## A warm pool smaller than this many screen pixels is a smudge; drawing it costs
+## a full quad and buys nothing.
+const MIN_POOL_PX: float = 9.0
+## Below this on-screen footprint a contact shadow is one dark pixel.
+const MIN_SHADOW_PX: float = 11.0
 
 var model: LcnWorldModel = null
 var sprites: LcnSpriteFactory = null
@@ -63,12 +68,19 @@ var _draw_us: int = 0
 var _collect_us: int = 0
 var _frozen: Dictionary[int, bool] = {}
 
-## Per-frame scratch. Parallel arrays, reused between frames — the first pass
-## allocated one Dictionary per visible building per frame and it showed.
-var _vis: Array[Dictionary] = []
-var _vis_rect: PackedVector2Array = PackedVector2Array()
+## Per-frame scratch, PARALLEL arrays and reused between frames. The first pass
+## built one Dictionary per visible building per frame; at the stress city's 1581
+## visible structures that alone was 3 ms of allocation before a single pixel was
+## drawn. `_vis_b` only holds references the model already owns.
+var _vis_b: Array[Dictionary] = []
+var _vis_rect: PackedFloat32Array = PackedFloat32Array()
+var _vis_src: PackedFloat32Array = PackedFloat32Array()
 var _srcs: Array[Dictionary] = []
-var _src_buckets: Dictionary[int, PackedInt32Array] = {}
+## Dictionary[int, Array[int]] — an Array, not a PackedInt32Array, on purpose:
+## Packed arrays are value types, so get/append/set copies the whole bucket every
+## time and bucketing 1600 sources becomes quadratic. Measured at 3 ms a frame in
+## the stress city before this changed.
+var _src_buckets: Dictionary[int, Array] = {}
 var _atlas_stamp: int = -1
 var _logged_sprites: int = -1
 ## The frame's light rig, flattened out of the grade dictionary once. Evaluating
@@ -183,25 +195,39 @@ func _cache_light_rig() -> void:
 ## the atlas region resolved once each.
 func _collect() -> void:
 	var t0: int = Time.get_ticks_usec()
-	_vis.clear()
+	_vis_b.clear()
+	_vis_rect.clear()
+	_vis_src.clear()
 	if model == null:
 		return
 	if model.building_stamp() != _atlas_stamp:
 		_rebuild_atlas()
 
 	var pad: Rect2 = view_rect.grow(8.0)
+	var px0: float = pad.position.x
+	var py0: float = pad.position.y
+	var px1: float = pad.end.x
+	var py1: float = pad.end.y
+	var pad_px: float = float(LcnSpriteFactory.PAD)
 	for b: Dictionary in model.buildings():
 		var region: Rect2 = _regions.get(b["sprite"], Rect2())
 		if region.size.x <= 0.0:
 			continue
 		var cell: Vector2i = b["cell"]
-		var origin := Vector2(float(cell.x), float(cell.y)) * float(TILE) \
-			+ Vector2(-LcnSpriteFactory.PAD, -LcnSpriteFactory.PAD - float(b["lift"]))
-		var rect := Rect2(origin, region.size)
-		if not pad.intersects(rect):
+		var ox: float = float(cell.x) * float(TILE) - pad_px
+		var oy: float = float(cell.y) * float(TILE) - pad_px - float(b["lift"])
+		if ox > px1 or oy > py1 or ox + region.size.x < px0 or oy + region.size.y < py0:
 			continue
-		_vis.append({"b": b, "rect": rect, "src": region})
-	_visible_buildings = _vis.size()
+		_vis_b.append(b)
+		_vis_rect.append(ox)
+		_vis_rect.append(oy)
+		_vis_rect.append(region.size.x)
+		_vis_rect.append(region.size.y)
+		_vis_src.append(region.position.x)
+		_vis_src.append(region.position.y)
+		_vis_src.append(region.size.x)
+		_vis_src.append(region.size.y)
+	_visible_buildings = _vis_b.size()
 
 	_srcs = model.heat_sources()
 	_src_buckets.clear()
@@ -216,10 +242,24 @@ func _collect() -> void:
 		for by: int in range(y0, y1 + 1):
 			for bx: int in range(x0, x1 + 1):
 				var key: int = bx * 73856093 ^ by * 19349663
-				var arr: PackedInt32Array = _src_buckets.get(key, PackedInt32Array())
+				var arr: Array = _src_buckets.get(key, [])
+				if arr.is_empty():
+					_src_buckets[key] = arr
 				arr.append(i)
-				_src_buckets[key] = arr
 	_collect_us = Time.get_ticks_usec() - t0
+
+
+## Destination rect of the i-th visible structure, optionally nudged.
+func _rect_at(i: int, offset: Vector2) -> Rect2:
+	var o: int = i * 4
+	return Rect2(_vis_rect[o] + offset.x, _vis_rect[o + 1] + offset.y,
+		_vis_rect[o + 2], _vis_rect[o + 3])
+
+
+## Atlas source rect of the i-th visible structure.
+func _src_at(i: int) -> Rect2:
+	var o: int = i * 4
+	return Rect2(_vis_src[o], _vis_src[o + 1], _vis_src[o + 2], _vis_src[o + 3])
 
 
 func mark_frozen(id: int, is_frozen: bool) -> void:
@@ -292,16 +332,19 @@ func _draw_shadows(ci: CanvasItem) -> void:
 	var a: float = grade["shadow_alpha"]
 	var night: float = clampf(float(grade["bounce"]), 0.0, 1.0)
 	var detailed: bool = zoom >= LOD_ZOOM and _smear_r.size.x > 0.0
+	var min_foot: float = MIN_SHADOW_PX / maxf(zoom, 0.01)
 
 	# TWO loops on purpose. draw_texture_rect_region and draw_polygon are different
 	# canvas primitives, and alternating them per building ends the batch every
 	# time — 2N draw calls instead of 2. Every blob first, then every smear.
 	var contact := Color(col.r, col.g, col.b, a * 0.85)
-	for entry: Dictionary in _vis:
-		var b: Dictionary = entry["b"]
+	for i: int in _vis_b.size():
+		var b: Dictionary = _vis_b[i]
 		if int(b.get("state", LcnWorldModel.BUILD_OPERATIONAL)) == LcnWorldModel.BUILD_GHOST:
 			continue
 		var tiles: Vector2i = b["tiles"]
+		if float(maxi(tiles.x, tiles.y)) * float(TILE) < min_foot:
+			continue
 		var cell: Vector2i = b["cell"]
 		ci.draw_texture_rect_region(_atlas,
 			Rect2(Vector2(float(cell.x), float(cell.y)) * float(TILE) - Vector2(6.0, 4.0),
@@ -324,8 +367,8 @@ func _draw_shadows(ci: CanvasItem) -> void:
 	var smear_uvs := PackedVector2Array([
 		_uv(_smear_r, 0.0, 0.0), _uv(_smear_r, 1.0, 0.0),
 		_uv(_smear_r, 1.0, 1.0), _uv(_smear_r, 0.0, 1.0)])
-	for entry2: Dictionary in _vis:
-		var b2: Dictionary = entry2["b"]
+	for i2: int in _vis_b.size():
+		var b2: Dictionary = _vis_b[i2]
 		if int(b2.get("state", LcnWorldModel.BUILD_OPERATIONAL)) == LcnWorldModel.BUILD_GHOST:
 			continue
 		var lift: float = float(b2["lift"])
@@ -365,11 +408,11 @@ static func _uv(region: Rect2, u: float, v: float) -> Vector2:
 
 func _nearest_source(p: Vector2) -> Dictionary:
 	var key: int = int(floor(p.x / BUCKET_PX)) * 73856093 ^ int(floor(p.y / BUCKET_PX)) * 19349663
-	var candidates: PackedInt32Array = _src_buckets.get(key, PackedInt32Array())
+	var candidates: Array = _src_buckets.get(key, [])
 	var best: Dictionary = {}
 	var best_score: float = -1.0
 	for i: int in candidates:
-		var s: Dictionary = _srcs[i]
+		var s: Dictionary = _srcs[int(i)]
 		var d: float = (s["pos"] as Vector2).distance_to(p)
 		var r: float = float(s["radius"])
 		if d > r * 1.4:
@@ -388,9 +431,12 @@ func _draw_glow(ci: CanvasItem) -> void:
 
 	# Warm pools on the ground. Light2D does the physical lighting; this pass
 	# adds the bloomy core that makes a fire feel hot rather than merely bright.
+	var min_pool: float = MIN_POOL_PX / maxf(zoom, 0.01)
 	for s: Dictionary in _srcs:
 		var pos: Vector2 = s["pos"]
 		var radius: float = float(s["radius"]) * 0.8
+		if radius < min_pool:
+			continue
 		if not view_rect.grow(radius).has_point(pos):
 			continue
 		var intensity: float = float(s["intensity"])
@@ -409,8 +455,8 @@ func _draw_glow(ci: CanvasItem) -> void:
 
 	# Rim light: the sprite redrawn offset toward its light. The main pass then
 	# covers everything but the lit crescent.
-	for entry: Dictionary in _vis:
-		var b: Dictionary = entry["b"]
+	for i: int in _vis_b.size():
+		var b: Dictionary = _vis_b[i]
 		if _frozen.has(int(b["id"])):
 			continue
 		var centre: Vector2 = b["centre"]
@@ -427,10 +473,9 @@ func _draw_glow(ci: CanvasItem) -> void:
 			rim = maxf(rim, clampf(1.0 - d / r, 0.0, 1.0) * float(src["intensity"]) * 0.55)
 		if rim < 0.02:
 			continue
-		var rect: Rect2 = entry["rect"]
 		var col2: Color = LcnPalette.WARM_MID
 		ci.draw_texture_rect_region(_atlas,
-			Rect2(rect.position + toward * 2.0 - Vector2(0.0, 1.0), rect.size), entry["src"],
+			_rect_at(i, toward * 2.0 - Vector2(0.0, 1.0)), _src_at(i),
 			Color(col2.r, col2.g, col2.b, clampf(rim * energy * 0.48, 0.0, 0.62)))
 
 
@@ -451,8 +496,8 @@ func _draw_main(ci: CanvasItem) -> void:
 	var frost: Color = LcnPalette.ICE_BLUE
 	var ai: int = 0
 	var barrels: bool = zoom >= LOD_ZOOM and _barrel_r.size.x > 0.0
-	for e: Dictionary in _vis:
-		var b2: Dictionary = e["b"]
+	for i: int in _vis_b.size():
+		var b2: Dictionary = _vis_b[i]
 		var cell: Vector2i = b2["cell"]
 		var tiles: Vector2i = b2["tiles"]
 		var y: float = float(cell.y + tiles.y) * float(TILE)
@@ -460,7 +505,7 @@ func _draw_main(ci: CanvasItem) -> void:
 			_draw_agent(ci, vis_ag[ai])
 			ai += 1
 
-		var rect: Rect2 = e["rect"]
+		var rect: Rect2 = _rect_at(i, Vector2.ZERO)
 		var state2: int = int(b2.get("state", LcnWorldModel.BUILD_OPERATIONAL))
 		var lit: Color = _light_for(b2["centre"], float(b2["warm"]))
 		var tint := Color(lit.r, lit.g, lit.b, 1.0)
@@ -472,9 +517,9 @@ func _draw_main(ci: CanvasItem) -> void:
 		elif state2 == LcnWorldModel.BUILD_DECONSTRUCTING:
 			tint = Color(tint.r, tint.g * 0.72, tint.b * 0.62, 0.75)
 		if state2 == LcnWorldModel.BUILD_GHOST or state2 == LcnWorldModel.BUILD_CONSTRUCTING:
-			_draw_site(ci, b2, rect, e["src"], state2)
+			_draw_site(ci, b2, rect, _src_at(i), state2)
 		else:
-			ci.draw_texture_rect_region(_atlas, rect, e["src"], tint)
+			ci.draw_texture_rect_region(_atlas, rect, _src_at(i), tint)
 			if barrels and b2["arch"] == &"turret":
 				_draw_barrel(ci, b2, rect, tint)
 

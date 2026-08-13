@@ -69,6 +69,7 @@ var _death_accum: Dictionary[StringName, float] = {}
 var _arrival_accum: float = 0.0
 var _famine_hours: float = 0.0
 var _citizens_deaths_seen: float = -1.0
+var _seen_by_cause: Dictionary[StringName, float] = {}
 
 
 func reset() -> void:
@@ -92,6 +93,7 @@ func reset() -> void:
 	_arrival_accum = 0.0
 	_famine_hours = 0.0
 	_citizens_deaths_seen = -1.0
+	_seen_by_cause.clear()
 
 
 ## Advances the people by `hours`. Returns the events that happened, each with
@@ -124,19 +126,57 @@ func _mirror_citizens(reading: SocietyReading) -> Array[Dictionary]:
 	if _citizens_deaths_seen < 0.0:
 		_citizens_deaths_seen = total
 		deaths_total = total
+		_seen_by_cause = _snapshot_toll(reading)
 		return out
 	var fresh: int = int(floor(total - _citizens_deaths_seen))
-	if fresh > 0:
-		_citizens_deaths_seen += float(fresh)
-		deaths_total = total
-		deaths_today += float(fresh)
-		corpses += float(fresh)
-		_bump_cause(&"reported", float(fresh))
+	if fresh <= 0:
+		return out
+	_citizens_deaths_seen += float(fresh)
+	deaths_total = total
+	deaths_today += float(fresh)
+	corpses += float(fresh)
+	# [P05] keeps an obituary by cause. Use it: "three froze" is a sentence a
+	# player can act on and "three died" is not.
+	var now_toll: Dictionary[StringName, float] = _snapshot_toll(reading)
+	var attributed: int = 0
+	for cause: StringName in SocietyDefs.sorted_keys(now_toll):
+		var delta: int = int(floor(now_toll[cause] - float(_seen_by_cause.get(cause, 0.0))))
+		if delta <= 0:
+			continue
+		attributed += delta
+		_bump_cause(cause, float(delta))
 		out.append({
-			"kind": &"death", "cause": &"reported", "count": fresh,
-			"detail": "%s died." % SocietyDefs.sentence(SocietyDefs.people(fresh)),
+			"kind": &"death", "cause": cause, "count": delta,
+			"detail": _reported_sentence(cause, delta),
+		})
+	_seen_by_cause = now_toll
+	if attributed < fresh:
+		var rest: int = fresh - attributed
+		_bump_cause(&"unrecorded", float(rest))
+		out.append({
+			"kind": &"death", "cause": &"unrecorded", "count": rest,
+			"detail": "%s died." % SocietyDefs.sentence(SocietyDefs.people(rest)),
 		})
 	return out
+
+
+func _snapshot_toll(reading: SocietyReading) -> Dictionary[StringName, float]:
+	var out: Dictionary[StringName, float] = {}
+	for k: Variant in reading.citizens_death_toll.keys():
+		out[StringName(String(k))] = float(reading.citizens_death_toll[k])
+	return out
+
+
+func _reported_sentence(cause: StringName, n: int) -> String:
+	var who: String = SocietyDefs.sentence(SocietyDefs.people(n))
+	match String(cause):
+		"cold": return "%s froze." % who
+		"starvation": return "%s starved." % who
+		"illness": return "%s died of the fever." % who
+		"injury": return "%s died of injuries." % who
+		"exhaustion": return "%s worked until they stopped." % who
+		"old_age": return "%s died old, which out here is its own kind of news." % who
+	return "%s died of %s." % [who, String(cause).replace("_", " ")]
 
 
 func _model(reading: SocietyReading, book: LawBook, hours: float) -> Array[Dictionary]:

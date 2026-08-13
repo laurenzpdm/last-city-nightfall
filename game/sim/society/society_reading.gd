@@ -65,6 +65,14 @@ var citizens_deaths_total: float = -1.0
 var citizens_sick: float = -1.0
 var citizens_homeless: float = -1.0
 var citizens_food_days: float = -1.0
+var citizens_morale: float = -1.0
+var citizens_warmth: float = -1.0
+## 0..1 share of the city bitter enough to make trouble. [P05] computes this
+## per citizen from their own needs, which is a far better number than anything
+## society could infer from the outside.
+var citizens_unrest: float = -1.0
+## cause -> cumulative count, straight out of [P05]'s obituary.
+var citizens_death_toll: Dictionary = {}
 var buildings_destroyed_total: int = 0
 var research_completed_total: int = 0
 var waves_cleared_total: int = 0
@@ -230,14 +238,27 @@ func _read_citizens(citizens: SimSystem) -> void:
 	citizens_sick = -1.0
 	citizens_homeless = -1.0
 	citizens_food_days = -1.0
+	citizens_morale = -1.0
+	citizens_warmth = -1.0
+	citizens_unrest = -1.0
+	citizens_death_toll = {}
 	if citizens == null:
 		return
 	sources[&"citizens"] = true
 	citizens_population = _probe(citizens, [&"population", &"citizen_count", &"alive_count"], -1.0)
-	citizens_deaths_total = _probe(citizens, [&"deaths_total", &"total_deaths", &"dead_count"], -1.0)
+	citizens_deaths_total = _probe(citizens,
+		[&"dead_total", &"deaths_total", &"total_deaths", &"dead_count"], -1.0)
 	citizens_sick = _probe(citizens, [&"sick_count", &"sick", &"ill_count"], -1.0)
 	citizens_homeless = _probe(citizens, [&"homeless_count", &"homeless", &"unhoused"], -1.0)
-	citizens_food_days = _probe(citizens, [&"food_days", &"food_reserve_days"], -1.0)
+	citizens_food_days = _probe(citizens,
+		[&"food_days_remaining", &"food_days", &"food_reserve_days"], -1.0)
+	citizens_morale = _probe(citizens, [&"average_morale", &"morale"], -1.0)
+	citizens_warmth = _probe(citizens, [&"average_warmth"], -1.0)
+	citizens_unrest = _probe(citizens, [&"unrest_pressure", &"unrest"], -1.0)
+	if citizens.has_method(&"death_toll"):
+		var toll: Variant = citizens.call(&"death_toll")
+		if typeof(toll) == TYPE_DICTIONARY:
+			citizens_death_toll = toll
 
 
 func _read_progress(build: SimSystem, research: SimSystem, threat: SimSystem) -> void:
@@ -286,6 +307,8 @@ func serialize() -> Dictionary:
 		"warm_share": snappedf(warm_share, 0.001),
 		"heat_deficit_share": snappedf(heat_deficit_share, 0.001),
 		"frozen_buildings": frozen_buildings,
+		"citizens_morale": snappedf(citizens_morale, 0.01),
+		"citizens_unrest": snappedf(citizens_unrest, 0.001),
 		"kitchens": kitchens,
 		"kitchens_running": snappedf(kitchens_running, 0.01),
 		"granaries": granaries,

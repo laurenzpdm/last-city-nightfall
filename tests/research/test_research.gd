@@ -219,6 +219,27 @@ func test_progress_survives_being_set_aside() -> void:
 		"and carries on from there rather than starting again")
 
 
+func test_setting_a_project_aside_does_not_hand_it_straight_back() -> void:
+	res.call("execute", {"op": "set_auto", "on": true})
+	world.run(60)
+	var first: StringName = StringName(String(res.call("active")))
+	assert_ne(String(first), "", "the engineers picked something")
+	_exec({"op": "park"})
+	assert_ne(String(res.call("active")), String(first),
+		"the auto-picker handed the parked project straight back, so 'set aside' did nothing")
+	assert_gt(float(res.call("progress_of", first)), 0.0, "and the parked work was kept")
+
+
+func test_switching_projects_announces_only_the_one_you_asked_for() -> void:
+	_exec({"op": "start", "id": "scrap_sorting"})
+	world.run(40)
+	res.call("execute", {"op": "set_auto", "on": true})
+	var started: Array = capture_signal_args(TestEnv.bus(), &"research_started",
+		func() -> void: _exec({"op": "start", "id": "hand_carts"}))
+	assert_eq(String(started[0]), "hand_carts",
+		"parking the old project must not start a third one on the way through")
+
+
 func test_progress_is_a_fraction_and_reaches_exactly_one() -> void:
 	assert_near(float(res.call("progress_of", &"scrap_sorting")), 0.0, 0.0001, "untouched")
 	assert_near(float(res.call("progress_of", &"not_a_node")), 0.0, 0.0001, "unknown node")

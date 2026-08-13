@@ -225,7 +225,7 @@ func step(tick: int) -> void:
 
 	battery.step(tick, self, swarm, shells, assault)
 	if shells.count > 0:
-		battery.damage_dealt += shells.step(tick, swarm)
+		battery.damage_dealt += shells.step(tick, swarm, battery)
 
 	if tick % DEFENCE_CHECK_TICKS == 0:
 		_report_defence()

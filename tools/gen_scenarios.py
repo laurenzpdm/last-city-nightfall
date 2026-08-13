@@ -663,7 +663,9 @@ def economy():
     def open_lane(tick, **kw):
         for lane in lanes:
             if lane not in lane_open:
-                below[lane[0]][lane[1]].add(tick, "warmth_radiator", **kw)
+                # gap 0 all the way down a district: the radiator's field is
+                # 6.5 tiles and the second generator has to stand inside it.
+                below[lane[0]][lane[1]].add(tick, "warmth_radiator", gap=0, **kw)
                 lane_open.append(lane)
                 lane_gens[lane] = 0
                 return lane
@@ -672,7 +674,7 @@ def economy():
     def add_generator(tick):
         for lane in lane_open:
             if lane_gens[lane] < ECON_GENS_PER_LANE:
-                below[lane[0]][lane[1]].add(tick, "coal_generator")
+                below[lane[0]][lane[1]].add(tick, "coal_generator", gap=0)
                 lane_gens[lane] += 1
                 return lane
         raise AssertionError("economy: every open district is full of generators; "

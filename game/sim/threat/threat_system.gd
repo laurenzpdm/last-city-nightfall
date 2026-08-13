@@ -89,6 +89,10 @@ var _waves_cleared: int = 0
 var _waves_survived: int = 0
 var _waves_started: int = 0
 var _night_start_tick: int = 0
+## A wave forced by a command in broad daylight must not be ended by the "dawn
+## closes the night" rule on the very tick it started. It ends when it is dead,
+## at the next real dawn, or at the safety valve below — never instantly.
+var _wave_saw_night: bool = false
 var _last_report: Dictionary = {}
 var _breach_reported: int = 0
 var _peace: bool = false
@@ -157,6 +161,7 @@ func setup() -> void:
 	_waves_started = 0
 	_state = ThreatDefs.WaveState.IDLE
 	_plan = null
+	_wave_saw_night = false
 	_last_report = {}
 	_breach_reported = 0
 	_peace = false
@@ -600,6 +605,7 @@ func _begin_wave() -> void:
 		_plan.precision = _profile.warning_precision[_profile.warning_precision.size() - 1]
 	_state = ThreatDefs.WaveState.ACTIVE
 	_night_start_tick = _tick
+	_wave_saw_night = _read_is_night()
 	_plan.night_start_tick = _tick
 	_plan.dawn_tick = _tick + _ticks_until_dawn()
 	_waves_started += 1
@@ -645,7 +651,13 @@ func _run_wave(tick: int, night: bool) -> void:
 		_sample_night_heat()
 		_check_breach()
 
-	if not night and _profile.withdraw_at_dawn:
+	if night:
+		_wave_saw_night = true
+	elif _wave_saw_night and _profile.withdraw_at_dawn:
+		_resolve_wave(true)
+		return
+	elif tick - _night_start_tick > _profile.fallback_day_ticks:
+		# Safety valve: a wave that somehow never sees a night still ends.
 		_resolve_wave(true)
 		return
 	# "Nothing is alive" only means the night is over once everything has been
@@ -1194,6 +1206,7 @@ func serialize() -> Dictionary:
 		"heat_signature": snappedf(_heat_signature, 0.01),
 		"signature_accum": [snappedf(_sig_sum, 0.01), _sig_n],
 		"night_start": _night_start_tick,
+		"saw_night": _wave_saw_night,
 		"night_samples": [_night_samples, _night_heat_ok],
 		"buildings_at_dusk": _buildings_at_dusk,
 		"plan": _plan.to_dict() if _plan != null else {},
@@ -1223,6 +1236,7 @@ func deserialize(data: Dictionary) -> void:
 		_sig_sum = float((accum as Array)[0])
 		_sig_n = int((accum as Array)[1])
 	_night_start_tick = int(data.get("night_start", 0))
+	_wave_saw_night = bool(data.get("saw_night", false))
 	var ns: Variant = data.get("night_samples", [])
 	if typeof(ns) == TYPE_ARRAY and (ns as Array).size() >= 2:
 		_night_samples = int((ns as Array)[0])

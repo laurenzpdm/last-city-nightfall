@@ -15,21 +15,29 @@ extends TestCase
 ## board rearranged its shifts. `test_the_labour_market_is_actually_wired_in`
 ## is the one test that leaves the coupling live and proves it is connected.
 
-## The test city. A hearth at ORIGIN, one long pipe spur east along SPUR_Y, and
-## every machine hung DIRECTLY off that spur — a machine touching only another
-## machine is not on the network, because a smelter does not conduct heat.
-const ORIGIN: Vector2i = Vector2i(60, 60)
-const SPUR_Y: int = 62
-const SPUR_FROM: Vector2i = Vector2i(65, SPUR_Y)
-const SPUR_TO: Vector2i = Vector2i(110, SPUR_Y)
-const SMELTER_CELL: Vector2i = Vector2i(66, 63)      ## 3x3, touches the spur from below
-const WORKSHOP_CELL: Vector2i = Vector2i(66, 59)     ## 4x3, touches the spur from above
-const WORKSHOP2_CELL: Vector2i = Vector2i(72, 59)
-const REC_NEAR: Vector2i = Vector2i(70, 63)          ## 2x2, two tiles from the smelter
-const REC_FAR: Vector2i = Vector2i(84, 63)           ## on the spur, far out of capture reach
-const OUTLAND: Vector2i = Vector2i(104, 104)         ## nowhere near heat of any kind
+## The test city is FOUND, not hard-coded: seed 7's plain is a caldera with
+## ridges and chasms through it, and a suite that assumed flat ground at fixed
+## coordinates would go quietly green the day the map generator changed. So the
+## suite asks [P11] where a hearth, a pipe spur and five machine pads will
+## actually fit, once per process, and builds there.
+##
+## Layout, relative to the spur start (x0, y):
+##   hearth 5x5   (x0-5, y-2)      the only source
+##   pipe run     (x0 .. x0+RUN-1, y)
+##   workshop     (x0,    y-3)     above the spur
+##   workshop 2   (x0+5,  y-3)
+##   smelter      (x0,    y+1)     below the spur
+##   recuperator  (x0+4,  y+1)     two tiles from the smelter: inside capture reach
+##   far recup.   (x0+9,  y+1)     seven tiles away: outside it
+const SPUR_RUN: int = 24
 ## Ticks for [P04]'s throttled rescan of [P11] to notice a placement or removal.
 const SYNC_GRACE: int = 15
+## Nowhere near heat of any kind. Checked for buildability like everything else.
+const OUTLAND_SEARCH: int = 40
+
+## Found once per process — every test builds the same world from the same seed,
+## so the answer cannot differ between them.
+static var _site_cache: Dictionary = {}
 
 var world: SimFixture = null
 var prod: ProductionSystem = null
@@ -80,13 +88,101 @@ func _world() -> void:
 		}})
 
 
-## A lit hearth and the pipe spur every machine in this suite hangs off.
-func _city() -> void:
-	var hearth: int = _place("the_hearth", ORIGIN)
-	_line("heat_pipe", SPUR_FROM, SPUR_TO)
+## Builds the hearth and the spur on the found site. Returns false when this
+## map has no room for the layout, so a test can skip rather than fail on
+## somebody else's terrain.
+func _city() -> bool:
+	if _site().is_empty():
+		skip("no site on this map takes a hearth, a %d-tile spur and five machine pads" % SPUR_RUN)
+		return false
+	var hearth: int = _place("the_hearth", _at("hearth"))
+	_line("heat_pipe", _at("pipe_from"), _at("pipe_to"))
 	if heat != null and hearth > 0:
 		heat.call("deliver_fuel", hearth, &"coal", 4000.0)
 	world.run(4)
+	return true
+
+
+## The found layout: hearth, pipe_from, pipe_to, smelter, workshop, workshop2,
+## rec_near, rec_far, outland. Empty when the map has no room for it.
+func _site() -> Dictionary:
+	if not _site_cache.is_empty():
+		return _site_cache
+	var core: Vector2i = Vector2i(128, 128)
+	if grid != null and grid.has_method("core_cell"):
+		core = grid.call("core_cell")
+	# Walk outwards from the city core, nearest rows first, so the site is both
+	# deterministic and somewhere a player would actually build.
+	for ring: int in 30:
+		for sign: int in [1, -1]:
+			var y: int = core.y + ring * sign
+			for dx: int in range(6, 34):
+				for sx: int in [1, -1]:
+					var x0: int = core.x + dx * sx
+					var plan: Dictionary = _plan_at(x0, y)
+					if not plan.is_empty():
+						plan["outland"] = _outland(core)
+						_site_cache = plan
+						return _site_cache
+			if ring == 0:
+				break
+	return {}
+
+
+## The layout anchored at (x0, y), or empty when any part of it will not fit.
+func _plan_at(x0: int, y: int) -> Dictionary:
+	var plan: Dictionary = {
+		"hearth": Vector2i(x0 - 5, y - 2),
+		"pipe_from": Vector2i(x0, y),
+		"pipe_to": Vector2i(x0 + SPUR_RUN - 1, y),
+		"workshop": Vector2i(x0, y - 3),
+		"workshop2": Vector2i(x0 + 5, y - 3),
+		"smelter": Vector2i(x0, y + 1),
+		"rec_near": Vector2i(x0 + 4, y + 1),
+		"rec_far": Vector2i(x0 + 9, y + 1),
+	}
+	# The spur has to be unbroken: one skipped pipe splits the network in two and
+	# every machine downstream of the gap would go dark for the wrong reason.
+	for i: int in SPUR_RUN:
+		if not _fits("heat_pipe", Vector2i(x0 + i, y)):
+			return {}
+	for key: String in ["hearth", "workshop", "workshop2", "smelter", "rec_near", "rec_far"]:
+		var kind: String = _kind_for(key)
+		if not _fits(kind, plan[key]):
+			return {}
+	return plan
+
+
+func _kind_for(key: String) -> String:
+	match key:
+		"hearth":
+			return "the_hearth"
+		"workshop", "workshop2":
+			return "workshop"
+		"smelter":
+			return "smelter"
+		_:
+			return "recuperator"
+
+
+func _fits(kind: String, cell: Vector2i) -> bool:
+	var r: Dictionary = build.call("can_place", StringName(kind), cell, 0, false)
+	return bool(r.get("ok", false))
+
+
+## Somewhere a workshop fits that is nowhere near the site, for the "no heat at
+## all" case.
+func _outland(core: Vector2i) -> Vector2i:
+	for d: int in range(OUTLAND_SEARCH, OUTLAND_SEARCH + 30):
+		for step: Vector2i in [Vector2i(d, d), Vector2i(-d, d), Vector2i(d, -d), Vector2i(-d, -d)]:
+			var c: Vector2i = core + step
+			if _fits("workshop", c):
+				return c
+	return core + Vector2i(OUTLAND_SEARCH, OUTLAND_SEARCH)
+
+
+func _at(key: String) -> Vector2i:
+	return _site().get(key, Vector2i.ZERO)
 
 
 ## The recipe book alone. No world, no map generation.
@@ -225,8 +321,9 @@ func test_every_recipe_a_machine_offers_actually_exists() -> void:
 
 func test_a_smelter_turns_ore_into_plate_and_slag() -> void:
 	_world()
-	_city()
-	var id: int = _place("smelter", SMELTER_CELL)
+	if not _city():
+		return
+	var id: int = _place("smelter", _at("smelter"))
 	assert_gt(float(id), 0.0, "the smelter was placed")
 	world.run(20)
 	var m: ProdMachine = _machine(id)
@@ -243,8 +340,9 @@ func test_a_smelter_turns_ore_into_plate_and_slag() -> void:
 
 func test_a_workshop_on_the_spur_runs_at_full_rate() -> void:
 	_world()
-	_city()
-	var id: int = _place("workshop", WORKSHOP_CELL)
+	if not _city():
+		return
+	var id: int = _place("workshop", _at("workshop"))
 	world.run(60)
 	var m: ProdMachine = _machine(id)
 	assert_eq(String(m.recipe_id), "gear", "the workshop defaults to gears")
@@ -254,9 +352,10 @@ func test_a_workshop_on_the_spur_runs_at_full_rate() -> void:
 
 func test_a_starved_machine_names_the_item_it_is_short_of() -> void:
 	_world()
-	_city()
+	if not _city():
+		return
 	world.cmd_now({"system": &"build", "op": "set_stock", "items": {"iron_ore": 0}})
-	var id: int = _place("smelter", SMELTER_CELL)
+	var id: int = _place("smelter", _at("smelter"))
 	world.run(20)
 	var s: Dictionary = prod.stall_of(id)
 	assert_eq(s["reason"], "missing_input", "a smelter with no ore stalls")
@@ -266,9 +365,10 @@ func test_a_starved_machine_names_the_item_it_is_short_of() -> void:
 
 func test_a_stall_is_announced_on_the_bus_for_the_overlay_to_render() -> void:
 	_world()
-	_city()
+	if not _city():
+		return
 	world.cmd_now({"system": &"build", "op": "set_stock", "items": {"iron_ore": 0}})
-	var id: int = _place("smelter", SMELTER_CELL)
+	var id: int = _place("smelter", _at("smelter"))
 	var seen: Dictionary = {"id": -1, "reason": ""}
 	var cb: Callable = func(mid: int, reason: StringName) -> void:
 		if mid == id:
@@ -288,7 +388,7 @@ func test_a_machine_off_the_heat_grid_stalls_for_heat_not_for_cold() -> void:
 		return
 	# Deliberately nowhere near a pipe. A workshop is a pure consumer, so with no
 	# network at all the solver serves it exactly nothing.
-	var id: int = _place("workshop", OUTLAND)
+	var id: int = _place("workshop", _at("outland"))
 	assert_gt(float(id), 0.0, "the outland workshop was placed")
 	var plates: int = _stock("iron_plate")
 	world.run(20)
@@ -298,16 +398,18 @@ func test_a_machine_off_the_heat_grid_stalls_for_heat_not_for_cold() -> void:
 	assert_gt(float(s["cold"]), 0.0, "and it is not the cold that stopped it")
 	assert_eq(_stock("iron_plate"), plates, "it did not eat a charge it could not work")
 
-	_city()
-	var id2: int = _place("workshop", WORKSHOP_CELL)
+	if not _city():
+		return
+	var id2: int = _place("workshop", _at("workshop"))
 	world.run(60)
 	assert_eq(prod.stall_of(id2)["reason"], "", "the same machine on the grid runs")
 
 
 func test_the_output_buffer_backs_up_when_nothing_will_take_the_goods() -> void:
 	_world()
-	_city()
-	var id: int = _place("smelter", SMELTER_CELL)
+	if not _city():
+		return
+	var id: int = _place("smelter", _at("smelter"))
 	world.run(20)
 	var m: ProdMachine = _machine(id)
 	# This is the switch [P03] closes when the belts and the yards are full. The
@@ -327,8 +429,9 @@ func test_the_output_buffer_backs_up_when_nothing_will_take_the_goods() -> void:
 
 func test_a_switched_off_machine_is_idle_not_broken() -> void:
 	_world()
-	_city()
-	var id: int = _place("smelter", SMELTER_CELL)
+	if not _city():
+		return
+	var id: int = _place("smelter", _at("smelter"))
 	world.run(20)
 	world.cmd_now({"system": &"build", "op": "set_enabled", "id": id, "on": false})
 	world.run(20)
@@ -338,8 +441,9 @@ func test_a_switched_off_machine_is_idle_not_broken() -> void:
 
 func test_a_demolished_machine_hands_its_buffers_back() -> void:
 	_world()
-	_city()
-	var id: int = _place("smelter", SMELTER_CELL)
+	if not _city():
+		return
+	var id: int = _place("smelter", _at("smelter"))
 	world.run(20)
 	var held: int = _machine(id).held(&"iron_ore")
 	assert_gt(float(held), 0.0, "the smelter is holding a charge")
@@ -360,8 +464,9 @@ func test_what_a_machine_feels_is_the_heat_field_plus_its_own_shell() -> void:
 	if heat == null:
 		skip("no heat system in this build")
 		return
-	_city()
-	var id: int = _place("smelter", SMELTER_CELL)
+	if not _city():
+		return
+	var id: int = _place("smelter", _at("smelter"))
 	world.run(20)
 	var m: ProdMachine = _machine(id)
 	var tile: float = float(heat.call("temperature_at", m.center_cell))
@@ -371,8 +476,9 @@ func test_what_a_machine_feels_is_the_heat_field_plus_its_own_shell() -> void:
 
 func test_the_cold_factor_is_the_recipe_floor_read_off_the_warmth_field() -> void:
 	_world()
-	_city()
-	var id: int = _place("smelter", SMELTER_CELL)
+	if not _city():
+		return
+	var id: int = _place("smelter", _at("smelter"))
 	world.run(20)
 	var m: ProdMachine = _machine(id)
 	var expected: float = clampf(
@@ -385,12 +491,13 @@ func test_a_great_frost_slows_the_factory_down() -> void:
 	if heat == null or world.system(&"climate") == null:
 		skip("needs heat and climate")
 		return
-	_city()
+	if not _city():
+		return
 	# pipe_segment has the second-coldest floor in the game (-18 C), so it is the
 	# recipe a Great Frost reaches first. gear (-25 C) rides it out longer, which
 	# is the whole point of putting a floor on each recipe rather than one on all.
-	var chilly: int = _place("workshop", WORKSHOP_CELL, {"recipe": "pipe_segment"})
-	var hardy: int = _place("workshop", WORKSHOP2_CELL, {"recipe": "gear"})
+	var chilly: int = _place("workshop", _at("workshop"), {"recipe": "pipe_segment"})
+	var hardy: int = _place("workshop", _at("workshop2"), {"recipe": "gear"})
 	assert_gt(float(hardy), 0.0, "both shops were placed")
 	world.run(80)
 	var felt_before: float = _machine(chilly).felt_c
@@ -425,10 +532,11 @@ func test_a_browned_out_machine_crafts_proportionally_slower() -> void:
 	if heat == null:
 		skip("no heat system in this build")
 		return
-	_city()
+	if not _city():
+		return
 	# pipe_segment costs 50 heat over 5 s = 10 u/s, exactly the workshop's rating,
 	# so anything the grid holds back comes straight off the craft rate.
-	var id: int = _place("workshop", WORKSHOP_CELL, {"recipe": "pipe_segment"})
+	var id: int = _place("workshop", _at("workshop"), {"recipe": "pipe_segment"})
 	world.run(60)
 	var full: float = _machine(id).rate
 	assert_near(full, 1.0, 0.001, "a healthy grid runs it at full speed")
@@ -458,8 +566,9 @@ func test_the_labour_market_is_actually_wired_in() -> void:
 		skip("[P05] citizens is not built yet")
 		return
 	prod.set_staffing_autarky(false)
-	_city()
-	var id: int = _place("smelter", SMELTER_CELL)
+	if not _city():
+		return
+	var id: int = _place("smelter", _at("smelter"))
 	world.run(20)
 	assert_near(_machine(id).staffing, float(citizens.call("staffing_of", id)), 0.0001,
 		"the crew a machine runs on is the crew [P05] says is standing in it")
@@ -470,8 +579,9 @@ func test_the_labour_market_is_actually_wired_in() -> void:
 
 func test_research_gates_a_recipe_and_says_so() -> void:
 	_world()
-	_city()
-	var id: int = _place("workshop", WORKSHOP_CELL)
+	if not _city():
+		return
+	var id: int = _place("workshop", _at("workshop"))
 	assert_gt(float(id), 0.0, "the workshop was placed")
 	world.run(20)
 	assert_ne(String(_machine(id).recipe_id), "circuit", "a locked recipe is never auto-chosen")
@@ -487,8 +597,9 @@ func test_research_gates_a_recipe_and_says_so() -> void:
 
 func test_the_chosen_recipe_is_written_where_a_blueprint_will_find_it() -> void:
 	_world()
-	_city()
-	var id: int = _place("smelter", SMELTER_CELL)
+	if not _city():
+		return
+	var id: int = _place("smelter", _at("smelter"))
 	world.run(20)
 	prod.set_recipe(id, &"copper_coil")
 	var b: Object = build.call("get_building", id)
@@ -499,8 +610,9 @@ func test_the_chosen_recipe_is_written_where_a_blueprint_will_find_it() -> void:
 
 func test_a_machine_placed_with_a_recipe_in_its_meta_starts_on_it() -> void:
 	_world()
-	_city()
-	var id: int = _place("smelter", SMELTER_CELL, {"recipe": "steel_plate"})
+	if not _city():
+		return
+	var id: int = _place("smelter", _at("smelter"), {"recipe": "steel_plate"})
 	world.run(20)
 	assert_eq(String(_machine(id).recipe_id), "steel_plate",
 		"a pasted blueprint comes back making what it was making")
@@ -508,8 +620,9 @@ func test_a_machine_placed_with_a_recipe_in_its_meta_starts_on_it() -> void:
 
 func test_switching_recipe_gives_the_committed_charge_back() -> void:
 	_world()
-	_city()
-	var id: int = _place("smelter", SMELTER_CELL)
+	if not _city():
+		return
+	var id: int = _place("smelter", _at("smelter"))
 	world.run(20)
 	var m: ProdMachine = _machine(id)
 	assert_true(m.committed, "a craft is under way")
@@ -592,9 +705,10 @@ func test_a_recuperator_next_to_a_smelter_turns_waste_into_grid_heat() -> void:
 	if heat == null:
 		skip("no heat system in this build")
 		return
-	_city()
-	var smelter: int = _place("smelter", SMELTER_CELL)
-	var rec: int = _place("recuperator", REC_NEAR)
+	if not _city():
+		return
+	var smelter: int = _place("smelter", _at("smelter"))
+	var rec: int = _place("recuperator", _at("rec_near"))
 	assert_gt(float(rec), 0.0, "the recuperator was placed")
 	world.run(600)
 
@@ -610,11 +724,12 @@ func test_a_recuperator_out_of_reach_gets_nothing() -> void:
 	if heat == null:
 		skip("no heat system in this build")
 		return
-	_city()
-	_place("smelter", SMELTER_CELL)
+	if not _city():
+		return
+	_place("smelter", _at("smelter"))
 	# Well outside ProdMachineDef.DEFAULT_CAPTURE_RADIUS, but on the same spur,
 	# so the only thing that differs between the two recuperators is distance.
-	var far: int = _place("recuperator", REC_FAR)
+	var far: int = _place("recuperator", _at("rec_far"))
 	assert_gt(float(far), 0.0, "the distant recuperator was placed")
 	world.run(600)
 	assert_near(float(heat.call("fuel_stock_of", far)), 0.0, 0.001,
@@ -625,8 +740,9 @@ func test_a_recuperator_out_of_reach_gets_nothing() -> void:
 
 func test_uncaptured_waste_decays_instead_of_banking_forever() -> void:
 	_world()
-	_city()
-	var smelter: int = _place("smelter", SMELTER_CELL)
+	if not _city():
+		return
+	var smelter: int = _place("smelter", _at("smelter"))
 	world.run(600)
 	var iron: RecipeDef = _book().get_recipe(&"iron_plate")
 	assert_lt(_machine(smelter).waste_bank, iron.waste_heat * 10.0,
@@ -640,8 +756,9 @@ func test_uncaptured_waste_decays_instead_of_banking_forever() -> void:
 
 func test_measured_throughput_matches_the_ratio_the_recipe_promises() -> void:
 	_world()
-	_city()
-	var id: int = _place("workshop", WORKSHOP_CELL)
+	if not _city():
+		return
+	var id: int = _place("workshop", _at("workshop"))
 	world.run(120)
 	var m: ProdMachine = _machine(id)
 	assert_near(m.rate, 1.0, 0.001, "the shop is at full rate before the window opens")
@@ -657,8 +774,9 @@ func test_measured_throughput_matches_the_ratio_the_recipe_promises() -> void:
 
 func test_items_per_minute_reports_what_was_actually_made() -> void:
 	_world()
-	_city()
-	_place("workshop", WORKSHOP_CELL)
+	if not _city():
+		return
+	_place("workshop", _at("workshop"))
 	world.run(ProductionSystem.RATE_WINDOW_TICKS * 2 + 100)
 	assert_gt(prod.items_per_minute(&"gear"), 0.0, "the rate window sees the output")
 	assert_eq(prod.items_per_minute(&"heat_core"), 0.0, "and does not invent any")
@@ -666,8 +784,9 @@ func test_items_per_minute_reports_what_was_actually_made() -> void:
 
 func test_nothing_is_created_or_destroyed_across_a_craft() -> void:
 	_world()
-	_city()
-	var id: int = _place("smelter", SMELTER_CELL)
+	if not _city():
+		return
+	var id: int = _place("smelter", _at("smelter"))
 	world.run(20)
 	var ore_before: int = _stock("iron_ore") + _machine(id).held(&"iron_ore")
 	var plate_before: int = _stock("iron_plate")
@@ -683,12 +802,13 @@ func test_nothing_is_created_or_destroyed_across_a_craft() -> void:
 
 func test_the_chain_depth_reached_climbs_as_the_city_builds_upward() -> void:
 	_world()
-	_city()
+	if not _city():
+		return
 	assert_eq(prod.chain_depth_reached(), 0, "a city that has made nothing is at zero")
-	_place("smelter", SMELTER_CELL)
+	_place("smelter", _at("smelter"))
 	world.run(400)
 	assert_ge(float(prod.chain_depth_reached()), 2.0, "plate is two transformations in")
-	_place("workshop", WORKSHOP_CELL)
+	_place("workshop", _at("workshop"))
 	world.run(300)
 	assert_ge(float(prod.chain_depth_reached()), 3.0, "and a gear is three")
 	assert_le(float(prod.chain_depth_reached()), float(prod.chain_depth_max()),
@@ -703,8 +823,9 @@ func test_metric_columns_never_change_shape_mid_run() -> void:
 	_world()
 	var first: Array = prod.metrics().keys()
 	first.sort()
-	_city()
-	_place("smelter", SMELTER_CELL)
+	if not _city():
+		return
+	_place("smelter", _at("smelter"))
 	world.run(700)
 	var later: Array = prod.metrics().keys()
 	later.sort()
@@ -717,9 +838,10 @@ func test_metric_columns_never_change_shape_mid_run() -> void:
 
 func test_serialize_round_trips_through_deserialize() -> void:
 	_world()
-	_city()
-	_place("smelter", SMELTER_CELL)
-	_place("workshop", WORKSHOP_CELL)
+	if not _city():
+		return
+	_place("smelter", _at("smelter"))
+	_place("workshop", _at("workshop"))
 	world.run(400)
 	var before: Dictionary = prod.serialize()
 	prod.deserialize(before)
@@ -730,9 +852,10 @@ func test_serialize_round_trips_through_deserialize() -> void:
 
 func test_the_serialized_state_is_sorted_and_json_safe() -> void:
 	_world()
-	_city()
-	_place("workshop", WORKSHOP_CELL)
-	_place("smelter", SMELTER_CELL)
+	if not _city():
+		return
+	_place("workshop", _at("workshop"))
+	_place("smelter", _at("smelter"))
 	world.run(200)
 	var s: Dictionary = prod.serialize()
 	var ids: Array = []
@@ -754,13 +877,13 @@ func test_the_whole_production_system_replays_identically() -> void:
 			"from": [SPUR_FROM.x, SPUR_FROM.y], "to": [SPUR_TO.x, SPUR_TO.y],
 			"free": true, "instant": true}],
 		6: [{"system": &"build", "op": "place", "kind": "smelter",
-			"cell": [SMELTER_CELL.x, SMELTER_CELL.y], "free": true, "instant": true}],
+			"cell": [_at("smelter").x, _at("smelter").y], "free": true, "instant": true}],
 		8: [{"system": &"build", "op": "place", "kind": "recuperator",
-			"cell": [REC_NEAR.x, REC_NEAR.y], "free": true, "instant": true}],
+			"cell": [_at("rec_near").x, _at("rec_near").y], "free": true, "instant": true}],
 		10: [{"system": &"build", "op": "place", "kind": "workshop",
-			"cell": [WORKSHOP_CELL.x, WORKSHOP_CELL.y], "free": true, "instant": true}],
+			"cell": [_at("workshop").x, _at("workshop").y], "free": true, "instant": true}],
 		30: [{"system": &"production", "op": "set_recipe",
-			"cell": [SMELTER_CELL.x, SMELTER_CELL.y], "recipe": "copper_coil"}],
+			"cell": [_at("smelter").x, _at("smelter").y], "recipe": "copper_coil"}],
 	}
 	var diff: PackedStringArray = SimFixture.replay_diff(11, 600, script)
 	assert_empty(diff, "same seed, same script, byte-identical production state")
@@ -783,7 +906,8 @@ func test_a_command_naming_a_machine_that_is_not_there_is_refused_out_loud() -> 
 
 func test_a_tick_of_production_stays_inside_its_budget() -> void:
 	_world()
-	_city()
+	if not _city():
+		return
 	# Forty machines is more industry than a real base carries, laid out in a
 	# block so the recuperators all have work to link against.
 	var placed: int = 0

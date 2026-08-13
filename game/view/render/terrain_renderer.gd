@@ -128,14 +128,14 @@ func render(view: Rect2, grade: Dictionary, zoom: float, full: bool = false) -> 
 
 	_source_cooldown -= 1
 	if _source_cooldown <= 0 or full:
-		_source_cooldown = 6
-		field.refresh_sources(model.heat_sources(), model.buildings())
+		_source_cooldown = 10
+		field.refresh_sources(model.heat_sources(), model.buildings(), view.grow(OVERSCAN * 4.0))
 
 	var stamp: int = model.building_stamp()
 	_city_cooldown -= 1
 	if (stamp != _buildings_stamp and _city_cooldown <= 0) or full:
 		_buildings_stamp = stamp
-		_city_cooldown = 20
+		_city_cooldown = 30
 		field.refresh_city(model.buildings())
 
 	ground_material.set_shader_parameter("detail", _detail)

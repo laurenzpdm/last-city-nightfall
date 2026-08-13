@@ -108,6 +108,9 @@ var _stall_events: int = 0
 var _last_idle_nudge: int = -100000
 ## Earliest tick a failed search for something to start may be retried.
 var _next_pick_tick: int = 0
+## A node the auto-picker must not choose during the current call, because the
+## player just set it aside or cancelled it.
+var _pick_lock: StringName = &""
 
 ## Cached availability, invalidated whenever the done-set changes.
 var _available: Array[StringName] = []
@@ -499,7 +502,7 @@ func _op_start(id: StringName) -> Dictionary:
 	if id == _active:
 		return _fail(CODE_BUSY, "Already working on it.")
 	if String(_active) != "":
-		_park_active("set aside for %s" % _title_of(id))
+		_park_active("set aside for %s" % _title_of(id), false)
 	_queue.erase(id)
 	_begin(id, "ordered")
 	return _ok({"id": String(id)})
@@ -549,7 +552,9 @@ func _op_cancel(id: StringName) -> Dictionary:
 		_ledger.give(refund)
 	if id == _active:
 		_active = &""
+		_pick_lock = id
 		_pull_next()
+		_pick_lock = &""
 	Log.info(TAG, "abandoned '%s'%s" % [n.title,
 		"" if refund.is_empty() else ", %s recovered" % _items_text(refund)])
 	return _ok({"id": String(id), "refund": _items_json(refund)})
@@ -570,8 +575,17 @@ func _op_complete(id: StringName) -> Dictionary:
 	if _done.has(id):
 		return _fail(CODE_DONE, "%s is already researched." % n.title)
 	# Completing a node completes the path to it. A scenario that wants tier-3
-	# defence should not have to spell out the seven nodes underneath.
-	for prereq: StringName in _graph.ancestors(id):
+	# defence should not have to spell out the seven nodes underneath. Walked in
+	# depth order so the completion signals arrive the way a player would have
+	# earned them, rather than alphabetically.
+	var path: Array[StringName] = _graph.ancestors(id)
+	path.sort_custom(func(a: StringName, b: StringName) -> bool:
+		var da: int = int(_graph.depth.get(a, 0))
+		var db: int = int(_graph.depth.get(b, 0))
+		if da != db:
+			return da < db
+		return String(a) < String(b))
+	for prereq: StringName in path:
 		if not _done.has(prereq):
 			_finish(prereq, true)
 	_finish(id, true)
@@ -803,19 +817,30 @@ func _begin(id: StringName, how: String) -> void:
 
 
 ## Sets the active project aside with everything it has accumulated intact.
-func _park_active(why: String) -> void:
+##
+## `then_pull` is false when the caller is about to start something specific:
+## pulling first would emit research_started for a node that is replaced in the
+## same call, and a UI listening to that signal would flash the wrong title.
+func _park_active(why: String, then_pull: bool = true) -> void:
 	if String(_active) == "":
 		return
-	var n: ResearchNode = _graph.node(_active)
-	var p: ResearchProgress = _progress.get(_active)
+	var parked: StringName = _active
+	var n: ResearchNode = _graph.node(parked)
+	var p: ResearchProgress = _progress.get(parked)
 	if p != null:
 		p.clear_stall()
 	if n != null:
 		Log.info(TAG, "parked '%s' at %d%% — %s" % [
-			n.title, int(progress_of(_active) * 100.0), why])
+			n.title, int(progress_of(parked) * 100.0), why])
 		_alert(0, ResearchDefs.KEY_STALLED, "%s set aside — %s. The work so far is kept." % [n.title, why])
 	_active = &""
-	_pull_next()
+	if then_pull:
+		# Without the lock the auto-picker would hand the same project straight
+		# back: a parked one carries a progress bonus precisely so it gets
+		# resumed, which makes "set this aside" a no-op the tick it is issued.
+		_pick_lock = parked
+		_pull_next()
+		_pick_lock = &""
 
 
 ## Idle is a decision point, not a bug — and it happens under auto as well, when
@@ -917,6 +942,8 @@ func _auto_pick() -> StringName:
 		var best: StringName = &""
 		var best_score: float = -1.0e9
 		for id: StringName in _available:
+			if id == _pick_lock:
+				continue
 			# The engineers never sign a law. See ResearchDefs.CONSENT_BRANCHES.
 			if ResearchDefs.needs_consent(_graph.node(id)):
 				continue

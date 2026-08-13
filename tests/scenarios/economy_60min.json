@@ -361,7 +361,7 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          136,
+          135,
           121
         ]
       }
@@ -484,7 +484,7 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          140,
+          138,
           121
         ]
       }
@@ -604,7 +604,7 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          123,
+          124,
           121
         ]
       }
@@ -633,7 +633,7 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          119,
+          121,
           121
         ]
       }
@@ -720,7 +720,7 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          136,
+          135,
           137
         ]
       }
@@ -741,7 +741,7 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          140,
+          138,
           137
         ]
       }
@@ -852,7 +852,7 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          123,
+          124,
           137
         ]
       }
@@ -873,7 +873,7 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          119,
+          121,
           137
         ]
       }
@@ -993,7 +993,7 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          136,
+          135,
           113
         ]
       }
@@ -1005,7 +1005,7 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          140,
+          138,
           113
         ]
       }
@@ -1125,7 +1125,7 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          123,
+          124,
           113
         ]
       }
@@ -1137,7 +1137,7 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          119,
+          121,
           113
         ]
       }

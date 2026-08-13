@@ -122,9 +122,10 @@ func _draw_spines() -> void:
 		for d: int in 4:
 			if (links & (1 << d)) == 0:
 				continue
-			var off: Vector2 = Vector2(LcnOverlayDefs.DIR_VECTORS[d]) * (TILE * 0.52)
-			pts.append(centre)
-			pts.append(centre + off)
+			var dv2 := Vector2(LcnOverlayDefs.DIR_VECTORS[d])
+			var root: Vector2 = centre + dv2 * _edge_offset(i, dv2)
+			pts.append(root)
+			pts.append(root + dv2 * (TILE * 0.52))
 			cols.append(LcnOverlayPalette.with_a(c, 0.94))
 		if links == 0:
 			pts.append(centre - Vector2(TILE, 0.0) * 0.22)
@@ -141,6 +142,15 @@ func _draw_spines() -> void:
 		casing.fill(Color(0.02, 0.03, 0.05, 0.75))
 		draw_multiline_colors(pts2, casing, stroke(WIDTH_BUCKETS[i2] + 2.6))
 		draw_multiline_colors(pts2, _bucket_cols[i2], stroke(WIDTH_BUCKETS[i2]))
+
+
+## How far from a node's centre the outgoing stub starts, so a multi-tile
+## building connects from its edge and a 1x1 pipe is unchanged.
+func _edge_offset(i: int, dv: Vector2) -> float:
+	var half_w: float = float(snap.node_w[i]) * TILE * 0.5
+	var half_h: float = float(snap.node_h[i]) * TILE * 0.5
+	var ext: float = half_w if absf(dv.x) > 0.5 else half_h
+	return maxf(0.0, ext - TILE * 0.5)
 
 
 ## Flow: dashes travelling from each tile toward the neighbour the router feeds
@@ -170,13 +180,16 @@ func _draw_flow() -> void:
 		for d: int in 4:
 			if (dirs & (1 << d)) == 0:
 				continue
-			var to: Vector2 = centre + Vector2(LcnOverlayDefs.DIR_VECTORS[d]) * TILE
+			var dv := Vector2(LcnOverlayDefs.DIR_VECTORS[d])
+			# Leave from the EDGE of the footprint, not the middle of it: a 3x3
+			# hearth pushing east would otherwise animate inside its own body.
+			var from: Vector2 = centre + dv * _edge_offset(i, dv)
+			var to: Vector2 = from + dv * TILE
 			if pal.reduce_motion:
-				# No motion: a static arrowhead at the midpoint says the same thing.
-				LcnOverlayGeometry.arrow(centre.lerp(to, 0.72),
-					to - centre, px(5.0), _flow)
+				# No motion: a static arrowhead says the same thing.
+				LcnOverlayGeometry.arrow(from.lerp(to, 0.78), dv, px(5.0), _flow)
 			else:
-				LcnOverlayGeometry.dashes(centre, to,
+				LcnOverlayGeometry.dashes(from, to,
 					maxf(4.0, dash.x * 0.55), maxf(6.0, dash.y + 8.0), phase, _flow)
 		var added: int = (_flow.size() - before) / 2
 		for _k: int in added:

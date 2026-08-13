@@ -79,14 +79,14 @@ extends Resource
 ## radiators and two housing blocks, and nothing else — the first decision of
 ## the game is which of those to skip.
 @export var starting_stock: Dictionary[StringName, int] = {
-	&"stone": 400,
-	&"timber": 300,
-	&"scrap": 260,
-	&"iron_plate": 180,
-	&"steel_plate": 60,
-	&"copper_coil": 40,
-	&"gear": 30,
-	&"coal": 500,
+	&"stone": 260,
+	&"timber": 200,
+	&"scrap": 180,
+	&"iron_plate": 90,
+	&"steel_plate": 20,
+	&"copper_coil": 24,
+	&"gear": 14,
+	&"coal": 300,
 }
 
 # ==========================================================================

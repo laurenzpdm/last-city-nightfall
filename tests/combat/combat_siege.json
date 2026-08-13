@@ -218,6 +218,62 @@
       }
     },
     {
+      "tick": 14,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          132,
+          123
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 15,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          118,
+          123
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 16,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "heat_accumulator",
+        "cell": [
+          131,
+          129
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 17,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "heat_accumulator",
+        "cell": [
+          123,
+          129
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
       "tick": 21,
       "cmd": {
         "system": "build",
@@ -286,6 +342,146 @@
       }
     },
     {
+      "tick": 30,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          139,
+          128
+        ],
+        "to": [
+          139,
+          120
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 31,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          117,
+          128
+        ],
+        "to": [
+          117,
+          120
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 32,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          128,
+          139
+        ],
+        "to": [
+          135,
+          139
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 33,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          128,
+          117
+        ],
+        "to": [
+          121,
+          117
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 34,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          140,
+          120
+        ],
+        "free": true,
+        "instant": true,
+        "meta": {
+          "weapon": "siege_mortar"
+        }
+      }
+    },
+    {
+      "tick": 35,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          115,
+          120
+        ],
+        "free": true,
+        "instant": true,
+        "meta": {
+          "weapon": "ember_repeater"
+        }
+      }
+    },
+    {
+      "tick": 36,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          136,
+          138
+        ],
+        "free": true,
+        "instant": true,
+        "meta": {
+          "weapon": "burner_cannon"
+        }
+      }
+    },
+    {
+      "tick": 37,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          120,
+          115
+        ],
+        "free": true,
+        "instant": true,
+        "meta": {
+          "weapon": "scatter_gun"
+        }
+      }
+    },
+    {
       "tick": 40,
       "cmd": {
         "system": "build",
@@ -327,7 +523,43 @@
       }
     },
     {
+      "tick": 45,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
+      "tick": 445,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
+      "tick": 845,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
       "tick": 1200,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
+      "tick": 1245,
       "cmd": {
         "system": "heat",
         "op": "fuel_all",
@@ -356,6 +588,24 @@
       }
     },
     {
+      "tick": 1645,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
+      "tick": 2045,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
       "tick": 2200,
       "cmd": {
         "system": "combat",
@@ -375,6 +625,24 @@
       }
     },
     {
+      "tick": 2445,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
+      "tick": 2845,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
       "tick": 2900,
       "cmd": {
         "system": "combat",
@@ -382,6 +650,15 @@
         "kind": "cinder_leech",
         "count": 10,
         "lane": 3
+      }
+    },
+    {
+      "tick": 3245,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
       }
     },
     {
@@ -404,6 +681,15 @@
       }
     },
     {
+      "tick": 3645,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
       "tick": 4000,
       "cmd": {
         "system": "combat",
@@ -411,6 +697,24 @@
         "kind": "ash_spitter",
         "count": 6,
         "lane": 1
+      }
+    },
+    {
+      "tick": 4045,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
+      "tick": 4445,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
       }
     },
     {
@@ -443,6 +747,15 @@
       }
     },
     {
+      "tick": 4845,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
       "tick": 5200,
       "cmd": {
         "system": "combat",
@@ -450,6 +763,24 @@
         "kind": "permafrost_borer",
         "count": 6,
         "lane": 3
+      }
+    },
+    {
+      "tick": 5245,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
+      "tick": 5645,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
       }
     },
     {
@@ -472,6 +803,15 @@
       }
     },
     {
+      "tick": 6045,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
       "tick": 6400,
       "cmd": {
         "system": "combat",
@@ -479,6 +819,24 @@
         "kind": "frost_shade",
         "count": 10,
         "lane": 1
+      }
+    },
+    {
+      "tick": 6445,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
+      "tick": 6845,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
       }
     },
     {
@@ -501,12 +859,39 @@
       }
     },
     {
+      "tick": 7245,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
       "tick": 7260,
       "cmd": {
         "system": "combat",
         "op": "spawn_wave",
         "strength": 2.5,
         "lane": 2
+      }
+    },
+    {
+      "tick": 7645,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
+      "tick": 8045,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
       }
     },
     {
@@ -520,6 +905,24 @@
     },
     {
       "tick": 8400,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
+      "tick": 8445,
+      "cmd": {
+        "system": "heat",
+        "op": "fuel_all",
+        "item": "coal",
+        "amount": 9999.0
+      }
+    },
+    {
+      "tick": 8845,
       "cmd": {
         "system": "heat",
         "op": "fuel_all",

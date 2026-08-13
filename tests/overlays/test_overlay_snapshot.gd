@@ -156,21 +156,31 @@ func test_flow_directions_follow_the_routing_tree() -> void:
 	world.run(60)
 	_sample()
 	var heat: HeatSystem = _heat()
+	var graph: HeatGraph = heat.graph()
 	var checked: int = 0
 	for i: int in snap.node_count:
 		var dirs: int = snap.node_dirs[i]
 		if dirs == 0:
 			continue
 		var me: HeatNode = heat.nodes[snap.node_id[i]]
+		assert_ge(float(me.route_dist), 0.0, "only a routed tile claims to carry flow")
 		for d: int in 4:
 			if (dirs & (1 << d)) == 0:
 				continue
-			var target: Vector2i = me.center_cell + LcnOverlayDefs.DIR_VECTORS[d]
-			var other_id: int = heat.graph().occ.get(target, -1)
-			assert_ge(float(other_id), 0.0, "a flow arrow points at a real tile")
-			var other: HeatNode = heat.nodes[other_id]
-			assert_gt(float(other.route_dist), float(me.route_dist),
-				"heat flows away from the source, never back toward it")
+			# The bit has to be explained by a real graph link that is further
+			# from the source than we are — that is what "downstream" means.
+			var found: bool = false
+			for other_id: int in graph.neigh.get(me.id, PackedInt32Array()):
+				var other: HeatNode = heat.nodes.get(other_id)
+				if other == null:
+					continue
+				if LcnOverlayDefs.dir_bit(me.center_cell, other.center_cell) != (1 << d):
+					continue
+				if other.route_dist > me.route_dist:
+					found = true
+					break
+			assert_true(found,
+				"%s claims flow %d with no downstream neighbour that way" % [me.kind, d])
 			checked += 1
 	assert_gt(float(checked), 0.0, "a live pipe run has flow to show")
 
