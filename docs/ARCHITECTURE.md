@@ -214,3 +214,33 @@ Two rules have teeth in `tests/p00/test_scenarios.gd`:
 
 A scenario that talks to a system nobody has written is not a plan; it is a run
 that silently does nothing and still exits 0.
+
+---
+
+## 7. Interlocks — the rule that stops eleven systems being eleven demos
+
+Every part was written to tolerate the absence of every other part, which is what
+made parallel development possible and is also how a finished build ends up
+quietly running on fallbacks. **A defensive fallback is a debt, not a feature.**
+When the dependency lands, the fallback must switch off and be *seen* to switch
+off in the log.
+
+Live interlocks in this build, each verifiable in `artifacts/<run>/state.json`:
+
+| interlock | where it is closed | what proves it |
+|---|---|---|
+| burners buy fuel instead of burning faith | `HeatSystem._fuel_autarky` off when [P03]/[P04] exist | `heat: … fuel=metered` on the ready line |
+| machines run on delivered heat and real crews | `ProductionSystem._heat_autarky` / `_staff_autarky` | per-machine `power`, `staffing`, worded `reason` |
+| a machine that makes AND burns heat serves itself first | `HeatFlow._classify` | smelters at `power 1.00`, not 0.24 |
+| turrets spend the grid's warmth | `TurretBattery` magazine charged at `served_of(id)` | `idle: no_heat` vs `shots` |
+| the cold kills people and that moves the meters | `CitizenPool.step_needs` → `SocietySystem` | `avg_warmth`, `hope`, `deaths.cold` |
+| scrap becomes grain becomes a meal | `rubble_sorter` → `field_kitchen` | `production.produced.ration` |
+| research changes what already stands | `_read_tech()` in heat, combat, production, build, society, citizens | `research.effects` vs the numbers they move |
+| the night is composed against the storm calendar | [P08] `WaveSchedule` reading [P09] | `threat.plan.reasons` |
+
+**The research contract.** `ResearchSystem.multiplier(key)` returns `1.0 + Σdeltas`
+and `modifier(key)` returns the plain sum; a system with no research present reads
+1.0 and 0.0 and behaves exactly as it did before the tree existed. Consumers cache
+the value on a slow timer (a node finishes once a minute at best) and apply it to
+what is ALREADY BUILT — a finished node that only changes what you may place next
+is a menu entry, not progression.

@@ -495,7 +495,13 @@ func _draw_footer() -> void:
 		style.draw_text_right(_footer, w - 18.0, h - 14.0, works, style.fs(11),
 			style.ink_faint())
 
-	var y: float = h - 52.0
+	# Above the stores shelf, not on it. The shelf is drawn by a real panel with
+	# a real height, so ask it rather than guessing a constant that goes stale
+	# the first time somebody adds a row or the player scales the interface up.
+	var shelf_top: float = h - DESIGN_MARGIN
+	if resource_panel != null and resource_panel.visible:
+		shelf_top = resource_panel.position.y
+	var y: float = minf(h - 52.0, shelf_top - 14.0)
 	var toast_list: Array[Dictionary] = alerts.toasts()
 	for i: int in range(toast_list.size() - 1, -1, -1):
 		var t: Dictionary = toast_list[i]
