@@ -318,6 +318,14 @@ func building_stamp() -> int:
 	return _building_stamp
 
 
+## Drops the cached terrain for one chunk. The ground calls this when [P01]
+## reports the chunk's version has moved — otherwise paving a road would never
+## reach the screen, because the remapped bytes are cached for the session.
+func invalidate_terrain_chunk(origin: Vector2i) -> void:
+	_terrain_cache.erase(origin.x * 100003 + origin.y)
+	_snow_pattern.erase(origin.x * 100003 + origin.y)
+
+
 ## Terrain ids for a whole chunk, in row-major order. Cached; this is the call
 ## the ground makes and the reason 500x500 stays affordable.
 func terrain_chunk(origin: Vector2i) -> PackedByteArray:

@@ -3,7 +3,6 @@ extends RefCounted
 
 func run() -> void:
 	Log.min_level = Log.Level.WARN
-	diag_tunnel()
 	_throughput()
 	_scale()
 
@@ -24,9 +23,10 @@ func _throughput() -> void:
 		Sim.submit_command({"system": &"build", "op": "grant_unlock", "unlock": "driven_rollers"})
 		SimClock.advance(1)
 		var o := Vector2i(40, 40)
-		for i: int in 12:
-			logi.place(StringName(kind), o + Vector2i(i, 0), 0, true)
-		var chest: Dictionary = logi.place(&"crate", o + Vector2i(12, 0), 0, true)
+		Sim.submit_command({"system": &"logistics", "op": "place_line", "kind": kind,
+			"from": [o.x, o.y], "to": [o.x + 11, o.y], "free": true})
+		SimClock.advance(1)
+		var chest: Dictionary = logi.place(&"bunker_chest", o + Vector2i(12, 0), 0, true)
 		var store: LogiStore = logi.world.stores[int(chest["id"])]
 		for _i: int in 200:
 			_feed(logi, o)

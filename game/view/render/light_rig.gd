@@ -1,12 +1,20 @@
 class_name LcnLightRig
 extends Node2D
-## Night tint plus a pool of warm Light2Ds. [P13]
+## Warm point lights, plus the canvas's hour cast. [P13], second pass.
 ##
-## The art direction lives here. A CanvasModulate drops the entire world to the
-## cold tone of the current hour; every warm thing then has to buy its light back
-## with a real Light2D. That is why the city reads as islands of heat in the dark
-## instead of a uniformly lit map, and it is why the player can feel temperature
-## by looking: bright means someone is burning fuel there.
+## WHAT CHANGED. In the first pass the CanvasModulate multiplied the whole world
+## down to the hour's tone — 0.115 luminance at deep night — and every warm thing
+## bought its light back with a Light2D. A critic looking at the actual frame saw
+## the consequence: a black void with two blown-out white discs in it, 208
+## buildings invisible between them.
+##
+## Darkness is now made per surface by the light rig in LcnPalette (the ground
+## shader and the entity tint both evaluate it), so unlit things go dark and lit
+## things do not, and the settlement keeps a moonlight floor while the plain
+## beyond it does not. This class keeps the CanvasModulate only as a HUE cast so
+## the whole canvas — including other parts' particles and ghosts — still shifts
+## with the hour, and it drives the point lights that put real warm pools on the
+## ground.
 ##
 ## Lights are pooled and reassigned to the strongest sources in view each frame,
 ## so a thousand-building city still costs a fixed, small number of light passes.

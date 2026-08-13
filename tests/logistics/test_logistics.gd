@@ -314,7 +314,8 @@ func test_a_tunnel_costs_the_time_it_saves() -> void:
 	_place("underground_mk1", O, 0)
 	_place("underground_mk1", O + Vector2i(5, 0), 0)
 	var chest: int = _place("crate", O + Vector2i(6, 0))
-	logi.world.push_onto_belt(O, 0, &"coal")
+	world.run(1)                      # the layout has to exist before it can carry
+	assert_true(logi.world.push_onto_belt(O, 0, &"coal"), "one item goes in")
 	var arrived: int = -1
 	for t: int in 200:
 		world.run(1)
@@ -460,8 +461,11 @@ func test_an_arm_loads_a_belt_from_a_chest_and_unloads_it_again() -> void:
 	world.run(600)
 	assert_gt(float(logi.world.stores[target].total()), 30.0,
 		"chest, arm, belt, arm, chest — the shortest complete factory there is")
+	var in_hands: int = 0
+	for id: int in logi.world.inserter_ids:
+		in_hands += (logi.world.entities[id] as LogiInserter).held
 	assert_eq(logi.world.stores[source].count(&"circuit") + logi.world.stores[target].total()
-		+ _segment(O + Vector2i(2, 0)).item_count(), 500,
+		+ _segment(O + Vector2i(2, 0)).item_count() + in_hands, 500,
 		"and every circuit is either in a chest, on the belt, or in an arm's hand")
 
 

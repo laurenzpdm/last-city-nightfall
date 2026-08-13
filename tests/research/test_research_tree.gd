@@ -175,6 +175,43 @@ func test_branch_bands_do_not_interleave() -> void:
 			"'%s' is drawn outside its own lane" % String(id))
 
 
+## The trap this part was written around, kept executable so nobody re-learns it.
+## Godot's StringName compares by the address of its interned data, so
+## `Array.sort()` over a dictionary's StringName keys orders them by allocation
+## address. It looks sorted, it is stable inside one process, and a determinism
+## replay of the same build cannot tell the difference — but the order is
+## meaningless between builds and shuffles the moment an unrelated part interns a
+## name earlier. Every ordered array [P10] writes goes through sorted_names().
+func test_stringname_keys_do_not_sort_themselves() -> void:
+	var d: Dictionary[StringName, int] = {}
+	for s: String in ["zebra", "apple", "mango", "banana", "cherry"]:
+		d[StringName(s)] = 1
+
+	var text: Array[String] = []
+	for k: StringName in ResearchDefs.sorted_names(d.keys()):
+		text.append(String(k))
+	assert_eq(text, ["apple", "banana", "cherry", "mango", "zebra"],
+		"ResearchDefs.sorted_names must order names by text")
+
+	# The naive order is NOT asserted against: it is allocation order, so it
+	# varies with what the process interned before this test ran. Measured in
+	# Godot 4.7.1 with a bare script it comes out ["mango","apple","zebra",
+	# "banana","cherry"]; inside the test runner it sometimes lands alphabetical
+	# by luck. Arbitrary-but-occasionally-right is exactly why it is a trap.
+	var naive: Array = d.keys()
+	naive.sort()
+	assert_size(naive, 5, "the naive sort at least keeps every key")
+
+
+func test_the_canonical_id_order_is_alphabetical() -> void:
+	var text: Array[String] = []
+	for id: StringName in graph.ids:
+		text.append(String(id))
+	var expected: Array[String] = text.duplicate()
+	expected.sort()
+	assert_eq(text, expected, "ResearchGraph.ids is the iteration order for the whole part")
+
+
 func test_the_layout_is_deterministic() -> void:
 	var produce: Callable = func() -> Variant:
 		var g := ResearchGraph.new()

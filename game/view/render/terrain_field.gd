@@ -157,6 +157,7 @@ func refresh_kind(model: LcnWorldModel) -> int:
 
 func _write_kind_chunk(model: LcnWorldModel, chunk: Vector2i) -> void:
 	var origin: Vector2i = chunk * 32
+	model.invalidate_terrain_chunk(origin)
 	var data: PackedByteArray = model.terrain_chunk(origin)
 	if data.size() < 1024:
 		return

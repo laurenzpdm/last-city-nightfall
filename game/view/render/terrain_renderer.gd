@@ -122,7 +122,9 @@ func render(view: Rect2, grade: Dictionary, zoom: float, full: bool = false) -> 
 	_rect = view.grow(OVERSCAN)
 	_detail = clampf(inverse_lerp(0.28, 0.85, zoom), 0.0, 1.0)
 
-	if _frames % 240 == 1 or full:
+	# Once a second. The scan is 256 version probes on a 500x500 map and it is the
+	# only thing that notices [P11] paving a road under the camera.
+	if _frames % 60 == 1 or full:
 		field.refresh_kind(model)
 	field.refresh_snow(model, (1 << 20) if full else SNOW_BUDGET, _pending_chunks)
 	_pending_chunks.clear()

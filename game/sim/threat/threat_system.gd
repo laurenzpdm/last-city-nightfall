@@ -51,8 +51,9 @@ const PROFILE_CATEGORY: String = "threat"
 ## finished mid-assault counts almost immediately, and the scan is one pass over
 ## the building list, so this never shows up in the tick budget.
 const RESCORE_TICKS: int = 100
-## Ticks between heat-signature samples outside of the profile's own interval.
-const LOG_PERF_EVERY: int = 6000
+## Ticks between the profiling lines this system writes at DEBUG level. Short
+## enough that a 3000-tick perf scenario still reports what this part cost.
+const LOG_PERF_EVERY: int = 1000
 
 # --- tuning and content ------------------------------------------------------
 var _profile: ThreatProfile = null

@@ -73,6 +73,7 @@ var _shot_step: int = -1
 var _shot_phase: int = 0
 var _shot_wait: int = 0
 var _shot_hover_lock: bool = false
+var _shot_busy: bool = false
 var _sheet_cache_key: String = ""
 
 
@@ -394,6 +395,7 @@ func _close(id: StringName) -> void:
 		return
 	_open_order.erase(id)
 	p.set_open(false)
+	p.visible = false
 	panel_toggled.emit(id, false)
 
 
@@ -634,7 +636,7 @@ const SHOT_SEQUENCE: Array[Dictionary] = [
 
 
 func _drive_shots() -> void:
-	if _shot_step < 0:
+	if _shot_step < 0 or _shot_busy:
 		return
 	if _shot_wait > 0:
 		_shot_wait -= 1
@@ -650,10 +652,8 @@ func _drive_shots() -> void:
 		_shot_phase = 1
 		_shot_wait = SETTLE_FRAMES
 		return
+	_shot_busy = true
 	_capture(String(step["name"]))
-	_shot_step += 1
-	_shot_phase = 0
-	_shot_wait = GAP_FRAMES
 
 
 func _stage_shot(step: Dictionary) -> void:
@@ -709,13 +709,25 @@ func _hover_over_something() -> void:
 			return
 
 
+## Two frames, then the post-draw signal, exactly like Harness._shoot: _process
+## runs BEFORE the frame is drawn, so grabbing the viewport here without waiting
+## photographs the frame before the one that was staged.
 func _capture(name: String) -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
 	var dir: String = ProjectSettings.globalize_path(_shot_dir)
 	DirAccess.make_dir_recursive_absolute(dir)
 	var image: Image = get_viewport().get_texture().get_image()
 	var path: String = "%s/ui_%s.png" % [dir, name]
 	var err: int = image.save_png(path)
 	if err == OK:
-		Log.info("ui.build_menu", "shot %s (refresh %d us)" % [name, _last_refresh_usec])
+		Log.info("ui.build_menu", "shot %s — panels %s, query '%s', %d menu(s), refresh %d us" % [
+			name, str(open_panels()), palette.query() if palette != null else "",
+			get_tree().get_nodes_in_group(GROUP).size(), _last_refresh_usec])
 	else:
 		Log.warn("ui.build_menu", "could not write %s (%d)" % [path, err])
+	_shot_step += 1
+	_shot_phase = 0
+	_shot_wait = GAP_FRAMES
+	_shot_busy = false

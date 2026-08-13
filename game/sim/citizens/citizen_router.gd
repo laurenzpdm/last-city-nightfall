@@ -30,7 +30,7 @@ const MAX_ROUTES: int = 512
 ## much more like Dijkstra than like A*: it clears a disc, not a corridor. A
 ## linear budget silently failed four walks in five, and a failed walk is a
 ## citizen taking the straight line through a wall.
-const MAX_NODES: int = 2200
+const MAX_NODES: int = 1600
 const NODES_PER_CELL2: int = 3
 const MIN_NODES: int = 700
 const REQUESTS_PER_TICK: int = 1
@@ -38,8 +38,12 @@ const REQUESTS_PER_TICK: int = 1
 ## handled by invalidate_cells when the ground actually changes, so a route has
 ## no reason to expire while the city around it stands still.
 const ROUTE_TTL: int = 6000
-## After a failed search, do not try that pair again for this long.
-const FAIL_COOLDOWN: int = 400
+## After a failed search, do not try that pair again for this long. Long on
+## purpose: a failed search costs a FULL node budget, and the thing that would
+## make it succeed is the city changing — which clears these verdicts anyway
+## (see invalidate_cells). Retrying on a timer is paying full price for the
+## same "no" every twenty seconds.
+const FAIL_COOLDOWN: int = 3000
 const QUEUE_CAP: int = 512
 
 var searches: int = 0            ## diagnostic: A* runs since world creation

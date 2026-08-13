@@ -187,9 +187,9 @@ func setup() -> void:
 	if _graph.size() == 0:
 		Log.warn(TAG, "no research content in game/content/%s — the tree is empty" % CATEGORY)
 	else:
-		Log.info(TAG, "tree loaded: %d nodes, %d edges, %d branches, %d columns, %d roots" % [
+		Log.info(TAG, "tree loaded: %d nodes, %d edges, %d branches, %d roots, laid out %dx%d" % [
 			_graph.size(), _graph.edges().size(), _graph.bands.size(),
-			_graph.columns, _graph.roots().size(),
+			_graph.roots().size(), _graph.columns, _graph.rows,
 		])
 
 
@@ -1241,6 +1241,8 @@ func deserialize(data: Dictionary) -> void:
 	_effects.clear()
 	_active = &""
 	_available_dirty = true
+	_next_pick_tick = 0
+	_pick_lock = &""
 
 	for raw: Variant in data.get("researched", []):
 		var id: StringName = StringName(String(raw))

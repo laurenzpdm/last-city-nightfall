@@ -711,6 +711,53 @@ func test_a_worked_out_seam_stalls_the_drill_and_raises_an_alert() -> void:
 
 
 # =============================================================================
+# the contracts other parts call
+# =============================================================================
+
+func test_heat_can_draw_fuel_out_of_the_city_stores() -> void:
+	_world()
+	# [P02] stops running on faith the moment this system exists: every burner in
+	# the city comes here for its coal. If this ever returns nothing, the hearth
+	# goes out and the run dies, so it is worth a test of its own.
+	var before: int = _stock("coal")
+	assert_near(prod.request_fuel(1, &"coal", 40.0), 40.0, 0.001, "[P02] gets the coal it asked for")
+	assert_eq(_stock("coal"), before - 40, "and the city paid for it")
+	assert_near(prod.request_fuel(1, &"coal", 0.0), 0.0, 0.001, "asking for nothing costs nothing")
+	assert_near(prod.request_fuel(1, &"waste_heat", 50.0), 0.0, 0.001,
+		"recovered heat is not an item and is never handed out as one")
+
+
+func test_a_burner_is_fed_from_a_nearby_hopper_before_the_city_stores() -> void:
+	_world()
+	if not _city():
+		return
+	var id: int = _place("smelter", _at("smelter"))
+	world.run(20)
+	var m: ProdMachine = _machine(id)
+	prod.set_output_accepting(false)     # keep the coal in the machine's hopper
+	m.outputs[&"coal"] = 30
+	var city: int = _stock("coal")
+	assert_near(prod.request_fuel(1, &"coal", 12.0), 12.0, 0.001, "the fuel arrived")
+	assert_eq(m.take_output(&"coal", 100), 18, "it came out of the hopper")
+	assert_eq(_stock("coal"), city, "and the city stockpile was not touched")
+
+
+func test_logistics_can_load_and_unload_a_machine_by_hand() -> void:
+	_world()
+	if not _city():
+		return
+	var id: int = _place("smelter", _at("smelter"))
+	world.run(20)
+	assert_gt(float(prod.offer_input(id, &"iron_ore", 10)), 0.0, "[P03] can push ore in")
+	assert_eq(prod.offer_input(id, &"grain", 10), 0,
+		"but not something the current recipe has no use for")
+	var m: ProdMachine = _machine(id)
+	m.outputs[&"iron_plate"] = 7
+	assert_eq(prod.take_output(id, &"iron_plate", 4), 4, "and pull finished goods out")
+	assert_eq(m.output_total(), 3, "leaving the rest on the machine")
+
+
+# =============================================================================
 # the heat-recovery loop
 # =============================================================================
 

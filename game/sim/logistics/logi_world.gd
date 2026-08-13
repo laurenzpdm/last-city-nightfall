@@ -464,25 +464,35 @@ func step(tick: int) -> void:
 
 # --- belts -----------------------------------------------------------------
 
+## Two passes, and the order matters more than it looks.
+##
+## EVERY line moves before ANY line hands over. Advancing and handing off in one
+## pass makes a corner cost throughput: the upstream line would offer an item to
+## a downstream line that had not run yet this tick, so the receiving end still
+## looked full and refused. A belt that loses a third of its rate at every bend
+## is a belt whose tooltip lies, and the player would never find out why.
 func _move_belts() -> void:
 	for sid: int in segment_ids:
 		var seg: LogiSegment = segments[sid]
 		if seg.lanes[0].is_empty() and seg.lanes[1].is_empty():
 			continue
 		var slack: float = seg.slack()
+		seg.lanes[0].advance(slack)
+		seg.lanes[1].advance(slack)
+
+	for sid2: int in segment_ids:
+		var s: LogiSegment = segments[sid2]
+		if s.sink == LogiTypes.Sink.NONE or s.sink == LogiTypes.Sink.SPLITTER:
+			continue  # nowhere to go, or the splitter comes and takes it instead
 		for lane: int in LogiTypes.LANES:
-			var l: LogiLane = seg.lanes[lane]
-			l.advance(slack)
-			if seg.sink == LogiTypes.Sink.SPLITTER:
-				# The splitter takes it from the front; the line just waits.
-				continue
+			var l: LogiLane = s.lanes[lane]
 			var handed: int = 0
 			while l.front_ready() and handed < MAX_HANDOFF:
-				if not _push_out(seg, lane, l.front_kind()):
+				if not _push_out(s, lane, l.front_kind()):
 					break
 				l.take_front()
 				handed += 1
-				seg.moved += 1
+				s.moved += 1
 				items_moved += 1
 
 
@@ -578,8 +588,9 @@ func _splitter_emit(sp: LogiSplitter, side: int) -> bool:
 	var buffer: Array = sp.buf[side]
 	var kind: int = int(buffer[0])
 	var forced: int = sp.forced_side(kind_name(kind))
-	var order: Array[int] = [forced] if forced != LogiSplitter.Side.NONE \
-		else _side_order(sp.output_priority, sp.next_out[side])
+	var order: Array[int] = _side_order(sp.output_priority, sp.next_out[side])
+	if forced != LogiSplitter.Side.NONE:
+		order = _one_side(forced)
 	for which: int in order:
 		if not _splitter_push(sp, which, side, kind):
 			continue
@@ -591,9 +602,21 @@ func _splitter_emit(sp: LogiSplitter, side: int) -> bool:
 
 
 func _side_order(priority: int, alternate: int) -> Array[int]:
+	var out: Array[int] = []
 	if priority == LogiSplitter.Side.LEFT or priority == LogiSplitter.Side.RIGHT:
-		return [priority, 1 - priority]
-	return [alternate, 1 - alternate]
+		out.append(priority)
+		out.append(1 - priority)
+		return out
+	out.append(alternate)
+	out.append(1 - alternate)
+	return out
+
+
+## A filtered item has exactly one way out, and it waits for it.
+func _one_side(side: int) -> Array[int]:
+	var out: Array[int] = []
+	out.append(side)
+	return out
 
 
 ## The line whose exit sits on one of this splitter's input tiles.
