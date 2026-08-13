@@ -28,6 +28,22 @@
       }
     },
     {
+      "tick": 2,
+      "cmd": {
+        "system": "build",
+        "op": "grant_unlock",
+        "unlock": "thermal_storage"
+      }
+    },
+    {
+      "tick": 2,
+      "cmd": {
+        "system": "build",
+        "op": "grant_unlock",
+        "unlock": "pressurised_mains"
+      }
+    },
+    {
       "tick": 4,
       "cmd": {
         "system": "build",
@@ -74,7 +90,7 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          122,
+          121,
           134
         ]
       }
@@ -117,11 +133,11 @@
         "kind": "rubble_road",
         "from": [
           124,
-          137
+          138
         ],
         "to": [
           132,
-          140
+          141
         ]
       }
     },
@@ -131,7 +147,7 @@
         "system": "build",
         "op": "rotate",
         "cell": [
-          122,
+          121,
           134
         ]
       }
@@ -156,14 +172,15 @@
         "system": "build",
         "op": "capture_blueprint",
         "from": [
-          120,
-          132
+          131,
+          127
         ],
         "to": [
-          128,
-          136
+          144,
+          129
         ],
-        "title": "spur"
+        "title": "spur",
+        "blueprint_id": "spur"
       }
     },
     {
@@ -173,8 +190,8 @@
         "op": "place_blueprint",
         "blueprint": "spur",
         "cell": [
-          148,
-          148
+          152,
+          152
         ],
         "free": true
       }
@@ -194,7 +211,7 @@
         "op": "place",
         "kind": "housing_block",
         "cell": [
-          114,
+          112,
           122
         ]
       }
@@ -254,7 +271,7 @@
         "kind": "coal_generator",
         "cell": [
           136,
-          142
+          144
         ]
       }
     },

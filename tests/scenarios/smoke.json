@@ -20,9 +20,10 @@
         "system": "build",
         "op": "add_stock",
         "items": {
-          "iron_plate": 600,
-          "steel_plate": 400,
-          "stone": 600
+          "iron_plate": 900,
+          "steel_plate": 600,
+          "stone": 900,
+          "timber": 600
         }
       }
     },
@@ -51,7 +52,7 @@
           128
         ],
         "to": [
-          138,
+          140,
           128
         ],
         "free": true,
@@ -69,7 +70,7 @@
           128
         ],
         "to": [
-          118,
+          116,
           128
         ],
         "free": true,
@@ -80,11 +81,15 @@
       "tick": 5,
       "cmd": {
         "system": "build",
-        "op": "place",
-        "kind": "warmth_radiator",
-        "cell": [
-          139,
-          127
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          128,
+          131
+        ],
+        "to": [
+          128,
+          138
         ],
         "free": true,
         "instant": true
@@ -97,7 +102,7 @@
         "op": "place",
         "kind": "warmth_radiator",
         "cell": [
-          116,
+          141,
           127
         ],
         "free": true,
@@ -109,10 +114,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "housing_block",
+        "kind": "warmth_radiator",
         "cell": [
-          133,
-          130
+          114,
+          127
         ],
         "free": true,
         "instant": true
@@ -125,8 +130,8 @@
         "op": "place",
         "kind": "housing_block",
         "cell": [
-          119,
-          130
+          133,
+          131
         ],
         "free": true,
         "instant": true
@@ -137,10 +142,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "coal_generator",
+        "kind": "housing_block",
         "cell": [
-          125,
-          136
+          119,
+          131
         ],
         "free": true,
         "instant": true
@@ -151,10 +156,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "workshop",
+        "kind": "coal_generator",
         "cell": [
-          130,
-          136
+          125,
+          139
         ],
         "free": true,
         "instant": true
@@ -165,10 +170,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "storage_yard",
+        "kind": "workshop",
         "cell": [
-          136,
-          132
+          129,
+          139
         ],
         "free": true,
         "instant": true
@@ -179,10 +184,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "storage_yard",
         "cell": [
-          141,
-          120
+          138,
+          132
         ],
         "free": true,
         "instant": true
@@ -193,10 +198,24 @@
       "cmd": {
         "system": "build",
         "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          142,
+          119
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 14,
+      "cmd": {
+        "system": "build",
+        "op": "place",
         "kind": "turret_mount",
         "cell": [
-          141,
-          136
+          142,
+          137
         ],
         "free": true,
         "instant": true

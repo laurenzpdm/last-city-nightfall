@@ -20,15 +20,31 @@
         "system": "build",
         "op": "add_stock",
         "items": {
-          "iron_plate": 900,
-          "steel_plate": 600,
-          "stone": 900,
-          "timber": 600,
-          "scrap": 800,
-          "gear": 300,
-          "copper_coil": 300,
+          "iron_plate": 1400,
+          "steel_plate": 900,
+          "stone": 1400,
+          "timber": 900,
+          "scrap": 900,
+          "gear": 400,
+          "copper_coil": 400,
           "coal": 900
         }
+      }
+    },
+    {
+      "tick": 2,
+      "cmd": {
+        "system": "build",
+        "op": "grant_unlock",
+        "unlock": "thermal_storage"
+      }
+    },
+    {
+      "tick": 2,
+      "cmd": {
+        "system": "build",
+        "op": "grant_unlock",
+        "unlock": "pressurised_mains"
       }
     },
     {
@@ -56,7 +72,7 @@
           128
         ],
         "to": [
-          139,
+          140,
           128
         ],
         "free": true,
@@ -74,7 +90,7 @@
           128
         ],
         "to": [
-          117,
+          116,
           128
         ],
         "free": true,
@@ -88,7 +104,7 @@
         "op": "place",
         "kind": "warmth_radiator",
         "cell": [
-          140,
+          141,
           127
         ],
         "free": true,
@@ -102,7 +118,7 @@
         "op": "place",
         "kind": "warmth_radiator",
         "cell": [
-          115,
+          114,
           127
         ],
         "free": true,
@@ -116,8 +132,8 @@
         "op": "place",
         "kind": "housing_block",
         "cell": [
-          134,
-          130
+          133,
+          131
         ],
         "free": true,
         "instant": true
@@ -130,8 +146,8 @@
         "op": "place",
         "kind": "housing_block",
         "cell": [
-          118,
-          130
+          119,
+          131
         ],
         "free": true,
         "instant": true
@@ -149,7 +165,7 @@
         ],
         "to": [
           128,
-          140
+          141
         ]
       }
     },
@@ -160,8 +176,8 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          125,
-          141
+          124,
+          142
         ]
       }
     },
@@ -172,8 +188,8 @@
         "op": "place",
         "kind": "workshop",
         "cell": [
-          130,
-          141
+          129,
+          142
         ]
       }
     },
@@ -184,7 +200,7 @@
         "op": "place",
         "kind": "storage_yard",
         "cell": [
-          137,
+          138,
           132
         ]
       }
@@ -193,11 +209,15 @@
       "tick": 1500,
       "cmd": {
         "system": "build",
-        "op": "place",
-        "kind": "housing_block",
-        "cell": [
-          126,
-          133
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          127,
+          136
+        ],
+        "to": [
+          120,
+          136
         ]
       }
     },
@@ -205,15 +225,11 @@
       "tick": 1800,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          127,
-          131
-        ],
-        "to": [
-          119,
-          131
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          118,
+          135
         ]
       }
     },
@@ -222,10 +238,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "warmth_radiator",
+        "kind": "housing_block",
         "cell": [
-          117,
-          131
+          119,
+          137
         ]
       }
     },
@@ -248,8 +264,8 @@
         "op": "place",
         "kind": "field_kitchen",
         "cell": [
-          122,
-          136
+          124,
+          120
         ]
       }
     },
@@ -261,7 +277,7 @@
         "kind": "heat_pipe",
         "from": [
           140,
-          128
+          129
         ],
         "to": [
           140,
@@ -277,7 +293,23 @@
         "kind": "heat_accumulator",
         "cell": [
           141,
-          137
+          136
+        ]
+      }
+    },
+    {
+      "tick": 4000,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          128,
+          125
+        ],
+        "to": [
+          126,
+          110
         ]
       }
     },
@@ -289,23 +321,7 @@
         "kind": "ore_drill",
         "cell": [
           124,
-          108
-        ]
-      }
-    },
-    {
-      "tick": 4400,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          128,
-          125
-        ],
-        "to": [
-          128,
-          110
+          98
         ]
       }
     },
@@ -316,7 +332,7 @@
         "op": "place",
         "kind": "smelter",
         "cell": [
-          129,
+          130,
           108
         ]
       }
@@ -329,11 +345,11 @@
         "kind": "wall",
         "from": [
           106,
-          104
+          94
         ],
         "to": [
           114,
-          104
+          94
         ]
       }
     },
@@ -345,11 +361,11 @@
         "kind": "wall",
         "from": [
           115,
-          104
+          94
         ],
         "to": [
           123,
-          104
+          94
         ]
       }
     },
@@ -361,11 +377,11 @@
         "kind": "wall",
         "from": [
           124,
-          104
+          94
         ],
         "to": [
           132,
-          104
+          94
         ]
       }
     },
@@ -377,11 +393,11 @@
         "kind": "wall",
         "from": [
           133,
-          104
+          94
         ],
         "to": [
           141,
-          104
+          94
         ]
       }
     },
@@ -393,11 +409,11 @@
         "kind": "wall",
         "from": [
           142,
-          104
+          94
         ],
         "to": [
           150,
-          104
+          94
         ]
       }
     },
@@ -409,7 +425,7 @@
         "kind": "watchtower",
         "cell": [
           112,
-          106
+          96
         ]
       }
     },
@@ -421,7 +437,7 @@
         "kind": "watchtower",
         "cell": [
           142,
-          106
+          96
         ]
       }
     },
@@ -433,7 +449,7 @@
         "kind": "turret_mount",
         "cell": [
           126,
-          105
+          96
         ]
       }
     },
@@ -445,7 +461,7 @@
         "kind": "turret_mount",
         "cell": [
           138,
-          105
+          96
         ]
       }
     },
@@ -456,8 +472,8 @@
         "op": "place",
         "kind": "heat_booster_pump",
         "cell": [
-          128,
-          138
+          129,
+          140
         ]
       }
     },
@@ -467,8 +483,8 @@
         "system": "build",
         "op": "set_enabled",
         "cell": [
-          130,
-          141
+          129,
+          142
         ],
         "on": false
       }
@@ -499,8 +515,8 @@
         "system": "build",
         "op": "set_enabled",
         "cell": [
-          130,
-          141
+          129,
+          142
         ],
         "on": true
       }
@@ -513,7 +529,7 @@
         "kind": "coal_generator",
         "cell": [
           132,
-          144
+          145
         ]
       }
     },
@@ -524,8 +540,8 @@
         "op": "place",
         "kind": "housing_block",
         "cell": [
-          120,
-          120
+          119,
+          122
         ]
       }
     }
