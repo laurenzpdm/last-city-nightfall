@@ -336,19 +336,24 @@ def stress():
     for dx in range(-40, 41, 8):
         L.line(t, "heat_pipe", (dx, -30), (dx, 30), free=True, instant=True)
         t += 3
+    # Every plot sits in the pocket between one trunk and the next, one tile in
+    # from both, so it is orthogonally adjacent to the grid on two sides.
     n = 0
     order = ["warmth_radiator", "housing_block", "coal_generator", "watchtower", "turret_mount"]
-    for dy in range(-28, 29, 6):
-        for dx in range(-38, 39, 8):
-            if abs(dx) < 6 and abs(dy) < 6:
+    skipped = 0
+    for row in range(-30, 31, 6):
+        for col in range(-40, 41, 8):
+            if abs(col) < 8 and abs(row) < 8:
                 continue
             kind = order[n % len(order)]
             n += 1
-            origin = (CORE[0] + dx + 1, CORE[1] + dy + 1)
+            origin = (CORE[0] + col + 1, CORE[1] + row + 1)
             if not (L.free(kind, origin) and L.touches_heat(kind, origin)):
+                skipped += 1
                 continue
-            L.place(t, kind, dx + 1, dy + 1, free=True, instant=True)
+            L.place(t, kind, col + 1, row + 1, free=True, instant=True)
             t += 2
+    assert skipped == 0, "%d plots did not reach the grid" % skipped
     # A full perimeter wall. Most of a real city is buildings no system owns,
     # and that is exactly the case that used to eat the entire tick budget.
     for a, b in [((-46, -36), (46, -36)), ((-46, 36), (46, 36)),

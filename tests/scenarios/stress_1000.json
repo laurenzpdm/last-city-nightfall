@@ -447,10 +447,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "coal_generator",
+        "kind": "warmth_radiator",
         "cell": [
-          107,
-          101
+          89,
+          99
         ],
         "free": true,
         "instant": true
@@ -461,10 +461,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "housing_block",
         "cell": [
-          115,
-          101
+          97,
+          99
         ],
         "free": true,
         "instant": true
@@ -475,10 +475,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "turret_mount",
+        "kind": "coal_generator",
         "cell": [
-          123,
-          101
+          105,
+          99
         ],
         "free": true,
         "instant": true
@@ -489,10 +489,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "coal_generator",
+        "kind": "watchtower",
         "cell": [
-          147,
-          101
+          113,
+          99
         ],
         "free": true,
         "instant": true
@@ -503,10 +503,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "turret_mount",
         "cell": [
-          155,
-          101
+          121,
+          99
         ],
         "free": true,
         "instant": true
@@ -517,10 +517,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "turret_mount",
+        "kind": "warmth_radiator",
         "cell": [
-          163,
-          101
+          129,
+          99
         ],
         "free": true,
         "instant": true
@@ -531,10 +531,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "coal_generator",
+        "kind": "housing_block",
         "cell": [
-          107,
-          107
+          137,
+          99
         ],
         "free": true,
         "instant": true
@@ -545,10 +545,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "coal_generator",
         "cell": [
-          115,
-          107
+          145,
+          99
         ],
         "free": true,
         "instant": true
@@ -559,10 +559,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "turret_mount",
+        "kind": "watchtower",
         "cell": [
-          123,
-          107
+          153,
+          99
         ],
         "free": true,
         "instant": true
@@ -573,10 +573,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "coal_generator",
+        "kind": "turret_mount",
         "cell": [
-          147,
-          107
+          161,
+          99
         ],
         "free": true,
         "instant": true
@@ -587,10 +587,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "warmth_radiator",
         "cell": [
-          155,
-          107
+          169,
+          99
         ],
         "free": true,
         "instant": true
@@ -601,10 +601,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "turret_mount",
+        "kind": "housing_block",
         "cell": [
-          163,
-          107
+          89,
+          105
         ],
         "free": true,
         "instant": true
@@ -617,8 +617,8 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          107,
-          113
+          97,
+          105
         ],
         "free": true,
         "instant": true
@@ -631,8 +631,8 @@
         "op": "place",
         "kind": "watchtower",
         "cell": [
-          115,
-          113
+          105,
+          105
         ],
         "free": true,
         "instant": true
@@ -645,8 +645,8 @@
         "op": "place",
         "kind": "turret_mount",
         "cell": [
-          123,
-          113
+          113,
+          105
         ],
         "free": true,
         "instant": true
@@ -657,10 +657,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "coal_generator",
+        "kind": "warmth_radiator",
         "cell": [
-          147,
-          113
+          121,
+          105
         ],
         "free": true,
         "instant": true
@@ -671,10 +671,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "housing_block",
         "cell": [
-          155,
-          113
+          129,
+          105
         ],
         "free": true,
         "instant": true
@@ -685,10 +685,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "turret_mount",
+        "kind": "coal_generator",
         "cell": [
-          163,
-          113
+          137,
+          105
         ],
         "free": true,
         "instant": true
@@ -699,10 +699,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "coal_generator",
+        "kind": "watchtower",
         "cell": [
-          107,
-          119
+          145,
+          105
         ],
         "free": true,
         "instant": true
@@ -713,10 +713,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "turret_mount",
         "cell": [
-          115,
-          119
+          153,
+          105
         ],
         "free": true,
         "instant": true
@@ -727,10 +727,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "turret_mount",
+        "kind": "warmth_radiator",
         "cell": [
-          123,
-          119
+          161,
+          105
         ],
         "free": true,
         "instant": true
@@ -741,10 +741,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "coal_generator",
+        "kind": "housing_block",
         "cell": [
-          147,
-          119
+          169,
+          105
         ],
         "free": true,
         "instant": true
@@ -755,10 +755,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "coal_generator",
         "cell": [
-          155,
-          119
+          89,
+          111
         ],
         "free": true,
         "instant": true
@@ -769,10 +769,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "turret_mount",
+        "kind": "watchtower",
         "cell": [
-          163,
-          119
+          97,
+          111
         ],
         "free": true,
         "instant": true
@@ -783,10 +783,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "coal_generator",
+        "kind": "turret_mount",
         "cell": [
-          107,
-          125
+          105,
+          111
         ],
         "free": true,
         "instant": true
@@ -797,10 +797,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "warmth_radiator",
         "cell": [
-          115,
-          125
+          113,
+          111
         ],
         "free": true,
         "instant": true
@@ -811,10 +811,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "turret_mount",
+        "kind": "housing_block",
         "cell": [
-          123,
-          125
+          121,
+          111
         ],
         "free": true,
         "instant": true
@@ -827,8 +827,8 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          155,
-          125
+          129,
+          111
         ],
         "free": true,
         "instant": true
@@ -841,8 +841,8 @@
         "op": "place",
         "kind": "watchtower",
         "cell": [
-          163,
-          125
+          137,
+          111
         ],
         "free": true,
         "instant": true
@@ -855,8 +855,8 @@
         "op": "place",
         "kind": "turret_mount",
         "cell": [
-          91,
-          131
+          145,
+          111
         ],
         "free": true,
         "instant": true
@@ -867,10 +867,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "coal_generator",
+        "kind": "warmth_radiator",
         "cell": [
-          115,
-          131
+          153,
+          111
         ],
         "free": true,
         "instant": true
@@ -881,10 +881,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "housing_block",
         "cell": [
-          123,
-          131
+          161,
+          111
         ],
         "free": true,
         "instant": true
@@ -895,10 +895,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "turret_mount",
+        "kind": "coal_generator",
         "cell": [
-          139,
-          131
+          169,
+          111
         ],
         "free": true,
         "instant": true
@@ -909,10 +909,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "coal_generator",
+        "kind": "watchtower",
         "cell": [
-          163,
-          131
+          89,
+          117
         ],
         "free": true,
         "instant": true
@@ -923,10 +923,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "turret_mount",
         "cell": [
-          91,
-          137
+          97,
+          117
         ],
         "free": true,
         "instant": true
@@ -937,10 +937,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "turret_mount",
+        "kind": "warmth_radiator",
         "cell": [
-          99,
-          137
+          105,
+          117
         ],
         "free": true,
         "instant": true
@@ -951,10 +951,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "coal_generator",
+        "kind": "housing_block",
         "cell": [
-          123,
-          137
+          113,
+          117
         ],
         "free": true,
         "instant": true
@@ -965,10 +965,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "coal_generator",
         "cell": [
-          131,
-          137
+          121,
+          117
         ],
         "free": true,
         "instant": true
@@ -979,10 +979,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "turret_mount",
+        "kind": "watchtower",
         "cell": [
-          139,
-          137
+          129,
+          117
         ],
         "free": true,
         "instant": true
@@ -993,10 +993,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "coal_generator",
+        "kind": "turret_mount",
         "cell": [
-          163,
-          137
+          137,
+          117
         ],
         "free": true,
         "instant": true
@@ -1007,10 +1007,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "warmth_radiator",
         "cell": [
-          91,
-          143
+          145,
+          117
         ],
         "free": true,
         "instant": true
@@ -1021,10 +1021,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "turret_mount",
+        "kind": "housing_block",
         "cell": [
-          99,
-          143
+          153,
+          117
         ],
         "free": true,
         "instant": true
@@ -1037,8 +1037,8 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          123,
-          143
+          161,
+          117
         ],
         "free": true,
         "instant": true
@@ -1051,8 +1051,8 @@
         "op": "place",
         "kind": "watchtower",
         "cell": [
-          131,
-          143
+          169,
+          117
         ],
         "free": true,
         "instant": true
@@ -1065,8 +1065,8 @@
         "op": "place",
         "kind": "turret_mount",
         "cell": [
-          139,
-          143
+          89,
+          123
         ],
         "free": true,
         "instant": true
@@ -1077,10 +1077,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "coal_generator",
+        "kind": "warmth_radiator",
         "cell": [
-          163,
-          143
+          97,
+          123
         ],
         "free": true,
         "instant": true
@@ -1091,10 +1091,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "housing_block",
         "cell": [
-          91,
-          149
+          105,
+          123
         ],
         "free": true,
         "instant": true
@@ -1105,10 +1105,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "turret_mount",
+        "kind": "coal_generator",
         "cell": [
-          99,
-          149
+          113,
+          123
         ],
         "free": true,
         "instant": true
@@ -1119,10 +1119,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "coal_generator",
+        "kind": "watchtower",
         "cell": [
-          123,
-          149
+          121,
+          123
         ],
         "free": true,
         "instant": true
@@ -1133,10 +1133,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "turret_mount",
         "cell": [
-          131,
-          149
+          137,
+          123
         ],
         "free": true,
         "instant": true
@@ -1147,10 +1147,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "turret_mount",
+        "kind": "warmth_radiator",
         "cell": [
-          139,
-          149
+          145,
+          123
         ],
         "free": true,
         "instant": true
@@ -1161,10 +1161,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "coal_generator",
+        "kind": "housing_block",
         "cell": [
-          163,
-          149
+          153,
+          123
         ],
         "free": true,
         "instant": true
@@ -1175,10 +1175,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "coal_generator",
         "cell": [
-          91,
-          155
+          161,
+          123
         ],
         "free": true,
         "instant": true
@@ -1189,10 +1189,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "turret_mount",
+        "kind": "watchtower",
         "cell": [
-          99,
-          155
+          169,
+          123
         ],
         "free": true,
         "instant": true
@@ -1203,10 +1203,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "coal_generator",
+        "kind": "turret_mount",
         "cell": [
-          123,
-          155
+          89,
+          129
         ],
         "free": true,
         "instant": true
@@ -1217,10 +1217,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
+        "kind": "warmth_radiator",
         "cell": [
-          131,
-          155
+          97,
+          129
         ],
         "free": true,
         "instant": true
@@ -1231,10 +1231,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "turret_mount",
+        "kind": "housing_block",
         "cell": [
-          139,
-          155
+          105,
+          129
         ],
         "free": true,
         "instant": true
@@ -1247,8 +1247,8 @@
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          163,
-          155
+          113,
+          129
         ],
         "free": true,
         "instant": true
@@ -1258,15 +1258,25 @@
       "tick": 192,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "wall",
-        "from": [
-          82,
-          92
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          121,
+          129
         ],
-        "to": [
-          174,
-          92
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 194,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          137,
+          129
         ],
         "free": true,
         "instant": true
@@ -1276,15 +1286,25 @@
       "tick": 196,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "wall",
-        "from": [
-          82,
-          164
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          145,
+          129
         ],
-        "to": [
-          174,
-          164
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 198,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          153,
+          129
         ],
         "free": true,
         "instant": true
@@ -1294,6 +1314,826 @@
       "tick": 200,
       "cmd": {
         "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          161,
+          129
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 202,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          169,
+          129
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 204,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          89,
+          135
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 206,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          97,
+          135
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 208,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          105,
+          135
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 210,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          113,
+          135
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 212,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          121,
+          135
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 214,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          137,
+          135
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 216,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          145,
+          135
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 218,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          153,
+          135
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 220,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          161,
+          135
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 222,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          169,
+          135
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 224,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          89,
+          141
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 226,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          97,
+          141
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 228,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          105,
+          141
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 230,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          113,
+          141
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 232,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          121,
+          141
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 234,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          129,
+          141
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 236,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          137,
+          141
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 238,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          145,
+          141
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          153,
+          141
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 242,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          161,
+          141
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 244,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          169,
+          141
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 246,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          89,
+          147
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 248,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          97,
+          147
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 250,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          105,
+          147
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 252,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          113,
+          147
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 254,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          121,
+          147
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 256,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          129,
+          147
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 258,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          137,
+          147
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 260,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          145,
+          147
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 262,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          153,
+          147
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 264,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          161,
+          147
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 266,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          169,
+          147
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 268,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          89,
+          153
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 270,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          97,
+          153
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 272,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          105,
+          153
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 274,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          113,
+          153
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 276,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          121,
+          153
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 278,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          129,
+          153
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 280,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          137,
+          153
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 282,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          145,
+          153
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 284,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          153,
+          153
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 286,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          161,
+          153
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 288,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          169,
+          153
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 290,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          89,
+          159
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 292,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          97,
+          159
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 294,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          105,
+          159
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 296,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          113,
+          159
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 298,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          121,
+          159
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 300,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          129,
+          159
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 302,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          137,
+          159
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 304,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          145,
+          159
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 306,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          153,
+          159
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 308,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          161,
+          159
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 310,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          169,
+          159
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 312,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "wall",
+        "from": [
+          82,
+          92
+        ],
+        "to": [
+          174,
+          92
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 316,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "wall",
+        "from": [
+          82,
+          164
+        ],
+        "to": [
+          174,
+          164
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 320,
+      "cmd": {
+        "system": "build",
         "op": "place_line",
         "kind": "wall",
         "from": [
@@ -1309,7 +2149,7 @@
       }
     },
     {
-      "tick": 204,
+      "tick": 324,
       "cmd": {
         "system": "build",
         "op": "place_line",
@@ -1327,7 +2167,7 @@
       }
     },
     {
-      "tick": 218,
+      "tick": 338,
       "cmd": {
         "system": "grid",
         "op": "snowfall",
@@ -1335,7 +2175,7 @@
       }
     },
     {
-      "tick": 248,
+      "tick": 368,
       "cmd": {
         "system": "climate",
         "op": "skip_to_phase",
@@ -1343,7 +2183,7 @@
       }
     },
     {
-      "tick": 288,
+      "tick": 408,
       "cmd": {
         "system": "heat",
         "op": "dump"
