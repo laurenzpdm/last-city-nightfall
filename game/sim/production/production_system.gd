@@ -715,11 +715,11 @@ func _work_rate(m: ProdMachine, r: RecipeDef) -> float:
 	var floor_c: float = r.min_temperature_c if r != null else -30.0
 	m.cold = clampf((m.felt_c - floor_c) / COLD_BAND_C, 0.0, 1.0)
 
+	# A machine that asks the grid for nothing cannot be browned out by it,
+	# whatever its recipe costs — hand-work does not stop when the pipes do.
 	m.heat_factor = 1.0
 	if m.def.heat_rating <= 0.0:
-		# A machine that asks the grid for nothing cannot be browned out by it,
-		# whatever its recipe costs. Hand-work does not stop when the pipes do.
-		m.heat_factor = 1.0
+		pass
 	elif r != null and r.heat_cost > 0.0:
 		var need: float = r.heat_rate()
 		var have: float = m.def.heat_rating * m.power

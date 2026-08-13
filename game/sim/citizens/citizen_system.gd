@@ -91,7 +91,11 @@ var _heat: SimSystem = null
 var _grid: SimSystem = null
 var _build: SimSystem = null
 var _society: SimSystem = null
-var _stock: SimSystem = null
+## [P11]'s BuildStock: the city inventory, already a façade over whoever owns
+## the goods ([P03] logistics when it claims them). Production reads the same
+## object; two ledgers would mean a kitchen and a canteen disagreeing about the
+## last sack of grain.
+var _ledger: Object = null
 var _warmth: WarmthField = null
 var _has_phase: bool = false
 var _has_ambient: bool = false
@@ -100,7 +104,7 @@ var _has_snow: bool = false
 var _has_warmth_field: bool = false
 var _has_walkable: bool = false
 var _m_hope: String = ""
-var _m_stock_count: bool = false
+var _half_rations: bool = false
 
 # --- per-tick scratch --------------------------------------------------------
 var _phase: int = 1
@@ -153,6 +157,7 @@ func setup() -> void:
 	_meals_missed = 0
 	_accidents_total = 0
 	_sickness_total = 0
+	_half_rations = false
 	_obituary = []
 	_alerts = {}
 	_ctx = CitizenPool.Ctx.new()
@@ -174,18 +179,19 @@ func post_setup() -> void:
 	if _has_warmth_field:
 		_warmth = _heat.call("warmth_field")
 	_m_hope = _find_method(_society, ["citizen_morale_offset", "morale_offset", "hope"], 0)
-	for candidate: StringName in [&"logistics", &"production", &"economy", &"build"]:
-		var s: SimSystem = Sim.get_system(candidate)
-		if s != null and s.has_method("stock_count") and s.has_method("stock_take"):
-			_stock = s
-			_m_stock_count = true
-			break
+	_ledger = null
+	if _build != null:
+		var ledger: Variant = _build.get("stock")
+		if ledger is Object and (ledger as Object).has_method("count"):
+			_ledger = ledger
 	board.bind(_build, _heat, _grid)
 	router.bind(_grid)
 	_found_population()
 	Log.info(TAG, "ready — %d founders, climate=%s heat=%s grid=%s build=%s pathing=%s" % [
 		pool.population(), str(_climate != null), str(_heat != null), str(_grid != null),
 		str(_build != null), "grid" if router.has_grid() else "straight-line"])
+	Log.info(TAG, "food comes from %s plus a %d unit larder" % [
+		"the city stores" if _ledger != null else "nowhere but", int(_larder)])
 
 
 ## The founding group: whoever walked out of the last city alive. Rolled from
@@ -421,6 +427,23 @@ func _resolve_pending(tick: int) -> void:
 func _serve_meals(tick: int) -> void:
 	var wanting: PackedInt32Array = pool.pending_meals
 	var per_meal: float = 1.0 / (1.0 + CitizenDefs.KITCHEN_EFFICIENCY * board.kitchen_factor)
+	var relief: float = CitizenDefs.HUNGER_MEAL_RELIEF
+	# Half rations: when the stores drop under half a day, every meal is cut in
+	# two. The food lasts twice as long and the city limps instead of falling
+	# off a cliff — which is the whole point of a ration in the first place.
+	var lean: bool = food_units() < float(pool.population()) * CitizenDefs.LEAN_DAYS_TRIGGER
+	if lean != _half_rations:
+		_half_rations = lean
+		if lean:
+			_alert(&"citizens_half_rations", 1,
+				"The stores are nearly out. The city goes on half rations.", _shelter_pos(), tick)
+			Log.info(TAG, "half rations declared (%.0f units left, %d mouths)" % [
+				food_units(), pool.population()])
+		else:
+			Log.info(TAG, "full rations restored")
+	if lean:
+		per_meal *= CitizenDefs.LEAN_RATION
+		relief *= CitizenDefs.LEAN_RATION
 	var served: int = 0
 	var missed: int = 0
 	for i: int in wanting.size():
@@ -430,7 +453,7 @@ func _serve_meals(tick: int) -> void:
 		if not _take_food(per_meal):
 			missed += 1
 			continue
-		pool.hunger[s] = maxf(0.0, pool.hunger[s] - CitizenDefs.HUNGER_MEAL_RELIEF)
+		pool.hunger[s] = maxf(0.0, pool.hunger[s] - relief)
 		pool.eat_until[s] = tick + CitizenDefs.EAT_TICKS
 		pool.set_state(s, CitizenDefs.State.EATING, tick)
 		served += 1
@@ -442,26 +465,48 @@ func _serve_meals(tick: int) -> void:
 			_shelter_pos(), tick)
 
 
-## Draws one meal's worth of food, from the city stock first and the founders'
+## Draws one meal's worth of food, from the city stores first and the founders'
 ## larder second. Returns false when there is nothing left anywhere.
+##
+## Meals cost a FRACTION of a unit — a staffed kitchen stretches a sack of grain
+## further, half rations halve it again — so the fractional remainder is carried
+## in `_meal_debt` and only whole units are ever withdrawn. The empty-store check
+## has to come first even when no whole unit is due this meal, or a starving city
+## serves free dinners until the rounding catches up.
 func _take_food(amount: float) -> bool:
-	_meal_debt += amount
-	while _meal_debt >= 1.0:
-		if not _withdraw_food_unit():
-			_meal_debt -= amount
+	var pending: float = _meal_debt + amount
+	if pending < 1.0:
+		if not _has_food():
 			return false
-		_meal_debt -= 1.0
+		_meal_debt = pending
+		return true
+	var units: int = int(pending)
+	for i: int in units:
+		if not _withdraw_food_unit():
+			return false          # nothing withdrawn, nothing owed, nobody fed
+	_meal_debt = pending - float(units)
 	return true
 
 
-func _withdraw_food_unit() -> bool:
-	if _stock != null:
+func _has_food() -> bool:
+	if _larder >= 1.0:
+		return true
+	if _ledger != null:
 		for item: StringName in CitizenDefs.FOOD_ITEMS:
-			if int(_stock.call("stock_count", item)) > 0:
-				var one: Dictionary = {}
-				one[String(item)] = 1
-				if bool(_stock.call("stock_take", one)):
-					return true
+			if int(_ledger.call("count", item)) > 0:
+				return true
+	return false
+
+
+func _withdraw_food_unit() -> bool:
+	if _ledger != null:
+		for item: StringName in CitizenDefs.FOOD_ITEMS:
+			if int(_ledger.call("count", item)) <= 0:
+				continue
+			var one: Dictionary[StringName, int] = {}
+			one[item] = 1
+			if bool(_ledger.call("take", one)):
+				return true
 	if _larder >= 1.0:
 		_larder -= 1.0
 		return true
@@ -957,10 +1002,15 @@ func last_deaths() -> PackedInt32Array:
 ## Food units the city can still serve, stock plus the founders' larder.
 func food_units() -> float:
 	var total: float = _larder
-	if _stock != null:
+	if _ledger != null:
 		for item: StringName in CitizenDefs.FOOD_ITEMS:
-			total += float(_stock.call("stock_count", item))
+			total += float(_ledger.call("count", item))
 	return total
+
+
+## True while every meal is cut in half to make the stores last.
+func on_half_rations() -> bool:
+	return _half_rations
 
 
 ## How many days the city eats for at the current population. The single number
@@ -1128,6 +1178,7 @@ func report() -> Dictionary:
 		"jobs_required": board.total_required,
 		"care_capacity": board.care_capacity,
 		"shift_law": String(_shift_law),
+		"half_rations": _half_rations,
 		"unrest": unrest_pressure(),
 	}
 

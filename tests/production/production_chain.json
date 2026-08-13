@@ -1,0 +1,55 @@
+{
+  "name": "production_chain",
+  "description": "[P04]'s demo run. A whole factory instead of the two machines first_night happens to place: three smelters (iron, copper, steel), two workshops (gears and the slag-fed insulation line), an assembly hall on ammunition, a rubble sorter, a recuperator standing between two of the three smelters, and two ore drills out on real seams with their own generators. Read artifacts/<out>/state.json under systems.production: every machine carries a recipe, a rate, the four factors behind that rate, and a written reason when it stops. The recuperator is DELIBERATELY out of reach of the third smelter, so waste_recovered and waste_vented are both non-zero and layout is visibly worth something. [P05]'s labour market is switched off for this run only (op set_staffing_autarky) so what is being read is the chain and not the shift roster; first_night is the run that shows staffing for real.",
+  "tags": ["reference", "balance"],
+  "seed": 7,
+  "ticks": 9000,
+  "sample_every": 20,
+  "expects": {
+    "max_errors": 0,
+    "min_ticks_per_second": 150
+  },
+  "script": [
+    {"tick": 1, "cmd": {"system": "production", "op": "set_staffing_autarky", "on": true}},
+    {"tick": 1, "cmd": {"system": "build", "op": "add_stock", "items": {
+      "iron_plate": 3000, "steel_plate": 1200, "stone": 2000, "timber": 2000,
+      "scrap": 4000, "gear": 600, "copper_coil": 600, "coal": 4000,
+      "iron_ore": 3000, "copper_ore": 1500, "sulfur": 1200
+    }}},
+    {"tick": 2, "cmd": {"system": "build", "op": "grant_unlock", "unlock": "electrotechnics"}},
+    {"tick": 2, "cmd": {"system": "build", "op": "grant_unlock", "unlock": "thermal_assembly"}},
+    {"tick": 2, "cmd": {"system": "build", "op": "grant_unlock", "unlock": "thermal_storage"}},
+
+    {"tick": 3, "cmd": {"system": "build", "op": "place", "kind": "the_hearth", "cell": [127, 126], "free": true, "instant": true}},
+    {"tick": 4, "cmd": {"system": "build", "op": "place_line", "kind": "heat_pipe", "from": [132, 128], "to": [153, 128], "free": true, "instant": true}},
+
+    {"tick": 6, "cmd": {"system": "build", "op": "place", "kind": "smelter", "cell": [132, 129], "free": true, "instant": true, "meta": {"recipe": "iron_plate"}}},
+    {"tick": 7, "cmd": {"system": "build", "op": "place", "kind": "smelter", "cell": [136, 129], "free": true, "instant": true, "meta": {"recipe": "copper_coil"}}},
+    {"tick": 8, "cmd": {"system": "build", "op": "place", "kind": "recuperator", "cell": [140, 129], "free": true, "instant": true}},
+    {"tick": 9, "cmd": {"system": "build", "op": "place", "kind": "smelter", "cell": [143, 129], "free": true, "instant": true, "meta": {"recipe": "steel_plate"}}},
+
+    {"tick": 12, "cmd": {"system": "build", "op": "place", "kind": "workshop", "cell": [132, 125], "free": true, "instant": true, "meta": {"recipe": "gear"}}},
+    {"tick": 13, "cmd": {"system": "build", "op": "place", "kind": "workshop", "cell": [137, 125], "free": true, "instant": true, "meta": {"recipe": "insulation"}}},
+    {"tick": 14, "cmd": {"system": "build", "op": "place", "kind": "assembly_hall", "cell": [142, 124], "free": true, "instant": true, "meta": {"recipe": "ammo_shell"}}},
+    {"tick": 15, "cmd": {"system": "build", "op": "place", "kind": "rubble_sorter", "cell": [147, 126], "free": true, "instant": true, "meta": {"recipe": "sorted_rubble"}}},
+
+    {"tick": 18, "cmd": {"system": "build", "op": "place", "kind": "housing_block", "cell": [147, 129], "free": true, "instant": true}},
+    {"tick": 19, "cmd": {"system": "build", "op": "place", "kind": "housing_block", "cell": [151, 129], "free": true, "instant": true}},
+
+    {"tick": 24, "cmd": {"system": "build", "op": "place", "kind": "coal_generator", "cell": [166, 131], "free": true, "instant": true}},
+    {"tick": 25, "cmd": {"system": "build", "op": "place", "kind": "heat_pipe", "cell": [165, 132], "free": true, "instant": true}},
+    {"tick": 26, "cmd": {"system": "build", "op": "place", "kind": "ore_drill", "cell": [162, 131], "free": true, "instant": true}},
+
+    {"tick": 30, "cmd": {"system": "build", "op": "place", "kind": "coal_generator", "cell": [128, 98], "free": true, "instant": true}},
+    {"tick": 31, "cmd": {"system": "build", "op": "place", "kind": "heat_pipe", "cell": [127, 99], "free": true, "instant": true}},
+    {"tick": 32, "cmd": {"system": "build", "op": "place", "kind": "ore_drill", "cell": [124, 98], "free": true, "instant": true}},
+
+    {"tick": 60, "cmd": {"system": "production", "op": "ratios"}},
+    {"tick": 2000, "cmd": {"system": "production", "op": "dump"}},
+    {"tick": 4500, "cmd": {"system": "production", "op": "dump"}},
+    {"tick": 4600, "cmd": {"system": "production", "op": "set_recipe", "cell": [137, 125], "recipe": "circuit"}},
+    {"tick": 7000, "cmd": {"system": "production", "op": "set_recipe", "cell": [137, 125], "recipe": "insulation"}},
+    {"tick": 8990, "cmd": {"system": "production", "op": "dump"}},
+    {"tick": 8995, "cmd": {"system": "heat", "op": "dump"}}
+  ]
+}

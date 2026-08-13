@@ -332,6 +332,9 @@ const STARTING_LARDER: float = 220.0
 const FOOD_ITEMS: Array[StringName] = [&"ration", &"grain"]
 ## A staffed kitchen stretches a ration this much further.
 const KITCHEN_EFFICIENCY: float = 0.55
+## Days of food left before the city cuts every meal in half, and by how much.
+const LEAN_DAYS_TRIGGER: float = 1.0
+const LEAN_RATION: float = 0.5
 
 # ==========================================================================
 #  scheduling — the perf contract

@@ -91,6 +91,9 @@ var _burner_scan_tick: int = -100000
 ## True while there is nowhere in the world an item could come from. See
 ## _has_any_source: this is the counterpart of [P02]'s fuel autarky.
 var _bootstrap_logged: bool = false
+## True while the simulation itself is running, so a view-side read can never
+## mutate the world. See _ensure_adopted.
+var _in_sim: bool = false
 var _placed_total: int = 0
 var _removed_total: int = 0
 var _fuel_short: int = 0
@@ -182,6 +185,7 @@ func _load_content() -> void:
 
 func step(tick: int) -> void:
 	var t0: int = Time.get_ticks_usec()  # lint:allow profiling only; never serialized
+	_in_sim = true
 	_tick = tick
 	haul.begin_tick(tick, _crew())
 	_sync_from_build()
@@ -193,6 +197,7 @@ func step(tick: int) -> void:
 	if tick % REQUEST_EVERY == 0:
 		_serve_requests()
 
+	_in_sim = false
 	var us: int = Time.get_ticks_usec() - t0  # lint:allow profiling only
 	_perf_us += us
 	_perf_max_us = maxi(_perf_max_us, us)
@@ -603,6 +608,7 @@ func request_fuel(building_id: int, item: StringName, amount: float) -> float:
 	if not _has_any_source():
 		_bootstrap_note()
 		return float(want)
+	_ensure_adopted(building_id)
 	var cell: Vector2i = world.store_origin.get(building_id, _cell_of(building_id))
 	var got: int = haul.serve(world, _stock(), building_id, cell, item, want)
 	haul.fuel_total += got
@@ -616,11 +622,12 @@ func request_items(building_id: int, item: StringName, amount: int) -> int:
 	haul.begin_tick(SimClock.tick, _crew())
 	if amount <= 0:
 		return 0
+	_ensure_adopted(building_id)
 	var cell: Vector2i = world.store_origin.get(building_id, _cell_of(building_id))
 	var got: int = haul.serve(world, _stock(), building_id, cell, item, amount)
 	if got <= 0:
 		return 0
-	var st: LogiStore = world.stores.get(building_id)
+	var st: LogiStore = store_of(building_id)
 	if st == null:
 		return got
 	var placed: int = st.insert(item, got)
@@ -632,12 +639,30 @@ func request_items(building_id: int, item: StringName, amount: int) -> int:
 ## A building's own item buffer, or null. [P04] production reads and writes this
 ## one object rather than inventing a second inventory.
 func store_of(building_id: int) -> LogiStore:
+	_ensure_adopted(building_id)
 	return world.stores.get(building_id)
+
+
+## The sweep of [P11]'s buildings runs twice a second, not every tick, because
+## walking seventeen hundred of them to find one new chest is most of what this
+## system would cost. Anybody who ASKS about a building gets it adopted right
+## then, so the delay is never visible through the API — only to the sweep.
+func _ensure_adopted(building_id: int) -> void:
+	# ONLY inside the simulation. A read from the view layer must never be able
+	# to change when a building joins the logistics world, or a rendered run
+	# would drift away from the headless replay of the same seed — which is the
+	# one property this project refuses to lose.
+	if not _in_sim or building_id < 0 or _adopted.has(building_id) or _not_ours.has(building_id):
+		return
+	var b: Object = _building(building_id)
+	if b == null or not b.has_method("is_complete") or not bool(b.call("is_complete")):
+		return
+	_adopt(b, building_id)
 
 
 ## Puts what a machine produced into its own buffer. Returns what fit.
 func deposit(building_id: int, item: StringName, amount: int) -> int:
-	var st: LogiStore = world.stores.get(building_id)
+	var st: LogiStore = store_of(building_id)
 	if st == null:
 		return 0
 	var n: int = st.insert(item, amount)
@@ -648,14 +673,14 @@ func deposit(building_id: int, item: StringName, amount: int) -> int:
 
 ## Takes ingredients out of a machine's buffer. Returns what was there.
 func withdraw(building_id: int, item: StringName, amount: int) -> int:
-	var st: LogiStore = world.stores.get(building_id)
+	var st: LogiStore = store_of(building_id)
 	return 0 if st == null else st.take(item, amount)
 
 
 ## What a building is holding, item id -> count.
 func contents_of(building_id: int) -> Dictionary[StringName, int]:
 	var out: Dictionary[StringName, int] = {}
-	var st: LogiStore = world.stores.get(building_id)
+	var st: LogiStore = store_of(building_id)
 	if st == null:
 		return out
 	for k: StringName in st.kinds():
@@ -665,7 +690,7 @@ func contents_of(building_id: int) -> Dictionary[StringName, int]:
 
 ## Asks the city to keep `amount` of `item` in this building.
 func set_request(building_id: int, item: StringName, amount: int) -> bool:
-	var st: LogiStore = world.stores.get(building_id)
+	var st: LogiStore = store_of(building_id)
 	if st == null:
 		return false
 	st.set_request(item, amount)
@@ -896,6 +921,7 @@ func _cell_of(building_id: int) -> Vector2i:
 # =========================================================================
 
 func handle_command(cmd: Dictionary) -> void:
+	_in_sim = true
 	var op: String = String(cmd.get("op", ""))
 	match op:
 		"place":
@@ -930,6 +956,7 @@ func handle_command(cmd: Dictionary) -> void:
 			_dump()
 		_:
 			Log.warn("logistics", "unknown command op '%s'" % op)
+	_in_sim = false
 
 
 func _target(cmd: Dictionary) -> LogiEntity:
