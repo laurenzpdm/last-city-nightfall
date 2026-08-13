@@ -128,13 +128,17 @@ func _ready() -> void:
 		harness.connect(&"finished", _on_harness_finished)
 	if harness != null and bool(harness.get("active")) and bool(harness.get("visual")):
 		# A visual harness run pushes eleven thousand ticks through about fourteen
-		# frames, so a per-frame bake budget bakes one stream and the artifact
-		# reports a silent game — which would be a lie about the build rather than
-		# a fact about it. The run is not real time and nobody is listening to it,
-		# so it pays for the whole catalogue up front and the audio.json next to
-		# the screenshots describes a mix that actually exists.
-		bank.eager_budget_usec = 250_000
-		bank.budget_usec = 250_000
+		# frames, so a per-frame bake budget bakes ONE stream and the artifact
+		# next to the screenshots reports a silent game — a lie about the build
+		# rather than a fact about it. The run is not real time and nobody is
+		# listening to it, so it pays for the catalogue in one go, here, before
+		# the first tick. Concentrated on purpose: spread across the frames it
+		# would put a quarter-second spike inside the shot timing instead.
+		var t0: int = Time.get_ticks_usec()
+		while not bank.finished():
+			bank.pump(1 << 20)
+		Log.info("audio", "harness run: whole catalogue baked up front in %d ms" % [
+			(Time.get_ticks_usec() - t0) / 1000])
 	Log.info("audio", "installed: %d buses, %d/%d streams baked in %.0f ms, %d voice slots" % [
 		AudioServer.bus_count, bank.ready_count(),
 		bank.ready_count() + bank.pending_count(),
