@@ -178,6 +178,15 @@ func count_bus_signals(names: PackedStringArray, action: Callable) -> Dictionary
 static func replay_diff(world_seed: int, ticks: int, script_by_tick: Dictionary = {}, limit: int = 20) -> PackedStringArray:
 	var a: Dictionary = replay(world_seed, ticks, script_by_tick)
 	var b: Dictionary = replay(world_seed, ticks, script_by_tick)
+	# An empty diff is the project's hardest claim, so it must never be reachable
+	# by producing nothing. If the world failed to start, both replays are {} and
+	# every assert_empty(diff) downstream would go green on a broken build.
+	if a.is_empty() or b.is_empty():
+		return PackedStringArray([
+			"replay produced no state at all — the world failed to start, so this "
+			+ "run proves nothing about determinism"])
+	if not a.has("systems") or (a["systems"] as Dictionary).is_empty():
+		return PackedStringArray(["replay produced a world with no systems in it"])
 	return JsonCanon.diff(a, b, PackedStringArray(), limit)
 
 

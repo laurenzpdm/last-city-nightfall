@@ -111,10 +111,28 @@ if [ -n "$STANDALONE" ]; then
     [ -z "$suite" ] && continue
     rel="${suite#res://}"
     log="$LOGDIR/standalone_$(echo "$rel" | tr '/' '_').log"
-    "$GODOT" --headless --path "$ROOT" --script "$rel" > "$log" 2>&1
+    # A .tscn is run AS A SCENE. Godot compiles a --script file before it
+    # registers the autoloads, so a Node-based suite launched that way dies on
+    # `Identifier not found: Log`, prints nothing and exits 0 — which is exactly
+    # how 371 build assertions were reported green while never executing.
+    if [ "${rel##*.}" = "tscn" ]; then
+      "$GODOT" --headless --path "$ROOT" "res://$rel" > "$log" 2>&1
+    else
+      "$GODOT" --headless --path "$ROOT" --script "$rel" > "$log" 2>&1
+    fi
     code=$?
-    grep -q "TESTS FAILED" "$log" && code=1
-    record "$rel" "$log" "$code"
+    note=""
+    if grep -q "TESTS FAILED" "$log"; then
+      code=1
+      note="$(grep -m1 -oE '[0-9]+ (passed|checks).*' "$log" || true)"
+    elif ! grep -q "TESTS PASSED" "$log"; then
+      # No verdict at all means the suite never ran. Silence is not success.
+      code=1
+      note="printed no TESTS PASSED / TESTS FAILED verdict — did it run at all?"
+    else
+      note="$(grep -m1 -oE '[0-9]+ (passed|checks)[^,]*' "$log" || true)"
+    fi
+    record "$rel" "$log" "$code" "$note"
   done <<< "$STANDALONE"
 fi
 
