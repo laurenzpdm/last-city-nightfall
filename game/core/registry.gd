@@ -39,7 +39,18 @@ func _scan_category(category: String, path: String) -> void:
 		return
 	for sub: String in dir.get_directories():
 		_scan_category(category, "%s/%s" % [path, sub])
-	for f: String in dir.get_files():
+	for raw: String in dir.get_files():
+		# AN EXPORTED BUILD HAS NO .tres ON DISK, and this loop threw all 226
+		# items away because of it. The exporter rewrites every text resource to
+		# binary under `.godot/exported/` and leaves a `<name>.tres.remap` at the
+		# original path. `load()` follows that remap perfectly well — but
+		# `get_files()` reports `hearth.tres.remap`, the extension test below
+		# refused it, and `dist/linux/last-city-nightfall.x86_64` came up with
+		# `loaded 0 items across 20 categories`: no buildings, no recipes, no
+		# enemies, no laws, and none of the `*_bootstrap.tres` that install the
+		# view. Every suite in this repo runs from source, so nothing here could
+		# ever have seen it; it was found by running the shipped binary.
+		var f: String = raw.get_basename() if raw.ends_with(".remap") else raw
 		if not (f.ends_with(".tres") or f.ends_with(".res")):
 			continue
 		var full: String = "%s/%s" % [path, f]
