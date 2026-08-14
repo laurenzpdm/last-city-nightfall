@@ -1481,6 +1481,20 @@ func deserialize(data: Dictionary) -> void:
 		world.entity_ids.size(), world.segment_ids.size()])
 
 
+## Named series for metrics.csv, the gate contract and [P20]. Counters are
+## cumulative for the run; levels describe this instant.
+##
+## `items_moved` is CUMULATIVE, and that is the whole point of it. It used to
+## publish [member LogiWorld.items_moved], which [method LogiWorld.step] zeroes
+## at the top of every tick — so the series was a one-tick delta wearing the name
+## of a counter. Everything downstream reads it as a total: the gate bands it
+## `final_min 1` ("a reference day in which the pillar moves not one item"),
+## [P20] declares it `Kind.COUNTER` and the night report takes a `_delta()` of
+## two samples of it. A one-tick delta makes all three lie — the band asks
+## whether an item happened to move on tick 11000 exactly, and a healthy belt
+## that is momentarily backed up answers no. The instantaneous reading anyone
+## wants is `throughput`; the raw per-tick count is still here as
+## `items_moved_tick` for anything that genuinely needs the delta.
 func metrics() -> Dictionary:
 	return {
 		"items_on_belts": world.items_on_belts(),
@@ -1492,7 +1506,8 @@ func metrics() -> Dictionary:
 		"stored_items": world.stored_units(),
 		"stores": world.stores.size(),
 		"idle_arms": world.idle_arms(),
-		"items_moved": world.items_moved,
+		"items_moved": _items_moved_total,
+		"items_moved_tick": world.items_moved,
 		"items_moved_total": _items_moved_total,
 		"hauled_total": haul.hauled_total,
 		"fuel_by_porter": haul.fuel_total,

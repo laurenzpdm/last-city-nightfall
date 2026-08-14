@@ -740,3 +740,28 @@ func test_the_system_reports_what_a_critic_would_want_to_read() -> void:
 	var state: Dictionary = logi.serialize()
 	assert_has(state, "lines", "state.json carries the transport lines")
 	assert_eq((state["lines"] as Array).size(), 1, "one line, because that is what was built")
+
+
+## The gate bands `logistics.items_moved` with `final_min 1` and reads the LAST
+## row of metrics.csv. It used to publish a counter LogiWorld.step() zeroes every
+## tick, so the band asked whether an item happened to move on the final tick and
+## a full, correctly backed-up belt answered no. Pin the meaning: a counter
+## counts up and never forgets.
+func test_items_moved_is_a_counter_not_a_one_tick_delta() -> void:
+	world.cmd_now({"system": &"logistics", "op": "place", "kind": "crate",
+		"cell": [O.x + 10, O.y], "free": true})
+	_line("belt_mk1", O, O + Vector2i(9, 0))
+	_run_saturated(O, 300)
+	var moved: int = int(logi.metrics()["items_moved"])
+	assert_gt(float(moved), 0.0, "a running belt has delivered something")
+	assert_eq(moved, int(logi.metrics()["items_moved_total"]),
+		"items_moved is the run total, which is what its name and every reader promise")
+
+	# Now let it go quiet: nothing hands off on the final tick, which is the
+	# exact state the gate's final_min band used to read as "moved nothing".
+	world.run(400)
+	assert_eq(int(logi.world.items_moved), 0, "the belt is stationary this tick")
+	assert_ge(float(logi.metrics()["items_moved"]), float(moved),
+		"a stalled belt never un-moves the items it already carried")
+	assert_eq(int(logi.metrics()["items_moved_tick"]), 0,
+		"the per-tick delta is still published, under a name that says so")
