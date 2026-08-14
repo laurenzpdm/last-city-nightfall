@@ -1,7 +1,7 @@
 {
  "round": 4,
  "phase": "D \u2014 Integrate, play, judge",
- "state": "D7 died mid-task: it waited on a background task the container restart had removed, and an unbounded wait never returns. Its work was salvaged in three snapshots taken only while it was idle and only after PARSE OK, and handed to the integrator as explicitly unfinished \u2014 its own 120-check layout audit still reports 12 real failures. Six builders cached. The integrator is now running alone, which makes it the first trustworthy perf measurement of the wave.",
+ "state": "The integrator is closing the seams no single part could see. First find: D3s tutorial and the modal stack had both claimed canvas layer 80 \u2014 split to 79 and 80, and a new tools/layer_probe.gd was added so the CLASS of collision is detectable rather than just this instance. It is now working through the test that asserts nothing and the allowlist ratchet D5 asked for.",
  "agents_live": 1,
  "critic_score": 4.2,
  "blind_wins": 0,
