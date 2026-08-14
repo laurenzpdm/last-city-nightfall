@@ -218,10 +218,16 @@ if [ -n "$STANDALONE" ]; then
     # how 371 build assertions were reported green while never executing.
     # A suite that never exits is worse than one that fails: without this the
     # gate blocks forever and every other agent's check.sh queues behind it.
+    # `${a[@]+"${a[@]}"}`, not `"${a[@]}"`: this script runs under `set -u`, and
+    # the gate's own macOS job runs on bash 3.2, where expanding an EMPTY array
+    # is an unbound-variable error that aborts the whole run. Every suite without
+    # a REQUIRES line has an empty array.
     if [ "${rel##*.}" = "tscn" ]; then
-      $TIMEOUT "$GODOT" --headless --path "$ROOT" "res://$rel" -- "${SUITE_ARGS[@]}" > "$log" 2>&1
+      $TIMEOUT "$GODOT" --headless --path "$ROOT" "res://$rel" \
+          -- ${SUITE_ARGS[@]+"${SUITE_ARGS[@]}"} > "$log" 2>&1
     else
-      $TIMEOUT "$GODOT" --headless --path "$ROOT" --script "$rel" -- "${SUITE_ARGS[@]}" > "$log" 2>&1
+      $TIMEOUT "$GODOT" --headless --path "$ROOT" --script "$rel" \
+          -- ${SUITE_ARGS[@]+"${SUITE_ARGS[@]}"} > "$log" 2>&1
     fi
     code=$?
     note=""
