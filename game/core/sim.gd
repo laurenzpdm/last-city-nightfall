@@ -45,6 +45,22 @@ var _prof_cmd_us: int = 0
 var _prof_total_us: int = 0
 
 
+## Quitting is a teardown too.
+##
+## Nothing used to destroy the world on the way out — `create_world` tears down
+## the PREVIOUS world, so a process that builds one world and then exits never
+## calls teardown at all. The engine frees this autoload, its `systems` array
+## goes with it, and the eleven systems keep each other alive anyway (see
+## `_release_world`), so every run ended with the whole world resident and Godot
+## reported it: 813 ObjectDB instances and 269 resources still in use, on every
+## quit, allowlisted since nobody had chased them down.
+##
+## The players' version of that report is a Steam build that leaks a world every
+## time it is closed. This is the line that stops it.
+func _exit_tree() -> void:
+	teardown()
+
+
 ## Creates a fresh world. Everything before this point is inert.
 func create_world(world_seed: int) -> void:
 	teardown()
@@ -101,11 +117,122 @@ func _sort_by_order() -> void:
 		return String(a.system_name()) < String(b.system_name()))
 
 
+## Destroys the world. Called before every create_world, and it has to actually
+## destroy it — see _release_world for why clearing the array is not enough.
 func teardown() -> void:
+	var departing: Array[SimSystem] = systems.duplicate()
 	systems.clear()
 	by_name.clear()
 	_commands.clear()
 	alive = false
+	if departing.is_empty():
+		return
+	for s: SimSystem in departing:
+		s.teardown()
+	_release_world(departing)
+
+
+## Breaks the reference cycle between sim systems so the old world can be freed.
+##
+## Every system holds its neighbours: heat points at build, build points at
+## citizens, citizens point back at heat, and their helper objects point at
+## systems too (`CitizenRouter._grid`, `CitizenJobBoard._build`). A SimSystem is
+## RefCounted and GDScript has no cycle collector, so that ring keeps itself
+## alive for the life of the process no matter what this array does.
+##
+## Measured before this existed, with three worlds built and torn down in one
+## process: 2030 objects at rest, 2333 after the first world, and 2287 · 2471 ·
+## 2655 after each teardown — every world ever created still resident, plus the
+## content Resources its definition tables held. That is ~184 objects and a
+## quarter of the registry per load of a save game, which is why an at-exit
+## number in the hundreds was never the whole story: the count grows while the
+## game is running.
+##
+## The walk visits every plain RefCounted reachable from a departing system and
+## nulls any property pointing back INTO the departing set. It deliberately does
+## not follow Resources or Nodes: a content definition is shared with Registry and
+## outlives the world, and a Node is somebody else's tree. Each system's own data
+## is left alone — once nothing points at a system, its own objects fall with it.
+##
+## Parts that would rather do this themselves override `SimSystem.teardown()`,
+## which runs first; this is the net underneath, and it is what makes a part that
+## has not thought about teardown harmless rather than a leak.
+func _release_world(departing: Array[SimSystem]) -> void:
+	var doomed: Dictionary[int, bool] = {}
+	for s: SimSystem in departing:
+		doomed[s.get_instance_id()] = true
+	var seen: Dictionary[int, bool] = {}
+	var frontier: Array[Object] = []
+	for s: SimSystem in departing:
+		frontier.append(s)
+	while not frontier.is_empty():
+		var owner_obj: Object = frontier.pop_back()
+		if owner_obj == null or not is_instance_valid(owner_obj):
+			continue
+		var id: int = owner_obj.get_instance_id()
+		if seen.has(id):
+			continue
+		seen[id] = true
+		for p: Dictionary in owner_obj.get_property_list():
+			if int(p.get("usage", 0)) & PROPERTY_USAGE_SCRIPT_VARIABLE == 0:
+				continue
+			var name: String = String(p.get("name", ""))
+			var value: Variant = owner_obj.get(name)
+			if value is Array:
+				_release_array(value, doomed, frontier)
+				continue
+			if value is Dictionary:
+				_release_dict(value, doomed, frontier)
+				continue
+			if not (value is Object):
+				continue
+			var target: Object = value
+			if target == null or not is_instance_valid(target):
+				continue
+			if doomed.has(target.get_instance_id()):
+				owner_obj.set(name, null)
+			elif _is_plain_ref(target):
+				frontier.append(target)
+
+
+## A system reference can also sit in a list — a roster of neighbours, a pending
+## queue. Nulling the slot is enough: the world it belonged to is already gone.
+func _release_array(arr: Array, doomed: Dictionary[int, bool], frontier: Array[Object]) -> void:
+	for i: int in arr.size():
+		var v: Variant = arr[i]
+		if not (v is Object):
+			continue
+		var target: Object = v
+		if target == null or not is_instance_valid(target):
+			continue
+		if doomed.has(target.get_instance_id()):
+			arr[i] = null
+		elif _is_plain_ref(target):
+			frontier.append(target)
+
+
+func _release_dict(d: Dictionary, doomed: Dictionary[int, bool], frontier: Array[Object]) -> void:
+	# Keys sorted for the same reason every other iteration here is: two runs of
+	# the same teardown must do the same things in the same order.
+	var keys: Array = d.keys()
+	keys.sort()
+	for k: Variant in keys:
+		var v: Variant = d[k]
+		if not (v is Object):
+			continue
+		var target: Object = v
+		if target == null or not is_instance_valid(target):
+			continue
+		if doomed.has(target.get_instance_id()):
+			d[k] = null
+		elif _is_plain_ref(target):
+			frontier.append(target)
+
+
+## Worth walking into: a part's own helper object. NOT a Resource (Registry owns
+## those and they outlive the world) and NOT a Node (somebody else's tree).
+func _is_plain_ref(o: Object) -> bool:
+	return o is RefCounted and not (o is Resource)
 
 
 ## Typed accessor. `Sim.get_system(&"heat")` — returns null if the part is absent,
