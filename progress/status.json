@@ -1,7 +1,7 @@
 {
  "round": 4,
- "phase": "D \u2014 The look, the belts, the tutorial, the meta",
- "state": "Six of seven builders done; D7 alone on screen composition. The gate now says whether a red stage is real: camera rotate hotkey [reproducible: 3 of 3 reads], feel_perf and vfx_gpu FLAPPING (2 of 3, labelled not-a-regression), perf as median plus range plus spread. The first_night contract band is green for the first time on this branch, without a threshold being relaxed.",
+ "phase": "D \u2014 Integrate, play, judge",
+ "state": "The container restarted and killed the workflow mid-flight. Nothing was lost: the run journal survived with all six builder results cached, D7s uncommitted work still parsed (422 scripts, PARSE OK) and was preserved as explicitly half-built. D7 is re-running; then the integrator measures alone, a fresh agent plays the whole game, and two critics judge it blind against Factorio and Frostpunk.",
  "agents_live": 1,
  "critic_score": 4.2,
  "blind_wins": 0,
