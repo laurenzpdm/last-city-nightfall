@@ -1,7 +1,7 @@
 {
  "round": 4,
  "phase": "D \u2014 Integrate, play, judge",
- "state": "The integrator is closing the seams no single part could see. First find: D3s tutorial and the modal stack had both claimed canvas layer 80 \u2014 split to 79 and 80, and a new tools/layer_probe.gd was added so the CLASS of collision is detectable rather than just this instance. It is now working through the test that asserts nothing and the allowlist ratchet D5 asked for.",
+ "state": "The integrator found a shipping blocker no test could see: Godots exporter leaves a .tres.remap where the .tres was, so the Registrys directory scan refused all 226 content items. The exported build started, made a world, installed the view, and contained no buildings, no recipes, no enemies, no laws. Fixed and now guarded by an export that refuses to exit 0 until the count is real. Also closed: the camera hotkey seam, the test that asserted nothing, and a canvas layer two parts had both claimed \u2014 which took D7s layout audit from 12 failures to none.",
  "agents_live": 1,
  "critic_score": 4.2,
  "blind_wins": 0,
@@ -210,7 +210,7 @@
  },
  "gate": {
   "label": "Gate (macOS CI)",
-  "value": "RED \u2014 6",
-  "note": "12 of them D7s own audit, unfinished by design"
+  "value": "RED \u2014 4",
+  "note": "shipping blocker fixed since; tutorial regressed on the layer move"
  }
 }
