@@ -91,8 +91,13 @@ func _process(_delta: float) -> void:
 	else:
 		card_rect = Rect2(_panel.global_position, _panel.size)
 	if _ticker != null and ticker_slot.size.x > 1.0:
-		_ticker.position = ticker_slot.position
-		_ticker.size = ticker_slot.size
+		# Zero reserved height means the card reached the stage floor and there is
+		# nowhere for flavour to go. Hiding it is the honest outcome: the
+		# alternative is prose printed over a question.
+		_ticker.visible = ticker_slot.size.y > 1.0
+		if _ticker.visible:
+			_ticker.position = ticker_slot.position
+			_ticker.size = ticker_slot.size
 
 
 ## Re-acquires the presenter whenever it is missing. Cheap: a group lookup and,

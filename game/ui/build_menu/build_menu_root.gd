@@ -247,8 +247,18 @@ func _place_panels_in_stage() -> void:
 		var p: LcnUiPanel = panel(id)
 		if p == null or not p.is_open() or not p.visible:
 			continue
-		p.position = Vector2(p.position.x,
-			maxf(stage.position.y, LcnHudLayout.MARGIN))
+		var top: float = maxf(stage.position.y, LcnHudLayout.MARGIN)
+		p.position = Vector2(p.position.x, top)
+		# And it stops where the stage stops. A browser is a list and a list can
+		# scroll; the stores shelf and the hotkey strip underneath are facts about
+		# the city and cannot move. At ui 1.6 the palette ran 20 px into the shelf,
+		# which is the same class of defect as the hotkey rail this whole solver
+		# exists to have stopped: a panel deciding its own size with no idea what
+		# is beneath it.
+		var room: float = maxf(LcnUiPanel.MIN_LIST_HEIGHT,
+			stage.end.y - top - LcnHudLayout.STRIP_GAP)
+		if p.size.y > room + 0.5:
+			p.fit_to_height(room)
 
 
 func _hud_rect(key: StringName) -> Rect2:
@@ -734,24 +744,26 @@ func _place_tooltip() -> void:
 	else:
 		var mouse: Vector2 = _screen.get_local_mouse_position()
 		pos = mouse + Vector2(TOOLTIP_MARGIN, TOOLTIP_MARGIN)
-	var card: Rect2 = _hud_rect(&"card")
-	if card.size.x > 1.0:
-		# A 380 px sheet about a wall segment does not get to lie across a
-		# decision the player has been asked to make. Flip to whichever side of
-		# the card has more room; if neither has, the sheet stands down — the
-		# question outranks the inspection.
-		var want := Rect2(pos, tooltip.size)
-		if want.intersects(card):
-			var left_room: float = card.position.x - 8.0
-			var right_room: float = screen.x - card.end.x - 8.0
-			if maxf(left_room, right_room) < tooltip.size.x:
-				tooltip.visible = false
-				return
-			pos.x = card.position.x - tooltip.size.x - 12.0 if left_room >= right_room \
-				else card.end.x + 12.0
+	# A DECISION OUTRANKS AN INSPECTION. While [P22] has a card up, this sheet
+	# stands down completely rather than trying to find a corner. The first
+	# version flipped it to whichever side of the card had room, and what that
+	# produced in a real frame was a 380x380 sheet about the hearth sitting on
+	# top of [P19]'s lens legend — the sheet had stopped covering one thing by
+	# covering another. There is no arrangement in which a mouse-follow panel and
+	# a modal question both belong on screen.
+	if _hud_rect(&"card").size.x > 1.0:
+		tooltip.visible = false
+		return
+	# It also stays out of the bottom rail. The stage is where the world is and
+	# where a sheet about a thing in the world belongs; below it are three strips
+	# of chrome that were placed exactly so nothing would land on them.
+	var stage: Rect2 = _hud_rect(&"stage")
+	var floor_y: float = screen.y - 8.0
+	if stage.size.y > 1.0:
+		floor_y = stage.end.y
 	tooltip.position = Vector2(
 		clampf(pos.x, 8.0, maxf(8.0, screen.x - tooltip.size.x - 8.0)),
-		clampf(pos.y, 8.0, maxf(8.0, screen.y - tooltip.size.y - 8.0)))
+		clampf(pos.y, 8.0, maxf(8.0, floor_y - tooltip.size.y)))
 
 
 # ----------------------------------------------------- command line / shots --

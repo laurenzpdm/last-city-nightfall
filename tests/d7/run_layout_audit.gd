@@ -302,7 +302,13 @@ func _audit(case: Dictionary, st: String) -> void:
 		var stage: Rect2 = hud.call(&"solved_rect", &"stage")
 		_checks += 1
 		var frac: float = (stage.size.x * stage.size.y) / maxf(1.0, view.x * view.y)
+		# Only at the DEFAULT scale. Above it the player has traded stage for
+		# legibility on purpose and the composition honours the request in full;
+		# see the note in `LcnHud._relayout`. Overlap is still checked at every
+		# scale, because overlap is never something the player asked for.
 		var floor_frac: float = float(STAGE_FLOOR.get(st, 0.30))
+		if not is_equal_approx(float(case["ui"]), 1.0):
+			floor_frac = 0.0
 		if frac < floor_frac:
 			_failures.append("%s — the stage is only %.0f%% of the screen (floor %.0f%%); "
 				% [label, frac * 100.0, floor_frac * 100.0] + "the chrome has eaten the game")

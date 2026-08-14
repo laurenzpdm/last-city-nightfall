@@ -63,10 +63,12 @@ const STRIP_GAP: float = 8.0
 ## rails would like. Below it the rails give ground instead — a HUD that eats the
 ## game at 1280x720 is a HUD nobody plays at 1280x720.
 const MIN_STAGE_FRACTION: float = 0.34
-## The share of the SCREEN AREA the world keeps. `fit_scale` steps the player's
-## requested ui scale down until the composition can actually promise this, so
-## the promise is a number the layout is solved against rather than a hope.
-const MIN_STAGE_AREA: float = 0.36
+## The share of the SCREEN AREA the world keeps at ui_scale 1.0. It is a
+## DESIGNER's promise, not a player's: `tests/d7/run_layout_audit.tscn` asserts
+## it at the default scale, and deliberately does not at scales the player chose
+## for themselves. See the note in `LcnHud._relayout` about why capping an
+## accessibility setting to protect a layout target is the wrong way round.
+const MIN_STAGE_AREA: float = 0.30
 
 
 ## The state the composition should be in. `build_mode` is the play shell holding
@@ -117,43 +119,6 @@ static func chip_budget(state: int, view_width: float, ui: float, chip_w: float,
 	var usable: float = view_width - 2.0 * MARGIN * ui - pad * 2.0 * ui
 	var fits: int = int(floorf(usable / maxf(1.0, chip_w * ui)))
 	return clampi(mini(hard_cap, fits), 1, 9)
-
-
-## The largest ui scale this viewport can actually carry.
-##
-## `Settings.graphics.ui_scale` goes to 2.0, and the logical viewport does NOT
-## get bigger when the player asks for it — `project.godot` stretches a fixed
-## 1920x1080 canvas, so a scale of 1.6 makes every panel 60 % wider inside the
-## same rectangle. Measured on this build at ui 1.6: the rails took 58 % of the
-## width and the clock and the shelf took 47 % of the height, leaving the city
-## 15 % of the screen. That is not a large interface, it is no game.
-##
-## So the request is honoured up to the point where the composition can still
-## promise a stage, and clamped after it. The player still gets bigger type at
-## any scale — `accessibility/font_scale` is a separate knob and is NOT capped
-## here, because type that is too small to read is an accessibility failure and
-## a slightly cramped stage is not.
-## `rails_wide` and `bands_tall` are the LOGICAL widths of the two columns and
-## the logical heights of the top and bottom bands; `fixed` is screen-space
-## chrome that does not scale with the HUD ([P19]'s legend, [P18]'s hotkey
-## strip). The search steps down from what the player asked for until the stage
-## the solver would produce actually meets `MIN_STAGE_AREA`, which is the promise
-## this module makes — rather than against two independent width and height
-## ratios whose product happened to be 41 % and which therefore let a 28 % stage
-## through at ui 1.35.
-static func fit_scale(view: Vector2, requested: float, rails_wide: float,
-		bands_tall: float, fixed: float = 0.0) -> float:
-	var want: float = clampf(requested, 0.25, 4.0)
-	if rails_wide <= 1.0 or bands_tall <= 1.0 or view.x <= 1.0 or view.y <= 1.0:
-		return want
-	var u: float = want
-	while u > 0.6:
-		var w: float = view.x - (rails_wide + MARGIN * 2.0 + GAP * 2.0) * u
-		var h: float = view.y - (bands_tall + MARGIN * 2.0 + GAP * 2.0) * u - fixed
-		if maxf(0.0, w) * maxf(0.0, h) >= view.x * view.y * MIN_STAGE_AREA:
-			return u
-		u -= 0.05
-	return maxf(0.6, minf(want, 0.6))
 
 
 ## THE SOLVER.
@@ -245,7 +210,7 @@ static func solve(view: Vector2, ui: float, state: int, sizes: Dictionary,
 		if not sizes.has(k):
 			continue
 		var ls: Vector2 = (sizes[k] as Vector2) * s
-		var room: float = maxf(60.0 * s, bottom - left_y - g)
+		var room: float = maxf(0.0, bottom - left_y - g)
 		out[k] = Rect2(left_x, left_y, ls.x, minf(ls.y, room))
 		if k == "alerts":
 			out["alerts_max_h"] = Rect2(0.0, 0.0, 0.0, room / s)
@@ -291,7 +256,13 @@ static func solve(view: Vector2, ui: float, state: int, sizes: Dictionary,
 		if not sizes.has(k3):
 			continue
 		var sz: Vector2 = (sizes[k3] as Vector2) * s
-		var room3: float = maxf(60.0 * s, right_floor - right_y - g)
+		# No `maxf(60 * s, …)` floor here, for the third and last time in this
+		# file: a widget-side or solver-side minimum that outranks the room the
+		# column actually has does not protect the panel, it just moves the
+		# overlap somewhere the solver cannot see. Measured at ui 1.6 with the
+		# left rail migrated, the 96 px floor put the attention stack 96 px past
+		# the bottom rail and straight through [P19]'s overlay reminder.
+		var room3: float = maxf(0.0, right_floor - right_y - g)
 		var h3: float = minf(sz.y, room3)
 		out[k3] = Rect2(view.x - m - sz.x, right_y, sz.x, h3)
 		if k3 == "alerts":
@@ -364,8 +335,13 @@ static func solve(view: Vector2, ui: float, state: int, sizes: Dictionary,
 		var cw: float = card_size.x
 		var ch: float = card_size.y
 		var stage: Rect2 = out["stage"]
-		var cy: float = stage.position.y + maxf(0.0, (stage.size.y - ch) * 0.34)
-		if ch >= stage.size.y:
+		# The ticker gets the stage floor, so the card is placed against a stage
+		# that is already that much shorter. Biased up rather than centred: a card
+		# hanging from the clock reads as an answer to it.
+		var ticker_h: float = 96.0 * s
+		var card_room: float = maxf(120.0, stage.size.y - ticker_h - g)
+		var cy: float = stage.position.y + maxf(0.0, (card_room - ch) * 0.30)
+		if ch >= card_room:
 			cy = stage.position.y
 		# Centred between the RAILS, then pushed inside them if it is wider than
 		# the gap. A card is a question and it may cover the city; it may not
@@ -374,11 +350,20 @@ static func solve(view: Vector2, ui: float, state: int, sizes: Dictionary,
 			maxf(wall_left, wall_right - cw))
 		out["card"] = Rect2(roundf(card_x), roundf(cy), cw, ch)
 		# The ticker is [P22]'s flavour feed: prose on the world with a shadow and
-		# no plate. It belongs on the floor of the stage, left-aligned, not
-		# spilling across the middle of the city and out the other side.
-		out["ticker"] = Rect2(stage_left, maxf(cy + ch + g,
-			stage.end.y - 92.0 * s), maxf(200.0, (stage_right - stage_left) * 0.62),
-			92.0 * s)
+		# no plate, and it draws ABOVE the card in [P22]'s own tree order. Left
+		# where it was it ran straight across the middle of a dilemma and out the
+		# other side — four lines of "the care house has an empty bed in it" laid
+		# over the question the player was being asked to answer.
+		#
+		# So it gets the floor of the stage, always, and the card above is placed
+		# against a stage already shortened by exactly this much. When the card is
+		# tall enough to reach the floor anyway the ticker is given ZERO height,
+		# which `LcnHudStage` reads as "do not draw" — flavour is the thing that
+		# yields, every time.
+		var t_top: float = stage.end.y - ticker_h
+		out["ticker"] = Rect2(stage_left, t_top,
+			maxf(200.0, (stage_right - stage_left) * 0.62),
+			ticker_h if cy + ch <= t_top - g else 0.0)
 	return out
 
 

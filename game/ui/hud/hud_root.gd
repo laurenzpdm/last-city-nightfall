@@ -390,37 +390,24 @@ func _alert_pressure() -> float:
 func _relayout() -> void:
 	style.refresh_from_settings()
 	var vp: Vector2 = Vector2(get_viewport().get_visible_rect().size)
-	var requested: float = style.ui_scale
-	_resize_root(vp, requested)
+	# THE PLAYER'S SCALE IS HONOURED IN FULL, and that is a decision that was made
+	# twice. An earlier version of this file capped `ui_scale` so the composition
+	# could always promise the world a third of the screen; measured, that cap
+	# refused a request of 1.5 and handed back 1.05, and refused 1.0-with-large-
+	# type and handed back 0.90. Quietly overruling an accessibility setting to
+	# protect a layout target is the wrong way round: a player who enlarges the
+	# interface has traded stage for legibility on purpose, and a stage that is
+	# small because they asked for it is not a defect.
+	#
+	# What the composition owes them instead is that NOTHING OVERLAPS at any
+	# scale, which is enforced by clamping panels against the room they actually
+	# have — see `_apply_caps` and the `max_height` on the three growable panels.
+	# `tests/d7/run_layout_audit.tscn` checks the stage floor at ui 1.0, where it
+	# is the designer's promise, and checks overlap everywhere.
+	_resize_root(vp, style.ui_scale)
 	for w0: LcnHudWidget in _widgets:
 		w0.invalidate()
 		w0.refresh()
-
-	# The requested scale is honoured only as far as the screen can carry it, and
-	# the numbers come from the panels that were just measured rather than from
-	# constants that go stale. Measured on this build at ui 1.6 with font 1.4, the
-	# uncapped composition left the city 15 % of the screen: that is not a large
-	# interface, it is no game.
-	var rails: float = maxf(heat_panel.size.x, alert_panel.size.x) \
-		+ maxf(vitals_panel.size.x, maxf(wave_panel.size.x, selection_panel.size.x))
-	var bands: float = clock_panel.size.y + resource_panel.size.y
-	# [P18]'s hotkey strip and [P19]'s legend are drawn UNSCALED, so they come off
-	# the height as fixed screen pixels rather than as part of the scaled bands.
-	var fixed: float = 0.0
-	var tree0: SceneTree = get_tree()
-	if tree0 != null:
-		var menu0: Node = tree0.get_first_node_in_group(&"lcn_build_menu")
-		if menu0 != null and menu0.has_method(&"hint_size"):
-			fixed += (menu0.call(&"hint_size") as Vector2).y + LcnHudLayout.STRIP_GAP
-		var lens0: Node = tree0.get_first_node_in_group(&"lcn_overlay_root")
-		if lens0 != null and lens0.has_method(&"legend_size"):
-			fixed += (lens0.call(&"legend_size") as Vector2).y
-	var fit: float = LcnHudLayout.fit_scale(vp, requested, rails, bands, fixed)
-	if not is_equal_approx(fit, requested):
-		_resize_root(vp, fit)
-		for w1: LcnHudWidget in _widgets:
-			w1.invalidate()
-			w1.refresh()
 	_place_panels()
 	_vignette.queue_redraw()
 	_footer.queue_redraw()
@@ -455,8 +442,15 @@ func _panel_map() -> Dictionary:
 ## What composition the screen should be in right now. Night or an assault beats
 ## a build; a build beats the lull.
 func _resolve_state() -> int:
-	var night: bool = probe != null and probe.is_night
-	var attack: bool = probe != null and (probe.wave_active or probe.enemies_alive > 0)
+	# The composition leads the event rather than following it. Switching only on
+	# `is_night` meant the frame at dusk — clock red, ATTENTION reading "Attack in
+	# 40 seconds", wave panel counting down — was still laid out and lit as a
+	# quiet afternoon. Forty seconds is exactly when a player needs the heat grid
+	# and the attention stack to be the loudest things on the screen.
+	var night: bool = probe != null and (probe.is_night
+		or (probe.seconds_to_night >= 0.0 and probe.seconds_to_night < 45.0))
+	var attack: bool = probe != null and (probe.wave_active or probe.enemies_alive > 0
+		or (probe.wave_seconds >= 0.0 and probe.wave_seconds < 45.0))
 	var building: bool = false
 	if _context != null and _context.has_method("get"):
 		building = bool(_context.get("build_mode"))
@@ -574,6 +568,7 @@ func _place_panels() -> void:
 			continue
 		var r: Rect2 = _rects[name_key2]
 		widget2.position = (r.position / style.ui_scale).round()
+		widget2.clamp_height(r.size.y / style.ui_scale)
 		widget2.emphasis = LcnHudLayout.emphasis_of(state, name_key2)
 	if stage != null:
 		stage.slot = _rects.get("card", Rect2())

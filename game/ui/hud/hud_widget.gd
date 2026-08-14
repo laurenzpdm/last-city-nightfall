@@ -110,6 +110,25 @@ func invalidate() -> void:
 	_dirty = true
 
 
+## THE BACKSTOP. `LcnHud` calls this with the height the composition actually had
+## room for, after the solve. Panels that can shed content gracefully — the
+## attention stack, the selection panel — do that first through their own
+## `max_height`; this is what catches everything else.
+##
+## It exists because a panel that REPORTS one height and DRAWS another makes
+## every rectangle placed beneath it wrong, and the failure is silent: the solver
+## believes there is no overlap and the screen has one. Measured at ui 1.6 with
+## large type, the unclamped right column put the heat panel 40 px through the
+## attention stack under it. `clip_contents` is what makes the pixels and the
+## rectangle agree.
+func clamp_height(h: float) -> void:
+	if h <= 0.0 or size.y <= h + 0.5:
+		return
+	clip_contents = true
+	custom_minimum_size = Vector2(custom_minimum_size.x, h)
+	size = Vector2(size.x, h)
+
+
 # =======================================================================  hot =
 
 func clear_hot() -> void:
