@@ -35,6 +35,11 @@ var _out_dir: String = "res://artifacts/meta"
 var _boot: Node = null
 var _meta: LcnMetaRoot = null
 var _shots: int = 0
+## The player's real config, restored in _finish(). This suite rebinds keys and
+## moves sliders for real; leaving a developer's machine reconfigured because a
+## test ran is not acceptable.
+var _settings_backup: PackedByteArray = PackedByteArray()
+var _had_settings: bool = false
 
 
 func _ready() -> void:
@@ -80,6 +85,18 @@ func _boot_a_real_session() -> void:
 		_ok(false, "run with --force-ui or a display: without either the meta "
 			+ "bootstrap declines and every check below cannot fail")
 		return
+	_had_settings = FileAccess.file_exists(Settings.PATH)
+	if _had_settings:
+		_settings_backup = FileAccess.get_file_as_bytes(Settings.PATH)
+	# START FROM THE DEFAULTS. Without this the suite reads whatever the LAST run
+	# of it left in user://settings.cfg — and a rebinding left behind by a
+	# previous run makes every "the rebinding stuck" check pass no matter what
+	# the code does. That is the shape of a test that cannot fail, and it was
+	# live in this file until removing Keybinds.persist() from the production
+	# path did not turn it red.
+	Keybinds.install()
+	Keybinds.reset_all()
+	Keybinds.persist(Settings)
 	LcnLayers.force_install = true
 	var packed: PackedScene = load(BOOT_SCENE) as PackedScene
 	if packed == null:
@@ -235,6 +252,7 @@ func _suite_rebinding_goes_through_the_reservation_table() -> void:
 
 	# 1. A reserved key must be REFUSED, whatever the InputMap thinks.
 	var before: String = Keybinds.binding_label(&"rotate")
+	_ok(before == "R", "rotate starts on its default, R (found %s)" % before)
 	await _press(KEY_ENTER)
 	_ok(screen._capturing == &"rotate", "Enter starts capturing a new key")
 	await _press(KEY_4)
@@ -268,6 +286,17 @@ func _suite_rebinding_goes_through_the_reservation_table() -> void:
 	_ok(on_disk.has("rotate"),
 		"…and it reached user://settings.cfg, which is what makes it survive a restart")
 	await _shoot("controls_rebound")
+
+	# 4. And it is still bound after the game is closed and opened again. This is
+	# a SECOND GODOT PROCESS, started cold, printing what its own Settings
+	# autoload loaded off disk — not this process reading back what it wrote.
+	var probe: PackedStringArray = _run_restart_probe()
+	var says_j: bool = false
+	for line: String in probe:
+		if line.strip_edges() == "PROBE rotate=J":
+			says_j = true
+	_ok(says_j, "a cold process reads rotate as J — the rebinding survives a restart")
+
 	await _press(KEY_ESCAPE)
 	await _press(KEY_ESCAPE)
 	await _press(KEY_ESCAPE)
@@ -479,6 +508,22 @@ func _shoot(shot_name: String) -> void:
 	_shots += 1
 
 
+## Boots the engine again, headless, and reads what it says about the config on
+## disk. The probe scene lives in game/ui/meta/ rather than tests/ so the gate
+## does not discover it as a suite that owes a verdict.
+func _run_restart_probe() -> PackedStringArray:
+	var out: Array = []
+	var code: int = OS.execute(OS.get_executable_path(), PackedStringArray([
+		"--headless", "--path", ProjectSettings.globalize_path("res://"),
+		"res://game/ui/meta/restart_probe.tscn", "--", "--probe=rotate"]), out, true)
+	_ok(code == 0, "the restart probe process ran (exit %d)" % code)
+	var lines := PackedStringArray()
+	for chunk: Variant in out:
+		for line: String in String(chunk).split("\n"):
+			lines.append(line)
+	return lines
+
+
 func _ok(condition: bool, what: String) -> void:
 	_checks += 1
 	if not condition:
@@ -490,6 +535,7 @@ func _skip(what: String, why: String) -> void:
 
 
 func _finish() -> void:
+	_restore_settings()
 	var verdict: String = "TESTS FAILED"
 	if _failures.is_empty():
 		verdict = "TESTS PASSED, PARTIAL" if not _unchecked.is_empty() else "TESTS PASSED"
@@ -513,3 +559,18 @@ func _finish() -> void:
 		get_tree().quit(mini(_failures.size(), 125))
 		return
 	get_tree().quit(0 if _unchecked.is_empty() else 126)
+
+
+## Puts the player's config back exactly as it was found.
+func _restore_settings() -> void:
+	Keybinds.reset_all()
+	if _had_settings:
+		var f: FileAccess = FileAccess.open(Settings.PATH, FileAccess.WRITE)
+		if f != null:
+			f.store_buffer(_settings_backup)
+			f.close()
+	else:
+		var _e: int = DirAccess.remove_absolute(ProjectSettings.globalize_path(Settings.PATH))
+	Settings.load_from_disk()
+	Keybinds.restore(Settings)
+	LcnSaveManager.delete(SLOT)
