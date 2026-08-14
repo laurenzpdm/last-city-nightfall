@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="LcnTutorialLesson" format=3]
+
+[ext_resource type="Script" path="res://game/ui/tutorial/tutorial_lesson.gd" id="1_lesson"]
+
+[resource]
+resource_name = "That is the whole of it"
+script = ExtResource("1_lesson")
+id = &"06_that_is_the_whole_of_it"
+order = 60
+kicker = "The guide"
+headline = "That is the whole of it."
+body = "Heat reaches where the pipes reach and no further. People need warmth and food, in that order, every day of the winter. Something comes out of the dark every night and it learns from the last one. And you automate because no hour in this winter is long enough to do it by hand.\n\nDay {day}. {population} alive. {deaths_cold} lost to the cold. The rest is yours."
+action = ""
+watch = Array[StringName]([&"day", &"population", &"deaths_cold", &"waves_cleared"])
+done_when = Array[String]([])
+urgent_when = Array[String]([])
+focus = &""
+final_card = true

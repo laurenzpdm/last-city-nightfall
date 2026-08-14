@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="LcnTutorialLesson" format=3]
+
+[ext_resource type="Script" path="res://game/ui/tutorial/tutorial_lesson.gd" id="1_lesson"]
+
+[resource]
+resource_name = "The larder is all there is"
+script = ExtResource("1_lesson")
+id = &"02_the_larder_is_all_there_is"
+order = 20
+kicker = "The larder"
+headline = "Nothing in this city makes food."
+body = "{population} people, and {food_days} left in the larder that came in on the column with them. Warmth is {avg_warmth}. A cold crew eats more and works less, so the number falls faster than the arithmetic says."
+action = "A rubble sorter turns scrap into grain. A field kitchen turns grain into a ration. Both burn heat, so put them where a pipe already goes."
+watch = Array[StringName]([&"food_days", &"grain_stock", &"rations_made", &"avg_warmth"])
+done_when = Array[String](["rations_made >= 1"])
+urgent_when = Array[String](["food_days <= 2"])
+focus = &""
+final_card = false
