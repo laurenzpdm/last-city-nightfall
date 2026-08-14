@@ -170,8 +170,13 @@ static func solve(view: Vector2, ui: float, state: int, sizes: Dictionary,
 		out["lens_hint"] = Rect2(view.x - m - 200.0, bottom - 18.0, 200.0, 18.0)
 	if legend_size != Vector2.ZERO:
 		var lw: float = minf(legend_size.x, view.x - 2.0 * m)
-		out["legend"] = Rect2(m, bottom - legend_size.y, lw, legend_size.y)
-		bottom -= legend_size.y + STRIP_GAP
+		# Height clamped to the room the bottom rail actually has left, for the
+		# same reason the right column's panels are: a reservation larger than
+		# the screen is not a reservation, and [P19] reads this rectangle as its
+		# authority for how many rows it may print.
+		var lh: float = minf(legend_size.y, maxf(0.0, bottom - m))
+		out["legend"] = Rect2(m, bottom - lh, lw, lh)
+		bottom -= lh + STRIP_GAP
 	# Toasts and the play shell's ghost line live centred just above whatever the
 	# bottom rail ended up being.
 	out["footer_ceiling"] = Rect2(m, bottom - 1.0, view.x - 2.0 * m, 1.0)

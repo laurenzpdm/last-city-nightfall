@@ -75,6 +75,9 @@ var _view: Rect2 = Rect2()
 var _wpp: float = 1.0
 var _settings_timer: float = 0.0
 var _frames: int = 0
+## The last footprint this part told [P17] about, so a re-solve is asked for on
+## the frame the size changes and on no other frame.
+var _published_size: Vector2 = Vector2.ZERO
 var _sample_us: float = 0.0
 var _draw_us: float = 0.0
 var _keys: PackedStringArray = PackedStringArray()
@@ -182,18 +185,53 @@ func chrome_rects() -> Dictionary:
 	if mode != LcnOverlayDefs.Mode.NONE or alt_held:
 		var ls: Vector2 = legend_size()
 		if ls.x > 1.0:
-			var origin: Vector2 = _legend.legend_slot.position
-			if _legend.legend_slot.size.x <= 1.0:
-				origin = Vector2(LcnOverlayLegend.MARGIN,
-					get_viewport().get_visible_rect().size.y - ls.y
-					- LcnOverlayLegend.BOTTOM_CLEARANCE)
-			out["legend"] = Rect2(origin, ls)
+			# WHAT WAS PAINTED, not what was asked for. The panel records its own
+			# rectangle in `_draw_panel`; this used to synthesise one from
+			# `legend_size()`, which is the WANT — so the audit compared [P17]'s
+			# reservation against [P17]'s reservation, agreed with itself, and
+			# certified a frame in which [P18]'s hotkey strip was printed through
+			# this panel's footer. `drawn_rect` is empty only before the first
+			# paint, and then the computed fallback is the best answer there is.
+			if _legend.drawn_rect.size.x > 1.0:
+				out["legend"] = _legend.drawn_rect
+			else:
+				var origin: Vector2 = _legend.legend_slot.position
+				if _legend.legend_slot.size.x <= 1.0:
+					origin = Vector2(LcnOverlayLegend.MARGIN,
+						get_viewport().get_visible_rect().size.y - ls.y
+						- LcnOverlayLegend.BOTTOM_CLEARANCE)
+				out["legend"] = Rect2(origin, ls)
 		var rs: Vector2 = rail_size()
 		if rs.x > 1.0 and _legend.rail_slot.size.x > 1.0:
 			out["rail"] = Rect2(_legend.rail_slot.position, rs)
 	else:
 		out["lens_hint"] = _legend.hint_rect()
 	return out
+
+
+## Tells [P17] to re-solve the moment this part's footprint changes, instead of
+## letting it find out on the next 10 Hz poll.
+##
+## The legend's height is CONTENT-dependent: a second heat grid appearing adds a
+## grid row and the "separate grids do not share heat" warning, 42 px of panel,
+## between one sample and the next. For the six frames until the next poll the
+## reservation underneath it was the old one — measured at the assault beat of
+## `first_night`, reserved 154 px against 185 px drawn, with [P18]'s hotkey strip
+## in the gap. The legend now clamps itself to the slot rather than overrunning
+## it, so those frames are a shed row instead of an overlap; this is what keeps
+## the shed down to the single frame it takes [P17] to answer.
+func _republish_size() -> void:
+	var want: Vector2 = legend_size()
+	if want.is_equal_approx(_published_size):
+		return
+	_published_size = want
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		return
+	for node: Node in tree.get_nodes_in_group(&"lcn_hud_chrome"):
+		if node.has_method(&"request_relayout"):
+			node.call(&"request_relayout")
+			return
 
 
 func _pull_slots() -> void:
@@ -390,6 +428,7 @@ func _process(delta: float) -> void:
 		lens.queue_redraw()
 	_pull_slots()
 	_legend.refresh(pal, snap, mode, alt_held, _keys, _zoom_text())
+	_republish_size()
 
 	var us: float = float(_icons.draw_us) + (float(lens.draw_us) if lens != null else 0.0)
 	_draw_us = _draw_us * 0.9 + us * 0.1

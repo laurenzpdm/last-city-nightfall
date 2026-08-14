@@ -34,6 +34,12 @@ var legend_slot: Rect2 = Rect2()
 var rail_slot: Rect2 = Rect2()
 var hint_slot: Rect2 = Rect2()
 
+## The rectangle the panel ACTUALLY painted last frame, which is what
+## `chrome_rects()` publishes and what the audit measures. A part that reports
+## the size it wanted rather than the size it drew cannot be audited: both
+## rectangles agree, and the screen still has two things on one strip.
+var drawn_rect: Rect2 = Rect2()
+
 var pal: LcnOverlayPalette = null
 var snap: LcnOverlaySnapshot = null
 var mode: int = LcnOverlayDefs.Mode.NONE
@@ -68,6 +74,7 @@ func _draw() -> void:
 		return
 	_draw_rail()
 	if mode == LcnOverlayDefs.Mode.NONE and not alt:
+		drawn_rect = Rect2()
 		_draw_hint()
 		return
 	_build_rows()
@@ -130,8 +137,21 @@ func height_for(for_mode: int) -> float:
 	return _panel_height()
 
 
+## Everything in the panel that is not a row: two pads, the title, the blurb,
+## the headline and the footer. Named because two functions need it and a
+## literal `122` in both is how they drift apart.
+const PANEL_CHROME: float = PAD * 2.0 + 26.0 + 20.0 + 22.0 + 26.0
+
+
 func _panel_height() -> float:
-	return PAD * 2.0 + 26.0 + 20.0 + 22.0 + float(_rows.size()) * ROW + 26.0
+	return PANEL_CHROME + float(_rows.size()) * ROW
+
+
+## How many rows fit in `h` screen pixels. Never below one: a legend with a
+## title and no numbers is still a legend, and one with a negative row count is
+## a crash.
+static func rows_that_fit(h: float) -> int:
+	return maxi(1, int(floorf((h - PANEL_CHROME) / ROW)))
 
 
 func _draw_rail() -> void:
@@ -164,9 +184,39 @@ func _draw_panel() -> void:
 	var size: Vector2 = get_viewport_rect().size
 	var h: float = _panel_height()
 	var origin := Vector2(MARGIN, size.y - h - BOTTOM_CLEARANCE)
+	# THE PANEL NEVER OUTGROWS THE STRIP IT WAS GIVEN.
+	#
+	# `legend_size()` publishes what this panel WANTS and [P17]'s solver reserves
+	# it, but the want is content-dependent — a second heat grid appearing adds
+	# two rows — and the reservation is one poll behind the content. Measured in
+	# `artifacts/d7/cur_1920/shots/assault.png`: reserved 154 px, drawn 185 px,
+	# and the 31 px difference was [P18]'s hotkey strip printed straight through
+	# this panel's own footer line. That is the exact defect `LcnHudLayout` was
+	# written to kill, still on screen, and invisible to the audit because BOTH
+	# rectangles it compared came from the same wrong reported height.
+	#
+	# So the slot is authority. When the content does not fit, rows are shed and
+	# the panel says how many — a legend that is one line short is legible; a
+	# legend with somebody else's hotkeys printed across it is not.
+	var shown: int = _rows.size()
 	if legend_slot.size.x > 1.0:
 		origin = legend_slot.position
+		shown = mini(shown, rows_that_fit(legend_slot.size.y))
+		if shown < _rows.size():
+			var hidden: int = _rows.size() - shown
+			shown = maxi(1, shown - 1)
+			hidden = _rows.size() - shown
+			_rows.resize(shown)
+			# Appended directly, not through `_row`, which refuses past twelve
+			# rows — the one row that must never be the one dropped is the row
+			# that says rows were dropped.
+			_rows.append({"text": "+%d more — %s cycles the lens" % [hidden,
+				keys[mode] if mode < keys.size() else "the lens key"],
+				"color": LcnOverlayPalette.with_a(LcnOverlayPalette.INK_DIM, 0.8),
+				"swatch": null})
+		h = _panel_height()
 	var panel := Rect2(origin, Vector2(WIDTH, h))
+	drawn_rect = panel
 	draw_rect(panel, LcnOverlayPalette.PANEL, true)
 	draw_rect(panel, LcnOverlayPalette.PANEL_EDGE, false, 1.5)
 	draw_rect(Rect2(origin, Vector2(4.0, h)), _accent(), true)

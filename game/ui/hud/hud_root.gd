@@ -480,6 +480,19 @@ func solved_rect(key: StringName) -> Rect2:
 	return _rects.get(String(key), Rect2()) as Rect2
 
 
+## "The strip I asked you to reserve for me is the wrong size now." Called by any
+## part whose published size changed between polls — [P19]'s legend grows two
+## rows the moment a second heat grid appears.
+##
+## The composition is otherwise re-solved on the probe's 10 Hz poll, which is
+## right for a panel whose CONTENTS changed and wrong for one whose SIZE did:
+## a hundred milliseconds is six frames of a strip that is too short for what is
+## standing on it. Cheap enough to call on the frame it changes — one solve over
+## eight rectangles — and the caller is expected to only call it on a change.
+func request_relayout() -> void:
+	_place_panels()
+
+
 ## Every rectangle the HUD is drawing, in SCREEN pixels, by name. The audit suite
 ## reads this; so does anything that wants to know where it may not draw.
 func chrome_rects() -> Dictionary:

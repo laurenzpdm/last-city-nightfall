@@ -295,6 +295,8 @@ func _audit(case: Dictionary, st: String) -> void:
 		_failures.append("%s — %d rect(s) off screen, worst %s by %d px"
 			% [label, out.size(), String(out[0]["name"]), int(out[0]["by"])])
 
+	await _audit_slot_fidelity(label, st)
+
 	# The stage is what the whole composition exists to protect: if the rails eat
 	# the middle of the screen there is nowhere left to look at the city.
 	var hud: Node = _hud()
@@ -325,6 +327,72 @@ func _audit(case: Dictionary, st: String) -> void:
 		"overlaps": _overlap_rows(real),
 		"off_screen": out.size(),
 	})
+
+
+## THE CHECK THAT EVERY OTHER CHECK IN THIS FILE DEPENDS ON, and which did not
+## exist until the composition was already green.
+##
+## Everything above compares rectangles that the parts REPORT. That is only an
+## audit of the screen if a part draws where it says it draws. [P19]'s legend did
+## not: it published `legend_size()`, the height its content WANTS, while
+## `_draw_panel` painted `_panel_height()`, the height its content HAS. Those
+## agree until the content grows between one solve and the next — and at the
+## assault beat of `first_night` a second heat grid appears, the panel gains two
+## rows, and 31 px of it is painted over the strip [P17] had reserved for [P18]'s
+## hotkeys. Both reported rectangles agreed with each other. The suite was green.
+## The frame, `artifacts/d7/cur_1920/shots/assault.png`, had two texts on one
+## line of pixels.
+##
+## So this check does not ask a part how big it is. It SHRINKS the slot [P17]
+## handed it, forces a repaint, and asserts that what the part actually painted
+## fits inside what it was given. A part that treats its slot as advice rather
+## than as a boundary fails here and only here.
+##
+## It reads nothing but the interface both versions of the part already have —
+## `legend_slot` in, `chrome_rects()` out — so it is a test of the CONTRACT and
+## not of the fix. Mutation-tested by reverting `game/ui/overlays/*.gd` and
+## `game/ui/hud/*.gd` to the previous commit in a scratch copy of the tree and
+## re-running: the numbers are in this file's commit message.
+func _audit_slot_fidelity(label: String, st: String) -> void:
+	if st != "night":
+		return
+	var lens: Node = get_tree().get_first_node_in_group(&"lcn_overlay_root")
+	var hud: Node = _hud()
+	if lens == null or hud == null or not hud.has_method(&"solved_rect") \
+			or not lens.has_method(&"chrome_rects"):
+		_unchecked.append("%s — no lens or no HUD to check slot fidelity against" % label)
+		return
+	var legend: Object = lens.get(&"_legend")
+	if legend == null:
+		_unchecked.append("%s — the lens part published no legend node" % label)
+		return
+	var slot: Rect2 = hud.call(&"solved_rect", &"legend") as Rect2
+	if slot.size.y <= 1.0:
+		_unchecked.append("%s — no legend slot was reserved; nothing to be faithful to" % label)
+		return
+
+	# Two thirds of the height it was given. Enough to be genuinely too small for
+	# the content and never so small that no legend could honour it.
+	var tight: float = maxf(150.0, floorf(slot.size.y * 0.66))
+	legend.set(&"legend_slot", Rect2(slot.position, Vector2(slot.size.x, tight)))
+	(legend as CanvasItem).queue_redraw()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var published: Rect2 = (lens.call(&"chrome_rects") as Dictionary).get(
+		"legend", Rect2()) as Rect2
+	_checks += 1
+	if published.size.y > tight + 2.0:
+		_failures.append(("%s — [P19]'s legend was given a %d px strip and published "
+			+ "a %d px rectangle. A part that reports the size it WANTS rather "
+			+ "than the size it DREW makes every rectangle under it wrong, and "
+			+ "every one of them still reports agreement.")
+			% [label, int(tight), int(published.size.y)])
+	# Put the real slot back. The next case re-solves anyway, but a suite that
+	# leaves the build in the state its last assertion needed is a suite whose
+	# later cases measure the suite.
+	legend.set(&"legend_slot", slot)
+	(legend as CanvasItem).queue_redraw()
+	await get_tree().process_frame
 
 
 func _rect_rows(rects: Dictionary, named: Array) -> Array:
