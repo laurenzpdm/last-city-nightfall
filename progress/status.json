@@ -1,8 +1,8 @@
 {
- "round": 3,
- "phase": "C \u2014 Repair + Reachability",
- "state": "10 builders: boot seam, gate teeth, reachability, VFX, feel, audio, narrative, stats",
- "agents_live": 10,
+ "round": 4,
+ "phase": "D \u2014 The look, the belts, the tutorial, the meta",
+ "state": "7 builders live on disjoint folders. Baseline in this container: 1070 tests pass / 1 fail, 0 blocking engine errors, determinism holds. Perf floors miss here because the cloud box is slower than the Mac they were set on \u2014 not a regression.",
+ "agents_live": 7,
  "critic_score": 4.2,
  "blind_wins": 0,
  "blind_total": 0,
@@ -124,7 +124,7 @@
   {
    "id": "P20",
    "name": "Stats & graphs",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
@@ -136,13 +136,13 @@
   {
    "id": "P22",
    "name": "Narrative & events",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
    "id": "P23",
    "name": "Audio",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
@@ -169,5 +169,10 @@
   "blind": [],
   "summary": "Round 2 critic: 4.2/10 (up from 3.8). Perf 36 -> 122 ticks/s, 60fps at 1700 buildings, determinism holds. But the critic found the build menu is NEVER in the scene tree: add_child fails at boot, install() swallows it, boot logs success. 768 tests report green because Log.errors ignores engine-level errors.",
   "biggest_gap": "Nothing you built is reachable, and the gate cannot see it. Until a human can open a menu, the eleven systems underneath are a simulation, not a game."
+ },
+ "gate": {
+  "label": "Gate baseline (here)",
+  "value": "1070 / 1",
+  "note": "tests pass/fail \u00b7 0 blocking engine errors"
  }
 }
