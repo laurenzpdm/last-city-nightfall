@@ -10,11 +10,13 @@
     "all four flow states present in one frame": "13 starved / 9 flowing / 11 saturated / 11 backed-up belt tiles",
     "tests/run_tests.gd --filter=items_view": "10 tests passed, 0 failed, 144 asserts",
     "mutation: classifier stops separating jammed from saturated": "test_a_delivering_line_and_a_jammed_line_are_told_apart goes red",
-    "mutation: LcnItemLayer._draw returns immediately": "the item pixel proof goes red (see report)",
+    "mutation: LcnItemLayer._draw returns immediately": "the item pixel proof goes red — mean difference ratio falls from 4.33 to 1.50 against the 2.5 floor (px count alone was still 3.9x, which is why both measures are required)",
     "draw cost, 2013 items in flight, all 2013 drawn, zoom 0.55": "item surface 2845 us/frame, all three surfaces 4652 us/frame (1.41 us per item)",
     "sample cost, same factory": "8918 us/tick, dominated by items_for_view() allocating one Dictionary per item",
     "tools/run_visual.sh --scenario=res://tests/logistics/belt_by_hand.json": "0 blocking engine errors, 0 harness errors, items drawn on 32 belt tiles with 3 arms, 1 splitter, 1 tunnel",
-    "belt_by_hand items actually in flight (the 1463 in the brief is items_moved_total, not concurrent)": "11-14"
+    "belt_by_hand items actually in flight (the 1463 in the brief is items_moved_total, not concurrent)": "11-14",
+    "tools/determinism.sh": "DETERMINISM OK",
+    "tests/boot/run_reachability.tscn --force-ui (with the new layer in the tree)": "TESTS PASSED — 89 checks, 0 failures, 0 unchecked"
   },
   "open": [
     "[P03] logistics: there is no machines_for_view(). Arms, splitters and underground pairs are read READ-ONLY off logi.world.inserter_ids / splitter_ids / entities because nothing publishes them. One accessor would close that.",
