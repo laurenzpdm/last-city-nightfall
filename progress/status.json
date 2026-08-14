@@ -1,8 +1,8 @@
 {
  "round": 4,
  "phase": "D \u2014 The look, the belts, the tutorial, the meta",
- "state": "Five of seven builders are done. The A* hitch is fixed and measured: shift-change worst tick 9809-11116 us -> 2497-3260, with the route cache hit rate preserved at 99.8% so the search still finds its paths. Leaks 813 objects -> 53, and a world built and destroyed now grows the heap by 0 instead of 184. Full suite 1125 passed / 0 failed. Gate went 7 failing -> 4.",
- "agents_live": 2,
+ "state": "Six of seven builders done; D7 alone on screen composition. The gate now says whether a red stage is real: camera rotate hotkey [reproducible: 3 of 3 reads], feel_perf and vfx_gpu FLAPPING (2 of 3, labelled not-a-regression), perf as median plus range plus spread. The first_night contract band is green for the first time on this branch, without a threshold being relaxed.",
+ "agents_live": 1,
  "critic_score": 4.2,
  "blind_wins": 0,
  "blind_total": 0,
@@ -184,7 +184,7 @@
   {
    "id": "D6",
    "name": "Gate correctness",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
@@ -210,7 +210,7 @@
  },
  "gate": {
   "label": "Gate (macOS CI)",
-  "value": "RED \u2014 4",
-  "note": "was 7 \u00b7 engine errors back to 0 blocking"
+  "value": "1 real",
+  "note": "camera hotkey \u00b7 rest labelled flapping or runner speed"
  }
 }
