@@ -35,6 +35,27 @@ func run_all() -> Dictionary:
 	# (test_edge_scroll_ramp) and by _test_edge_scroll_wiring at the end of this file.
 	_camera.edge_scroll_allowed = false
 	add_child(_camera)
+	# THIS SUITE TESTS THE BINDINGS THIS BUILD SHIPS, NOT THE ONES ON THIS BOX.
+	#
+	# `GameCamera._enter_tree` calls `Keybinds.restore(settings)` — correct for
+	# the game, because a player who rebound a key expects it to still be bound
+	# when the camera comes up. It means every process that puts a real camera in
+	# a tree adopts whatever is in the real `user://settings.cfg`, and this suite
+	# then presses R and asserts that `rotate` fires.
+	#
+	# `tests/meta/test_it_survives_a_restart.gd` deliberately rebinds rotate to J
+	# and PERSISTS IT, to prove a rebind survives a cold process. It restores the
+	# player's file byte for byte afterwards — from a backup it took at the start
+	# of its own run, so if an earlier aborted run had already left rotate on J,
+	# the restore faithfully writes the stale override back and it never washes
+	# out. That is exactly the state this box was in: `run_camera_tests.tscn`
+	# failed `overlay_hotkeys` on three identical reads, and deleting one key
+	# from a file that is not in the repository turned 597/1 into 597/0.
+	#
+	# A gate that can be reddened by a file no commit can change is not measuring
+	# the build. Reset to the shipped defaults after the camera has read the box,
+	# so what this suite asserts is what a new player gets.
+	Keybinds.reset_all()
 	_camera.readability_changed.connect(_on_readability)
 	_camera.overlay_requested.connect(_on_overlay)
 	_camera.action_pressed.connect(_on_action)
