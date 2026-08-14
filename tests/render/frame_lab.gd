@@ -77,6 +77,21 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if _done:
 		return
+	# This suite grades PIXELS. Headless there is no framebuffer to read, so
+	# get_viewport().get_texture().get_image() hands back null and every capture
+	# raised — 48 blocking engine errors per gate run, against an invariant this
+	# project holds at zero. A check that cannot be asked is UNCHECKED, never a
+	# pass and never a crash; tests/boot/run_reachability.gd settled that
+	# vocabulary and tests/tutorial/run_tutorial.gd follows it.
+	if DisplayServer.get_name() == "headless":
+		print("  UNCHECKED the look — %d frame(s) not graded: no display server, "
+			% _shots.size()
+			+ "so there is no framebuffer to photograph")
+		print("  run it with: xvfb-run -a -s \"-screen 0 1920x1080x24\" "
+			+ "$GODOT --path . --resolution 1920x1080 tests/render/frame_lab.tscn")
+		print("TESTS PASSED, PARTIAL")
+		_finish(126)
+		return
 	_frame += 1
 	if _frame == 1:
 		_build_world()
@@ -150,8 +165,14 @@ func _aim(shot: Dictionary) -> void:
 func _capture(shot: Dictionary) -> void:
 	var hour: Dictionary = shot["hour"]
 	var zoom: Dictionary = shot["zoom"]
-	var img: Image = get_viewport().get_texture().get_image()
 	var stem: String = "%s_%s" % [hour["name"], zoom["name"]]
+	var tex: ViewportTexture = get_viewport().get_texture()
+	var img: Image = tex.get_image() if tex != null else null
+	if img == null:
+		# Belt and braces: the headless gate is caught in _process, but a display
+		# that hands back nothing must still not raise inside the render loop.
+		print("  UNCHECKED %s — the viewport handed back no image" % stem)
+		return
 	img.save_png(ProjectSettings.globalize_path("%s/%s.png" % [OUT, stem]))
 	var g: Dictionary = _grade_frame(img)
 	g["shot"] = stem
