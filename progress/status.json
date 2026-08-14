@@ -1,7 +1,7 @@
 {
  "round": 4,
  "phase": "D \u2014 The look, the belts, the tutorial, the meta",
- "state": "4 cores means 2 builders at a time. D2 has committed the belt renderer (1560 lines across 9 new files plus a 496-line frame suite) and is still verifying. D1 is mid-flight on the world look. Five builders queued behind them, then integrate, playthrough and the blind comparison.",
+ "state": "D2 finished and proved it by mutating its own tests: reverting the flow classifier and stubbing _draw both turn the suite red. D1 has landed the first half of the world look \u2014 terrain shader rewritten, buildings given mass and grounded shadows, palette reworked \u2014 and is still working. D3 (tutorial) started. The frames on this page are from the current build, not the old one.",
  "agents_live": 2,
  "critic_score": 4.2,
  "blind_wins": 0,
@@ -160,13 +160,13 @@
   {
    "id": "D2",
    "name": "Belt legibility \u2014 items in motion",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
    "id": "D3",
    "name": "Tutorial [P21]",
-   "status": "todo",
+   "status": "in_progress",
    "score": null
   },
   {
