@@ -41,6 +41,11 @@ const SILHOUETTE_SHADER: String = "res://game/view/render/silhouette.gdshader"
 const MIN_POOL_PX: float = 9.0
 ## Below this on-screen footprint a contact shadow is one dark pixel.
 const MIN_SHADOW_PX: float = 11.0
+## Lit windows under this many screen pixels are one warm dot, and the warm pool
+## the source already throws says the same thing for free. At the strategic zoom
+## this drops the belts, pipes and inserters — most of a stress city by count —
+## and keeps every structure a player could actually pick out.
+const MIN_EMISSIVE_PX: float = 11.0
 
 var model: LcnWorldModel = null
 var sprites: LcnSpriteFactory = null
@@ -235,6 +240,7 @@ func _collect() -> void:
 	var px1: float = pad.end.x
 	var py1: float = pad.end.y
 	var n: int = mini(all.size(), geo.size() / 4)
+	var min_em: float = MIN_EMISSIVE_PX / maxf(zoom, 0.01)
 	for i: int in n:
 		var o: int = i * 4
 		var ox: float = geo[o]
@@ -255,11 +261,24 @@ func _collect() -> void:
 		_vis_src.append(region.size.x)
 		_vis_src.append(region.size.y)
 		if _want_emissive:
-			var em: Rect2 = _regions.get(b.get("sprite_em", &""), Rect2())
-			_vis_em.append(em.position.x)
-			_vis_em.append(em.position.y)
-			_vis_em.append(em.size.x)
-			_vis_em.append(em.size.y)
+			# One dictionary probe, and only for structures big enough on screen to
+			# show a window at all: at 1700 structures this walk is measured in
+			# milliseconds and most of them are one-tile belt.
+			if geo[o + 2] < min_em or geo[o + 3] < min_em:
+				_vis_em.append(0.0)
+				_vis_em.append(0.0)
+				_vis_em.append(0.0)
+				_vis_em.append(0.0)
+			else:
+				# .get, not [] — an archetype with no lit surface (a wall, a belt)
+				# is deliberately absent from the sheet, and indexing a missing key
+				# throws inside _collect, which leaves the visible set empty and
+				# reports a gorgeous 42 us frame that draws nothing at all.
+				var em: Rect2 = _regions.get(b["sprite_em"], Rect2())
+				_vis_em.append(em.position.x)
+				_vis_em.append(em.position.y)
+				_vis_em.append(em.size.x)
+				_vis_em.append(em.size.y)
 	_visible_buildings = _vis_b.size()
 
 	_cull_us = Time.get_ticks_usec() - t0
@@ -435,7 +454,7 @@ func _draw_shadows(ci: CanvasItem) -> void:
 	# shadow — and it is most of why 1700 structures looked like decals lying on
 	# a photograph instead of objects standing on a plain. Same atlas, same
 	# primitive, so the whole pass is still one batch.
-	var cast_col := Color(col.r, col.g, col.b, a * 0.78)
+	var cast_col := Color(col.r, col.g, col.b, a * 0.60)
 	for i2: int in _vis_b.size():
 		var b2: Dictionary = _vis_b[i2]
 		if int(b2.get("state", LcnWorldModel.BUILD_OPERATIONAL)) == LcnWorldModel.BUILD_GHOST:
@@ -456,12 +475,20 @@ func _draw_shadows(ci: CanvasItem) -> void:
 
 		# A shadow lying on the ground is foreshortened: the taller the building
 		# the further it reaches, but it never stands up again.
-		var squash: float = clampf(0.30 + len_mul * 0.26, 0.24, 0.86)
-		var reach: Vector2 = use_dir * (lift * len_mul * 0.75)
-		var foot_y: float = r.end.y - 2.0
+		# Hard foreshortening. At 0.30 + len_mul * 0.26 a 3x3 block with a 62 px
+		# lift laid down an 88 px rectangle directly under itself, and since the
+		# roof plane of most archetypes IS a filled rectangle the result read as a
+		# grey card under the building rather than as a shadow beside it.
+		var squash: float = clampf(0.16 + len_mul * 0.22, 0.13, 0.58)
+		var reach: Vector2 = use_dir * (lift * len_mul * 0.55)
+		# The shadow STRADDLES the foot line — a little over half of it above, the
+		# rest below — so it stays welded to the building it belongs to. Placing
+		# its top edge at foot + reach instead detached it entirely and left grey
+		# plates lying on the snow a hundred pixels from anything.
+		var sq_h: float = r.size.y * squash
 		var sh := Rect2(
-			r.position.x + reach.x, foot_y + reach.y - r.size.y * squash,
-			r.size.x, r.size.y * squash)
+			r.position.x + reach.x, r.end.y - 2.0 + reach.y * 0.30 - sq_h * 0.58,
+			r.size.x, sq_h)
 		ci.draw_texture_rect_region(_atlas, sh, _src_at(i2), cast_col)
 
 

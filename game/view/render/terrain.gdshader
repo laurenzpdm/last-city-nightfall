@@ -178,8 +178,11 @@ void fragment() {
 	// snow is unmistakably a soft airbrush. Warping the lookup with the drift
 	// field and a mid-scale noise gives the thaw a torn, organic rim that
 	// follows the ground it is melting.
-	vec2 hwarp = (n4(t * 0.62 + vec2(83.0, 149.0)).rg - vec2(0.5)) * 3.1
-		+ (vec2(h) - vec2(0.5)) * 1.7;
+	// Smooth warp only. Perturbing a 2-tile-per-texel field with the HIGH
+	// frequency drift term tears its texel grid open instead of its outline, and
+	// the melt edge came back as a chain of 8 px blocks along the belt line.
+	vec2 hwarp = (n4(t * 0.31 + vec2(83.0, 149.0)).rg - vec2(0.5)) * 2.6
+		+ (n4(t * 0.09 + vec2(11.0, 211.0)).ba - vec2(0.5)) * 3.4;
 	float heat = texture(heat_tex, (w + hwarp * 32.0) / map_px).r;
 
 	// ---- tracks --------------------------------------------------------------
@@ -220,7 +223,7 @@ void fragment() {
 	float cover = smoothstep(thr - 0.050, thr + 0.050, h);
 	cover *= smoothstep(0.0, 0.04, lying);
 	// Warmth breaks the crust, and feet break it faster.
-	float melt = smoothstep(0.16, 0.50, heat);
+	float melt = smoothstep(0.30, 0.70, heat);
 	cover *= (1.0 - melt) * (1.0 - worn * 0.85);
 
 	// ---- bare ground ---------------------------------------------------------
@@ -299,6 +302,11 @@ void fragment() {
 	// Wet ground next to a fire, and a ring of refrozen slush at the melt line.
 	// This is the ONE place the plain is dark and shining, and it is a readout:
 	// it means something there is burning.
+	// Thawed ground is WET GRAVEL, not a burn mark. Melting the crust exposes the
+	// dark scoured surface underneath, and left at that the pool around a Hearth
+	// reads as a smoke stain a hundred tiles wide; lifting it back toward the
+	// terrain's own mid tone keeps it dark without turning it into a hole.
+	albedo = mix(albedo, base, melt * 0.34);
 	float wet = smoothstep(0.34, 0.80, heat);
 	albedo = mix(albedo, albedo * vec3(0.80, 0.72, 0.66) + vec3(0.055, 0.034, 0.020), wet * 0.60);
 	float slush = melt * (1.0 - melt) * 4.0;
