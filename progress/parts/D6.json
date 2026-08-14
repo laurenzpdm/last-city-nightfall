@@ -16,6 +16,10 @@
     "BREAK 5 contract (one duplicate place command in smoke.json)": "build rejected 1; tools/assert_run.py exit 1, FAIL build.rejected_total final_max 0 -> final 1 — the reworked band still trips on a single genuine authoring mistake",
     "BREAK 6 unreachable NEW subsystem (game/ui/codex/ logs 'codex ready', builds nothing)": "orphan_nodes 0, no required[] entry, no matching claim keyword. SAME DUMP against the OLD contract: 14 pass, 0 FAIL, exit 0. Against the new parts_in_the_tree tooth: exit 1, 'game/ui/codex has 0 node(s) in the tree'",
     "BREAK 7 a system stops emitting a banded metric (heat.delivered removed from metrics())": "column absent from metrics.csv; tools/assert_run.py exit 1, UNCHECKED 'no such column in this run's metrics'",
+    "BREAK 8a a test that asserts nothing": "tools/check.sh tests stage exit 1 — 'FAIL tests 1126 passed, 0 failed, 0 skipped — 2 test(s) passed WITHOUT ASSERTING ANYTHING'. One was the planted probe; the OTHER IS REAL — tests/overlays/test_overlay_snapshot.gd:280",
+    "BREAK 8b a standalone suite printing TESTS PASSED over 0 checks": "tools/check.sh exit 1 — 'printed a PASSING verdict over 0 checks — a suite that asks nothing cannot answer anything [reproducible: 3 of 3 reads]'",
+    "BREAK 8c a suite that fails its first read and passes the next two": "tools/check.sh exit 1 — 'FLAPPING: failed 1 of 3 identical reads — noise or an intermittent defect, NOT a reproducible regression'",
+    "full check.sh --fast in the scratch worktree (28 stages)": "CHECK RED — 5 failing, exit 1; in-process suite 1126 passed / 0 failed",
     "reachability on the real repo after the new tooth": "15 pass, 0 FAIL, 0 unchecked, exit 0 — 14 part folders checked by directory scan, 0 exemptions",
     "tools/perf.sh --repeat=3 smoke (busy box, 4 neighbouring Godot processes)": "median 287 ticks/s, 282..289, 2% spread, floor 300 -> REGRESSED 3 of 3 readings, exit 1",
     "the noisy verdict, same three readings against a 285 floor": "median 287 holds, 1 of 3 readings under it -> status noisy, exit 0, printed as 'NOISE, not a regression'",
@@ -23,6 +27,7 @@
     "false positives from the '0 checks' rule across 17 standalone suites": "0 occurrences in the whole check.sh log"
   },
   "open": [
+    "[P19] overlays — A REAL TEST THAT CANNOT FAIL, found by the new rule on its first run and now reddening the tests stage for everyone: tests/overlays/test_overlay_snapshot.gd:280 test_freeze_eta_is_derived_from_the_measured_cooling_rate builds a world, runs 140 ticks (510 ms) and asserts NOTHING. Both its assert_gt/assert_near sit inside `for i in snap.node_count:` past an `if eta < 0.0: continue` that no node in this build ever clears. Either make a building cool toward freezing in the fixture or assert that at least one ETA was examined. One line either way; not mine to write.",
     "[P17] hud: game/ui/hud/hud_root.gd does not compile on main-mbb3z6 right now — 'Parse Error: Identifier \"_draw_scrim\" not declared in the current scope'. It reds the parse stage and drags game/ui/overlays/overlay_bootstrap.gd into a compile error with it (4 blocking engine errors). Work in flight, not mine.",
     "[P16]/[P19]: tests/camera/run_camera_tests.tscn fails 1 of 597 checks, reproducibly on 3 of 3 reads — 'FAIL overlay_hotkeys: the rotate hotkey did not reach action_pressed', with a warning 'rebind of rotate collides with [&\"build\"]'. This is a real defect, not noise, and the re-read proves it.",
     "[P15] feel: tests/feel/feel_perf.tscn fails 1 of 6 checks reproducibly here, but this box renders through llvmpipe and HANDOFF says _draw budgets fail locally and pass on CI. Re-read alone on CI before believing it.",
