@@ -3,12 +3,21 @@ extends Node
 ## [P19] The lens system: mode state, hotkeys, the per-frame sample, and the two
 ## canvas layers everything is drawn on.
 ##
-## LAYERING. The lenses live on a CanvasLayer with `follow_viewport_enabled`, so
-## they draw in WORLD coordinates but ABOVE [P13]'s post-process stack (layer
-## 60). That matters: the night grade, the bloom and the cold chromatic split
-## are there to make the world feel cold, and a diagnostic overlay that gets
-## graded along with it stops being readable at exactly the hour the player most
-## needs to read it. The legend sits on a second, non-following layer above that.
+## LAYERING. The two numbers come from `LcnLayers` and are deliberately NOT
+## restated here. This file used to carry its own `WORLD_LAYER = 70`, which put
+## world-space lenses above the HUD and painted FROZEN badges across the clock;
+## boot's `enforce()` corrected it on every launch and said so in a WARN, which
+## is a disagreement surviving rather than a bug being fixed. A part that reads
+## the allocation table cannot drift away from it.
+##
+## `OVERLAY_WORLD` follows the viewport, so the lenses draw in WORLD coordinates,
+## above [P13]'s post stack but under the HUD. Above the post stack because the
+## night grade, the bloom and the cold chromatic split exist to make the world
+## feel cold, and a diagnostic graded along with them stops being readable at
+## exactly the hour the player most needs to read it. Under the HUD because a
+## lens is paint on the ground, and the ground does not get to cover the clock.
+## The legend is chrome rather than a lens, so it lives in screen space on
+## `OVERLAY_UI`, on top with the rest of the chrome.
 ##
 ## COST. Sampling the simulation is throttled to 4 Hz and is the only thing that
 ## touches sim objects; drawing at 60 Hz walks flat Packed arrays and batches
@@ -27,8 +36,6 @@ extends Node
 ##   Bus.overlay_mode_changed       emitted on every change
 
 const GROUP: StringName = &"lcn_overlay_root"
-const WORLD_LAYER: int = 70
-const UI_LAYER: int = 72
 const SETTINGS_REFRESH: float = 0.5
 const LOG_EVERY: int = 600
 
@@ -87,13 +94,13 @@ func _ready() -> void:
 
 	_world = CanvasLayer.new()
 	_world.name = "OverlayWorld"
-	_world.layer = WORLD_LAYER
+	_world.layer = LcnLayers.OVERLAY_WORLD
 	_world.follow_viewport_enabled = true
 	add_child(_world)
 
 	_ui = CanvasLayer.new()
 	_ui.name = "OverlayUi"
-	_ui.layer = UI_LAYER
+	_ui.layer = LcnLayers.OVERLAY_UI
 	add_child(_ui)
 
 	_icons = LcnStatusIcons.new()
@@ -118,8 +125,11 @@ func _ready() -> void:
 	Bus.network_changed.connect(_on_network_changed)
 	if Sim.alive:
 		_on_world_ready()
-	Log.info("overlay", "ready — 6 lenses on canvas layer %d, keys %s" % [
-		WORLD_LAYER, " ".join(_keys.slice(1))])
+	# Read off the live nodes rather than a constant: the log's job is to say what
+	# the tree actually is. Reporting an intended number is how this line kept
+	# printing 70 through every launch on which boot had already corrected it.
+	Log.info("overlay", "ready — 6 lenses on canvas layer %d, legend on %d, keys %s" % [
+		_world.layer, _ui.layer, " ".join(_keys.slice(1))])
 
 
 func _exit_tree() -> void:

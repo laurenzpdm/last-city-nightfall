@@ -92,6 +92,7 @@ func run_all() -> Dictionary:
 		&"test_cell_maths",
 		&"test_click_versus_box_select",
 		&"test_keybind_event_roundtrip",
+		&"test_keybind_labels_never_degrade_to_numbers",
 		&"test_keybind_rebinding",
 		&"test_keybind_persistence",
 	]
@@ -130,6 +131,12 @@ func _eq_i(a: int, b: int, what: String) -> void:
 	checks += 1
 	if a != b:
 		failures.append("%s: %s (%d vs %d)" % [_case, what, a, b])
+
+
+func _eq_s(a: String, b: String, what: String) -> void:
+	checks += 1
+	if a != b:
+		failures.append("%s: %s ('%s' vs '%s')" % [_case, what, a, b])
 
 
 func _on_box_changed(_rect: Rect2, active: bool) -> void:
@@ -653,6 +660,43 @@ func test_keybind_event_roundtrip() -> void:
 		for e2: InputEvent in Keybinds.events_for(action2):
 			var clash: Array[StringName] = Keybinds.conflicts(action2, e2)
 			_ok(clash.is_empty(), "default bindings collide: %s vs %s" % [action2, str(clash)])
+
+
+## Labels must survive a display server that cannot answer "what is this key called".
+##
+## The bindings are all PHYSICAL keycodes, so event_label() has to resolve one through
+## the keyboard layout — and the headless driver answers that with an engine error
+## instead of a value. Guarding the lookup is only half the fix: the fallback has to
+## still name the key. `!= ""` does not catch that, because "87" is a non-empty string
+## and a player reading "87" for W has been served a bug with full marks from the suite.
+func test_keybind_labels_never_degrade_to_numbers() -> void:
+	Keybinds.install()
+	Keybinds.reset_all()
+
+	for action: StringName in Keybinds.actions():
+		for e: InputEvent in Keybinds.events_for(action):
+			var label: String = Keybinds.event_label(e)
+			_ok(label != "", "action '%s' has an empty label" % action)
+			var k := e as InputEventKey
+			if k == null:
+				continue
+			# The exact degradation the guard exists to prevent: the raw scancode.
+			var raw: String = str(int(k.physical_keycode))
+			_ok(not label.ends_with(raw),
+				"action '%s' labelled as the bare keycode '%s'" % [action, label])
+
+	# Function keys carry the same name on every keyboard layout, so this pins the
+	# fallback itself rather than whatever layout the machine running the suite has.
+	var f7 := InputEventKey.new()
+	f7.physical_keycode = KEY_F7
+	_eq_s(Keybinds.event_label(f7), "F7", "a physical-only function key lost its name")
+
+	# Non-key bindings never touch the layout and must be unaffected by the guard.
+	_eq_s(Keybinds.binding_label(&"cam_drag"), "Middle Mouse", "mouse label changed")
+	_eq_s(Keybinds.binding_label(&"cam_zoom_in"), "Wheel Up", "wheel label changed")
+	_ok(Keybinds.binding_label(&"quick_save").begins_with("Ctrl+")
+			or Keybinds.binding_label(&"quick_save").begins_with("Cmd+"),
+		"a modifier binding lost its prefix")
 
 
 func test_keybind_rebinding() -> void:
