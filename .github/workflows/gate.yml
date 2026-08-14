@@ -118,6 +118,15 @@ jobs:
         run: |
           echo "──────────────── failing / unchecked stages ────────────────"
           grep -E '^ (FAIL|SKIP)  ' gate.log || echo "(none)"
+          echo "──────────────── which tests ────────────────"
+          # The stage line only gives a count. Naming them here is the difference
+          # between one log read per iteration and three.
+          sed -n '/^ *FAILURES (/,/^ *────/p' gate.log \
+            | grep -E '^ *[0-9]+\) |^ *(assert_|expected:|actual:)' | head -40 || true
+          echo "──────────────── which engine errors ────────────────"
+          grep -E '^   x[0-9]+ +(SCRIPT_ERROR|ENGINE_ERROR|USER_ERROR)' gate.log | head -12 || true
+          echo "──────────────── which contract bands ────────────────"
+          grep -E '^   FAIL  ' gate.log | head -20 || true
           echo "──────────────── verdict ────────────────"
           grep -E '^CHECK (RED|GREEN)' gate.log || echo "(check.sh printed no verdict — it did not finish)"
 
