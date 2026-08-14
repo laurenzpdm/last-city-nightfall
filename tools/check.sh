@@ -238,7 +238,13 @@ if [ -n "$STANDALONE" ]; then
     fi
     if grep -q "TESTS FAILED" "$log"; then
       code=1
-      note="$(grep -m1 -oE '[0-9]+ (passed|checks).*' "$log" || true)"
+      # "1 of 67 checks failed:" was being reported as "67 checks failed:",
+      # because the old pattern started matching at the first number it could
+      # find rather than at the count of failures. One failing check read as
+      # sixty-seven in the summary, which is the difference between "look at
+      # this first" and "look at this later".
+      note="$(grep -m1 -oE '[0-9]+ of [0-9]+ checks? failed' "$log" \
+              || grep -m1 -oE '[0-9]+ (passed|checks).*' "$log" || true)"
     elif grep -q "TESTS PASSED, PARTIAL" "$log"; then
       # The suite ran and nothing it asked came back wrong, but it could not ask
       # everything it exists to ask. That is not a pass, and the one thing it
