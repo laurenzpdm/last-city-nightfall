@@ -216,7 +216,7 @@ func _beat_states() -> void:
 			if _near_color(cols[i], cols[j], 0.18):
 				distinct = false
 	_check(distinct, "the four flow colours are distinguishable from each other")
-	_check(_root.read.items.size() > 0,
+	_check_drawn(_root.read.items.size() > 0,
 		"items_for_view() returned items to draw (%d)" % _root.read.items.size())
 	await _shoot("01_four_states")
 
@@ -233,7 +233,7 @@ func _beat_items_are_really_drawn() -> void:
 	_look_at_factory(0.95)
 	await _render(3)
 	var drawn: int = _root.items.items_drawn
-	_check(drawn > 0, "the item surface drew bodies this frame (%d)" % drawn)
+	_check_drawn(drawn > 0, "the item surface drew bodies this frame (%d)" % drawn)
 	if _headless:
 		_skip("the item pixel proof needs a display — no frame to compare")
 		return
@@ -296,7 +296,7 @@ func _beat_arms_swing() -> void:
 	_check(held_seen, "the arm is seen carrying a hand of items")
 	_look_at_factory(1.4)
 	await _render(3)
-	_check(_root.machines.arms_drawn > 0,
+	_check_drawn(_root.machines.arms_drawn > 0,
 		"the machine surface drew the arm (%d)" % _root.machines.arms_drawn)
 	await _shoot("02_arm_and_splitter")
 
@@ -316,7 +316,7 @@ func _beat_zoom() -> void:
 			float(st["zoom"]), int(st["band"]), float(st["item_fade"]),
 			int(st["items_drawn"]), int(st["belts_drawn"])])
 		if z >= 0.6:
-			_check(int(st["items_drawn"]) > 0, "items are drawn at %s zoom" % String(r[1]))
+			_check_drawn(int(st["items_drawn"]) > 0, "items are drawn at %s zoom" % String(r[1]))
 		# A body must never shrink below legibility as the camera pulls out.
 		var radius_px: float = _root.items.body_radius() * float(st["zoom"])
 		if int(st["items_drawn"]) > 0:
@@ -364,7 +364,7 @@ func _beat_perf() -> void:
 	print("  DRAW COST: %d items in flight, %d drawn — items %d us, all three surfaces %d us, read %d us/tick" % [
 		items_in_flight, int(_perf["items_drawn"]), int(_perf["draw_us_items"]),
 		int(_perf["draw_us_all"]), int(_perf["read_us"])])
-	_check(items_in_flight >= 1000,
+	_check_drawn(items_in_flight >= 1000,
 		"the stress really put a factory's worth of items in flight (%d)" % items_in_flight)
 	# Not a gate on a number the integrator has not measured alone — this only
 	# catches a collapse into per-item draw calls, which is two orders out.
@@ -553,6 +553,24 @@ func _check(ok: bool, what: String) -> void:
 func _skip(what: String) -> void:
 	_unchecked.append(what)
 	print("  UNCHECKED %s" % what)
+
+
+## For anything read off a DRAW counter or off the view's own sample cache.
+##
+## Those advance when a frame is rasterised, and headless no frame ever is — so
+## the reading is 0 for a reason that says nothing about the code. Asserting on
+## it headless reported six failures against a renderer that is fine: the same
+## suite passes 30 checks under xvfb. The two pixel proofs in this file were
+## already guarded this way; these are the readings that were missed.
+##
+## The distinction that matters: the SIM works headless — tests/logistics moves
+## 1463 items with no display at all — so a zero here is the absence of a frame,
+## never the absence of items.
+func _check_drawn(ok: bool, what: String) -> void:
+	if _headless:
+		_skip("%s — needs a display: draw counters do not advance without a frame" % what)
+		return
+	_check(ok, what)
 
 
 func _fail(what: String) -> void:
