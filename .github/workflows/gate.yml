@@ -158,15 +158,47 @@ jobs:
             -- --harness --visual --scenario=first_night --out=artifacts/ci_vis 2>&1 | tail -30
           ls -la artifacts/ci_vis/shots/ || echo "NO SHOTS PRODUCED"
 
+      # Can a human actually open every screen? This is the suite that would have
+      # caught the phase where the whole build menu was an orphan node. It needs a
+      # display, which is why it lives here and not in the headless macOS job.
+      - name: Reachability suite
+        id: reach
+        run: |
+          set +e
+          xvfb-run -a -s "-screen 0 1920x1080x24" \
+            ~/godot/godot --path . tests/boot/run_reachability.tscn -- --force-ui 2>&1 | tee reach.log
+          set -e
+          if grep -q "TESTS FAILED" reach.log; then
+            echo "::error::reachability suite reported TESTS FAILED"
+            grep -E "^\s*FAIL" reach.log | head -20
+            echo "reach_failed=1" >> $GITHUB_OUTPUT
+          else
+            echo "reach_failed=0" >> $GITHUB_OUTPUT
+          fi
+
       - name: Summary
         if: always()
         run: |
+          n=$(ls artifacts/ci_vis/shots/*.png 2>/dev/null | wc -l | tr -d ' ')
           {
             echo "## Screenshots"
-            n=$(ls artifacts/ci_vis/shots/*.png 2>/dev/null | wc -l | tr -d ' ')
             echo "frames written: **$n**"
-            [ "$n" = "0" ] && echo "" && echo "No frames were produced. The visual harness did not render."
+            if [ "$n" = "0" ]; then
+              echo ""
+              echo "No frames were produced. The visual harness did not render."
+            fi
+            echo ""
+            echo "> Rendered under xvfb with software GL (llvmpipe). Colour and lighting"
+            echo "> can differ from a real GPU, so judge composition and legibility here,"
+            echo "> and judge final art direction on a machine with a GPU."
+            echo ""
+            echo "## Reachability"
+            grep -E "^\s*FAIL|checks, .* failures|TESTS (PASSED|FAILED)" reach.log 2>/dev/null | head -20 || echo "(suite did not run)"
           } >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail if reachability failed
+        if: steps.reach.outputs.reach_failed == '1'
+        run: exit 1
 
       - uses: actions/upload-artifact@v4
         if: always()
