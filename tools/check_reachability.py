@@ -46,6 +46,95 @@ def _descendants(nodes: list[dict], path: str) -> int:
     return sum(1 for n in nodes if n["path"].startswith(prefix))
 
 
+def _part_dirs(rel_root: str) -> list[str]:
+    """Immediate subdirectories of `rel_root` that contain GDScript.
+
+    Discovery, not a list. ARCHITECTURE.md §1: "registration is by directory
+    scan, never by editing a shared list" — the same rule has to apply to the
+    gate, or a new part is covered on the day somebody remembers it rather than
+    the day it lands.
+    """
+    base = os.path.join(G.ROOT, rel_root)
+    if not os.path.isdir(base):
+        return []
+    out = []
+    for name in sorted(os.listdir(base)):
+        sub = os.path.join(base, name)
+        if not os.path.isdir(sub):
+            continue
+        if not any(f.endswith(".gd") for f in os.listdir(sub)):
+            continue
+        out.append("%s/%s" % (rel_root, name))
+    return out
+
+
+def check_parts(dump: dict, contract: dict) -> list[G.Finding]:
+    """EVERY part folder that holds view code has a node in the tree.
+
+    required[] names six subsystems. It caught the build menu because somebody
+    had already been burned by the build menu. It says nothing at all about the
+    seventh subsystem, and [P21] and [P24] are both still unwritten — so the day
+    a tutorial lands, boots, logs "tutorial ready" and never parents itself, the
+    contract as written passes it. This asks the question the other way round:
+    the parts are read off the disk, and a part whose scripts are nowhere in the
+    tree is unreachable whether or not anyone remembered to list it.
+    """
+    spec = contract.get("parts_in_the_tree") or {}
+    if not spec:
+        return []
+    out: list[G.Finding] = []
+    why = str(spec.get("$why", ""))
+    minimum = int(spec.get("min_nodes", 1))
+    exempt = {k: v for k, v in (spec.get("exempt") or {}).items() if not k.startswith("$")}
+
+    parts: list[str] = []
+    for rel_root in spec.get("roots") or []:
+        parts += _part_dirs(str(rel_root))
+    for flat in spec.get("parts") or []:
+        if os.path.isdir(os.path.join(G.ROOT, str(flat))):
+            parts.append(str(flat))
+    if not parts:
+        out.append(G.Finding(G.UNCHECKED, "every part folder is in the tree",
+                             "no part directory was found under %s — is the contract pointing at the "
+                             "right roots?" % ", ".join(spec.get("roots") or ["?"]), why))
+        return out
+
+    counts: dict[str, int] = {p: 0 for p in parts}
+    for n in dump.get("nodes") or []:
+        script = str(n.get("script") or "")
+        if not script.startswith("res://"):
+            continue
+        rel = script[len("res://"):]
+        for p in parts:
+            if rel.startswith(p + "/"):
+                counts[p] += 1
+                break
+
+    missing = []
+    excused = []
+    for p in sorted(parts):
+        if counts[p] >= minimum:
+            continue
+        reason = str(exempt.get(p, "")).strip()
+        if len(reason) >= 25:
+            excused.append("%s (%s)" % (p, reason[:70]))
+        elif p in exempt:
+            missing.append("%s — its exemption is not a justification (%d chars); an excuse with no "
+                           "argument is how a suppression becomes permanent" % (p, len(reason)))
+        else:
+            missing.append("%s has %d node(s) in the tree, needs %d — nothing this part draws is "
+                           "reachable by a player" % (p, counts[p], minimum))
+    if missing:
+        out.append(G.Finding(G.FAIL, "every part folder is in the tree",
+                             "%d unreachable: %s" % (len(missing), " | ".join(missing[:3])), why))
+    else:
+        out.append(G.Finding(G.PASS, "every part folder is in the tree",
+                             "%d part(s) checked by directory scan, %d excused%s" % (
+                                 len(parts), len(excused),
+                                 (": " + "; ".join(excused)) if excused else ""), why))
+    return out
+
+
 def check(dump: dict, contract: dict) -> list[G.Finding]:
     out: list[G.Finding] = []
     nodes: list[dict] = dump.get("nodes") or []
@@ -96,6 +185,8 @@ def check(dump: dict, contract: dict) -> list[G.Finding]:
     null_fields = [h["field"] for h in (dump.get("held") or []) if h.get("state") == "null"]
     if null_fields:
         out.append(G.Finding(G.PASS, "boot fields left null", ", ".join(sorted(null_fields))))
+
+    out += check_parts(dump, contract)
 
     # ── the engine's own orphan count
     cap = int(contract.get("orphan_nodes_max", 0))

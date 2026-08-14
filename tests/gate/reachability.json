@@ -35,6 +35,14 @@
   ],
   "$expect_systems_why": "game/core/sim.gd skips a system script that fails to load and only writes a DEBUG line about it, so a build can come up with three systems in it and look calm. These eleven are the parts ARCHITECTURE.md §1 names; a missing one is a script that does not compile.",
 
+  "parts_in_the_tree": {
+    "$why": "required[] below names six subsystems, and it names them because somebody had already been burned by each one. It says nothing about the seventh. [P21] tutorial and [P24] meta are both still unwritten \u2014 the day one of them lands, boots, logs 'tutorial ready' and never parents itself, a list-based contract passes it and the gate learns about it from a critic. So this asks the question the other way round: the part folders are READ OFF THE DISK (ARCHITECTURE.md \u00a71: registration is by directory scan, never by editing a shared list) and a part whose scripts appear nowhere in the booted tree is unreachable, listed or not. Fail-closed: a new folder under game/ui/ or game/view/ is covered the day it lands. exempt: needs a real argument, not a name \u2014 an entry under 25 characters is refused the same way tools/error_allowlist.txt refuses one.",
+    "roots": ["game/ui", "game/view"],
+    "parts": ["game/play", "game/narrative", "game/audio"],
+    "min_nodes": 1,
+    "exempt": {}
+  },
+
   "orphan_nodes_max": 0,
   "$orphan_why": "Performance.OBJECT_ORPHAN_NODE_COUNT is the engine's own count of nodes that exist and are in no tree. A steady-state boot has none; any number above zero is something that was built and then dropped.",
 
