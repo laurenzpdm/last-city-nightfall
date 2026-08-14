@@ -1,0 +1,25 @@
+{
+  "ts": "2026-08-14T18:05:00Z",
+  "part": "P21",
+  "title": "The first twenty minutes: a bottom-of-screen guide that the freezing city drives, not a timer",
+  "verified": {
+    "tests/tutorial/run_tutorial.tscn (xvfb 1920x1080, --force-ui)": "TESTS PASSED — 75 checks, 0 failures, 0 unchecked",
+    "tests/tutorial/run_tutorial.tscn (headless, --force-ui)": "TESTS PASSED, PARTIAL — 75 checks, 0 failures, 1 unchecked (the Skip click needs real mouse hit-testing)",
+    "revert proof: tutorial_root.gd deleted in a scratch copy": "TESTS FAILED — 1 check, 2 failures (was TESTS PASSED with 0 checks before I added the MIN_CHECKS floor)",
+    "sabotage proof: LcnTutorialLesson.is_done replaced with 'SimClock.tick > 600'": "TESTS FAILED — 74 checks, 4 failures, first one is '1200 ticks of doing nothing did NOT advance the guide'",
+    "tests/boot/run_reachability.tscn (xvfb, --force-ui)": "TESTS PASSED — 90 checks, 0 failures, 0 unchecked",
+    "tools/determinism.sh first_night": "IDENTICAL sha256 275ba5ec03bb636e",
+    "tools/parse_check.gd": "PARSE OK — 393 scripts",
+    "tests/run_tests.gd --filter=registry": "TESTS PASSED — 3 tests, 44 asserts (content/tutorial is a clean 20th Registry category, 225 items)",
+    "--ui-tour visual run, frames looked at": "17 steps, 0 failures; lesson 1 renders bottom-centre with the marker ring on the stranded watchtower and the live strip 'networks 3  off the mains 2  frozen 0  outside -27 C'",
+    "opening pressure measured in the real boot session": "networks=3, frozen=2 by tick ~495, food_days 5.3 -> 3.5 over one day, coal 200 -> 60, fuel_by_porter 200, belts 0, line_fed_burners 0"
+  },
+  "open": [
+    "LcnLayers.SLOTS has no row for the tutorial, so boot logs 'canvas layers not in LcnLayers.SLOTS yet: LcnTutorial@80' on every launch and enforce() will not correct my layer. Adding {key: &\"tutorial\", layer: MODAL, owner: \"P21 tutorial\", names: [\"LcnTutorial\"]} is a one-line integrator change in game/core/ui_layers.gd — INTEGRATOR owns it.",
+    "LcnLayers.PENDING advertises the tutorial's hotkey as 'F1 help', but F1 is a readability lens ([P16] action map -> [P19]) and tests/boot/run_reachability.tscn asserts that. I took no key at all; the guide is mouse-only on real Buttons, like [P22]'s card. Either that PENDING row's hotkey text should change or the INTEGRATOR should allocate a key that nobody else has claimed.",
+    "The guide has no way to be brought back once skipped except LcnTutorialRoot.restart(), which nothing in the interface calls. A 'Show the guide' line belongs in [P24]'s settings screen; the method is public and takes no arguments.",
+    "user://tutorial.cfg is my own ConfigFile because game/core/settings.gd is [P24]-owned and read-only to other parts. If [P24] lands a save-game, tutorial progress should move into it so a loaded city resumes its lesson rather than resuming the course.",
+    "The suite drives the pipe runs with build place_line commands, not with a real click-and-drag through PlayController. The commands are the same ones the drag submits, but the drag itself is [P11]/integrator-owned and untested from here.",
+    "Not run: tools/check.sh in full (40+ min, and perf numbers are meaningless with four agents on this box). Under check.sh my suite runs headless and will therefore be recorded as a SKIP, not a pass, because of that one display-dependent check — same shape as tests/boot/run_reachability.tscn."
+  ]
+}
