@@ -1,7 +1,7 @@
 {
  "round": 4,
  "phase": "D \u2014 Integrate, play, judge",
- "state": "The container restarted and killed the workflow mid-flight. Nothing was lost: the run journal survived with all six builder results cached, D7s uncommitted work still parsed (422 scripts, PARSE OK) and was preserved as explicitly half-built. D7 is re-running; then the integrator measures alone, a fresh agent plays the whole game, and two critics judge it blind against Factorio and Frostpunk.",
+ "state": "D7 died mid-task: it waited on a background task the container restart had removed, and an unbounded wait never returns. Its work was salvaged in three snapshots taken only while it was idle and only after PARSE OK, and handed to the integrator as explicitly unfinished \u2014 its own 120-check layout audit still reports 12 real failures. Six builders cached. The integrator is now running alone, which makes it the first trustworthy perf measurement of the wave.",
  "agents_live": 1,
  "critic_score": 4.2,
  "blind_wins": 0,
@@ -190,7 +190,7 @@
   {
    "id": "D7",
    "name": "Screen composition",
-   "status": "in_progress",
+   "status": "failed",
    "score": null
   }
  ],
@@ -210,7 +210,7 @@
  },
  "gate": {
   "label": "Gate (macOS CI)",
-  "value": "1 real",
-  "note": "camera hotkey \u00b7 rest labelled flapping or runner speed"
+  "value": "RED \u2014 6",
+  "note": "12 of them D7s own audit, unfinished by design"
  }
 }
