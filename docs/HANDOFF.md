@@ -1,5 +1,16 @@
 # Last City: Nightfall — Cloud Handoff
 
+> **STANDING INSTRUCTION (Maximilian, 2026-08-14): test on the macOS runner.**
+> Measured, not assumed: a GitHub macOS runner renders fine despite having no logged-in GUI
+> session (probe run 31815322032, six ~1 MB frames through Metal). `visual + reachability
+> (macOS)` is therefore the primary visual job. One caveat: the window clamps to about
+> 1024x631 regardless of `--resolution`. The Linux/xvfb job is kept as a cross-check on
+> different hardware and a different GL stack.
+>
+> **Correction to an earlier note in this file:** the washed-out orange terrain in CI frames
+> is NOT a software-rendering artefact. macOS/Metal produces the same look, so it is the
+> build's real current appearance and is a genuine art-direction defect.
+
 Everything an agent needs to pick this up cold. Written 2026-08-14, at the end of the run that
 finished Phase C's gate work. **Every number below was produced by running the build in this
 session, not copied from a report.** That distinction is the method of the whole project — §7.

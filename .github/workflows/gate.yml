@@ -246,15 +246,23 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-  # Maximilian's standing instruction: test on the macOS runner. The open
-  # question is whether a GitHub macOS runner, which has no logged-in GUI
-  # session, can render at all. This job asks it empirically instead of
-  # assuming. If it produces frames, the visual work moves here from Linux.
+  # STANDING INSTRUCTION FROM MAXIMILIAN (2026-08-14): test on the macOS runner.
+  #
+  # This was an open question and is now answered by measurement, not assumption:
+  # a GitHub macOS runner has no logged-in GUI session, and Godot renders on it
+  # anyway. Probe run 31815322032 wrote six frames of ~1 MB each through Metal.
+  #
+  # ONE CAVEAT, measured: the window is clamped to about 1024x631 regardless of
+  # --resolution, because there is no real display to open 1920x1080 on. Judge
+  # composition and legibility here; judge fine art direction at full size on a
+  # machine with a screen.
+  #
+  # The Linux/xvfb job stays as a cross-check: it runs software GL on different
+  # hardware, so a defect that appears in both is in the game, not the runner.
   visual-macos:
-    name: visual probe (macOS)
+    name: visual + reachability (macOS)
     runs-on: macos-latest
-    timeout-minutes: 30
-    continue-on-error: true
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - name: Cache Godot
@@ -271,16 +279,30 @@ jobs:
           unzip -q godot.zip && rm godot.zip
       - name: Import
         run: ~/godot/Godot.app/Contents/MacOS/Godot --headless --path . --import 2>&1 | tail -5
-      - name: Can macOS render without a GUI session?
+      - name: Render first_night
         run: |
           set +e
           ~/godot/Godot.app/Contents/MacOS/Godot --path . --resolution 1920x1080 \
-            -- --harness --visual --scenario=smoke --out=artifacts/mac_vis 2>&1 | tail -25
-          echo "exit: $?"
+            -- --harness --visual --scenario=first_night --out=artifacts/mac_vis 2>&1 | tail -30
+          echo "harness exit: $?"
           set -e
           n=$(ls artifacts/mac_vis/shots/*.png 2>/dev/null | wc -l | tr -d ' ')
-          echo "VERDICT: macOS runner produced $n frame(s)"
-          echo "macOS visual probe: **$n frame(s)**" >> $GITHUB_STEP_SUMMARY
+          echo "frames: $n"
+          echo "macOS frames rendered: **$n**" >> $GITHUB_STEP_SUMMARY
+          if [ "$n" = "0" ]; then echo "::error::macOS produced no frames"; exit 1; fi
+
+      # The suite that would have caught the phase where the whole build menu was
+      # an orphan. It needs a display; macOS provides one well enough to run it.
+      - name: Reachability suite
+        run: |
+          set +e
+          ~/godot/Godot.app/Contents/MacOS/Godot --path . tests/boot/run_reachability.tscn \
+            -- --force-ui 2>&1 | tee reach_mac.log
+          code=$?
+          set -e
+          echo "reachability exit: $code"
+          grep -E "TESTS (PASSED|FAILED)|checks, .* failures|^\s*FAIL" reach_mac.log | head -20 >> $GITHUB_STEP_SUMMARY || true
+          if [ "$code" != "0" ]; then echo "::error::reachability suite exit $code"; exit 1; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
