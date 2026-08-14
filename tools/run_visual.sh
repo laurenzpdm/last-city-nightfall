@@ -24,7 +24,16 @@ mkdir -p "$ROOT/artifacts" && : > "$ROOT/artifacts/.gdignore"
 # invisible to Log.errors and therefore to the harness's exit code.
 # LCN_NO_ERROR_GATE=1 opts out.
 LOG="$(mktemp "${TMPDIR:-/tmp}/lcn_run_visual.XXXXXX")"
-"$GODOT" --path "$ROOT" --resolution 1920x1080 -- --harness --visual "$@" 2>"$LOG"
+# `--audio-driver Dummy`: a build machine has no sound card, and ALSA's failure
+# to open one prints `ERROR: Condition "status < 0" is true` from
+# drivers/alsa/audio_driver_alsa.cpp before a single line of this project runs.
+# That is engine noise about the machine, not about the build, and the one thing
+# the error gate must not learn is to ignore errors. [P23] still installs its
+# buses and streams; only the output device is a null sink. `tests/audio/` keeps
+# the real driver, so a genuine audio regression still has somewhere to show up.
+LCN_AUDIO_DRIVER="${LCN_AUDIO_DRIVER:-Dummy}"
+"$GODOT" --audio-driver "$LCN_AUDIO_DRIVER" --path "$ROOT" --resolution 1920x1080 \
+    -- --harness --visual "$@" 2>"$LOG"
 code=$?
 cat "$LOG" >&2   # replayed, not tee'd: a process substitution can still be
                  # writing when the scan below reads the file, and a gate that

@@ -102,6 +102,12 @@ func _build() -> void:
 	_body.custom_minimum_size = Vector2(CARD_W, 0.0)
 	_body.add_theme_font_size_override("normal_font_size", 14)
 	_body.add_theme_color_override("default_color", Color(0.74, 0.76, 0.80))
+	# Label defaults to IGNORE in Godot 4; RichTextLabel defaults to STOP. This
+	# one is prose with no links and no selection, so the default made the body
+	# text the GUI's hover target over the middle of the screen — the header of
+	# this file says "mouse only, on real Buttons" and this is the line that
+	# makes that true.
+	_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_column.add_child(_body)
 
 	_column.add_child(_rule())
@@ -261,6 +267,31 @@ func _layout() -> void:
 # =========================================================================
 #  answering
 # =========================================================================
+
+## Answers whatever is on screen exactly the way the player's own buttons do: a
+## card with nothing to decide is acknowledged, a dilemma takes its first option.
+## Returns false when nothing was up.
+##
+## Public because this card is opaque to the mouse over the middle of the screen
+## — correctly, it has buttons on it — which means anything driving the game
+## without hands (the reachability suite, `--ui-tour`, a harness playthrough) has
+## to be able to put it away through the same path a player uses, rather than by
+## reaching past [P22] and hiding a node.
+func dismiss_current() -> bool:
+	var card: Dictionary = Narrative.current()
+	if card.is_empty():
+		return false
+	var id: StringName = StringName(String(card.get("id", "")))
+	if String(id) == "":
+		return false
+	var opts: Array = card.get("options", [])
+	if opts.is_empty():
+		Narrative.acknowledge(id)
+	else:
+		Narrative.choose(id, int((opts[0] as Dictionary).get("index", 0)))
+	_signature = ""
+	return true
+
 
 func _on_pressed(id: StringName, option_index: int) -> void:
 	if option_index < 0:

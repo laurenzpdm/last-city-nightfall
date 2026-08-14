@@ -137,10 +137,17 @@ func _add_lens(m: int, lens: LcnOverlayLayer) -> void:
 # hotkeys
 # =========================================================================
 
-## F1..F6 are the canonical bindings. A bare number key is taken only when
-## InputMap says nobody else wants it — [P16] owns 1/2/3 for sim speed and this
-## part must not quietly break them. Whatever is actually claimed is what the
-## on-screen rail prints, so the help can never lie.
+## F1..F6 are the canonical bindings. A bare number key is taken only when the
+## integrator's table has not reserved it AND InputMap says nobody else wants it
+## — [P16] owns 1/2/3 for sim speed and this part must not quietly break them.
+## Whatever is actually claimed is what the on-screen rail prints, so the help
+## can never lie.
+##
+## The table is asked FIRST and the InputMap second, because the InputMap answer
+## depends on whether [P16]'s camera has installed the action map yet, and with a
+## display attached this part installs itself before boot builds the camera. That
+## race silently handed 1/2/3 to the lenses in every real session — see
+## `LcnLayers.key_is_reserved`.
 func _claim_hotkeys() -> void:
 	_keys.resize(LcnOverlayDefs.MODE_COUNT)
 	_plain_keys.clear()
@@ -148,8 +155,9 @@ func _claim_hotkeys() -> void:
 	_keys[0] = ""
 	for m: int in range(1, LcnOverlayDefs.MODE_COUNT):
 		var label: String = "F%d" % m
-		if _key_is_free(numbers[m]):
-			_plain_keys[numbers[m]] = m
+		var code: int = numbers[m]
+		if not LcnLayers.RESERVED_TIME.has(code) and _key_is_free(code):
+			_plain_keys[code] = m
 			label = "%d" % m
 		_keys[m] = label
 

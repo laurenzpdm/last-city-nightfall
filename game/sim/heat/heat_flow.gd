@@ -51,7 +51,7 @@ extends RefCounted
 ##     call per graph edge is what made a 1400-node network cost 24 ms a tick.
 ##
 ## The residual reroutes in step 3 write to a SEPARATE routing object from the
-## cross-tick cache (HeatTopology.scratch vs .primary), so a network that runs a
+## cross-tick cache (HeatTopology.residual vs .primary), so a network that runs a
 ## deficit no longer invalidates its own routing every tick. That single change
 ## is worth more than every micro-optimisation in this file.
 

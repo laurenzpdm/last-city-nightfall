@@ -178,6 +178,30 @@ tests_note="$(grep -m1 '^ tests ' "$LOGDIR/tests.log" | sed 's/^ tests  *//')"
 record "tests" "$LOGDIR/tests.log" "$tests_code" "$tests_note"
 
 # --- 4b. suites that brought their own entry point -------------------------
+#
+# A suite may need command-line switches to be asking the question it thinks it
+# is asking. It declares them itself, in one line at the top of its script:
+#
+#     ## REQUIRES: --force-ui
+#
+# rather than in a list kept here. The case that forced this: every part that
+# installs itself (`game/content/**/*_bootstrap.tres`) asks
+# `LcnLayers.view_wanted()` while Registry is still scanning, so with a display
+# or with `--force-ui` those parts come up BEFORE boot and the tree is assembled
+# in a different order, with a different owner for the number row. Run headless
+# without the switch and tests/boot/run_reachability.tscn printed
+# `TESTS PASSED — 86 checks, 0 failures` on a build that failed three checks the
+# moment a display was attached. The gate was asking the easy question.
+suite_args() {   # suite_args <path> -> the user args that suite declares it needs
+  local rel="$1" src="$rel"
+  if [ "${rel##*.}" = "tscn" ]; then
+    src="$(grep -m1 -oE 'path="res://[^"]+\.gd"' "$rel" 2>/dev/null \
+           | sed 's|^path="res://||; s|"$||')"
+  fi
+  [ -n "$src" ] && [ -f "$src" ] || return 0
+  grep -m1 '^## REQUIRES: ' "$src" 2>/dev/null | sed 's/^## REQUIRES: //'
+}
+
 STANDALONE="$("$GODOT" --headless --path "$ROOT" --script tests/run_tests.gd -- --list-standalone 2>/dev/null | grep '^res://' || true)"
 if [ -n "$STANDALONE" ]; then
   say ""
@@ -186,6 +210,8 @@ if [ -n "$STANDALONE" ]; then
     [ -z "$suite" ] && continue
     rel="${suite#res://}"
     log="$LOGDIR/standalone_$(echo "$rel" | tr '/' '_').log"
+    # shellcheck disable=SC2046
+    read -r -a SUITE_ARGS <<< "$(suite_args "$rel")"
     # A .tscn is run AS A SCENE. Godot compiles a --script file before it
     # registers the autoloads, so a Node-based suite launched that way dies on
     # `Identifier not found: Log`, prints nothing and exits 0 — which is exactly
@@ -193,9 +219,9 @@ if [ -n "$STANDALONE" ]; then
     # A suite that never exits is worse than one that fails: without this the
     # gate blocks forever and every other agent's check.sh queues behind it.
     if [ "${rel##*.}" = "tscn" ]; then
-      $TIMEOUT "$GODOT" --headless --path "$ROOT" "res://$rel" > "$log" 2>&1
+      $TIMEOUT "$GODOT" --headless --path "$ROOT" "res://$rel" -- "${SUITE_ARGS[@]}" > "$log" 2>&1
     else
-      $TIMEOUT "$GODOT" --headless --path "$ROOT" --script "$rel" > "$log" 2>&1
+      $TIMEOUT "$GODOT" --headless --path "$ROOT" --script "$rel" -- "${SUITE_ARGS[@]}" > "$log" 2>&1
     fi
     code=$?
     note=""
@@ -207,6 +233,14 @@ if [ -n "$STANDALONE" ]; then
     if grep -q "TESTS FAILED" "$log"; then
       code=1
       note="$(grep -m1 -oE '[0-9]+ (passed|checks).*' "$log" || true)"
+    elif grep -q "TESTS PASSED, PARTIAL" "$log"; then
+      # The suite ran and nothing it asked came back wrong, but it could not ask
+      # everything it exists to ask. That is not a pass, and the one thing it
+      # must never do is read like one.
+      record_skip "$rel" \
+        "$(grep -m1 -oE '[0-9]+ unchecked' "$log" || echo 'some checks never ran') — $(grep -m1 -oE 'UNCHECKED .*' "$log" | cut -c1-90)" \
+        "standalone suites"
+      continue
     elif ! grep -q "TESTS PASSED" "$log"; then
       # No verdict at all means the suite never ran. Silence is not success.
       code=1

@@ -476,14 +476,24 @@ func _derive_council(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 		if not laws.is_empty():
 			fix = "Open the Book of Laws with L and sign %s." % LcnHudFormat.list_words(
 				_law_names(laws))
-		out.append(_entry(StringName("demand_%s" % String(d.get("id", "x"))), "council",
+		# `str()`, not `String()`. Godot 4 has String constructors for String,
+		# StringName and NodePath and for nothing else, and [P06] numbers its
+		# demands: `{"id": 1, ...}`. `String(1)` therefore raised
+		# "Invalid call 'String' constructor" every time this ran — 336 of the
+		# gate's 363 blocking engine errors came out of this one line, because the
+		# alert panel refreshes several times a second for as long as a demand is
+		# open. `str()` takes any Variant and is the right tool for building a key
+		# out of somebody else's id.
+		out.append(_entry(StringName("demand_%s" % str(d.get("id", "x"))), "council",
 			sev, head, body, fix, probe.core_focus(), 1))
 
 
 static func _law_names(laws: Array) -> PackedStringArray:
 	var out := PackedStringArray()
 	for l: Variant in laws:
-		out.append(LcnHudFormat.titleize(String(l)))
+		# Same reason as the demand key above: a law id that arrives as anything
+		# other than a String/StringName must not take the alert panel down.
+		out.append(LcnHudFormat.titleize(str(l)))
 	return out
 
 

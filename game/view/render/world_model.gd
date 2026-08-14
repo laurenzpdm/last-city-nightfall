@@ -820,6 +820,15 @@ func advance(tick: int) -> void:
 func ensure_preview_settlement(core: Vector2i) -> void:
 	if _preview_dropped or not _buildings.is_empty():
 		return
+	# THE GUARD IS HERE, not at the call site, so there is no way to reach the
+	# placeholders in an automated run by adding a second caller later.
+	if not preview_allowed():
+		Log.info("render", ("no structures in the simulation, and the [P13] preview "
+			+ "settlement is refused in this run (%s) — the frame shows the empty "
+			+ "plain, which is what the simulation actually contains")
+			% preview_denied_reason())
+		_preview_dropped = true
+		return
 	if preview == null:
 		preview = LcnPreviewWorld.new(Rng.seed_value, world_size(), core)
 		preview.generate()
@@ -834,3 +843,29 @@ func ensure_preview_settlement(core: Vector2i) -> void:
 
 func showing_preview_settlement() -> bool:
 	return preview != null and not preview.buildings.is_empty()
+
+
+## Whether this process is allowed to draw a city the simulation does not have.
+##
+## A screenshot is the one artifact a critic is handed instead of a summary, and
+## `artifacts/<run>/shots/*.png` is what a reviewer looks at when they want to
+## know whether anything actually happened. A harness run that photographs 337
+## structures the simulation has never heard of is not a helpful placeholder, it
+## is manufactured evidence — and this build has already spent a phase being
+## judged green on things nobody had looked at.
+##
+## So the preview settlement is available exactly where it earns its keep — an
+## interactive launch, and the isolated render/feel/vfx scenes that need a city
+## on screen without a simulation behind it — and is refused everywhere a run
+## produces artifacts that stand in for the truth.
+func preview_allowed() -> bool:
+	return preview_denied_reason() == ""
+
+
+## Why the preview is refused, or "" when it is allowed. Worded for the log.
+func preview_denied_reason() -> String:
+	if OS.get_cmdline_user_args().has("--no-preview-city"):
+		return "--no-preview-city"
+	if Harness.active:
+		return "--harness: an automated run must never photograph a city that is not in the simulation"
+	return ""

@@ -120,6 +120,21 @@ func build(members: PackedInt32Array, nodes: Dictionary[int, HeatNode],
 	_residual_next = 0
 
 
+## Drops every memoised residual route. A cached residual is "the same answer by
+## construction" only while the graph it was laid over is the one still standing,
+## so anything that throws the routing away wholesale — a rebuild, a save load —
+## has to throw these away with it.
+func invalidate_residuals() -> void:
+	for k: int in residual.size():
+		var r: HeatRoute = residual[k]
+		if r == null:
+			continue
+		r.valid = false
+		r.sig = 0
+		r.bump()
+	_residual_next = 0
+
+
 ## An already-laid residual route with this exact signature, or null.
 func find_residual(sig: int) -> HeatRoute:
 	for k: int in residual.size():

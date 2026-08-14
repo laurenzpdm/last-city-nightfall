@@ -2,3 +2,4 @@
 artifacts/
 /build/
 *.import
+__pycache__/
