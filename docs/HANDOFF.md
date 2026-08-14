@@ -274,9 +274,37 @@ macOS minutes bill at a 10× multiplier and the macOS job should be dropped.
 
 Defects A, B, C and D are done (§4). What is left, in the order it is worth doing:
 
-1. **The automation pillar does not run.** `first_night` moves zero items over 11000 ticks and
-   refuses 13 build commands. This is the largest gap between what the game claims and what a
-   run contains, and no amount of gate work substitutes for it.
+1. **The automation pillar does not run — and now we know exactly why.** `first_night` moves
+   zero items over 11000 ticks. It is not a logistics bug: `tests/logistics/` places belts and
+   moves items and passes its bands. The reference run simply **never asks for a belt**:
+
+   ```
+   $ python3 -c "import json;print(json.dumps(json.load(open('tests/scenarios/first_night.json'))).count('belt'))"
+   0
+   ```
+   Zero occurrences of `belt`, `splitter`, `underground`, `inserter`, `long_arm` or `logistics`
+   in the whole scenario, while its contract asserts `logistics.items_moved >= 1` and
+   `belt_lines >= 1`. Research even completes `Splitters & Balancers` at t008840, so the pieces
+   are unlocked and then never placed. The flagship run that "the art, audio and UI parts
+   screenshot against" contains **no automation at all**, in a game whose pitch is three genres.
+
+   The fix belongs in `tools/gen_scenarios.py::first_night()` (the JSON is generated — never
+   hand-edit it). The honest version is the one a player would build: the `ore_drill` at
+   `(-4, -31)` feeds the `smelter` at `(2, -21)` by belt, and the smelter feeds the
+   `storage_yard`. Mind the heat trunk at `x = +1` running `y = -18 .. -33` — a belt cannot
+   share a tile with a pipe, which is precisely what `underground_mk1` is for. The working
+   idiom is `crate → inserter_mk1 → place_line belt_mk1 → inserter_mk1 → crate`; see
+   `tests/logistics/belt_by_hand.json` and `factory_line.json` for placements that are known
+   to move items.
+
+   **Do not satisfy the band with a self-contained belt loop parked in empty snow.** That would
+   turn the number green while leaving the pillar unexercised, which is the same class of lie
+   as the preview settlement in §4D.
+
+   Separately, `build.rejected_total` is 13 against a `final_max` of 0 — 13 placements in the
+   reference run are refused at runtime. `gen_scenarios.py` claims it "refuses to emit a
+   placement that would be refused at runtime", so either that claim or those 13 placements is
+   wrong. Read `artifacts/gate/first_night/log.txt` for the reasons in words.
 2. **`threat.waves_cleared` vs `Bus.wave_cleared`** disagree by one, failing two gate contracts.
    Find out which is right and whether the watchdog force-resolving waves is masking a third
    defect underneath.
