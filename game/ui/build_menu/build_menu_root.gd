@@ -617,6 +617,15 @@ func _process(delta: float) -> void:
 	# hotkey strip 732 px off the bottom of the screen, and long enough for a
 	# player dragging a window edge to watch it swim.
 	_place_chrome()
+	# Also outside the gate, and for the same reason. A decision outranks an
+	# inspection, but `_place_tooltip` only asks whether a card is up on the 4 Hz
+	# refresh — so a card arriving between two refreshes left this sheet on
+	# screen for a quarter of a second with the question underneath it. Measured
+	# at the opening beat of `first_night`: [P22]'s "The Column Stopped Here" and
+	# a 380 px inspection of the hearth, both drawn, in the frame a critic sees
+	# first. One group lookup per frame is the right price for that.
+	if tooltip != null and tooltip.visible and _hud_rect(&"card").size.x > 1.0:
+		tooltip.visible = false
 	if _accum < 1.0 / REFRESH_HZ:
 		return
 	_accum = 0.0

@@ -52,6 +52,12 @@ var ticker_slot: Rect2 = Rect2()
 var card_size: Vector2 = Vector2.ZERO
 ## Screen rect the card actually occupies after placement. The audit reads this.
 var card_rect: Rect2 = Rect2()
+## Screen rect [P22]'s flavour ticker actually occupies, or ZERO when it is not
+## on screen. Published so the audit has a rectangle to fail on: until this
+## existed the suite's allow-list named four pairs involving `ticker` and NOTHING
+## IN THE BUILD EVER PUBLISHED ONE, so all four were exemptions from a check that
+## could not run.
+var ticker_rect: Rect2 = Rect2()
 
 var _presenter: CanvasLayer = null
 var _panel: Control = null
@@ -71,15 +77,16 @@ func card_visible() -> bool:
 	return _panel != null and _panel.visible and _panel.size.x > 1.0
 
 
+## Clear air between the bottom of a card and the top of the flavour feed.
+const TICKER_CLEARANCE: float = 10.0
+
+
 func _process(_delta: float) -> void:
 	_find()
-	if _panel == null:
+	if _panel == null or not _panel.visible:
 		card_size = Vector2.ZERO
 		card_rect = Rect2()
-		return
-	if not _panel.visible:
-		card_size = Vector2.ZERO
-		card_rect = Rect2()
+		_place_ticker(Rect2())
 		return
 	card_size = _panel.size
 	if slot.size.x > 1.0:
@@ -90,14 +97,39 @@ func _process(_delta: float) -> void:
 		card_rect = Rect2(slot.position, _panel.size)
 	else:
 		card_rect = Rect2(_panel.global_position, _panel.size)
-	if _ticker != null and ticker_slot.size.x > 1.0:
-		# Zero reserved height means the card reached the stage floor and there is
-		# nowhere for flavour to go. Hiding it is the honest outcome: the
-		# alternative is prose printed over a question.
-		_ticker.visible = ticker_slot.size.y > 1.0
-		if _ticker.visible:
-			_ticker.position = ticker_slot.position
-			_ticker.size = ticker_slot.size
+	_place_ticker(card_rect)
+
+
+## THE FLAVOUR FEED YIELDS TO THE QUESTION, AND IT YIELDS AGAINST THE CARD THAT
+## IS ACTUALLY ON SCREEN.
+##
+## The solver already gives the ticker zero height when the card it was solved
+## against would reach the stage floor. That is the right rule and it was not
+## enough, because the card's height is [P22]'s content and changes the instant a
+## longer dilemma arrives — a poll before the solver hears about it. Measured at
+## the dusk beat of `first_night` in `artifacts/d7/fixed_1920/shots/dusk.png`:
+## the solve reserved the ticker against a 437 px card, "The Clerk Wants an
+## Answer" came up 597 px tall, and four lines of "the care house has an empty
+## bed in it" were printed straight across the two options the player was being
+## asked to choose between.
+##
+## So the decision is made here, every frame, against the rectangle the card
+## really occupies — this node is the only thing in the build that can see both.
+func _place_ticker(card: Rect2) -> void:
+	if _ticker == null:
+		ticker_rect = Rect2()
+		return
+	var want: Rect2 = ticker_slot
+	var blocked: bool = card.size.x > 1.0 \
+		and card.end.y + TICKER_CLEARANCE > want.position.y \
+		and card.end.x > want.position.x and card.position.x < want.end.x
+	_ticker.visible = want.size.x > 1.0 and want.size.y > 1.0 and not blocked
+	if not _ticker.visible:
+		ticker_rect = Rect2()
+		return
+	_ticker.position = want.position
+	_ticker.size = want.size
+	ticker_rect = want
 
 
 ## Re-acquires the presenter whenever it is missing. Cheap: a group lookup and,

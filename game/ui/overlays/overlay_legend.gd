@@ -198,15 +198,18 @@ func _draw_panel() -> void:
 	# So the slot is authority. When the content does not fit, rows are shed and
 	# the panel says how many — a legend that is one line short is legible; a
 	# legend with somebody else's hotkeys printed across it is not.
-	var shown: int = _rows.size()
 	if legend_slot.size.x > 1.0:
 		origin = legend_slot.position
-		shown = mini(shown, rows_that_fit(legend_slot.size.y))
-		if shown < _rows.size():
-			var hidden: int = _rows.size() - shown
-			shown = maxi(1, shown - 1)
-			hidden = _rows.size() - shown
-			_rows.resize(shown)
+		var fits: int = rows_that_fit(legend_slot.size.y)
+		if _rows.size() > fits:
+			# `fits - 1`, because the "+N more" line is itself a row and has to
+			# come out of the same budget. Keeping `fits` rows and then adding
+			# the notice made the panel exactly one row taller than the strip —
+			# 164 px in a 150 px slot — which the audit failed on, correctly, the
+			# first time this clamp was written.
+			var keep: int = maxi(0, fits - 1)
+			var hidden: int = _rows.size() - keep
+			_rows.resize(keep)
 			# Appended directly, not through `_row`, which refuses past twelve
 			# rows — the one row that must never be the one dropped is the row
 			# that says rows were dropped.
@@ -226,11 +229,15 @@ func _draw_panel() -> void:
 	var key: String = keys[mode] if mode < keys.size() else "-"
 	_text(Vector2(x, y), "%s   %s" % [LcnOverlayDefs.MODE_TITLES[mode], key], 18, LcnOverlayPalette.INK)
 	y += 20.0
+	# Every line below is clipped to the plate. The panel is a fixed width and the
+	# sentences in it are generated from live numbers, so "how wide can this get"
+	# is not a question this file can answer — only "how wide is it allowed to be".
+	var inner: float = WIDTH - PAD * 2.0
 	_text(Vector2(x, y), LcnOverlayDefs.MODE_BLURBS[mode], 13,
-		LcnOverlayPalette.with_a(LcnOverlayPalette.INK_DIM, 0.85))
+		LcnOverlayPalette.with_a(LcnOverlayPalette.INK_DIM, 0.85), inner)
 	y += 24.0
 	if snap != null:
-		_text(Vector2(x, y), snap.headline(), 15, _accent())
+		_text(Vector2(x, y), snap.headline(), 15, _accent(), inner)
 	y += 20.0
 
 	for r: Dictionary in _rows:
@@ -243,14 +250,14 @@ func _draw_panel() -> void:
 			draw_rect(sw, LcnOverlayPalette.with_a(LcnOverlayPalette.INK, 0.35), false, 1.0)
 			tx += 30.0
 		_text(Vector2(tx, y), String(r.get("text", "")), 14,
-			r.get("color", LcnOverlayPalette.INK) as Color)
+			r.get("color", LcnOverlayPalette.INK) as Color, inner - (tx - x))
 		y += ROW
 
 	var foot: String = "ALT hold: details      %s: cycle" % (keys[mode] if mode < keys.size() else "key")
 	if zoom_label != "":
 		foot += "      " + zoom_label
 	_text(Vector2(x, origin.y + h - PAD), foot, 12,
-		LcnOverlayPalette.with_a(LcnOverlayPalette.INK_DIM, 0.7))
+		LcnOverlayPalette.with_a(LcnOverlayPalette.INK_DIM, 0.7), inner)
 
 
 ## Red is reserved for something the player is actually LOSING. A binding
@@ -266,12 +273,19 @@ func _accent() -> Color:
 	return pal.good()
 
 
-func _text(at: Vector2, text: String, size: int, c: Color) -> void:
+## `max_w` is a hard clip, not a hint: Godot's `draw_string` truncates at the
+## width it is given. -1 means "no limit", which is right for the rail and the
+## hint (they are sized to their own text) and wrong for a panel row, which is
+## somebody's sentence about the grid inside a fixed 508 px plate. Measured in
+## `fixed_1920/shots/deep_night.png`: "8 cooling toward the line; soonest is the
+## coal_generator, already below the line" ran 40 px out of the right edge of
+## its own panel and onto the city.
+func _text(at: Vector2, text: String, size: int, c: Color, max_w: float = -1.0) -> void:
 	if text == "":
 		return
 	_font.draw_string_outline(get_canvas_item(), at, text, HORIZONTAL_ALIGNMENT_LEFT,
-		-1.0, size, 4 if pal.high_contrast else 3, Color(0.0, 0.0, 0.0, 0.85))
-	_font.draw_string(get_canvas_item(), at, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, size, c)
+		max_w, size, 4 if pal.high_contrast else 3, Color(0.0, 0.0, 0.0, 0.85))
+	_font.draw_string(get_canvas_item(), at, text, HORIZONTAL_ALIGNMENT_LEFT, max_w, size, c)
 
 
 # --- rows per lens ---------------------------------------------------------

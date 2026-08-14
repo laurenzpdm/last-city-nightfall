@@ -80,6 +80,9 @@ var _rects: Dictionary = {}
 var _panels_by_name: Dictionary = {}
 var _scrim_alpha: float = 0.0
 var _footer_ceiling: float = 0.0
+## The card size the last solve was made against, so a card that grows gets a
+## new composition on the frame it grows rather than on the next poll.
+var _last_card_size: Vector2 = Vector2.ZERO
 
 
 ## Name and layer are set in _init, not _ready: `LcnLayers.audit()` identifies a
@@ -308,6 +311,15 @@ func _process(delta: float) -> void:
 		_force_refresh()
 	last_refresh_us = Time.get_ticks_usec() - t0
 
+	# [P22] can change the size of the one thing allowed on the stage between one
+	# poll and the next, and every rectangle the stage carries — the card's own
+	# slot and the ticker's strip under it — is solved against that size. Waiting
+	# for the 10 Hz poll meant six frames of a composition arranged around a card
+	# that is no longer the card on screen.
+	if stage != null and not stage.card_size.is_equal_approx(_last_card_size):
+		_last_card_size = stage.card_size
+		_place_panels()
+
 	var want_scrim: float = 1.0 if (stage != null and stage.card_visible()) else 0.0
 	var scrim_next: float = move_toward(_scrim_alpha, want_scrim,
 		delta * (4.0 if not style.reduce_motion else 100.0))
@@ -503,6 +515,8 @@ func chrome_rects() -> Dictionary:
 			out[name_key] = Rect2(w.position * style.ui_scale, w.size * style.ui_scale)
 	if stage != null and stage.card_rect.size.x > 1.0:
 		out["card"] = stage.card_rect
+	if stage != null and stage.ticker_rect.size.x > 1.0:
+		out["ticker"] = stage.ticker_rect
 	return out
 
 

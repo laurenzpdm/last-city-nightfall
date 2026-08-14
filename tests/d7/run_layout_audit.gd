@@ -102,11 +102,16 @@ const STATES: Array[String] = ["lull", "build", "night"]
 
 ## Pairs that are allowed to touch, with why. Kept deliberately short: every
 ## entry here is a thing this suite has stopped being able to catch.
+## `card|ticker` USED TO BE HERE, exempted as "prose that may pass behind the
+## card's lower edge when a card is unusually tall". Two things were wrong with
+## that. It described the defect in `fixed_1920/shots/dusk.png` — four lines of
+## flavour printed across the two options of "The Clerk Wants an Answer" — as
+## acceptable. And it exempted a check that COULD NOT RUN: nothing in the build
+## published a `ticker` rectangle at all, so this entry and the four `*|ticker`
+## entries below it were permissions for a comparison that never happened.
+## `LcnHudStage` now publishes `ticker_rect` and hides the feed against the card
+## that is really on screen, so the pair is enforced instead of excused.
 const ALLOWED: Array[String] = [
-	# [P22]'s ticker is prose with a shadow and no plate, deliberately floating on
-	# the world. It is placed on the stage floor and may pass behind the card's
-	# lower edge when a card is unusually tall.
-	"card|ticker",
 	# A DECISION MAY COVER A BROWSER. [P18]'s palette is 982 px wide at 1920x1080
 	# and [P22]'s card is 661: on a 1920 canvas there is no arrangement in which
 	# both have the flank, and the tie-break is not close. The browser is a list
@@ -371,28 +376,45 @@ func _audit_slot_fidelity(label: String, st: String) -> void:
 		_unchecked.append("%s — no legend slot was reserved; nothing to be faithful to" % label)
 		return
 
-	# Two thirds of the height it was given. Enough to be genuinely too small for
-	# the content and never so small that no legend could honour it.
-	var tight: float = maxf(150.0, floorf(slot.size.y * 0.66))
+	# HALF the height it was given, floored well below anything the content could
+	# want. Enough to be genuinely too small and never so small that no legend
+	# could honour it.
+	var tight: float = maxf(140.0, floorf(slot.size.y * 0.5))
+
+	# The lens root re-reads its slots from [P17] on EVERY `_process` frame, so a
+	# slot written from here is overwritten before the next redraw — the first
+	# version of this check measured the real slot, reported the real height, and
+	# was red against fixed and unfixed code alike with identical numbers. That
+	# is a check that cannot pass, which is the same disease as one that cannot
+	# fail. Processing is suspended for the two frames this takes; `_draw` is not
+	# a process callback and still runs, which is the whole point.
+	var was_mode: int = lens.process_mode
+	lens.process_mode = Node.PROCESS_MODE_DISABLED
 	legend.set(&"legend_slot", Rect2(slot.position, Vector2(slot.size.x, tight)))
 	(legend as CanvasItem).queue_redraw()
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var published: Rect2 = (lens.call(&"chrome_rects") as Dictionary).get(
 		"legend", Rect2()) as Rect2
+	var live_slot: Rect2 = legend.get(&"legend_slot") as Rect2
+	lens.process_mode = was_mode
+	legend.set(&"legend_slot", slot)
+	(legend as CanvasItem).queue_redraw()
+	await get_tree().process_frame
+
 	_checks += 1
+	if not is_equal_approx(live_slot.size.y, tight):
+		# The suspension did not hold, so the number below would be meaningless.
+		# Said out loud rather than passed quietly.
+		_unchecked.append("%s — the tightened slot did not survive; %d px went in, "
+			% [label, int(tight)] + "%d px was in place at read" % int(live_slot.size.y))
+		return
 	if published.size.y > tight + 2.0:
 		_failures.append(("%s — [P19]'s legend was given a %d px strip and published "
 			+ "a %d px rectangle. A part that reports the size it WANTS rather "
 			+ "than the size it DREW makes every rectangle under it wrong, and "
 			+ "every one of them still reports agreement.")
 			% [label, int(tight), int(published.size.y)])
-	# Put the real slot back. The next case re-solves anyway, but a suite that
-	# leaves the build in the state its last assertion needed is a suite whose
-	# later cases measure the suite.
-	legend.set(&"legend_slot", slot)
-	(legend as CanvasItem).queue_redraw()
-	await get_tree().process_frame
 
 
 func _rect_rows(rects: Dictionary, named: Array) -> Array:
