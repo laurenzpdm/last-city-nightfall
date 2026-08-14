@@ -1,0 +1,34 @@
+{
+  "ts": "2026-08-14T20:00:00Z",
+  "part": "D6",
+  "title": "The gate is red only for real reasons now, and eight deliberate breaks prove it can still go red",
+  "verified": {
+    "build.rejected_total, first_night 11000 ticks, before": "rejected 13, sweep_skipped n/a — the band's final_max 0 failed on 13 deliberate line-drag skips",
+    "build.rejected_total, first_night 11000 ticks, after": "rejected 0, sweep_skipped 13 — same placements, counted apart; placed 253 and completed 249 unchanged",
+    "tools/assert_run.py artifacts/d6_split --scenario=first_night": "build.rejected_total final_max 0 -> final 0 (ok); build.sweep_skipped_total final_max 60 -> final 13 (ok); 0 FAIL",
+    "tools/determinism.sh after the BuildSystem change": "IDENTICAL sha256 42c0958e15431452 and b838592b2d748c0f, exit 0",
+    "tools/lint_sim.sh": "0 fatal, 1 advisory (pre-existing), exit 0",
+    "tests/build (173 assertions)": "173 passed, 0 failed",
+    "BREAK 1 determinism (Time.get_ticks_usec() into ThreatSystem.serialize)": "tools/determinism.sh exit 1, DETERMINISM BROKEN, sha e604ebc6290e1aa3 vs 1f40061c6087fce5",
+    "BREAK 2 perf (200k-iteration busy loop in ClimateSystem.step)": "smoke 269 -> 105 ticks/s median; tools/perf_report.gd exit 4, tools/perf.sh exit 1",
+    "BREAK 3 engine error (push_error in ClimateSystem.step)": "tools/scan_errors.py exit 1, blamed game/sim/climate/climate_system.gd:136",
+    "BREAK 4 reachability (build menu built, never parented, both install paths)": "tools/check_reachability.py exit 1, 4 independent teeth fired (required[], orphan count 1, unbacked install claim, canvas layer stack)",
+    "BREAK 5 contract (one duplicate place command in smoke.json)": "build rejected 1; tools/assert_run.py exit 1, FAIL build.rejected_total final_max 0 -> final 1 — the reworked band still trips on a single genuine authoring mistake",
+    "BREAK 6 unreachable NEW subsystem (game/ui/codex/ logs 'codex ready', builds nothing)": "orphan_nodes 0, no required[] entry, no matching claim keyword. SAME DUMP against the OLD contract: 14 pass, 0 FAIL, exit 0. Against the new parts_in_the_tree tooth: exit 1, 'game/ui/codex has 0 node(s) in the tree'",
+    "BREAK 7 a system stops emitting a banded metric (heat.delivered removed from metrics())": "column absent from metrics.csv; tools/assert_run.py exit 1, UNCHECKED 'no such column in this run's metrics'",
+    "reachability on the real repo after the new tooth": "15 pass, 0 FAIL, 0 unchecked, exit 0 — 14 part folders checked by directory scan, 0 exemptions",
+    "tools/perf.sh --repeat=3 smoke (busy box, 4 neighbouring Godot processes)": "median 287 ticks/s, 282..289, 2% spread, floor 300 -> REGRESSED 3 of 3 readings, exit 1",
+    "the noisy verdict, same three readings against a 285 floor": "median 287 holds, 1 of 3 readings under it -> status noisy, exit 0, printed as 'NOISE, not a regression'",
+    "flake re-read on the real repo (tools/check.sh --no-perf --no-determinism --no-gate)": "tests/camera '597 checks, 1 failures [reproducible: 3 of 3 reads]', tests/feel/feel_perf '6 checks, 1 failed [reproducible: 3 of 3 reads]' — both genuinely reproducible, neither flapping",
+    "false positives from the '0 checks' rule across 17 standalone suites": "0 occurrences in the whole check.sh log"
+  },
+  "open": [
+    "[P17] hud: game/ui/hud/hud_root.gd does not compile on main-mbb3z6 right now — 'Parse Error: Identifier \"_draw_scrim\" not declared in the current scope'. It reds the parse stage and drags game/ui/overlays/overlay_bootstrap.gd into a compile error with it (4 blocking engine errors). Work in flight, not mine.",
+    "[P16]/[P19]: tests/camera/run_camera_tests.tscn fails 1 of 597 checks, reproducibly on 3 of 3 reads — 'FAIL overlay_hotkeys: the rotate hotkey did not reach action_pressed', with a warning 'rebind of rotate collides with [&\"build\"]'. This is a real defect, not noise, and the re-read proves it.",
+    "[P15] feel: tests/feel/feel_perf.tscn fails 1 of 6 checks reproducibly here, but this box renders through llvmpipe and HANDOFF says _draw budgets fail locally and pass on CI. Re-read alone on CI before believing it.",
+    "MAXIMILIAN: whether a FLAPPING suite should stay red is still his call. check.sh now labels one ('FLAPPING: failed k of n identical reads') but still fails the gate on it, because which conditions are green is a shipped contract. Making it non-fatal is one line in tools/check.sh.",
+    "MAXIMILIAN: the worst-of-240-ticks statistic inside tests/citizens, tests/feel and tests/audio is still a single reading per stage. tools/perf.sh now takes a distribution and judges the median; those three suites cannot, because tests/<part>/ belongs to those parts. [D5] has already cut the citizens spike 3.6x, which removes the worst of it.",
+    "INTEGRATOR: perf numbers in this report were measured on a shared four-core box with up to four other Godot processes live. tools/perf.sh now warns when that is true. Re-measure alone before quoting any of them.",
+    "INTEGRATOR: an ALSA 'Condition status < 0 is true. Returning: ERR_CANT_OPEN' fires once per xvfb boot in this container (no sound card) and reds 'engine errors: boot' locally. It does not appear on the macOS runner. Too generic a message to allowlist safely — it wants a source- or blame-scoped entry from whoever owns the CI contract."
+  ]
+}

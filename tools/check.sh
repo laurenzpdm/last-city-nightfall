@@ -163,7 +163,10 @@ record "sim lint" "$LOGDIR/lint.log" "$lint_code" "game/sim/** obeys ARCHITECTUR
 # --- 4. the test suites ----------------------------------------------------
 say ""
 say "== tests =="
-"$GODOT" --headless --path "$ROOT" --script tests/run_tests.gd > "$LOGDIR/tests.log" 2>&1
+# --verbose so the runner prints one line PER TEST with its assert count. It is
+# the only way this stage can see a test that asserted nothing (below), and the
+# extra thousand lines never reach a human: the listing below drops them again.
+"$GODOT" --headless --path "$ROOT" --script tests/run_tests.gd -- --verbose > "$LOGDIR/tests.log" 2>&1
 tests_code=$?
 grep -q "TESTS FAILED" "$LOGDIR/tests.log" && tests_code=1
 if [ "$QUIET" -eq 0 ]; then
@@ -172,9 +175,31 @@ if [ "$QUIET" -eq 0 ]; then
   # gates on them further down. Before that stage existed, this filter was the
   # single line of shell that hid 70 engine errors per run from every human who
   # ever read this output.
-  sed -n '/^─/,$p' "$LOGDIR/tests.log" | grep -vE '^(WARNING|ERROR|\s+at:)' | sed 's/^/  /'
+  sed -n '/^─/,$p' "$LOGDIR/tests.log" \
+    | grep -vE '^(WARNING|ERROR|\s+at:)' | grep -vE '^ *pass +' | sed 's/^/  /'
 fi
 tests_note="$(grep -m1 '^ tests ' "$LOGDIR/tests.log" | sed 's/^ tests  *//')"
+
+# A TEST THAT CANNOT FAIL IS WORSE THAN NO TEST, because it also occupies the
+# slot where a real one would go. This build has been burned three times —
+# a sprite suite reading its own cache, a gallery comparing an anchor list
+# nobody rebuilt, a reachability suite passing in the one configuration the gate
+# used — and every one of them was still counted in "1070 passed".
+#
+# The runner prints `pass  <method>   N assert(s), X ms`. A test that ran to
+# completion and asserted NOTHING is green by construction: there is no input,
+# no regression and no revert that can turn it red. It is caught here rather
+# than in the framework because tests/framework/ belongs to another part.
+hollow="$(grep -cE '^ *pass +[^ ]+ +0 assert\(s\)' "$LOGDIR/tests.log" 2>/dev/null || true)"
+if [ "${hollow:-0}" -gt 0 ]; then
+  tests_code=1
+  tests_note="${tests_note} — $hollow test(s) passed WITHOUT ASSERTING ANYTHING: $(grep -m3 -E '^ *pass +[^ ]+ +0 assert\(s\)' "$LOGDIR/tests.log" | awk '{print $2}' | tr '\n' ' ')"
+  {
+    echo "tests that cannot fail — they ran, they were counted as passing, and they"
+    echo "asserted nothing. Nothing can turn them red:"
+    grep -E '^ *pass +[^ ]+ +0 assert\(s\)' "$LOGDIR/tests.log" | head -20
+  } >> "$LOGDIR/tests.log"
+fi
 record "tests" "$LOGDIR/tests.log" "$tests_code" "$tests_note"
 
 # --- 4b. suites that brought their own entry point -------------------------
@@ -257,6 +282,16 @@ suite_attempt() {   # suite_attempt <rel> <log>
     SUITE_NOTE="printed no TESTS PASSED / TESTS FAILED verdict — did it run at all?"
   else
     SUITE_NOTE="$(grep -m1 -oE '[0-9]+ (passed|checks)[^,]*' "$log" || true)"
+    # The standalone half of the same disease. A suite that prints a passing
+    # verdict over ZERO checks has told you nothing at all —
+    # tests/tutorial/run_tutorial.gd carries the case in its own comments:
+    # `TESTS PASSED — 0 checks` against a tree the suite never looked at. Only
+    # fires when the suite prints a count, so a suite that reports differently
+    # is not failed for its formatting.
+    if grep -qE '(^|[^0-9])0 (checks?|assertions?|cases?)\b' "$log"; then
+      SUITE_CODE=1
+      SUITE_NOTE="printed a PASSING verdict over 0 checks — a suite that asks nothing cannot answer anything"
+    fi
   fi
   return 0
 }
