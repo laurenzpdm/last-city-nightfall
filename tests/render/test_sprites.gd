@@ -16,8 +16,19 @@ func suite_name() -> String:
 	return "render/sprites"
 
 
+## The disk cache is switched off for the whole suite, because a silhouette test
+## that reads user://art_cache certifies whatever was baked BEFORE the change it
+## is meant to be judging. That is not hypothetical: the survey hall's redesign
+## measured green here at its old 0.958 overlap with the heat plant, from a cache
+## written minutes earlier. ART_VERSION exists for the shipping game; a test
+## must test the baker.
 func before_all() -> void:
+	LcnArtCache.set_enabled(false)
 	f = LcnSpriteFactory.new()
+
+
+func after_all() -> void:
+	LcnArtCache.set_enabled(true)
 
 
 ## Every building in game/content/buildings must reach a drawable archetype, and
@@ -109,6 +120,11 @@ func test_archetype_silhouettes_are_measurably_different() -> void:
 	var probe: Array[StringName] = [
 		&"hearth", &"generator", &"heat_plant", &"radiator", &"accumulator",
 		&"silo", &"depot", &"habitat", &"drill", &"watchtower", &"pylon", &"greenhouse",
+		# The three production halls. They are the same class of object — a big
+		# roofed box a crew works inside — so they are the easiest pair in the
+		# catalogue to let collapse into one shape, and the survey hall's first
+		# draft did exactly that against the heat plant at 0.96 overlap.
+		&"workshop", &"assembler", &"research_hall",
 	]
 	for arch: StringName in probe:
 		masks[arch] = _mask(f.building(arch))
@@ -123,6 +139,35 @@ func test_archetype_silhouettes_are_measurably_different() -> void:
 	assert_lt(worst, 0.82, "closest silhouette pair is %s at %.3f overlap" % [pair, worst])
 
 
+## The single-tile infrastructure is judged at the scale it is actually played
+## at, not at city zoom: three tiles across the frame, which is roughly what a
+## player sees while routing a line. Half the catalogue by COUNT is this family —
+## belt, splitter, underground, inserter, long arm, container — and every one of
+## them used to be the same picture, so "a 1x1 is too small to draw" is exactly
+## the reasoning that lost the player the ability to read a factory.
+##
+## Same 0.82 bar as far zoom. The tightest pair here is belt against pipe: both
+## are genuinely a flat strip laid across a tile and they are told apart by the
+## cleats and the heat glow, not by outline. Everything added since is well clear.
+func test_single_tile_machines_read_apart_at_routing_zoom() -> void:
+	var probe: Array[StringName] = [
+		&"belt", &"splitter", &"underground", &"arm", &"long_arm", &"crate",
+		&"pipe", &"wall", &"road",
+	]
+	var masks: Dictionary[StringName, PackedByteArray] = {}
+	for arch: StringName in probe:
+		masks[arch] = _mask_at(f.building(arch), 96.0)
+	var worst: float = 0.0
+	var pair: String = ""
+	for i: int in probe.size():
+		for j: int in range(i + 1, probe.size()):
+			var same: float = _similarity(masks[probe[i]], masks[probe[j]])
+			if same > worst:
+				worst = same
+				pair = "%s vs %s" % [probe[i], probe[j]]
+	assert_lt(worst, 0.82, "closest single-tile pair is %s at %.3f overlap" % [pair, worst])
+
+
 ## What survives of a shape when you zoom all the way out — rasterised at a
 ## COMMON world scale, not normalised per sprite, because at far zoom a 5x5
 ## hearth and a 3x3 silo differ by their size as much as by their outline and a
@@ -132,12 +177,16 @@ const MASK_SPAN: float = 320.0
 
 
 static func _mask(sprite: Dictionary) -> PackedByteArray:
+	return _mask_at(sprite, MASK_SPAN)
+
+
+static func _mask_at(sprite: Dictionary, span: float) -> PackedByteArray:
 	var img: Image = (sprite["texture"] as ImageTexture).get_image()
 	var out := PackedByteArray()
 	out.resize(MASK_N * MASK_N)
 	var w: int = img.get_width()
 	var h: int = img.get_height()
-	var s: float = float(MASK_N) / MASK_SPAN
+	var s: float = float(MASK_N) / span
 	var ox: float = (float(MASK_N) - float(w) * s) * 0.5
 	# Bottom-aligned: buildings sit on the ground, so that is where they line up.
 	var oy: float = float(MASK_N) - float(h) * s - 2.0

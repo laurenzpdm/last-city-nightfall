@@ -767,73 +767,101 @@ func _draw_assembler(c: LcnVectorCanvas, g: Rect2) -> void:
 	c.stroke_rect(door, OUTLINE, 1.3)
 
 
-## Survey hall: the only dome in the city. Round on top against a skyline of
-## boxes, chimneys and lattices — and the instrument mast beside it says the
-## people inside are reading the plain, not making anything.
+## Survey hall: two low porches, a set-back hall and a domed drum standing clear
+## above both. Wide at the ground and narrow at the crown is the exact inverse of
+## every boiler house and workshop slab on the plain, and it is the only round
+## roof in the city — the first draft of this shape was a full-footprint block
+## and overlapped the heat plant's outline by 96%, which is not a building, it is
+## the same building painted a different colour.
 func _draw_research_hall(c: LcnVectorCanvas, g: Rect2) -> void:
-	var body := Rect2(g.position.x + 3.0, g.position.y + 10.0, g.size.x - 6.0, g.size.y - 12.0)
-	var h: float = 24.0
-	_mass(c, body, h, Color(0.204, 0.239, 0.306), Color(0.145, 0.176, 0.239), Color(0.059, 0.075, 0.114))
+	var cx: float = g.position.x + g.size.x * 0.5
+	var porch_w: float = g.size.x * 0.27
+	for s: int in 2:
+		var px: float = g.position.x + 2.0 if s == 0 else g.end.x - 2.0 - porch_w
+		var porch := Rect2(px, g.position.y + g.size.y * 0.56, porch_w, g.size.y * 0.40)
+		_mass(c, porch, 10.0, Color(0.180, 0.212, 0.271),
+			Color(0.129, 0.157, 0.212), Color(0.055, 0.071, 0.106))
+		c.fill_polygon(PackedVector2Array([
+			Vector2(porch.position.x - 1.0, porch.position.y - 10.0),
+			Vector2(porch.end.x + 1.0, porch.position.y - 10.0),
+			Vector2(porch.end.x + 1.0, porch.position.y - 7.6),
+			Vector2(porch.position.x - 1.0, porch.position.y - 7.6),
+		]), Color(0.878, 0.914, 0.957, 0.86))
+
+	var body := Rect2(g.position.x + g.size.x * 0.16, g.position.y + g.size.y * 0.14,
+		g.size.x * 0.68, g.size.y * 0.60)
+	var h: float = 21.0
+	_mass(c, body, h, Color(0.204, 0.239, 0.306), Color(0.145, 0.176, 0.239),
+		Color(0.059, 0.075, 0.114))
 	var roof_top: float = body.position.y - h
 	var roof_bot: float = body.end.y - h
-	var cx: float = body.position.x + body.size.x * 0.5
 
-	var drum_y: float = roof_top + 13.0
-	var rx: float = body.size.x * 0.27
+	# The drum stands on the back of the roof, so the dome clears the roofline
+	# instead of sitting in it.
+	var drum_base: float = roof_top + 9.0
+	var drum_h: float = 17.0
+	var rx: float = g.size.x * 0.21
 	c.fill_polygon_gradient(PackedVector2Array([
-		Vector2(cx - rx, drum_y - 8.0), Vector2(cx + rx, drum_y - 8.0),
-		Vector2(cx + rx, drum_y), Vector2(cx - rx, drum_y),
-	]), Color(0.231, 0.271, 0.345), Color(0.098, 0.122, 0.176),
+		Vector2(cx - rx, drum_base - drum_h), Vector2(cx + rx, drum_base - drum_h),
+		Vector2(cx + rx, drum_base), Vector2(cx - rx, drum_base),
+	]), Color(0.231, 0.271, 0.345), Color(0.090, 0.114, 0.169),
 		Vector2(cx - rx, 0.0), Vector2(cx + rx, 0.0))
+	for i: int in 3:
+		var wx: float = lerpf(cx - rx + 4.0, cx + rx - 4.0, (float(i) + 0.5) / 3.0)
+		c.fill_round_rect(Rect2(wx - 2.2, drum_base - drum_h + 4.0, 4.4, 8.0), 1.2,
+			Color(1.0, 0.84, 0.52, 0.88))
+	c.stroke_rect(Rect2(cx - rx, drum_base - drum_h, rx * 2.0, drum_h), OUTLINE, 1.5)
+
+	var dome_y: float = drum_base - drum_h
 	var dome := PackedVector2Array()
-	for i: int in 19:
-		var a: float = PI * float(i) / 18.0
-		dome.append(Vector2(cx - cos(a) * rx, drum_y - 8.0 - sin(a) * rx * 0.94))
+	for i2: int in 21:
+		var a: float = PI * float(i2) / 20.0
+		dome.append(Vector2(cx - cos(a) * rx, dome_y - sin(a) * rx * 0.96))
 	c.fill_polygon(dome, Color(0.239, 0.282, 0.361))
-	# Snow holds on the shoulders of a dome and slides off the crown, which is
-	# what stops it reading as a plain grey ball.
-	for s: int in 2:
-		var sx: float = -1.0 if s == 0 else 1.0
+	# Snow holds on the shoulders of a dome and slides off the crown, which is what
+	# stops it reading as a plain grey ball.
+	for s2: int in 2:
+		var sx: float = -1.0 if s2 == 0 else 1.0
 		var cap := PackedVector2Array()
-		for i2: int in 6:
-			var a2: float = PI * (0.06 + 0.30 * float(i2) / 5.0)
-			cap.append(Vector2(cx - sx * cos(a2) * rx, drum_y - 8.0 - sin(a2) * rx * 0.94))
 		for i3: int in 6:
-			var a3: float = PI * (0.36 - 0.30 * float(i3) / 5.0)
-			cap.append(Vector2(cx - sx * cos(a3) * (rx - 3.0), drum_y - 6.0 - sin(a3) * rx * 0.80))
+			var a2: float = PI * (0.05 + 0.32 * float(i3) / 5.0)
+			cap.append(Vector2(cx - sx * cos(a2) * rx, dome_y - sin(a2) * rx * 0.96))
+		for i4: int in 6:
+			var a3: float = PI * (0.37 - 0.32 * float(i4) / 5.0)
+			cap.append(Vector2(cx - sx * cos(a3) * (rx - 3.4), dome_y - 1.8 - sin(a3) * rx * 0.82))
 		c.fill_polygon(cap, Color(0.878, 0.914, 0.957, 0.86))
 	# The observation slit, lit from inside all night on purpose.
-	c.fill_glow(Vector2(cx + rx * 0.30, drum_y - rx * 0.62), rx * 1.1,
-		Color(0.66, 0.85, 1.0, 0.34), Color(0.66, 0.85, 1.0, 0.0))
+	c.fill_glow(Vector2(cx + rx * 0.24, dome_y - rx * 0.60), rx * 1.2,
+		Color(0.66, 0.85, 1.0, 0.32), Color(0.66, 0.85, 1.0, 0.0))
 	c.fill_polygon(PackedVector2Array([
-		Vector2(cx + rx * 0.10, drum_y - 8.0),
-		Vector2(cx + rx * 0.42, drum_y - 8.0),
-		Vector2(cx + rx * 0.34, drum_y - 8.0 - rx * 0.86),
-		Vector2(cx + rx * 0.14, drum_y - 8.0 - rx * 0.88),
+		Vector2(cx + rx * 0.06, dome_y),
+		Vector2(cx + rx * 0.38, dome_y),
+		Vector2(cx + rx * 0.30, dome_y - rx * 0.88),
+		Vector2(cx + rx * 0.10, dome_y - rx * 0.90),
 	]), Color(1.0, 0.86, 0.56, 0.92))
 	c.stroke_polygon(dome, OUTLINE, 1.6)
-	c.stroke_rect(Rect2(cx - rx, drum_y - 8.0, rx * 2.0, 8.0), OUTLINE, 1.5)
 
-	# Instrument mast: thin, off to one side, with a cross of sensor arms.
-	var mx: float = body.end.x - 13.0
-	var mast_base: float = roof_top + 24.0
-	var mast_top: float = mast_base - 34.0
+	# Instrument mast on the crown: thin, with a cross of sensor arms and one cold
+	# blue lamp, the only cold light in the catalogue.
+	var mast_top: float = dome_y - rx * 0.96 - 15.0
 	c.stroke_polyline(PackedVector2Array([
-		Vector2(mx, mast_base), Vector2(mx, mast_top),
-	]), Color(0.247, 0.286, 0.361), 2.6)
-	for i4: int in 3:
-		var ay: float = lerpf(mast_top + 3.0, mast_base - 8.0, float(i4) / 2.0)
-		var aw: float = lerpf(8.0, 4.0, float(i4) / 2.0)
+		Vector2(cx, dome_y - rx * 0.90), Vector2(cx, mast_top),
+	]), Color(0.247, 0.286, 0.361), 2.4)
+	for i5: int in 2:
+		var ay: float = lerpf(mast_top + 3.0, dome_y - rx * 0.96 - 2.0, float(i5))
+		var aw: float = lerpf(7.0, 4.0, float(i5))
 		c.stroke_polyline(PackedVector2Array([
-			Vector2(mx - aw, ay), Vector2(mx + aw, ay),
-		]), Color(0.220, 0.259, 0.333), 1.6)
-	c.fill_circle(Vector2(mx, mast_top - 1.5), 2.0, LcnPalette.ICE_BLUE, 10)
-	c.fill_glow(Vector2(mx, mast_top - 1.5), 8.0,
+			Vector2(cx - aw, ay), Vector2(cx + aw, ay),
+		]), Color(0.220, 0.259, 0.333), 1.5)
+	c.fill_circle(Vector2(cx, mast_top - 1.6), 2.0, LcnPalette.ICE_BLUE, 10)
+	c.fill_glow(Vector2(cx, mast_top - 1.6), 9.0,
 		Color(0.54, 0.75, 0.85, 0.55), Color(0.54, 0.75, 0.85, 0.0))
 
-	# Drawing-office windows: the whole front face is glass, unlike a workshop.
-	_windows(c, Rect2(body.position.x + 4.0, roof_bot + 4.0, body.size.x - 8.0, 15.0),
-		4, 1, LcnPalette.WARM_CORE, 44)
+	# Drawing offices: the whole front face is glass, unlike a workshop.
+	_windows(c, Rect2(body.position.x + 4.0, roof_bot + 4.0, body.size.x - 8.0, 14.0),
+		3, 1, LcnPalette.WARM_CORE, 44)
+	c.fill_glow(Vector2(body.get_center().x, body.end.y - 2.0), body.size.x * 0.7,
+		Color(1.0, 0.70, 0.34, 0.20), Color(1.0, 0.70, 0.34, 0.0))
 
 
 ## Habitat: two pitched roofs at different heights, chimney, warm windows.
