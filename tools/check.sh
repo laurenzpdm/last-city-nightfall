@@ -202,6 +202,77 @@ suite_args() {   # suite_args <path> -> the user args that suite declares it nee
   grep -m1 '^## REQUIRES: ' "$src" 2>/dev/null | sed 's/^## REQUIRES: //'
 }
 
+# One attempt at one standalone suite. Sets SUITE_CODE (0 pass, 1 fail, 2 could
+# not ask everything) and SUITE_NOTE. Split out of the loop below so a failing
+# suite can be READ AGAIN — see FLAKE_RETRIES.
+SUITE_CODE=0
+SUITE_NOTE=""
+suite_attempt() {   # suite_attempt <rel> <log>
+  local rel="$1" log="$2"
+  # shellcheck disable=SC2046
+  read -r -a SUITE_ARGS <<< "$(suite_args "$rel")"
+  # A .tscn is run AS A SCENE. Godot compiles a --script file before it
+  # registers the autoloads, so a Node-based suite launched that way dies on
+  # `Identifier not found: Log`, prints nothing and exits 0 — which is exactly
+  # how 371 build assertions were reported green while never executing.
+  # A suite that never exits is worse than one that fails: without this the
+  # gate blocks forever and every other agent's check.sh queues behind it.
+  # `${a[@]+"${a[@]}"}`, not `"${a[@]}"`: this script runs under `set -u`, and
+  # the gate's own macOS job runs on bash 3.2, where expanding an EMPTY array
+  # is an unbound-variable error that aborts the whole run. Every suite without
+  # a REQUIRES line has an empty array.
+  if [ "${rel##*.}" = "tscn" ]; then
+    $TIMEOUT "$GODOT" --headless --path "$ROOT" "res://$rel" \
+        -- ${SUITE_ARGS[@]+"${SUITE_ARGS[@]}"} > "$log" 2>&1
+  else
+    $TIMEOUT "$GODOT" --headless --path "$ROOT" --script "$rel" \
+        -- ${SUITE_ARGS[@]+"${SUITE_ARGS[@]}"} > "$log" 2>&1
+  fi
+  local raw=$?
+  SUITE_CODE=0
+  SUITE_NOTE=""
+  if [ "$raw" -eq 124 ]; then
+    SUITE_CODE=1
+    SUITE_NOTE="hung — killed after ${SUITE_TIMEOUT}s"
+    return 0
+  fi
+  if grep -q "TESTS FAILED" "$log"; then
+    SUITE_CODE=1
+    # "1 of 67 checks failed:" was being reported as "67 checks failed:",
+    # because the old pattern started matching at the first number it could
+    # find rather than at the count of failures. One failing check read as
+    # sixty-seven in the summary, which is the difference between "look at
+    # this first" and "look at this later".
+    SUITE_NOTE="$(grep -m1 -oE '[0-9]+ of [0-9]+ checks? failed' "$log" \
+            || grep -m1 -oE '[0-9]+ (passed|checks).*' "$log" || true)"
+  elif grep -q "TESTS PASSED, PARTIAL" "$log"; then
+    # The suite ran and nothing it asked came back wrong, but it could not ask
+    # everything it exists to ask. That is not a pass, and the one thing it
+    # must never do is read like one.
+    SUITE_CODE=2
+    SUITE_NOTE="$(grep -m1 -oE '[0-9]+ unchecked' "$log" || echo 'some checks never ran') — $(grep -m1 -oE 'UNCHECKED .*' "$log" | cut -c1-90)"
+  elif ! grep -q "TESTS PASSED" "$log"; then
+    # No verdict at all means the suite never ran. Silence is not success.
+    SUITE_CODE=1
+    SUITE_NOTE="printed no TESTS PASSED / TESTS FAILED verdict — did it run at all?"
+  else
+    SUITE_NOTE="$(grep -m1 -oE '[0-9]+ (passed|checks)[^,]*' "$log" || true)"
+  fi
+  return 0
+}
+
+# HOW MANY TIMES A FAILING SUITE IS READ BEFORE THE FAILURE IS BELIEVED.
+#
+# Four gate stages move run to run with no code change. Six readings of one of
+# them on the same runner: 9410 · 9913 · 10442 · 11427 · 12177 · 16215 µs against
+# a floor of 9000 — a 72 % spread, wider than the gap to the floor. A stage that
+# trips on one reading in six is not measuring the code, and a gate that is red
+# for reasons unrelated to the code gets ignored exactly like one that is never
+# red. This does not decide whether that suite passes — its threshold belongs to
+# the part that owns it — but it does say, in the summary, which kind of red it
+# is. Costs nothing on a green run: only a FAILING suite is read again.
+FLAKE_RETRIES="${LCN_FLAKE_RETRIES:-2}"
+
 STANDALONE="$("$GODOT" --headless --path "$ROOT" --script tests/run_tests.gd -- --list-standalone 2>/dev/null | grep '^res://' || true)"
 if [ -n "$STANDALONE" ]; then
   say ""
@@ -210,55 +281,28 @@ if [ -n "$STANDALONE" ]; then
     [ -z "$suite" ] && continue
     rel="${suite#res://}"
     log="$LOGDIR/standalone_$(echo "$rel" | tr '/' '_').log"
-    # shellcheck disable=SC2046
-    read -r -a SUITE_ARGS <<< "$(suite_args "$rel")"
-    # A .tscn is run AS A SCENE. Godot compiles a --script file before it
-    # registers the autoloads, so a Node-based suite launched that way dies on
-    # `Identifier not found: Log`, prints nothing and exits 0 — which is exactly
-    # how 371 build assertions were reported green while never executing.
-    # A suite that never exits is worse than one that fails: without this the
-    # gate blocks forever and every other agent's check.sh queues behind it.
-    # `${a[@]+"${a[@]}"}`, not `"${a[@]}"`: this script runs under `set -u`, and
-    # the gate's own macOS job runs on bash 3.2, where expanding an EMPTY array
-    # is an unbound-variable error that aborts the whole run. Every suite without
-    # a REQUIRES line has an empty array.
-    if [ "${rel##*.}" = "tscn" ]; then
-      $TIMEOUT "$GODOT" --headless --path "$ROOT" "res://$rel" \
-          -- ${SUITE_ARGS[@]+"${SUITE_ARGS[@]}"} > "$log" 2>&1
-    else
-      $TIMEOUT "$GODOT" --headless --path "$ROOT" --script "$rel" \
-          -- ${SUITE_ARGS[@]+"${SUITE_ARGS[@]}"} > "$log" 2>&1
-    fi
-    code=$?
-    note=""
-    if [ "$code" -eq 124 ]; then
-      note="hung — killed after ${SUITE_TIMEOUT}s"
-      record "$rel" "$log" 1 "$note"
+    suite_attempt "$rel" "$log"
+    code=$SUITE_CODE
+    note=$SUITE_NOTE
+    if [ "$code" -eq 2 ]; then
+      record_skip "$rel" "$note" "standalone suites"
       continue
     fi
-    if grep -q "TESTS FAILED" "$log"; then
-      code=1
-      # "1 of 67 checks failed:" was being reported as "67 checks failed:",
-      # because the old pattern started matching at the first number it could
-      # find rather than at the count of failures. One failing check read as
-      # sixty-seven in the summary, which is the difference between "look at
-      # this first" and "look at this later".
-      note="$(grep -m1 -oE '[0-9]+ of [0-9]+ checks? failed' "$log" \
-              || grep -m1 -oE '[0-9]+ (passed|checks).*' "$log" || true)"
-    elif grep -q "TESTS PASSED, PARTIAL" "$log"; then
-      # The suite ran and nothing it asked came back wrong, but it could not ask
-      # everything it exists to ask. That is not a pass, and the one thing it
-      # must never do is read like one.
-      record_skip "$rel" \
-        "$(grep -m1 -oE '[0-9]+ unchecked' "$log" || echo 'some checks never ran') — $(grep -m1 -oE 'UNCHECKED .*' "$log" | cut -c1-90)" \
-        "standalone suites"
-      continue
-    elif ! grep -q "TESTS PASSED" "$log"; then
-      # No verdict at all means the suite never ran. Silence is not success.
-      code=1
-      note="printed no TESTS PASSED / TESTS FAILED verdict — did it run at all?"
-    else
-      note="$(grep -m1 -oE '[0-9]+ (passed|checks)[^,]*' "$log" || true)"
+    if [ "$code" -ne 0 ] && [ "$FLAKE_RETRIES" -gt 0 ]; then
+      # Re-reads go to a file the engine-error scan does not glob (*.log), so
+      # one flaky suite cannot triple its own error counts.
+      attempts=1
+      fails=1
+      while [ "$attempts" -le "$FLAKE_RETRIES" ]; do
+        attempts=$((attempts + 1))
+        suite_attempt "$rel" "$log.reread$attempts"
+        [ "$SUITE_CODE" -ne 0 ] && fails=$((fails + 1))
+      done
+      if [ "$fails" -lt "$attempts" ]; then
+        note="FLAPPING: failed $fails of $attempts identical reads — noise or an intermittent defect, NOT a reproducible regression. $note"
+      else
+        note="$note  [reproducible: $fails of $attempts reads]"
+      fi
     fi
     record "$rel" "$log" "$code" "$note" "standalone suites"
   done <<< "$STANDALONE"
@@ -280,8 +324,34 @@ if [ "$RUN_PERF" -eq 1 ]; then
   say "== perf =="
   tools/perf.sh > "$LOGDIR/perf.log" 2>&1
   perf_code=$?
-  [ "$QUIET" -eq 0 ] && sed -n '/scenario  *ticks/,$p' "$LOGDIR/perf.log" | sed 's/^/  /'
-  perf_note="$(grep -m1 -E '^ [a-z_0-9]+ +[0-9]+ ' "$LOGDIR/perf.log" | awk '{printf "%s at %s ticks/s", $1, $4}')"
+  [ "$QUIET" -eq 0 ] && sed -n '/^ scenario /,$p' "$LOGDIR/perf.log" | sed 's/^/  /'
+  # The one-line note carries the SPREAD, not a single number. A reader looking
+  # at a red perf stage has to be able to tell in one glance whether it is real,
+  # and "stress_1000 at 79 ticks/s" could never tell them: six readings of the
+  # same test on the same runner spanned 72 % with no code change.
+  perf_note="$("$PY" - <<'PY' 2>/dev/null || true
+import json
+try:
+    d = json.load(open("artifacts/perf.json"))
+except Exception:
+    raise SystemExit
+rows = d.get("scenarios") or []
+bad = [g for g in rows if g.get("status") in ("regressed", "error")]
+noisy = [g for g in rows if g.get("status") == "noisy"]
+def one(g):
+    return "%s median %.0f/s (%.0f..%.0f, %.0f%% spread, floor %.0f, %d reading%s)" % (
+        g.get("scenario", "?"), g.get("median_ticks_per_second", 0),
+        g.get("min_ticks_per_second", 0), g.get("max_ticks_per_second", 0),
+        g.get("spread_percent", 0), g.get("floor_ticks_per_second", 0),
+        g.get("readings", 0), "" if g.get("readings") == 1 else "s")
+if bad:
+    print("REGRESSION: " + "; ".join(one(g) for g in bad))
+elif noisy:
+    print("noise, not a regression: " + "; ".join(one(g) for g in noisy))
+elif rows:
+    print("; ".join(one(g) for g in rows))
+PY
+)"
   record "perf gate" "$LOGDIR/perf.log" "$perf_code" "$perf_note"
 fi
 
