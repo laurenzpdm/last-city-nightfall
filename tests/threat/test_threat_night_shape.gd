@@ -150,6 +150,24 @@ func test_the_campaign_keeps_starting_nights() -> void:
 	assert_ge(float(s["waves_survived"]), 2.0, "and the finished ones must be counted")
 
 
+func test_the_cleared_counter_counts_exactly_what_the_bus_announces() -> void:
+	# The gate caught this as "threat.waves_cleared says 1, Bus.wave_cleared fired
+	# 2 times". `waves_cleared` used to count only the nights that were WIPED,
+	# which made it a second, stricter tally of the event the bus already
+	# announces — so a night held at dawn with one survivor walking away toasted
+	# "Wave 1 is over" and left the counter untouched.
+	var counts: Dictionary = world.count_bus_signals(
+		PackedStringArray(["wave_cleared"]), func() -> void: world.run(29000))
+	var fired: int = int(counts.get("wave_cleared", 0))
+	assert_gt(float(fired), 0.0, "three campaign days must finish at least one night")
+	assert_eq(int(threat.call("waves_cleared")), fired,
+		"the counter a panel quotes and the signal the HUD listens to are the same event")
+	var s: Dictionary = threat.call("serialize")
+	assert_eq(int(s["waves_cleared"]), fired, "and the state dump agrees with both")
+	assert_le(float(s["waves_wiped"]), float(fired),
+		"the nights that left nothing standing are a subset of the nights that ended")
+
+
 # --- the record a critic reads ------------------------------------------------------
 
 func test_every_finished_night_leaves_a_row_with_the_numbers_in_it() -> void:

@@ -85,8 +85,9 @@ var _plan: WavePlan = null
 var _state: int = ThreatDefs.WaveState.IDLE
 var _wave: int = 0
 ## Nights that ended with nothing of the wave left alive. The player beat those.
-var _waves_cleared: int = 0
-## Nights that ended at all, cleanly or otherwise.
+## This is NOT what `waves_cleared()` reports — see the accessor for why.
+var _waves_wiped: int = 0
+## Nights that ended at all, cleanly or otherwise. One per `Bus.wave_cleared`.
 var _waves_survived: int = 0
 var _waves_started: int = 0
 var _night_start_tick: int = 0
@@ -170,7 +171,7 @@ func setup() -> void:
 	_tick = 0
 	_day = 1
 	_wave = 0
-	_waves_cleared = 0
+	_waves_wiped = 0
 	_waves_survived = 0
 	_waves_started = 0
 	_state = ThreatDefs.WaveState.IDLE
@@ -369,8 +370,25 @@ func wave() -> int:
 	return _plan.wave if _plan != null else 0
 
 
+## Nights that are over — one per `Bus.wave_cleared`, and the number every panel
+## that says "Nights cleared" is quoting.
+##
+## It used to report only the nights that were WIPED, which made it a second,
+## stricter counter of an event the bus already announces: a night the city held
+## at dawn with one survivor walking away fired `Bus.wave_cleared`, toasted
+## "Wave 1 is over", played the relief cue — and left this at zero. Downstream
+## that was not cosmetic: [P22] draws its one morning line per fought night off
+## this number, and [P06]'s "the line held" hope impulse off its delta, so both
+## simply skipped any night that was not a clean sweep. The wiped count is still
+## kept, under the name that says what it is.
 func waves_cleared() -> int:
-	return _waves_cleared
+	return _waves_survived
+
+
+## Nights that ended with nothing of the wave left standing. A subset of
+## `waves_cleared()`, and the harder thing to do.
+func waves_wiped() -> int:
+	return _waves_wiped
 
 
 ## Current adaptation multiplier, always inside the declared band.
@@ -857,13 +875,13 @@ func _resolve_wave(at_dawn: bool) -> void:
 
 	_state = ThreatDefs.WaveState.RESOLVED
 	_waves_survived += 1
-	# "Cleared" means nothing of it was left standing. A night that ended
-	# because the sun came up is survived, not cleared, and the difference is
-	# exactly what the adaptation is reading.
+	# Whether the wave was WIPED — nothing of it left standing — is what the
+	# verdict and the night's record are graded on. It is deliberately not the
+	# number `waves_cleared()` publishes: see that accessor.
 	var wiped: bool = int(outcome.get("killed", 0)) >= int(outcome.get("spawned", 0)) \
 		and withdrew == 0
 	if wiped:
-		_waves_cleared += 1
+		_waves_wiped += 1
 	var detail: String = "%d of %d put down%s" % [
 		int(outcome.get("killed", 0)), maxi(1, int(outcome.get("spawned", 0))),
 		"" if int(outcome.get("structures_lost", 0)) == 0
@@ -885,7 +903,7 @@ func _resolve_wave(at_dawn: bool) -> void:
 		"spawned": int(outcome.get("spawned", 0)),
 		"killed": int(outcome.get("killed", 0)),
 		"withdrew": withdrew,
-		"cleared": wiped,
+		"wiped": wiped,
 		"verdict": String(ThreatDefs.verdict_key(verdict)),
 		"structures_lost": int(outcome.get("structures_lost", 0)),
 		"breached": bool(outcome.get("breached", false)),
@@ -916,7 +934,7 @@ func _resolve_wave(at_dawn: bool) -> void:
 		"pressure_before": record.get("pressure_before", 1.0),
 		"pressure_after": record.get("pressure_after", 1.0),
 		"withdrew": withdrew,
-		"cleared": wiped,
+		"wiped": wiped,
 		"verdict": String(ThreatDefs.verdict_key(verdict)),
 		"verdict_text": ThreatDefs.verdict_label(verdict),
 		"ended_at_dawn": at_dawn,
@@ -1427,7 +1445,8 @@ func serialize() -> Dictionary:
 		"state": String(ThreatDefs.wave_state_name(_state)),
 		"threat_level": snappedf(threat_level(), 0.001),
 		"budget": snappedf(_plan.budget if _plan != null else 0.0, 0.01),
-		"waves_cleared": _waves_cleared,
+		"waves_cleared": waves_cleared(),
+		"waves_wiped": _waves_wiped,
 		"waves_survived": _waves_survived,
 		"waves_started": _waves_started,
 		"breach_reported": _breach_reported,
@@ -1457,7 +1476,8 @@ func deserialize(data: Dictionary) -> void:
 	_state = ThreatDefs.WAVE_STATE_NAMES.find(StringName(String(data.get("state", "idle"))))
 	if _state < 0:
 		_state = ThreatDefs.WaveState.IDLE
-	_waves_cleared = int(data.get("waves_cleared", 0))
+	# A save written before the split stored the wiped count under the old name.
+	_waves_wiped = int(data.get("waves_wiped", data.get("waves_cleared", 0)))
 	_waves_survived = int(data.get("waves_survived", 0))
 	_waves_started = int(data.get("waves_started", 0))
 	_breach_reported = int(data.get("breach_reported", 0))
@@ -1500,7 +1520,8 @@ func metrics() -> Dictionary:
 		"wave": _wave,
 		"threat_level": snappedf(threat_level(), 0.001),
 		"budget": snappedf(_plan.budget if _plan != null else 0.0, 0.01),
-		"waves_cleared": _waves_cleared,
+		"waves_cleared": waves_cleared(),
+		"waves_wiped": _waves_wiped,
 		"waves_survived": _waves_survived,
 		"pressure": snappedf(_pressure.pressure, 0.001),
 		"pressure_band": _pressure.band_label(),
