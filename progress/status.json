@@ -1,7 +1,7 @@
 {
  "round": 4,
  "phase": "D \u2014 The look, the belts, the tutorial, the meta",
- "state": "D1 (world look), D2 (belts) and D3 (tutorial) are done; D4 (meta) and D5 (perf) are running. The harness could not photograph its own game \u2014 every shot was [P22]s event card over the city, because nobody presses Read in an automated run. Fixed: each beat now also writes name.world.png with the modal layers held back. That is what the critics will judge.",
+ "state": "Five of seven builders are done. The A* hitch is fixed and measured: shift-change worst tick 9809-11116 us -> 2497-3260, with the route cache hit rate preserved at 99.8% so the search still finds its paths. Leaks 813 objects -> 53, and a world built and destroyed now grows the heap by 0 instead of 184. Full suite 1125 passed / 0 failed. Gate went 7 failing -> 4.",
  "agents_live": 2,
  "critic_score": 4.2,
  "blind_wins": 0,
@@ -172,25 +172,25 @@
   {
    "id": "D4",
    "name": "Meta & Steam [P24]",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
    "id": "D5",
    "name": "Perf: resumable A*, teardown",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
    "id": "D6",
    "name": "Gate correctness",
-   "status": "todo",
+   "status": "in_progress",
    "score": null
   },
   {
    "id": "D7",
    "name": "Screen composition",
-   "status": "todo",
+   "status": "in_progress",
    "score": null
   }
  ],
@@ -209,8 +209,8 @@
   "biggest_gap": "Nothing you built is reachable, and the gate cannot see it. Until a human can open a menu, the eleven systems underneath are a simulation, not a game."
  },
  "gate": {
-  "label": "Gate baseline (here)",
-  "value": "RED \u2014 5",
-  "note": "2 real (frame spike, rejected band) \u00b7 3 are this container"
+  "label": "Gate (macOS CI)",
+  "value": "RED \u2014 4",
+  "note": "was 7 \u00b7 engine errors back to 0 blocking"
  }
 }
