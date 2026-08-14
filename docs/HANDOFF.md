@@ -41,6 +41,27 @@ builder's summary):
 | 2 | 4.2 / 10 | Nothing is reachable, and the gate cannot see it |
 | 3 | not reached | Phase C was interrupted before the judges ran |
 
+**The gate's own verdict, measured 2026-08-14 on `main` before any change — `CHECK RED — 10
+failing`, exit 1.** Read that before believing any other number on this page. `tools/check.sh`
+was never green; the row above that says "768 tests pass" is true and irrelevant, which is the
+whole lesson of round 2.
+
+```
+FAIL  tests                           1063 passed, 4 failed
+FAIL  tests/feel/feel_gallery.tscn    24 checks, 1 failed
+FAIL  tests/feel/feel_perf.tscn       6 checks, 2 failed
+FAIL  perf gate                       stress_1000 at 43 ticks/s
+FAIL  engine errors                   363 blocking
+FAIL  engine errors: boot             Godot's own stderr during a real launch
+FAIL  contract: first_night           26 pass, 4 FAIL
+FAIL  contract: determinism           11 pass, 1 FAIL
+FAIL  contract: first_night_endurance 14 pass, 1 FAIL
+FAIL  engine errors: visual           the only pass that executes ui/ and view/
+```
+The perf number was measured on a loaded 4-core box under software GL (llvmpipe). It is not
+comparable to the 122 ticks/s in the table above and must be re-measured on an idle machine
+before anyone reads anything into it.
+
 ## 3. What exists and works
 
 **Simulation** (`game/sim/`, all 11 systems tick):
@@ -65,40 +86,96 @@ builder's summary):
 **Rigour**: own test framework, ~768 tests, determinism replay, per-system tick profiling
 (`Sim.profile_report()`), a reachability suite, `tools/lint_sim.sh` for determinism violations.
 
-## 4. Known defects, all reproduced by hand
+## 4. Known defects
 
-**A. Three reachability-suite failures.** Run
-`godot --path . tests/boot/run_reachability.tscn -- --force-ui`:
+> **2026-08-14: three of the five entries below were WRONG, and being wrong about a defect
+> costs more than not knowing about it.** Everything in this section has now been re-measured
+> by running the build. Where the old text said something false, the false claim is kept and
+> struck through, because the *way* it was wrong is the useful part.
+
+**A. Three reachability-suite failures.** ✅ **Fixed, both causes measured.**
 ```
 FAIL 2 is still fast-forward with a full quickbar (speed=1.0)
 FAIL 3 is still very fast (speed=1.0)
 FAIL clicking the hearth fills the selection panel (id=-1)
-TESTS FAILED — 88 checks, 3 failures
 ```
-Number keys 2 and 3 are claimed by both sim-speed and the build quickbar. Clicking a building
-does not populate the selection panel.
+~~"Number keys 2 and 3 are claimed by both sim-speed and the build quickbar."~~ Not the
+quickbar — `LcnInputRouter` already settled that collision. The real cause: **[P19] decided
+which bare numbers were free by probing `InputMap`**, which is only populated once [P16]'s
+camera installs the action map. With a display, [P19] installs *before* boot builds the camera,
+so it probed an empty map, concluded 1/2/3 were free, took them as lens keys and swallowed them
+with `set_input_as_handled()`. Now `LcnLayers.key_is_reserved()` is asked first, so the
+reservation cannot depend on who booted first. The tell is in the log:
+`[overlay] ready — … keys F1 F2 F3 4 5 6` (was `1 2 3 4 5 6`).
 
-**B. The reachability suite exits 0 while printing TESTS FAILED.** This is the round-2 disease
-returning in a new place: a gate that cannot go red. **Fix the exit code before anything else**,
-or CI will certify broken builds again.
+~~"Clicking a building does not populate the selection panel."~~ It does. Every link works
+when called directly: `provider.entity_at_world` → 1, `press`/`release` → `has_selection=true`,
+`describe_building(1)` → a full dictionary, `hud.select(1)` → 1. The click never *arrived*:
+[P22]'s event card sits over the middle of the world and its body `RichTextLabel` held the GUI
+hover at screen centre. Godot defaults `RichTextLabel` to `MOUSE_FILTER_STOP` (unlike `Label`,
+which defaults to `IGNORE`), so prose was eating the mouse. The suite now dismisses what a
+player would dismiss and **names the Control covering the click** instead of blaming [P17].
 
-**C. Engine-level leaks on every single run:**
-```
-WARNING: 740 ObjectDB instances were leaked at exit
-ERROR: 258 resources still in use at exit
-```
-An `ERROR:` line prints on every run and nothing fails. C2's mandate was to make engine-level
-errors fail the gate; that work was interrupted. This is unfinished.
+**B. ~~The reachability suite exits 0 while printing TESTS FAILED.~~** ✅ **Fixed — but the
+claim was wrong, and the truth was worse.** It never printed `TESTS FAILED` and exited 0. It
+printed **`TESTS PASSED`**:
 
-**D. The renderer invents a city when none exists.** With no structures it draws "337
-placeholder structures" as a preview settlement, then drops them when real construction
-appears. Useful for isolated render tests, dangerous everywhere else: a screenshot can show a
-city that does not exist in the simulation. At minimum it must be impossible in harness runs.
+| invocation | verdict | exit |
+|---|---|---|
+| `--headless`, no `--force-ui` — **what `tools/check.sh` ran** | `TESTS PASSED — 86 checks, 0 failures` | **0** |
+| `--headless --force-ui` | `TESTS FAILED — 88 checks, 2 failures` | 2 |
+| xvfb, a real display | `TESTS FAILED — 88 checks, 3 failures` | 3 |
 
-**E. Round-2 findings that Phase C was mid-way through fixing.** Re-verify each, do not assume:
-belts never placed in any scenario (`logistics.items_moved = 0` across 24000 ticks); wave 2
-never ending (one enemy alive 6960 ticks at full HP); the HUD fabricating depletion warnings;
-68 `String formatting error` lines per visual run; world overlay labels painting over the HUD.
+The exit code was honest all along; the **verdict** was the lie. Every part that installs itself
+from `game/content/**/*_bootstrap.tres` asks `LcnLayers.view_wanted()` while `Registry` is still
+scanning — *before* `boot._ready`. With a display, or with `--force-ui`, [P19]/[P15]/[P20]/[P22]
+come up first and boot adopts them; without either they decline and boot installs them itself,
+in a different order. Only the second order was gated, and in it two of the three real failures
+**cannot occur**. Note a display implies the *first* order — so the gated configuration was the
+one no player ever gets.
+
+The suite now refuses to run without `--force-ui` or a display; counts what it cannot ask as
+`UNCHECKED` and returns `TESTS PASSED, PARTIAL` / exit 126; and `check.sh` reads each suite's own
+`## REQUIRES:` line to supply the switches. `gate.yml` gates on the process exit code and
+requires a verdict, so a suite that dies before printing one is no longer green.
+
+**C. ~~Engine-level errors do not fail the gate — C2's mandate is unfinished.~~** ✅ **The
+mechanism was already finished and already working.** `tools/scan_errors.py` reads every stage's
+stderr and `check.sh` records it. Measured on `main` before any change: **`CHECK RED — 10
+failing`, exit 1**, including `engine errors — 363 blocking`. What was unfinished was not the
+gate but the *fixing*:
+
+- **336 of the 363 came from one line.** [P06] numbers its demands (`{"id": 1}`); [P17] built an
+  alert key with `String(1)`. Godot 4 has `String` constructors for `String`, `StringName` and
+  `NodePath` and **nothing else**, and the alert panel refreshes several times a second for as
+  long as a demand is open. → `str()`.
+- **`HeatNetwork.clear_routing()` aborted on every call.** `topo.scratch` has not existed since
+  residual routes became a memoised ring. A GDScript runtime error *aborts the function*, so
+  `route_dirty = true` on the last line never ran — and the two callers are `rebuild_networks()`
+  and **save loading**, precisely the two moments routing must be rebuilt from nothing.
+- ALSA has no sound card on a build machine and printed an engine error before a line of this
+  project ran. Visual runs now use the Dummy audio driver; `tests/audio/` keeps the real one.
+
+The 740 leaked objects / 258 resources are real and still there. They are `tracked` in
+`tools/error_allowlist.txt` with an owner and an expiry (2026-10-01), printed with a count in
+every gate report, and reported by the engine *after* the last artifact is written — so they
+cannot alter a metric, a replay or a screenshot.
+
+**D. The renderer invents a city when none exists.** ✅ **Fixed.** The [P13] preview settlement
+is refused in any `--harness` run, guarded *inside* `ensure_preview_settlement()` so a later
+caller cannot reach it (`--no-preview-city` forces it off anywhere). Verified: a visual harness
+run now logs `world ready: 0 structures (real)` where it logged `337 structures (PLACEHOLDERS)`,
+and a real 76-building city still renders.
+
+**E. Round-2 findings, each re-verified by running.**
+
+| finding | status |
+|---|---|
+| belts never placed, `logistics.items_moved = 0` | **CONFIRMED, still broken.** `first_night`, 11000 ticks: `items_moved` final 0, `belt_lines` peak 0, `logistics.lines` len 0, and 13 build commands refused. The automation pillar does nothing in the run a critic is handed. |
+| wave 2 never ending | **Changed shape.** A watchdog now force-resolves a stuck wave (`wave 1 has been live for 401 ticks … resolving it by`). What remains is an accounting bug: `threat.waves_cleared` disagrees with `Bus.wave_cleared` by exactly one in both `determinism` and `first_night_endurance`. |
+| HUD fabricating depletion warnings | **Already fixed in code, tests were stale.** `LcnHudTrend` grew projection gates (12 samples, 20 s span) so one purchase cannot become a countdown; two tests still fed 8 and 10 samples and asserted the old over-eager behaviour. Tests corrected, plus a new one covering the refusal. |
+| 68 `String formatting error` per visual run | **Gone as a class.** A visual harness run is now `0 blocking` engine errors. |
+| world overlay labels over the HUD | **Symptom gone, source still disagrees.** `LcnLayers.enforce()` corrects [P19] on every launch and logs it: `P19 overlays put overlay_world on layer 70; the table says 62 — corrected`. |
 
 ## 5. Phase C: what landed, what did not
 
@@ -108,7 +185,7 @@ returns, **but far more landed on disk than that suggests** — measured directl
 | Agent | Folder | On disk | Status |
 |---|---|---|---|
 | C1 boot seam | `game/boot.gd`, `game/core/ui_layers.gd`, `tests/boot/` | 443 test lines + rewritten boot | **Done.** Install contract with `is_inside_tree()` verification, `install_report`, layer table, input router, `--ui-tour` |
-| C2 gate teeth | `tools/`, `tests/framework/` | partial | **Unfinished.** Harness now counts orphan nodes and total `Log.errors`, but engine stderr still does not fail anything |
+| C2 gate teeth | `tools/`, `tests/framework/` | ~~partial~~ done | ~~**Unfinished.** engine stderr still does not fail anything~~ **Wrong — it does.** `tools/scan_errors.py` reads every stage's stderr and `check.sh` gates on it; it is why `main` is `CHECK RED`. See §4C |
 | C3 logistics reachable | `game/sim/logistics/` | partial | Re-verify: does a human get a placeable belt? |
 | C4 UI truth | `game/ui/hud/`, `build_menu/` | partial | Re-verify the String-formatting errors and fake alerts |
 | C5 combat repair | `game/sim/combat/`, `threat/` | partial | Re-verify the wave-2 stall |
@@ -137,11 +214,26 @@ godot --path . --resolution 1920x1080 -- --harness --visual --scenario=first_nig
 godot --path . -- --ui-tour
 
 # Reachability: can a human actually open each screen?
+# --force-ui (or a real display) is MANDATORY — without it the suite refuses to
+# run rather than certify an install order no player ever gets. See §4B.
 godot --path . tests/boot/run_reachability.tscn -- --force-ui
 
 # The whole gate
 bash tools/check.sh
 ```
+
+On a headless Linux box, anything that draws needs xvfb:
+```bash
+export GODOT=/path/to/godot
+xvfb-run -a -s "-screen 0 1920x1080x24" bash tools/check.sh
+xvfb-run -a -s "-screen 0 1920x1080x24" \
+    "$GODOT" --path . tests/boot/run_reachability.tscn -- --force-ui
+```
+The reachability suite has three outcomes, not two: `TESTS PASSED` (exit 0),
+`TESTS FAILED` (exit = failure count), and **`TESTS PASSED, PARTIAL` (exit 126)** — it ran, it
+found nothing wrong, and it could not ask everything it exists to ask. Headless, the click test
+is `UNCHECKED` because there is no GUI hit-testing to click through. PARTIAL is not a pass:
+`check.sh` records it as a skip and downgrades its verdict to `CHECK GREEN, PARTIAL`.
 Outputs land in `artifacts/<run>/`: `state.json`, `metrics.csv`, `log.txt`, `shots/*.png`.
 
 `tools/check.sh` and the run scripts honour a `GODOT` environment variable, so any machine
@@ -180,16 +272,33 @@ macOS minutes bill at a 10× multiplier and the macOS job should be dropped.
 
 ## 9. What to do next, in order
 
-1. **Fix the exit code of the reachability suite (defect B).** A gate that cannot fail is worse
-   than no gate, and this project has now been bitten by that exact thing twice.
-2. **Finish C2's mandate**: engine-level stderr errors must fail the gate. Then the leaks in
-   defect C become visible pressure instead of scrollback.
-3. **Fix defects A and D**, then re-verify the round-2 findings in E one at a time by running,
-   not by reading code.
-4. **Then run the stage Phase C never reached**: integrator → playthrough agent → round-3 critic
-   → blind side-by-side comparison against Factorio and Frostpunk.
-5. Still entirely unbuilt: **[P21] tutorial** and **[P24] meta** (save/load UI, settings screen,
+Defects A, B, C and D are done (§4). What is left, in the order it is worth doing:
+
+1. **The automation pillar does not run.** `first_night` moves zero items over 11000 ticks and
+   refuses 13 build commands. This is the largest gap between what the game claims and what a
+   run contains, and no amount of gate work substitutes for it.
+2. **`threat.waves_cleared` vs `Bus.wave_cleared`** disagree by one, failing two gate contracts.
+   Find out which is right and whether the watchdog force-resolving waves is masking a third
+   defect underneath.
+3. **Legibility:** the `workshop` archetype carries **13** shipped buildings against a limit of
+   3 — every splitter and every underground draws the same silhouette. The first north star in
+   `ARCHITECTURE.md` is "a player must be able to look at a base and *read* it".
+4. **[P15]'s cull rejects everything:** `441 structures offered, 0 survived the view cull`, so
+   the city never breathes. Re-measure `_draw` on an idle machine before trusting the perf half.
+5. **Re-measure perf cleanly.** Every perf number currently on this page is contaminated.
+6. **Then the stage Phase C never reached**: integrator → playthrough agent → round-3 critic →
+   blind side-by-side comparison against Factorio and Frostpunk.
+7. Still entirely unbuilt: **[P21] tutorial** and **[P24] meta** (save/load UI, settings screen,
    accessibility, Steam integration, achievements, controller). Neither has been started.
+
+### 9.1 A method note, earned the hard way
+
+Three of the five defects in §4 were **described wrongly** in this file, and two of those three
+described work as unfinished that was already done. The pattern in all three: the symptom was
+observed correctly and the cause was guessed, then written down in the same voice as the
+measurement. If you take one habit from this round, take this one — **write the command and its
+output next to the claim**, and when you cannot, say "guess". A wrong cause in a handoff is more
+expensive than a blank space, because the next agent starts by trying to fix the wrong thing.
 
 ## 10. Standing instruction from Maximilian
 
