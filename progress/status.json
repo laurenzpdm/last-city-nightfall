@@ -1,8 +1,8 @@
 {
  "round": 4,
  "phase": "D \u2014 The look, the belts, the tutorial, the meta",
- "state": "Baseline gate finished: CHECK RED, 5 failing of 34 stages. Two are real defects and both are assigned (the shift-change frame spike -> D5, the build.rejected_total band -> D6). Three are this container and not the code: the perf floors were set on a Mac, feel_perf needs a real GPU, and boot trips an ALSA error because the container has no sound card. Determinism holds, 0 blocking engine errors in every scenario, reachability 14/14.",
- "agents_live": 7,
+ "state": "4 cores means 2 builders at a time. D2 has committed the belt renderer (1560 lines across 9 new files plus a 496-line frame suite) and is still verifying. D1 is mid-flight on the world look. Five builders queued behind them, then integrate, playthrough and the blind comparison.",
+ "agents_live": 2,
  "critic_score": 4.2,
  "blind_wins": 0,
  "blind_total": 0,
@@ -148,6 +148,48 @@
   {
    "id": "P24",
    "name": "Meta / Steam",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "D1",
+   "name": "World look \u2014 ground, mass, light",
+   "status": "in_progress",
+   "score": null
+  },
+  {
+   "id": "D2",
+   "name": "Belt legibility \u2014 items in motion",
+   "status": "in_progress",
+   "score": null
+  },
+  {
+   "id": "D3",
+   "name": "Tutorial [P21]",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "D4",
+   "name": "Meta & Steam [P24]",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "D5",
+   "name": "Perf: resumable A*, teardown",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "D6",
+   "name": "Gate correctness",
+   "status": "todo",
+   "score": null
+  },
+  {
+   "id": "D7",
+   "name": "Screen composition",
    "status": "todo",
    "score": null
   }
