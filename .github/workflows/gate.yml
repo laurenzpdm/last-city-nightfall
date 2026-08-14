@@ -245,3 +245,45 @@ jobs:
           path: artifacts/ci_vis/
           retention-days: 14
           if-no-files-found: warn
+
+  # Maximilian's standing instruction: test on the macOS runner. The open
+  # question is whether a GitHub macOS runner, which has no logged-in GUI
+  # session, can render at all. This job asks it empirically instead of
+  # assuming. If it produces frames, the visual work moves here from Linux.
+  visual-macos:
+    name: visual probe (macOS)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Godot
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: ~/godot
+          key: godot-macos-${{ env.GODOT_VERSION }}
+      - name: Install Godot
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot && cd ~/godot
+          curl -fsSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_macos.universal.zip"
+          unzip -q godot.zip && rm godot.zip
+      - name: Import
+        run: ~/godot/Godot.app/Contents/MacOS/Godot --headless --path . --import 2>&1 | tail -5
+      - name: Can macOS render without a GUI session?
+        run: |
+          set +e
+          ~/godot/Godot.app/Contents/MacOS/Godot --path . --resolution 1920x1080 \
+            -- --harness --visual --scenario=smoke --out=artifacts/mac_vis 2>&1 | tail -25
+          echo "exit: $?"
+          set -e
+          n=$(ls artifacts/mac_vis/shots/*.png 2>/dev/null | wc -l | tr -d ' ')
+          echo "VERDICT: macOS runner produced $n frame(s)"
+          echo "macOS visual probe: **$n frame(s)**" >> $GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-visual-probe
+          path: artifacts/mac_vis/
+          if-no-files-found: warn
