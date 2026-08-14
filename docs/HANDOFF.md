@@ -162,18 +162,47 @@ city still rendering.
 
 `gate (macOS)` reports 5 failing. **One is a defect. Four are noise.**
 
-### The one real defect
+### The last red band — and it is probably the BAND that is wrong, not the build
 
 ```
 FAIL  build.rejected_total  final_max 0   final 13
 ```
-Thirteen placements in `first_night` are refused at runtime. `tools/gen_scenarios.py` claims it
-"knows every footprint and refuses to emit a placement that would be refused at runtime", so
-**either that claim or those thirteen placements is wrong**. The reasons are in words:
+
+**Do not "fix" this by chasing thirteen bad placements. They are deliberate.** Run it and look:
 
 ```bash
-grep -oE "refused: .*" artifacts/gate/first_night/log.txt | sort | uniq -c | sort -rn
+tools/run_sim.sh --scenario=first_night --ticks=11000 --out=artifacts/r
+grep -c "refused" artifacts/r/log.txt          # -> 0.  Nothing is logged as a refusal.
+python3 -c "import json;print(json.load(open('artifacts/r/state.json'))['final']['systems']['build']['stats'])"
+                                               # -> {'rejected': 13, ...}
 ```
+
+Thirteen rejections, zero refusal log lines, because they do not come from the command path.
+They come from `_op_place_line`: `tools/gen_scenarios.py`'s `Layout.line()` draws a run
+**through** whatever already stands, and says so in its own comment —
+
+> `# A line runs THROUGH whatever is already there; build refuses the occupied`
+> `# cells and lays the rest, which is what a player sees too.`
+
+— and `BuildSystem._reject()` (`game/sim/build/build_system.gd:1202`) counts every one of those
+skipped cells. So the scenario deliberately overdraws its heat trunks, build correctly declines
+the cells that are taken, and the band then calls that a failure. `final_max 0` and a helper
+whose documented job is to overdraw cannot both be right.
+
+This also corrects the previous handoff, which said `gen_scenarios.py`'s "refuses to emit a
+placement that would be refused at runtime" claim must be false. It is not: the generator refuses
+to emit *colliding `place` commands* — `Layout.place()` asserts on overlap. `line()` is a
+different, intentional path.
+
+**The judgement call, which is a contract change and therefore Maximilian's:** the band was
+presumably written to catch scenario-authoring mistakes, and that intent is good — a placement
+that can never work should not sit silently in the reference run. But the threshold cannot be 0
+while `line()` exists. Options, cheapest first:
+1. band `rejected_total` to a small ceiling (13 today) so a *new* authoring mistake still trips it;
+2. have `line()` skip occupied cells at generation time instead of relying on the runtime to
+   decline them — changes what the scenario exercises, since a player really does drag through;
+3. count line-skips separately from genuine command rejections in `BuildSystem`, and band only
+   the latter. Cleanest, most work, and the only one that keeps the original intent intact.
 
 ### The four that flap
 
@@ -303,9 +332,18 @@ That is why this repo is public.
 
 ## 9. What to do next, in order
 
-1. **`build.rejected_total`** — the one real defect left in the gate. §5.
-2. **Get Maximilian's answer on the two perf decisions.** Do not grind on optimisation before
-   the statistic question is settled; and do not lower a floor to make a number go green.
+**Read §5 first. Nothing in the gate is now known to be a defect in the game.** One band is
+mis-specified and four stages are noise. That is a different problem from "the build is broken",
+and it wants a different kind of work.
+
+1. **`build.rejected_total`** — decide which of the three options in §5 to take. The evidence is
+   already gathered; what is missing is a decision, not an investigation.
+2. **The perf work.** Maximilian's standing answer is *optimise, do not lower the floors*, and
+   that is the instruction to follow. One question he has NOT yet answered hangs off it: whether
+   `worst-of-240-ticks` is the right statistic at all, given the spread in §5 is wider than the
+   gap to the floor. Optimising is worth doing either way — a single A* at its full ceiling is a
+   real hitch a player feels — so **start there and do not wait**; raise the statistic question
+   again only if a genuine speedup still leaves the gate flapping.
 3. **The teardown work behind defect C** — 740 leaked objects, 258 resources, allowlist entries
    expiring 2026-10-01.
 4. **The stage Phase C never reached**: integrator → playthrough agent → round-3 critic → blind
