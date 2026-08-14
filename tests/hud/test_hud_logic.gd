@@ -137,12 +137,30 @@ func test_trend_reads_a_rising_stock() -> void:
 
 func test_trend_reads_a_falling_stock_as_a_deadline() -> void:
 	var t: LcnHudTrend = Trend.new()
-	for i: int in 10:
-		t.sample(&"coal", 1000.0 - float(i) * 50.0, float(i) * 2.0)
+	# 14 samples, 26 s of span. This used to feed 10 samples over 18 s, which is
+	# below LcnHudTrend.PROJECTION_MIN_SAMPLES (12) and PROJECTION_MIN_SPAN (20):
+	# the gates that stop the HUD inventing a countdown out of one purchase were
+	# added after this test was written, and nobody came back to give it enough
+	# history to clear them. The arithmetic being asserted is unchanged — the last
+	# sample is still 550 falling at 25 a second — it is now simply observed for
+	# long enough that the projection is allowed to exist.
+	for i: int in 14:
+		t.sample(&"coal", 1200.0 - float(i) * 50.0, float(i) * 2.0)
 	assert_lt(t.per_minute(&"coal"), 0.0)
 	assert_eq(t.direction(&"coal"), -1)
 	assert_near(t.seconds_to_zero(&"coal"), 22.0, 1.0,
 		"550 left at 25 a second is 22 seconds of city")
+
+
+func test_a_short_history_refuses_to_project_a_deadline() -> void:
+	# The other half of the same contract, and the reason the gates exist: ten
+	# samples is not enough evidence to put a countdown in front of a player.
+	var t: LcnHudTrend = Trend.new()
+	for i: int in 10:
+		t.sample(&"coal", 1000.0 - float(i) * 50.0, float(i) * 2.0)
+	assert_eq(t.direction(&"coal"), -1, "the arrow may still point down")
+	assert_eq(t.seconds_to_zero(&"coal"), -1.0,
+		"but 18 seconds of history buys no countdown")
 
 
 func test_trend_ignores_samples_faster_than_its_cadence() -> void:
@@ -319,10 +337,19 @@ func test_a_stock_running_out_is_a_deadline_not_a_number() -> void:
 	p.has_build = true
 	p.stock_order = [&"coal"]
 	p.stock[&"coal"] = 600
-	for i: int in 8:
-		p.trend.sample(&"coal", 1000.0 - float(i) * 50.0, float(i) * 2.0)
+	# Eight samples was below LcnHudTrend's projection gates, so there was no
+	# deadline to turn into an alert at all. Fourteen samples over 26 s clears
+	# them the way a real burn does.
+	for i: int in 14:
+		p.trend.sample(&"coal", 1200.0 - float(i) * 50.0, float(i) * 2.0)
 	var a: LcnHudAlerts = _alerts()
+	# And the alert still has to HOLD for STOCK_CONFIRM_SECONDS before it is
+	# allowed on screen — a single refresh only starts the clock on it. That hold
+	# is the whole difference between a warning and a twitch, so the test walks
+	# through it rather than around it.
 	a.refresh(p, 20.0)
+	assert_eq(a.entries.size(), 0, "one look is not a warning yet")
+	a.refresh(p, 20.0 + LcnHudAlerts.STOCK_CONFIRM_SECONDS + 1.0)
 	assert_eq(a.entries.size(), 1)
 	assert_has(String((a.entries[0] as Dictionary)["head"]), "Coal runs out")
 

@@ -30,6 +30,13 @@ extends Node
 ##
 ## Run as a SCENE, never with --script: the autoloads do not exist until the
 ## SceneTree has installed them (ARCHITECTURE.md §6.1).
+##
+## The line below is read by tools/check.sh, which passes these switches to this
+## suite. Without `--force-ui` the self-installing parts decline, boot installs
+## them itself in a different order, and half of what this file exists to catch
+## becomes unable to fail — so the suite refuses to run at all rather than
+## certify that order. See `_configuration_can_answer`.
+## REQUIRES: --force-ui
 
 const TAG: String = "reachability"
 const BOOT_SCENE: String = "res://game/boot.tscn"
@@ -37,6 +44,11 @@ const SETTLE: int = 4
 
 var _checks: int = 0
 var _failures: PackedStringArray = PackedStringArray()
+## Checks this configuration was not able to ask at all. NOT the same as passing:
+## they downgrade the verdict to PARTIAL, which tools/check.sh refuses to read as
+## green. A check that never ran is the exact shape of the bug this suite exists
+## to catch, so it is never allowed to look like a pass.
+var _unchecked: PackedStringArray = PackedStringArray()
 var _out_dir: String = "res://artifacts/c1"
 
 var _boot: Node = null
@@ -87,6 +99,29 @@ func _run() -> void:
 
 ## The whole point: this is the real entry scene, not a hand-assembled fake.
 func _boot_a_real_session() -> void:
+	# THE CONFIGURATION GATE. Read this before changing it.
+	#
+	# Setting `force_install` here, in a deferred `_run`, is far too late to
+	# reproduce the order a player gets. Every self-installing bootstrap
+	# (`game/content/**/*_bootstrap.tres`) asks `LcnLayers.view_wanted()` while
+	# Registry is still scanning, which is BEFORE boot's `_ready` — so with a
+	# display, or with `--force-ui` on the command line, [P19]/[P15]/[P20]/[P22]
+	# install themselves first and boot adopts them. Without either, they all
+	# decline, boot installs them itself afterwards, and the whole tree comes out
+	# in a different order with different owners for the number row.
+	#
+	# That is not a detail. In the second order the speed-key collision cannot
+	# happen, so this suite printed `TESTS PASSED — 86 checks, 0 failures` for
+	# exactly the invocation tools/check.sh used, while the same build with a
+	# display attached failed three checks. A gate that only passes because it
+	# was asked the easy question is the round-2 disease with a new address.
+	#
+	# So: refuse to run at all rather than certify the easy order.
+	if not _configuration_can_answer():
+		_ok(false, "run with --force-ui or a display: without either, the "
+			+ "self-installing parts decline, boot installs them in a different "
+			+ "order, and the reachable-keyboard checks cannot fail")
+		return
 	# One switch, read by boot and by every bootstrap, so a headless gate can
 	# still build the interface it is supposed to be checking.
 	LcnLayers.force_install = true
@@ -102,6 +137,19 @@ func _boot_a_real_session() -> void:
 	_overlays = _boot.get(&"overlays")
 	_play = _boot.get(&"play")
 	_hud = _boot.get(&"hud")
+
+
+## True when this process installs the view the way a player's does: either a
+## real display server, or `--force-ui` present before Registry scans content.
+func _configuration_can_answer() -> bool:
+	if OS.get_cmdline_user_args().has("--force-ui"):
+		return true
+	return DisplayServer.get_name() != "headless"
+
+
+## True when real frames exist, so mouse hit-testing and GUI focus are real.
+func _has_display() -> bool:
+	return DisplayServer.get_name() != "headless"
 
 
 func _settle(frames: int) -> void:
@@ -248,7 +296,15 @@ func _suite_time_control_survives_a_full_quickbar() -> void:
 			filled += 1
 			if filled >= 10:
 				break
-	_ok(true, "quickbar loaded with %d entr(ies) before the speed keys are tried" % filled)
+	# `_ok(true, ...)` stood here, then `filled > 0`, and neither is the premise.
+	# [P18] maps a number key to a slot with `slot = keycode - KEY_1`, so 1, 2 and
+	# 3 address slots 0, 1 and 2 — with two entries loaded, pressing 3 reaches an
+	# EMPTY slot, the quickbar declines it, the speed key works, and this suite
+	# reports that the collision it exists to catch is gone. Three is the smallest
+	# number that puts something under every key the next four checks press.
+	_ok(filled >= 3,
+		"quickbar loaded with %d entr(ies) — enough to put a building under each "
+		% filled + "of the keys 1, 2 and 3 before the speed keys are tried")
 
 	SimClock.start()
 	await _press(KEY_2)
@@ -341,9 +397,65 @@ func _suite_clicking_a_building_fills_the_selection_panel() -> void:
 	var core: Vector2i = grid.call("core_cell")
 	var world: Vector2 = (Vector2(core) + Vector2(-1.0, -1.0)) * 32.0
 	var screen: Vector2 = cam.call(&"world_to_screen", world)
+
+	# Without a display there is no GUI hit-testing and no mouse focus, so a pass
+	# here would only mean "nothing was in the way in a world with no pixels".
+	if not _has_display():
+		_skip("clicking the hearth fills the selection panel",
+			"no display server: mouse hit-testing and GUI focus are not real here")
+		return
+
+	# A card, a panel or a tooltip over the hearth makes this click a UI click,
+	# and the old assertion then blamed [P17]'s selection panel for it. That is
+	# how "clicking the hearth fills the selection panel (id=-1)" was read as a
+	# selection bug for a whole phase when the selection path was intact and
+	# [P22]'s event card was simply sitting on top of the city. Clear what can be
+	# cleared, then NAME whatever is left instead of guessing.
+	await _dismiss_world_blockers()
+	var blocker: String = _control_blocking(screen)
+	_ok(blocker == "",
+		"nothing covers the hearth at %s — a click there reaches the world (%s)" % [
+			str(screen), blocker if blocker != "" else "clear"])
+
 	await _click(screen)
 	_ok(int(_hud.get(&"selected_id")) >= 0,
 		"clicking the hearth fills the selection panel (id=%d)" % int(_hud.get(&"selected_id")))
+
+
+## Anything that legitimately covers the world and can be put away by the player
+## is put away, the way the player would. A presenter that will not close is left
+## standing so `_control_blocking` names it.
+func _dismiss_world_blockers() -> void:
+	var card: Node = get_tree().get_first_node_in_group(&"lcn_narrative_presenter")
+	if card != null and card.has_method(&"dismiss_current"):
+		# Answering is a command, applied at the top of the next tick, and the
+		# pile can hold more than one card.
+		for _i: int in 8:
+			if not bool(card.call(&"dismiss_current")):
+				break
+			SimClock.advance(1)
+			await _settle(SETTLE)
+	await _close_everything()
+
+
+## The top-most Control that would eat a click at `point`, or "" when the world
+## is reachable there. Mouse filters are respected: only STOP actually consumes.
+func _control_blocking(point: Vector2) -> String:
+	var hit: Control = null
+	_find_blocker(get_tree().root, point, func(c: Control) -> void: hit = c)
+	if hit == null:
+		return ""
+	return "%s [%s] at %s covers it" % [hit.name, hit.get_class(), str(hit.get_global_rect())]
+
+
+func _find_blocker(node: Node, point: Vector2, report: Callable) -> void:
+	var c := node as Control
+	if c != null and c.is_visible_in_tree() \
+			and c.mouse_filter == Control.MOUSE_FILTER_STOP \
+			and c.get_global_rect().has_point(point):
+		report.call(c)
+	for child: Node in node.get_children():
+		_find_blocker(child, point, report)
 
 
 ## A palette that cannot arm the ghost is a picture of buildings.
@@ -417,11 +529,23 @@ func _ok(condition: bool, what: String) -> void:
 		_failures.append("FAIL %s" % what)
 
 
+## A check this configuration cannot ask. It is counted, printed and carried into
+## the verdict — never silently dropped, because a suite whose check COUNT moves
+## with the environment is a suite that can quietly stop testing things.
+func _skip(what: String, why: String) -> void:
+	_unchecked.append("UNCHECKED %s — %s" % [what, why])
+
+
 func _finish() -> void:
-	var verdict: String = "TESTS PASSED" if _failures.is_empty() else "TESTS FAILED"
+	var verdict: String = "TESTS FAILED"
+	if _failures.is_empty():
+		verdict = "TESTS PASSED, PARTIAL" if not _unchecked.is_empty() else "TESTS PASSED"
 	for f: String in _failures:
 		print("  %s" % f)
-	print("%s — %d checks, %d failures" % [verdict, _checks, _failures.size()])
+	for u: String in _unchecked:
+		print("  %s" % u)
+	print("%s — %d checks, %d failures, %d unchecked" % [
+		verdict, _checks, _failures.size(), _unchecked.size()])
 	var base: String = ProjectSettings.globalize_path(_out_dir)
 	DirAccess.make_dir_recursive_absolute(base)
 	var f := FileAccess.open(base + "/reachability.json", FileAccess.WRITE)
@@ -429,11 +553,20 @@ func _finish() -> void:
 		f.store_string(JSON.stringify({
 			"part": "C1", "verdict": verdict,
 			"checks": _checks, "failed": _failures.size(),
+			"unchecked": _unchecked.size(),
 			"failures": _failures,
+			"skipped": _unchecked,
+			"display": DisplayServer.get_name(),
+			"forced_ui": OS.get_cmdline_user_args().has("--force-ui"),
 			"install_report": _boot.get(&"install_report") if _boot != null else {},
 			"layers": _layer_summary(),
 		}, "  "))
-	get_tree().quit(mini(_failures.size(), 125))
+	# Non-zero on failure, and non-zero on a PARTIAL too: this suite is a gate,
+	# and a gate that cannot answer the question has not passed it.
+	if not _failures.is_empty():
+		get_tree().quit(mini(_failures.size(), 125))
+		return
+	get_tree().quit(0 if _unchecked.is_empty() else 126)
 
 
 func _layer_summary() -> Dictionary:

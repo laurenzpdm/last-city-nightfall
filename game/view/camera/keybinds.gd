@@ -368,13 +368,27 @@ static func event_signature(event: InputEvent) -> String:
 
 # --- display -------------------------------------------------------------------
 
+## True when there is a keyboard layout to ask about at all.
+##
+## The headless driver implements no layout, and asking it anyway does not
+## return a quiet zero — it prints "Not supported by this display server." to
+## stderr. Twenty-three of those came out of one camera suite run, and every one
+## was counted by the engine-error gate, which is how a settings-screen nicety
+## became the largest single block of blocking errors in the build. A key label
+## must never be able to turn a suite red on a machine with no keyboard; on a
+## real desktop this is true and the lookup happens exactly as before.
+static func _can_read_the_keyboard_layout() -> bool:
+	return DisplayServer.get_name() != "headless"
+
+
 ## What a settings screen shows for one binding, e.g. "Ctrl+S" or "Middle Mouse".
 static func event_label(event: InputEvent) -> String:
 	if event is InputEventKey:
 		var k := event as InputEventKey
 		var code: int = int(k.keycode)
 		if code == 0:
-			code = int(DisplayServer.keyboard_get_keycode_from_physical(k.physical_keycode))
+			if _can_read_the_keyboard_layout():
+				code = int(DisplayServer.keyboard_get_keycode_from_physical(k.physical_keycode))
 			if code == 0:
 				code = int(k.physical_keycode)
 		return _modifier_prefix(k) + OS.get_keycode_string(code)

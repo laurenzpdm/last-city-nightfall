@@ -64,6 +64,8 @@ static func spec(arch: StringName) -> Dictionary:
 		&"accumulator": return {"tiles": Vector2i(2, 2), "lift": 46.0, "warm": 0.30}
 		&"foundry": return {"tiles": Vector2i(3, 3), "lift": 50.0, "warm": 0.8}
 		&"workshop": return {"tiles": Vector2i(4, 3), "lift": 40.0, "warm": 0.45}
+		&"assembler": return {"tiles": Vector2i(4, 4), "lift": 46.0, "warm": 0.5}
+		&"research_hall": return {"tiles": Vector2i(3, 3), "lift": 44.0, "warm": 0.6}
 		&"kitchen": return {"tiles": Vector2i(3, 2), "lift": 36.0, "warm": 0.65}
 		&"habitat": return {"tiles": Vector2i(4, 4), "lift": 52.0, "warm": 0.55}
 		&"greenhouse": return {"tiles": Vector2i(3, 2), "lift": 34.0, "warm": 0.7}
@@ -72,12 +74,17 @@ static func spec(arch: StringName) -> Dictionary:
 		&"mine": return {"tiles": Vector2i(2, 2), "lift": 60.0, "warm": 0.25}
 		&"drill": return {"tiles": Vector2i(3, 3), "lift": 84.0, "warm": 0.20}
 		&"collector": return {"tiles": Vector2i(2, 2), "lift": 28.0, "warm": 0.12}
+		&"crate": return {"tiles": Vector2i(1, 1), "lift": 26.0, "warm": 0.05}
 		&"turret": return {"tiles": Vector2i(2, 2), "lift": 40.0, "warm": 0.2}
 		&"pylon": return {"tiles": Vector2i(1, 1), "lift": 70.0, "warm": 0.3}
 		&"watchtower": return {"tiles": Vector2i(2, 2), "lift": 76.0, "warm": 0.35}
 		&"wall": return {"tiles": Vector2i(1, 1), "lift": 15.0, "warm": 0.0}
 		&"pipe": return {"tiles": Vector2i(1, 1), "lift": 9.0, "warm": 0.35}
 		&"belt": return {"tiles": Vector2i(1, 1), "lift": 6.0, "warm": 0.0}
+		&"splitter": return {"tiles": Vector2i(1, 2), "lift": 24.0, "warm": 0.0}
+		&"underground": return {"tiles": Vector2i(1, 1), "lift": 18.0, "warm": 0.0}
+		&"arm": return {"tiles": Vector2i(1, 1), "lift": 24.0, "warm": 0.0}
+		&"long_arm": return {"tiles": Vector2i(1, 1), "lift": 32.0, "warm": 0.0}
 		&"road": return {"tiles": Vector2i(1, 1), "lift": 1.0, "warm": 0.0}
 		&"ruin": return {"tiles": Vector2i(1, 1), "lift": 13.0, "warm": 0.0}
 		&"dead_tree": return {"tiles": Vector2i(1, 1), "lift": 46.0, "warm": 0.0}
@@ -89,11 +96,12 @@ static func spec(arch: StringName) -> Dictionary:
 ## Every archetype, sorted. Used by tests and by the art-sheet dump.
 static func archetypes() -> Array[StringName]:
 	return [
-		&"accumulator", &"belt", &"collector", &"dead_tree", &"depot", &"drill",
-		&"foundry", &"generator", &"greenhouse", &"habitat", &"hearth",
-		&"heat_plant", &"kitchen", &"mine", &"pipe", &"pylon", &"radiator",
-		&"road", &"rock", &"ruin", &"silo", &"turret", &"wall", &"watchtower",
-		&"workshop", &"wreck",
+		&"accumulator", &"arm", &"assembler", &"belt", &"collector", &"crate",
+		&"dead_tree", &"depot", &"drill", &"foundry", &"generator", &"greenhouse",
+		&"habitat", &"hearth", &"heat_plant", &"kitchen", &"long_arm", &"mine",
+		&"pipe", &"pylon", &"radiator", &"research_hall", &"road", &"rock",
+		&"ruin", &"silo", &"splitter", &"turret", &"underground", &"wall",
+		&"watchtower", &"workshop", &"wreck",
 	]
 
 
@@ -107,7 +115,19 @@ static func archetype_for(kind: StringName) -> StringName:
 	var k: String = String(kind).to_lower()
 	if k.contains("pipe") or k.contains("conduit") or k.contains("duct") or k.contains("trunk"):
 		return &"pipe"
-	if k.contains("belt") or k.contains("conveyor") or k.contains("lane") or k.contains("inserter"):
+	# The belt FAMILY is matched before the plain belt, because every one of these
+	# ids also contains a broader transport word and every one of them is a
+	# different machine on the ground: a player reading a line has to see where it
+	# forks, where it dives and where something lifts items off it.
+	if k.contains("underground") or k.contains("sunken") or k.contains("tunnel") or k.contains("subway"):
+		return &"underground"
+	if k.contains("splitter") or k.contains("split") or k.contains("balancer") or k.contains("divider"):
+		return &"splitter"
+	if k.contains("long_arm") or k.contains("longarm") or k.contains("stacker"):
+		return &"long_arm"
+	if k.contains("inserter") or k.contains("grabber") or k.contains("claw") or k.contains("manipulator"):
+		return &"arm"
+	if k.contains("belt") or k.contains("conveyor") or k.contains("lane"):
 		return &"belt"
 	if k.contains("road") or k.contains("path") or k.contains("pave") or k.contains("track"):
 		return &"road"
@@ -127,6 +147,10 @@ static func archetype_for(kind: StringName) -> StringName:
 		return &"generator"
 	if k.contains("foundry") or k.contains("smelt") or k.contains("refin") or k.contains("forge") or k.contains("kiln"):
 		return &"foundry"
+	if k.contains("assembl") or k.contains("fabricat"):
+		return &"assembler"
+	if k.contains("survey") or k.contains("research") or k.contains("laborator") or k.contains("observ"):
+		return &"research_hall"
 	if k.contains("radiator") or k.contains("warmth") or k.contains("emitter") \
 			or k.contains("recuperat") or k.contains("exchanger") or k.contains("vent"):
 		return &"radiator"
@@ -146,6 +170,11 @@ static func archetype_for(kind: StringName) -> StringName:
 		return &"greenhouse"
 	if k.contains("silo") or k.contains("granary") or k.contains("tank") or k.contains("cylinder"):
 		return &"silo"
+	# A single-tile container before the yard, so "steel bunker" does not become a
+	# three-tile depot the player cannot fit where the belt actually ends.
+	if k.contains("crate") or k.contains("chest") or k.contains("box") or k.contains("container") \
+			or k.contains("request") or k.contains("requisition") or k.contains("locker"):
+		return &"crate"
 	if k.contains("depot") or k.contains("store") or k.contains("warehouse") \
 			or k.contains("stock") or k.contains("yard"):
 		return &"depot"
@@ -265,6 +294,13 @@ func _bake_building(arch: StringName, tiles: Vector2i, lift: float) -> Image:
 		&"heat_plant": _draw_heat_plant(c, g)
 		&"foundry": _draw_foundry(c, g)
 		&"workshop": _draw_workshop(c, g)
+		&"assembler": _draw_assembler(c, g)
+		&"research_hall": _draw_research_hall(c, g)
+		&"crate": _draw_crate(c, g)
+		&"splitter": _draw_splitter(c, g)
+		&"underground": _draw_underground(c, g)
+		&"arm": _draw_arm(c, g)
+		&"long_arm": _draw_long_arm(c, g)
 		&"habitat": _draw_habitat(c, g)
 		&"greenhouse": _draw_greenhouse(c, g)
 		&"depot": _draw_depot(c, g)
@@ -659,6 +695,173 @@ func _draw_workshop(c: LcnVectorCanvas, g: Rect2) -> void:
 	_windows(c, Rect2(body.position.x + 3.0, roof_y + 3.0, body.size.x - 6.0, 15.0), 3, 1, LcnPalette.WARM_CORE, 8)
 	c.fill_round_rect(Rect2(body.position.x + body.size.x * 0.42, roof_y + 5.0, 11.0, 14.0), 1.0, Color(0.075, 0.094, 0.137))
 	c.stroke_rect(Rect2(body.position.x + body.size.x * 0.42, roof_y + 5.0, 11.0, 14.0), OUTLINE, 1.2)
+
+
+## Assembly hall: a low hall under an overhead gantry crane. The bridge standing
+## clear of the roof on two rail towers is the only horizontal beam in open air
+## anywhere in the set, so the one building that makes finished goods is findable
+## across a district without reading a label.
+func _draw_assembler(c: LcnVectorCanvas, g: Rect2) -> void:
+	var body := Rect2(g.position.x + 2.0, g.position.y + 9.0, g.size.x - 4.0, g.size.y - 11.0)
+	var h: float = 22.0
+	_mass(c, body, h, DARK_TOP, METAL_FT, METAL_FB)
+	var roof_top: float = body.position.y - h
+	var roof_bot: float = body.end.y - h
+
+	# The gantry stands on the back rail, so it rises into open sky rather than
+	# into its own roof.
+	var rail_y: float = roof_top + 5.0
+	var beam_y: float = rail_y - 21.0
+	for s: int in 2:
+		var tx: float = body.position.x + 9.0 if s == 0 else body.end.x - 9.0
+		var tower := PackedVector2Array([
+			Vector2(tx - 3.2, beam_y), Vector2(tx + 3.2, beam_y),
+			Vector2(tx + 5.4, rail_y + 3.0), Vector2(tx - 5.4, rail_y + 3.0),
+		])
+		c.fill_polygon(tower, Color(0.243, 0.278, 0.353))
+		c.stroke_polygon(tower, OUTLINE, 1.4)
+		for i: int in 3:
+			var f: float = (float(i) + 0.5) / 3.0
+			c.stroke_polyline(PackedVector2Array([
+				Vector2(tx - lerpf(3.0, 5.0, f), lerpf(beam_y, rail_y, f)),
+				Vector2(tx + lerpf(3.0, 5.0, f + 0.3), lerpf(beam_y, rail_y, f + 0.3)),
+			]), Color(0.180, 0.212, 0.278), 1.1)
+	var beam := Rect2(body.position.x + 3.0, beam_y - 5.0, body.size.x - 6.0, 6.4)
+	c.fill_rect_gradient(beam, Color(0.322, 0.361, 0.443), Color(0.153, 0.180, 0.239))
+	c.stroke_rect(beam, OUTLINE, 1.5)
+	# Trolley parked off centre, hook down: a crane at rest still reads as a crane.
+	var trolley: float = lerpf(beam.position.x + 8.0, beam.end.x - 8.0, 0.63)
+	c.fill_round_rect(Rect2(trolley - 6.0, beam.end.y - 1.0, 12.0, 7.0), 1.6, Color(0.322, 0.290, 0.216))
+	c.stroke_rect(Rect2(trolley - 6.0, beam.end.y - 1.0, 12.0, 7.0), OUTLINE, 1.2)
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(trolley, beam.end.y + 6.0), Vector2(trolley, beam.end.y + 19.0),
+	]), Color(0.196, 0.224, 0.286), 1.5)
+	c.fill_polygon(PackedVector2Array([
+		Vector2(trolley - 3.4, beam.end.y + 19.0), Vector2(trolley + 3.4, beam.end.y + 19.0),
+		Vector2(trolley + 1.8, beam.end.y + 24.0), Vector2(trolley - 1.8, beam.end.y + 24.0),
+	]), Color(0.271, 0.310, 0.388))
+
+	# Glazed roof monitor down the front half of the spine: this hall works nights.
+	var mon := Rect2(body.position.x + 7.0, lerpf(roof_top, roof_bot, 0.46),
+		body.size.x - 14.0, (roof_bot - roof_top) * 0.26)
+	c.fill_rect_gradient(mon, Color(0.204, 0.243, 0.318), Color(0.114, 0.141, 0.196))
+	c.stroke_rect(mon, OUTLINE, 1.5)
+	var glass := Rect2(mon.position.x + 2.4, mon.position.y + 2.4, mon.size.x - 4.8, mon.size.y * 0.44)
+	c.fill_glow(glass.get_center(), glass.size.x * 0.5,
+		Color(1.0, 0.72, 0.34, 0.40), Color(1.0, 0.72, 0.34, 0.0))
+	c.fill_rect_gradient(glass, Color(1.0, 0.82, 0.48, 0.92), Color(0.98, 0.56, 0.24, 0.86))
+	var bays: int = 5
+	for i2: int in bays - 1:
+		var bx: float = lerpf(glass.position.x, glass.end.x, float(i2 + 1) / float(bays))
+		c.stroke_polyline(PackedVector2Array([
+			Vector2(bx, glass.position.y), Vector2(bx, glass.end.y),
+		]), Color(0.063, 0.078, 0.106, 0.85), 1.4)
+
+	_windows(c, Rect2(body.position.x + 5.0, roof_bot + 4.0, body.size.x - 10.0, 13.0),
+		4, 1, LcnPalette.WARM_MID, 21)
+	# Loading apron: the doors face the front, and they are where the light spills.
+	var door := Rect2(body.position.x + body.size.x * 0.36, roof_bot + 6.0, body.size.x * 0.28, 15.0)
+	c.fill_glow(Vector2(door.get_center().x, door.end.y + 2.0), door.size.x * 0.9,
+		Color(1.0, 0.62, 0.26, 0.34), Color(1.0, 0.62, 0.26, 0.0))
+	c.fill_rect_gradient(door, Color(0.086, 0.106, 0.153), Color(0.043, 0.055, 0.086))
+	c.stroke_rect(door, OUTLINE, 1.3)
+
+
+## Survey hall: two low porches, a set-back hall and a domed drum standing clear
+## above both. Wide at the ground and narrow at the crown is the exact inverse of
+## every boiler house and workshop slab on the plain, and it is the only round
+## roof in the city — the first draft of this shape was a full-footprint block
+## and overlapped the heat plant's outline by 96%, which is not a building, it is
+## the same building painted a different colour.
+func _draw_research_hall(c: LcnVectorCanvas, g: Rect2) -> void:
+	var cx: float = g.position.x + g.size.x * 0.5
+	var porch_w: float = g.size.x * 0.27
+	for s: int in 2:
+		var px: float = g.position.x + 2.0 if s == 0 else g.end.x - 2.0 - porch_w
+		var porch := Rect2(px, g.position.y + g.size.y * 0.56, porch_w, g.size.y * 0.40)
+		_mass(c, porch, 10.0, Color(0.180, 0.212, 0.271),
+			Color(0.129, 0.157, 0.212), Color(0.055, 0.071, 0.106))
+		c.fill_polygon(PackedVector2Array([
+			Vector2(porch.position.x - 1.0, porch.position.y - 10.0),
+			Vector2(porch.end.x + 1.0, porch.position.y - 10.0),
+			Vector2(porch.end.x + 1.0, porch.position.y - 7.6),
+			Vector2(porch.position.x - 1.0, porch.position.y - 7.6),
+		]), Color(0.878, 0.914, 0.957, 0.86))
+
+	var body := Rect2(g.position.x + g.size.x * 0.16, g.position.y + g.size.y * 0.14,
+		g.size.x * 0.68, g.size.y * 0.60)
+	var h: float = 21.0
+	_mass(c, body, h, Color(0.204, 0.239, 0.306), Color(0.145, 0.176, 0.239),
+		Color(0.059, 0.075, 0.114))
+	var roof_top: float = body.position.y - h
+	var roof_bot: float = body.end.y - h
+
+	# The drum stands on the back of the roof, so the dome clears the roofline
+	# instead of sitting in it.
+	var drum_base: float = roof_top + 9.0
+	var drum_h: float = 17.0
+	var rx: float = g.size.x * 0.21
+	c.fill_polygon_gradient(PackedVector2Array([
+		Vector2(cx - rx, drum_base - drum_h), Vector2(cx + rx, drum_base - drum_h),
+		Vector2(cx + rx, drum_base), Vector2(cx - rx, drum_base),
+	]), Color(0.231, 0.271, 0.345), Color(0.090, 0.114, 0.169),
+		Vector2(cx - rx, 0.0), Vector2(cx + rx, 0.0))
+	for i: int in 3:
+		var wx: float = lerpf(cx - rx + 4.0, cx + rx - 4.0, (float(i) + 0.5) / 3.0)
+		c.fill_round_rect(Rect2(wx - 2.2, drum_base - drum_h + 4.0, 4.4, 8.0), 1.2,
+			Color(1.0, 0.84, 0.52, 0.88))
+	c.stroke_rect(Rect2(cx - rx, drum_base - drum_h, rx * 2.0, drum_h), OUTLINE, 1.5)
+
+	var dome_y: float = drum_base - drum_h
+	var dome := PackedVector2Array()
+	for i2: int in 21:
+		var a: float = PI * float(i2) / 20.0
+		dome.append(Vector2(cx - cos(a) * rx, dome_y - sin(a) * rx * 0.96))
+	c.fill_polygon(dome, Color(0.239, 0.282, 0.361))
+	# Snow holds on the shoulders of a dome and slides off the crown, which is what
+	# stops it reading as a plain grey ball.
+	for s2: int in 2:
+		var sx: float = -1.0 if s2 == 0 else 1.0
+		var cap := PackedVector2Array()
+		for i3: int in 6:
+			var a2: float = PI * (0.05 + 0.32 * float(i3) / 5.0)
+			cap.append(Vector2(cx - sx * cos(a2) * rx, dome_y - sin(a2) * rx * 0.96))
+		for i4: int in 6:
+			var a3: float = PI * (0.37 - 0.32 * float(i4) / 5.0)
+			cap.append(Vector2(cx - sx * cos(a3) * (rx - 3.4), dome_y - 1.8 - sin(a3) * rx * 0.82))
+		c.fill_polygon(cap, Color(0.878, 0.914, 0.957, 0.86))
+	# The observation slit, lit from inside all night on purpose.
+	c.fill_glow(Vector2(cx + rx * 0.24, dome_y - rx * 0.60), rx * 1.2,
+		Color(0.66, 0.85, 1.0, 0.32), Color(0.66, 0.85, 1.0, 0.0))
+	c.fill_polygon(PackedVector2Array([
+		Vector2(cx + rx * 0.06, dome_y),
+		Vector2(cx + rx * 0.38, dome_y),
+		Vector2(cx + rx * 0.30, dome_y - rx * 0.88),
+		Vector2(cx + rx * 0.10, dome_y - rx * 0.90),
+	]), Color(1.0, 0.86, 0.56, 0.92))
+	c.stroke_polygon(dome, OUTLINE, 1.6)
+
+	# Instrument mast on the crown: thin, with a cross of sensor arms and one cold
+	# blue lamp, the only cold light in the catalogue.
+	var mast_top: float = dome_y - rx * 0.96 - 15.0
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(cx, dome_y - rx * 0.90), Vector2(cx, mast_top),
+	]), Color(0.247, 0.286, 0.361), 2.4)
+	for i5: int in 2:
+		var ay: float = lerpf(mast_top + 3.0, dome_y - rx * 0.96 - 2.0, float(i5))
+		var aw: float = lerpf(7.0, 4.0, float(i5))
+		c.stroke_polyline(PackedVector2Array([
+			Vector2(cx - aw, ay), Vector2(cx + aw, ay),
+		]), Color(0.220, 0.259, 0.333), 1.5)
+	c.fill_circle(Vector2(cx, mast_top - 1.6), 2.0, LcnPalette.ICE_BLUE, 10)
+	c.fill_glow(Vector2(cx, mast_top - 1.6), 9.0,
+		Color(0.54, 0.75, 0.85, 0.55), Color(0.54, 0.75, 0.85, 0.0))
+
+	# Drawing offices: the whole front face is glass, unlike a workshop.
+	_windows(c, Rect2(body.position.x + 4.0, roof_bot + 4.0, body.size.x - 8.0, 14.0),
+		3, 1, LcnPalette.WARM_CORE, 44)
+	c.fill_glow(Vector2(body.get_center().x, body.end.y - 2.0), body.size.x * 0.7,
+		Color(1.0, 0.70, 0.34, 0.20), Color(1.0, 0.70, 0.34, 0.0))
 
 
 ## Habitat: two pitched roofs at different heights, chimney, warm windows.
@@ -1064,6 +1267,247 @@ func _draw_belt(c: LcnVectorCanvas, g: Rect2) -> void:
 	c.stroke_polyline(PackedVector2Array([
 		Vector2(g.position.x - 1.0, cy + 6.0), Vector2(g.end.x + 1.0, cy + 6.0),
 	]), Color(0.043, 0.059, 0.098, 0.8), 1.4)
+
+
+## One lane of belt deck with cleats, shared by the belt and the splitter so a
+## junction is visibly made of the same line it interrupts.
+func _lane(c: LcnVectorCanvas, g: Rect2, cy: float) -> void:
+	c.fill_round_rect(Rect2(g.position.x - 1.0, cy - 8.0, g.size.x + 2.0, 15.0), 2.0,
+		Color(0.114, 0.137, 0.184))
+	c.fill_rect(Rect2(g.position.x - 1.0, cy - 6.0, g.size.x + 2.0, 11.0), Color(0.176, 0.212, 0.271))
+	for i: int in 3:
+		var x: float = g.position.x + 2.0 + float(i) * (g.size.x / 3.0)
+		c.fill_polygon(PackedVector2Array([
+			Vector2(x, cy - 5.0), Vector2(x + 3.4, cy - 0.5),
+			Vector2(x, cy + 4.0), Vector2(x - 1.4, cy + 4.0),
+			Vector2(x + 1.9, cy - 0.5), Vector2(x - 1.4, cy - 5.0),
+		]), Color(0.318, 0.361, 0.435))
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(g.position.x - 1.0, cy - 6.0), Vector2(g.end.x + 1.0, cy - 6.0),
+	]), Color(0.043, 0.059, 0.098, 0.8), 1.3)
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(g.position.x - 1.0, cy + 5.0), Vector2(g.end.x + 1.0, cy + 5.0),
+	]), Color(0.043, 0.059, 0.098, 0.8), 1.3)
+
+
+## Splitter: two lanes with the cross-over chute between them and one paddle
+## housing bridging both. The housing is the only part of the belt family that
+## stands proud of the deck, so a junction is findable along a run of belt
+## instead of being three tiles that look exactly like the thirty around them.
+func _draw_splitter(c: LcnVectorCanvas, g: Rect2) -> void:
+	var cx: float = g.position.x + g.size.x * 0.5
+	var lane_a: float = g.position.y + g.size.y * 0.24
+	var lane_b: float = g.position.y + g.size.y * 0.76
+
+	# Chute first: both lanes then sit on top of it, which is the right read.
+	c.fill_polygon(PackedVector2Array([
+		Vector2(g.position.x + 3.0, lane_a - 3.5),
+		Vector2(g.end.x - 3.0, lane_b - 3.5),
+		Vector2(g.end.x - 3.0, lane_b + 3.5),
+		Vector2(g.position.x + 3.0, lane_a + 3.5),
+	]), Color(0.129, 0.157, 0.212))
+	_lane(c, g, lane_a)
+	_lane(c, g, lane_b)
+
+	var hw: float = 7.5
+	var y0: float = lane_a - 7.0
+	var y1: float = lane_b + 7.0
+	var hh: float = 24.0
+	c.fill_polygon_gradient(PackedVector2Array([
+		Vector2(cx - hw, y1 - hh), Vector2(cx + hw, y1 - hh),
+		Vector2(cx + hw, y1), Vector2(cx - hw, y1),
+	]), METAL_FT, METAL_FB, Vector2(0.0, y1 - hh), Vector2(0.0, y1))
+	c.fill_rect_gradient(Rect2(cx - hw, y0 - hh, hw * 2.0, y1 - y0),
+		METAL_TOP, METAL_TOP.darkened(0.30))
+	# The paddle itself, laid diagonally across the housing lid: the machine's
+	# whole function drawn as one line.
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(cx - hw + 2.0, y0 - hh + 5.0), Vector2(cx + hw - 2.0, y1 - hh - 5.0),
+	]), Color(0.427, 0.478, 0.573), 2.6)
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(cx - hw + 2.0, y0 - hh + 7.4), Vector2(cx + hw - 2.0, y1 - hh - 2.6),
+	]), Color(SEAM.r, SEAM.g, SEAM.b, 0.60), 1.4)
+	c.stroke_rect(Rect2(cx - hw, y0 - hh, hw * 2.0, y1 - y0 + hh), OUTLINE, 1.6)
+	c.fill_polygon(PackedVector2Array([
+		Vector2(cx - hw - 1.0, y0 - hh - 2.4), Vector2(cx + hw + 1.0, y0 - hh - 2.4),
+		Vector2(cx + hw + 1.0, y0 - hh + 0.8), Vector2(cx - hw - 1.0, y0 - hh + 0.8),
+	]), Color(0.878, 0.914, 0.957, 0.85))
+	for s: int in 2:
+		var ly: float = lerpf(y1 - hh + 4.0, y1 - 4.0, float(s))
+		c.fill_circle(Vector2(cx, ly), 1.6, LcnPalette.CAUTION, 8)
+		c.fill_glow(Vector2(cx, ly), 6.0, Color(0.95, 0.73, 0.24, 0.40), Color(0.95, 0.73, 0.24, 0.0))
+
+
+## Underground belt: a hooded mouth over one half of the tile and an open black
+## throat over the other. A straight belt is the same all the way across; this
+## one is deliberately not, which is the whole silhouette.
+func _draw_underground(c: LcnVectorCanvas, g: Rect2) -> void:
+	var cy: float = g.position.y + g.size.y * 0.5
+	_lane(c, g, cy)
+
+	var mouth_x: float = g.position.x + g.size.x * 0.42
+	c.fill_polygon(PackedVector2Array([
+		Vector2(mouth_x, cy - 6.0), Vector2(g.end.x + 1.0, cy - 4.6),
+		Vector2(g.end.x + 1.0, cy + 3.6), Vector2(mouth_x, cy + 5.0),
+	]), Color(0.020, 0.027, 0.047))
+	# Chevrons diving into the hole, fading as they go: direction, then depth.
+	for i: int in 2:
+		var x: float = mouth_x + 3.0 + float(i) * 6.0
+		c.stroke_polyline(PackedVector2Array([
+			Vector2(x, cy - 3.6), Vector2(x + 3.4, cy - 0.5), Vector2(x, cy + 2.8),
+		]), Color(0.98, 0.72, 0.36, 0.50 - 0.22 * float(i)), 1.4)
+
+	var hood := Rect2(g.position.x + 1.0, cy - 9.0, g.size.x * 0.44, 15.0)
+	_mass(c, hood, 15.0, METAL_TOP, METAL_FT, METAL_FB)
+	# Visor sloping off the hood into the throat — the overhang that makes the
+	# outline asymmetric even when the tile is four pixels wide.
+	var visor := PackedVector2Array([
+		Vector2(hood.end.x, hood.position.y - 15.0),
+		Vector2(hood.end.x + 8.0, hood.position.y - 6.0),
+		Vector2(hood.end.x + 8.0, hood.position.y - 1.0),
+		Vector2(hood.end.x, hood.position.y - 8.0),
+	])
+	c.fill_polygon(visor, Color(0.239, 0.282, 0.361))
+	c.stroke_polygon(visor, OUTLINE, 1.4)
+	c.fill_polygon(PackedVector2Array([
+		Vector2(hood.position.x - 1.0, hood.position.y - 15.0),
+		Vector2(hood.end.x + 1.0, hood.position.y - 15.0),
+		Vector2(hood.end.x + 1.0, hood.position.y - 12.4),
+		Vector2(hood.position.x - 1.0, hood.position.y - 12.4),
+	]), Color(0.878, 0.914, 0.957, 0.88))
+
+
+## Inserter: pedestal, column and one jointed arm holding a part over the lane.
+## Short reach and a bent elbow — that is what separates it at a glance from the
+## long arm working the same belt two tiles away.
+func _draw_arm(c: LcnVectorCanvas, g: Rect2) -> void:
+	var cx: float = g.position.x + g.size.x * 0.42
+	var base_y: float = g.end.y - 5.0
+	c.fill_ellipse(Vector2(cx, base_y + 1.0), 9.0, 3.6, Color(0.043, 0.059, 0.098, 0.45))
+	var plinth := PackedVector2Array([
+		Vector2(cx - 6.0, base_y - 8.0), Vector2(cx + 6.0, base_y - 8.0),
+		Vector2(cx + 7.6, base_y), Vector2(cx - 7.6, base_y),
+	])
+	c.fill_polygon_gradient(plinth, METAL_FT, METAL_FB,
+		Vector2(0.0, base_y - 8.0), Vector2(0.0, base_y))
+	c.stroke_polygon(plinth, OUTLINE, 1.4)
+	c.fill_ellipse(Vector2(cx, base_y - 8.0), 6.0, 2.4, METAL_TOP)
+
+	var top_y: float = base_y - 27.0
+	var column := PackedVector2Array([
+		Vector2(cx - 3.0, top_y), Vector2(cx + 3.0, top_y),
+		Vector2(cx + 4.0, base_y - 8.0), Vector2(cx - 4.0, base_y - 8.0),
+	])
+	c.fill_polygon(column, Color(0.267, 0.306, 0.384))
+	c.stroke_polygon(column, OUTLINE, 1.3)
+
+	var elbow := Vector2(cx + 10.0, top_y - 6.0)
+	var hand := Vector2(cx + 14.0, top_y + 7.0)
+	c.stroke_polyline(PackedVector2Array([Vector2(cx, top_y), elbow]),
+		Color(0.322, 0.361, 0.443), 4.6)
+	c.stroke_polyline(PackedVector2Array([elbow, hand]), Color(0.263, 0.302, 0.380), 3.6)
+	c.fill_circle(Vector2(cx, top_y), 3.4, Color(0.353, 0.396, 0.482), 12)
+	c.fill_circle(elbow, 2.6, Color(0.353, 0.396, 0.482), 12)
+	# The part in the claw. An inserter doing nothing is indistinguishable from a
+	# post, and this machine is never doing nothing for long.
+	c.fill_glow(hand + Vector2(0.0, 2.0), 9.0,
+		Color(1.0, 0.66, 0.30, 0.42), Color(1.0, 0.66, 0.30, 0.0))
+	c.fill_round_rect(Rect2(hand.x - 2.8, hand.y + 0.6, 5.6, 4.6), 1.0, LcnPalette.WARM_MID)
+	c.stroke_polyline(PackedVector2Array([
+		hand + Vector2(-3.2, -1.4), hand, hand + Vector2(3.2, -1.4),
+	]), Color(0.310, 0.349, 0.427), 1.6)
+	c.fill_circle(Vector2(cx - 4.4, base_y - 10.4), 1.4, LcnPalette.CAUTION, 8)
+
+
+## Long arm: the same pedestal carrying a level lattice boom with a counterweight
+## on the tail. It overhangs its own tile at both ends, which nothing else a
+## single tile wide does, so "this one reaches further" is readable as shape.
+func _draw_long_arm(c: LcnVectorCanvas, g: Rect2) -> void:
+	var cx: float = g.position.x + g.size.x * 0.44
+	var base_y: float = g.end.y - 5.0
+	c.fill_ellipse(Vector2(cx, base_y + 1.0), 10.0, 4.0, Color(0.043, 0.059, 0.098, 0.45))
+	for s: int in 2:
+		var sx: float = -1.0 if s == 0 else 1.0
+		c.fill_polygon(PackedVector2Array([
+			Vector2(cx + sx * 3.0, base_y - 12.0), Vector2(cx + sx * 5.0, base_y - 12.0),
+			Vector2(cx + sx * 10.0, base_y), Vector2(cx + sx * 7.0, base_y),
+		]), Color(0.212, 0.251, 0.322))
+	var plinth := PackedVector2Array([
+		Vector2(cx - 6.4, base_y - 10.0), Vector2(cx + 6.4, base_y - 10.0),
+		Vector2(cx + 8.0, base_y), Vector2(cx - 8.0, base_y),
+	])
+	c.fill_polygon_gradient(plinth, METAL_FT, METAL_FB,
+		Vector2(0.0, base_y - 10.0), Vector2(0.0, base_y))
+	c.stroke_polygon(plinth, OUTLINE, 1.4)
+
+	var pivot := Vector2(cx, base_y - 32.0)
+	var column := PackedVector2Array([
+		Vector2(pivot.x - 3.2, pivot.y), Vector2(pivot.x + 3.2, pivot.y),
+		Vector2(cx + 4.4, base_y - 10.0), Vector2(cx - 4.4, base_y - 10.0),
+	])
+	c.fill_polygon(column, Color(0.267, 0.306, 0.384))
+	c.stroke_polygon(column, OUTLINE, 1.3)
+
+	var tip := Vector2(g.end.x + 7.0, pivot.y + 3.0)
+	var tail := Vector2(g.position.x - 5.0, pivot.y - 2.0)
+	c.stroke_polyline(PackedVector2Array([tail, tip]), Color(0.322, 0.361, 0.443), 3.4)
+	c.stroke_polyline(PackedVector2Array([
+		tail + Vector2(0.0, 4.6), tip + Vector2(0.0, 4.6),
+	]), Color(0.216, 0.251, 0.322), 2.2)
+	for i: int in 5:
+		var f: float = float(i) / 4.0
+		var f2: float = float(i + 1) / 4.0
+		c.stroke_polyline(PackedVector2Array([
+			tail.lerp(tip, f), tail.lerp(tip, f2) + Vector2(0.0, 4.6),
+		]), Color(0.196, 0.231, 0.298), 1.2)
+	# Counterweight on the tail: the visual answer to "why is it not falling over".
+	c.fill_rect_gradient(Rect2(tail.x - 1.0, tail.y - 1.0, 8.0, 9.0),
+		Color(0.290, 0.263, 0.204), Color(0.145, 0.129, 0.098))
+	c.stroke_rect(Rect2(tail.x - 1.0, tail.y - 1.0, 8.0, 9.0), OUTLINE, 1.3)
+	c.fill_circle(pivot, 3.6, Color(0.353, 0.396, 0.482), 12)
+	c.stroke_polyline(PackedVector2Array([
+		tip + Vector2(-3.4, 5.0), tip + Vector2(0.0, 8.2), tip + Vector2(3.0, 5.0),
+	]), Color(0.310, 0.349, 0.427), 1.6)
+	c.fill_glow(tip + Vector2(0.0, 8.0), 9.0,
+		Color(1.0, 0.66, 0.30, 0.40), Color(1.0, 0.66, 0.30, 0.0))
+	c.fill_round_rect(Rect2(tip.x - 2.8, tip.y + 6.4, 5.6, 4.6), 1.0, LcnPalette.WARM_MID)
+
+
+## Container: a banded box under an overhanging lid. The lid is the point — it is
+## the smallest thing in the game with a real roof, so a chest at the end of a
+## belt reads as storage rather than as another block of wall.
+func _draw_crate(c: LcnVectorCanvas, g: Rect2) -> void:
+	var box := Rect2(g.position.x + 5.0, g.position.y + 7.0, g.size.x - 10.0, g.size.y - 12.0)
+	var h: float = 18.0
+	_mass(c, box, h, RUST_TOP.lerp(METAL_TOP, 0.30), RUST_FT, RUST_FB)
+	var front_y: float = box.end.y - h
+
+	var lid := Rect2(box.position.x - 3.2, box.position.y - h - 4.6, box.size.x + 6.4, 5.4)
+	c.fill_rect_gradient(lid, Color(0.310, 0.271, 0.208), Color(0.161, 0.141, 0.110))
+	c.stroke_rect(lid, OUTLINE, 1.4)
+	c.fill_polygon(PackedVector2Array([
+		Vector2(lid.position.x + 0.8, lid.position.y - 2.0),
+		Vector2(lid.end.x - 0.8, lid.position.y - 2.0),
+		Vector2(lid.end.x - 0.8, lid.position.y + 0.4),
+		Vector2(lid.position.x + 0.8, lid.position.y + 0.4),
+	]), Color(0.878, 0.914, 0.957, 0.88))
+
+	# Corner straps and a cross brace: cargo, at two pixels tall.
+	for s: int in 2:
+		var bx: float = box.position.x + 1.6 if s == 0 else box.end.x - 1.6
+		c.stroke_polyline(PackedVector2Array([
+			Vector2(bx, front_y), Vector2(bx, box.end.y),
+		]), Color(0.078, 0.090, 0.125, 0.85), 1.6)
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(box.position.x + 2.0, box.end.y - 2.0), Vector2(box.end.x - 2.0, front_y + 2.0),
+	]), Color(0.098, 0.110, 0.145, 0.70), 1.4)
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(box.position.x + 1.0, front_y + h * 0.52), Vector2(box.end.x - 1.0, front_y + h * 0.52),
+	]), Color(0.078, 0.090, 0.125, 0.75), 1.5)
+	# One lamp, so a full container is findable in the dark at the end of a line.
+	c.fill_circle(Vector2(box.get_center().x, front_y + 3.4), 1.5, LcnPalette.GOOD, 8)
+	c.fill_glow(Vector2(box.get_center().x, front_y + 3.4), 7.0,
+		Color(0.37, 0.78, 0.60, 0.42), Color(0.37, 0.78, 0.60, 0.0))
 
 
 ## Cleared, gritted road surface. Flat by design: roads must never occlude.

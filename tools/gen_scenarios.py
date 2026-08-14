@@ -38,6 +38,24 @@ OUT = os.path.join(ROOT, "tests", "scenarios")
 #                         capacity or radiance — i.e. it joins the heat graph
 #                         and is worthless off the grid
 DEFS = {
+    # --- [P03] logistics ------------------------------------------------------
+    # These were missing entirely, which is WHY first_night moves zero items over
+    # 11000 ticks while its contract asserts logistics.items_moved >= 1. It was
+    # never a logistics bug — tests/logistics/ lays belts and moves items and
+    # passes its bands. This generator simply had no vocabulary for a belt, so no
+    # scenario it emits could contain one, and the flagship run that the art,
+    # audio and UI parts screenshot against has no automation in it at all.
+    #
+    # Footprints are the ones in game/content/buildings/*.tres, which is what
+    # build actually enforces. None of them take or conduct heat, and none are
+    # nodes in the heat graph, so all three flags are False.
+    "belt_mk1": (1, 1, False, False, False),
+    "crate": (1, 1, False, False, False),
+    "inserter_mk1": (1, 1, False, False, False),
+    "long_arm_mk1": (1, 1, False, False, False),
+    "splitter_mk1": (1, 2, False, False, False),
+    "underground_mk1": (1, 1, False, False, False),
+    # --------------------------------------------------------------------------
     "coal_generator": (3, 2, False, False, True),
     "field_kitchen": (3, 2, False, False, True),
     "geothermal_tap": (3, 3, False, False, True),
@@ -177,13 +195,15 @@ class Layout:
             "%s: heat grid is in %d pieces, %d allowed. Main network has %d nodes. "
             "Orphans: %s" % (name, len(comps), allow_islands + 1, comps[0]["size"], detail))
 
-    def place(self, tick, kind, dx, dy, free=False, instant=False):
+    def place(self, tick, kind, dx, dy, free=False, instant=False, rot=None):
         origin = (CORE[0] + dx, CORE[1] + dy)
         assert self.free(kind, origin), f"{kind} at {origin} overlaps {[self.occ.get(c) for c in self.cells(kind, origin) if c in self.occ][:3]}"
         assert self.touches_heat(kind, origin), f"{kind} at {origin} touches no heat conduit"
         self.claim(kind, origin)
         cmd = {"system": "build", "op": "place", "kind": kind,
                "cell": [origin[0], origin[1]]}
+        if rot is not None:
+            cmd["rot"] = rot
         if free:
             cmd["free"] = True
         if instant:
@@ -365,6 +385,20 @@ def first_night():
     L.line(4150, "heat_pipe", (1, -30), (-1, -30))
     L.place(4200, "ore_drill", -4, -31)
     L.place(4600, "smelter", 2, -21)
+    # THE AUTOMATION PILLAR. Everything above this line is carried on a
+    # porter's back, which is why the reference run reported belt_lines 0 and
+    # items_moved 0 for eleven thousand ticks: this generator had the vocabulary
+    # for a belt and never laid one. The founders' coal pile goes on a dragged
+    # run into the west generator's bunker, so line_fed_burners is earned by a
+    # belt instead of by a queue of people.
+    L.place(1000, "crate", -10, 18)
+    L.place(1010, "inserter_mk1", -9, 18, rot=0)
+    L.line(1020, "belt_mk1", (-8, 18), (-3, 17))
+    L.place(1030, "inserter_mk1", -3, 16, rot=3)
+    L.cmd(1100, {"system": "logistics", "op": "insert",
+                 "cell": [CORE[0] - 10, CORE[1] + 18], "item": "coal", "count": 400})
+    L.cmd(6000, {"system": "logistics", "op": "insert",
+                 "cell": [CORE[0] - 10, CORE[1] + 18], "item": "coal", "count": 400})
     # THE INNER RING. The wall and its two mounts sit 35 tiles north of the
     # hearth on one lane; [P08] picks the cheapest lane and in the reference run
     # it picked another one, walked past all of it, and ate the Hearth at t=6336

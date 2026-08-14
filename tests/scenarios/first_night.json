@@ -250,6 +250,73 @@
       }
     },
     {
+      "tick": 1000,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "crate",
+        "cell": [
+          118,
+          146
+        ]
+      }
+    },
+    {
+      "tick": 1010,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "inserter_mk1",
+        "cell": [
+          119,
+          146
+        ],
+        "rot": 0
+      }
+    },
+    {
+      "tick": 1020,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "belt_mk1",
+        "from": [
+          120,
+          146
+        ],
+        "to": [
+          125,
+          145
+        ]
+      }
+    },
+    {
+      "tick": 1030,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "inserter_mk1",
+        "cell": [
+          125,
+          144
+        ],
+        "rot": 3
+      }
+    },
+    {
+      "tick": 1100,
+      "cmd": {
+        "system": "logistics",
+        "op": "insert",
+        "cell": [
+          118,
+          146
+        ],
+        "item": "coal",
+        "count": 400
+      }
+    },
+    {
       "tick": 1200,
       "cmd": {
         "system": "build",
@@ -747,6 +814,19 @@
           136,
           96
         ]
+      }
+    },
+    {
+      "tick": 6000,
+      "cmd": {
+        "system": "logistics",
+        "op": "insert",
+        "cell": [
+          118,
+          146
+        ],
+        "item": "coal",
+        "count": 400
       }
     },
     {

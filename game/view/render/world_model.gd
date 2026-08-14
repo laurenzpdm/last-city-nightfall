@@ -590,6 +590,7 @@ func add_building(id: int, kind: StringName, cell: Vector2i) -> void:
 	var scale: float = 1.0
 	var industrial: bool = arch in [
 		&"foundry", &"heat_plant", &"generator", &"hearth", &"mine", &"drill", &"workshop",
+		&"assembler",
 	]
 	# Heat output is the honest source of warmth. Buildings that make none still
 	# show a little window light if their archetype is a place people live.
@@ -808,7 +809,11 @@ func advance(tick: int) -> void:
 				_agents.erase(id2)
 		return
 
-	if preview != null:
+	# Belt and braces with the refusal in `ensure_preview_settlement`: that one
+	# empties the crowd, this one makes sure an automated run can never walk it
+	# even if something refills it. A screenshot of citizens the simulation does
+	# not have is the same lie as a screenshot of buildings it does not have.
+	if preview != null and preview_allowed():
 		preview.step_agents(tick)
 		for a: Dictionary in preview.agents:
 			set_agent(int(a["id"]), a["kind"], a["pos"])
@@ -819,6 +824,26 @@ func advance(tick: int) -> void:
 ## Bus.building_placed wipes it (see drop_preview_buildings).
 func ensure_preview_settlement(core: Vector2i) -> void:
 	if _preview_dropped or not _buildings.is_empty():
+		return
+	# THE GUARD IS HERE, not at the call site, so there is no way to reach the
+	# placeholders in an automated run by adding a second caller later.
+	if not preview_allowed():
+		Log.info("render", ("no structures in the simulation, and the [P13] preview "
+			+ "settlement is refused in this run (%s) — the frame shows the empty "
+			+ "plain, which is what the simulation actually contains")
+			% preview_denied_reason())
+		_preview_dropped = true
+		# Setting the flag is not enough. With no grid system at all, `attach()`
+		# has ALREADY built a preview world and generated its structures and its
+		# crowd, as the terrain fallback — so leaving it standing would keep
+		# `showing_preview_settlement()` answering true (the ready line would say
+		# PLACEHOLDERS over an empty frame) and would let `_step_agents` walk a
+		# phantom population into the render model on every tick. The terrain
+		# fallback stays, because without a grid there is no world size without
+		# it; the invented city and the invented people do not.
+		if preview != null:
+			preview.buildings.clear()
+			preview.agents.clear()
 		return
 	if preview == null:
 		preview = LcnPreviewWorld.new(Rng.seed_value, world_size(), core)
@@ -834,3 +859,29 @@ func ensure_preview_settlement(core: Vector2i) -> void:
 
 func showing_preview_settlement() -> bool:
 	return preview != null and not preview.buildings.is_empty()
+
+
+## Whether this process is allowed to draw a city the simulation does not have.
+##
+## A screenshot is the one artifact a critic is handed instead of a summary, and
+## `artifacts/<run>/shots/*.png` is what a reviewer looks at when they want to
+## know whether anything actually happened. A harness run that photographs 337
+## structures the simulation has never heard of is not a helpful placeholder, it
+## is manufactured evidence — and this build has already spent a phase being
+## judged green on things nobody had looked at.
+##
+## So the preview settlement is available exactly where it earns its keep — an
+## interactive launch, and the isolated render/feel/vfx scenes that need a city
+## on screen without a simulation behind it — and is refused everywhere a run
+## produces artifacts that stand in for the truth.
+func preview_allowed() -> bool:
+	return preview_denied_reason() == ""
+
+
+## Why the preview is refused, or "" when it is allowed. Worded for the log.
+func preview_denied_reason() -> String:
+	if OS.get_cmdline_user_args().has("--no-preview-city"):
+		return "--no-preview-city"
+	if Harness.active:
+		return "--harness: an automated run must never photograph a city that is not in the simulation"
+	return ""

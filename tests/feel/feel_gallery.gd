@@ -280,11 +280,23 @@ func _beat_reduce_motion() -> void:
 		# exactly like a layer that stopped working.
 		"cell": [_core.x - 8, _core.y - 7], "rot": 0, "free": true, "instant": true})
 	SimClock.advance(2)
+	# Re-frame BEFORE the count is taken, not after it: 170 frames have passed
+	# since anything last aimed the camera, and both sides of the toggle have to
+	# be culled against the SAME view, or this beat can fail because the lens
+	# moved rather than because the accessibility contract broke.
+	_recentre()
 	# Counted BEFORE the toggle. By this point the world has run into a real
 	# night and part of the city has frozen, and a frozen structure legitimately
 	# stops breathing — so the honest assertion is that reduce motion changes
 	# nothing about WHAT is lit, only about whether it moves.
-	var anchors_before: int = int((_feel.stats()["idle"] as Dictionary)["anchors"])
+	#
+	# Settled, not sampled. The anchor list is rebuilt on a 0.5 s timer and
+	# [P13]'s model publishes a newly placed structure a frame later again, so a
+	# count read straight after the placement is whatever the timer happened to
+	# be holding: 31 on one run, 32 on the next, with the layer behaving
+	# perfectly in both. That race, not the contract, is what failed this beat.
+	var anchors_before: int = await _settle_anchors()
+	_check(anchors_before >= 0, "the breathing city settles to a steady anchor list")
 	Settings.accessibility["reduce_motion"] = true
 	_feel.world.pool.clear()
 	Bus.night_started.emit(2)
@@ -294,17 +306,18 @@ func _beat_reduce_motion() -> void:
 	_check(float((s["screen"] as Dictionary)["sweep"]) == 0.0,
 		"reduce motion: no screen sweep")
 	_check(not bool(s["hit_stop"]), "reduce motion: no hit-stop")
-	# Re-frame first: 170 frames have passed since the last time anything aimed
-	# the camera, and this beat is about warmth, not about where the lens is.
-	_recentre()
-	await _frames(35)
-	var idle_before: Dictionary = _feel.stats()["idle"]
+	# The list has to be rebuilt AFTER the toggle or the comparison below is a
+	# tautology: a list nobody rebuilt cannot have changed.
+	var rebuilt: bool = await _await_rebuild()
+	_check(rebuilt, "the anchor list is rebuilt again with reduce motion on")
+	var idle_after: Dictionary = _feel.stats()["idle"]
 	_check(anchors_before > 0,
 		"there is warmth on the map to preserve (%d anchors from %d seen, %d in view, zoom %.2f)" % [
-			anchors_before, int(idle_before["seen"]), int(idle_before["in_view"]),
-			float(idle_before["zoom"])])
-	_check(int((s["idle"] as Dictionary)["anchors"]) == anchors_before,
-		"reduce motion: the same %d anchors stay lit, they just stop moving" % anchors_before)
+			anchors_before, int(idle_after["seen"]), int(idle_after["in_view"]),
+			float(idle_after["zoom"])])
+	_check(int(idle_after["anchors"]) == anchors_before,
+		"reduce motion: the same %d anchors stay lit, they just stop moving (%d)" % [
+			anchors_before, int(idle_after["anchors"])])
 	await _shoot("13_reduce_motion")
 	Settings.accessibility["reduce_motion"] = saved
 
@@ -330,6 +343,35 @@ func _frames(n: int) -> void:
 	for _i: int in n:
 		SimClock.advance(TICKS_PER_FRAME)
 		await get_tree().process_frame
+
+
+## Runs frames until the idle layer rebuilds its anchor list once more. The
+## rebuild is on a 0.5 s interface timer, which is tens of frames here and not a
+## number this suite should hardcode.
+func _await_rebuild(cap: int = 400) -> bool:
+	var target: int = int((_feel.stats()["idle"] as Dictionary)["rebuilds"]) + 1
+	for _i: int in cap:
+		await _frames(1)
+		if int((_feel.stats()["idle"] as Dictionary)["rebuilds"]) >= target:
+			return true
+	return false
+
+
+## Runs frames until two CONSECUTIVE anchor rebuilds agree on a count, and
+## returns it — the point at which a placement has propagated all the way
+## through [P13]'s model into the anchor list and the number has stopped moving
+## for reasons that have nothing to do with what is being tested. -1 if the list
+## never settled.
+func _settle_anchors(cap: int = 12) -> int:
+	var last: int = -1
+	for _i: int in cap:
+		if not await _await_rebuild():
+			return -1
+		var count: int = int((_feel.stats()["idle"] as Dictionary)["anchors"])
+		if count == last:
+			return count
+		last = count
+	return -1
 
 
 func _shoot(shot_name: String) -> void:

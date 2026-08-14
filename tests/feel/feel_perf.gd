@@ -41,6 +41,12 @@ var _feel: LcnFeel = null
 var _frame: int = 0
 var _process_us: Array[float] = []
 var _draw_us: Array[float] = []
+## Per-surface draw samples, so a budget failure names the surface that spent it
+## instead of leaving the next reader to bisect four of them.
+var _surface_us: Dictionary[String, Array] = {
+	"world": [] as Array[float], "idle": [] as Array[float],
+	"hover": [] as Array[float], "screen": [] as Array[float],
+}
 var _draw_calls: int = 0
 var _failures: PackedStringArray = PackedStringArray()
 var _checks: int = 0
@@ -50,6 +56,13 @@ var _done: bool = false
 func _ready() -> void:
 	_headless = DisplayServer.get_name() == "headless"
 	LcnLayers.force_install = true
+	# The pointer reads (0, 0) in a windowless run, which [P16] correctly treats
+	# as a hold on the top-left edge-scroll ramp: over the 70 frames sampled here
+	# the camera walked off the city at ~45 px/frame and parked in the map
+	# corner, so the idle layer's view cull correctly rejected all 441
+	# structures and the anchor budget was measured against an empty list.
+	# Same fixture defect, same fix, as `feel_gallery.gd`.
+	Settings.gameplay["edge_scroll"] = false
 	process_priority = 500       # after LcnFeel, so its numbers are this frame's
 
 
@@ -68,10 +81,11 @@ func _process(_delta: float) -> void:
 		return
 	var s: Dictionary = _feel.stats()
 	_process_us.append(float(s["frame_us"]))
-	var drawn: float = float((s["world"] as Dictionary)["draw_us"]) \
-		+ float((s["idle"] as Dictionary)["draw_us"]) \
-		+ float((s["hover"] as Dictionary)["draw_us"]) \
-		+ float((s["screen"] as Dictionary)["draw_us"])
+	var drawn: float = 0.0
+	for surface: String in ["world", "idle", "hover", "screen"]:
+		var us: float = float((s[surface] as Dictionary)["draw_us"])
+		(_surface_us[surface] as Array[float]).append(us)
+		drawn += us
 	_draw_us.append(drawn)
 	if drawn > 0.0:
 		_draw_calls += 1
@@ -213,6 +227,9 @@ func _finish() -> void:
 		print("  _draw         avg %6.1f us   max %6.1f us   (budget %.0f)  %s" % [
 			draw_avg, draw_max, BUDGET_DRAW_US,
 			"measured" if _draw_calls > 0 else "NOT MEASURED — no drawing in this environment"])
+		for surface: String in ["world", "idle", "hover", "screen"]:
+			var per: Array[float] = _surface_us[surface]
+			print("    %-8s    avg %6.1f us   max %6.1f us" % [surface, _avg(per), _max(per)])
 		print("  total         avg %6.1f us   of a 16600 us frame (%.2f%%)" % [
 			proc_avg + draw_avg, (proc_avg + draw_avg) / 166.0])
 

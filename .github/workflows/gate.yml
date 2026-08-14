@@ -110,6 +110,26 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+      # check.sh prints its verdict in the middle of a 1000-line job log, so
+      # reading "what is red now" costs a log download and a scroll. Reprint it
+      # here, at the very end, where `tail` finds it.
+      - name: What is red
+        if: always()
+        run: |
+          echo "──────────────── failing / unchecked stages ────────────────"
+          grep -E '^ (FAIL|SKIP)  ' gate.log || echo "(none)"
+          echo "──────────────── which tests ────────────────"
+          # The stage line only gives a count. Naming them here is the difference
+          # between one log read per iteration and three.
+          sed -n '/^ *FAILURES (/,/^ *────/p' gate.log \
+            | grep -E '^ *[0-9]+\) |^ *(assert_|expected:|actual:)' | head -40 || true
+          echo "──────────────── which engine errors ────────────────"
+          grep -E '^   x[0-9]+ +(SCRIPT_ERROR|ENGINE_ERROR|USER_ERROR)' gate.log | head -12 || true
+          echo "──────────────── which contract bands ────────────────"
+          grep -E '^   FAIL  ' gate.log | head -20 || true
+          echo "──────────────── verdict ────────────────"
+          grep -E '^CHECK (RED|GREEN)' gate.log || echo "(check.sh printed no verdict — it did not finish)"
+
       - name: Fail if the gate failed
         if: steps.gate.outputs.gate_exit != '0'
         run: |
@@ -161,20 +181,38 @@ jobs:
       # Can a human actually open every screen? This is the suite that would have
       # caught the phase where the whole build menu was an orphan node. It needs a
       # display, which is why it lives here and not in the headless macOS job.
+      # Three ways this can be wrong, and the old version only checked one of
+      # them. `grep TESTS FAILED` says nothing about a suite that died before it
+      # printed a verdict (exit 0, no output, green), and nothing about one that
+      # ran but could not ask half its questions. Take the process's own exit
+      # code as the primary signal and require a verdict on top of it.
       - name: Reachability suite
         id: reach
         run: |
           set +e
           xvfb-run -a -s "-screen 0 1920x1080x24" \
-            ~/godot/godot --path . tests/boot/run_reachability.tscn -- --force-ui 2>&1 | tee reach.log
+            ~/godot/godot --path . tests/boot/run_reachability.tscn -- --force-ui > reach.log 2>&1
+          code=$?
           set -e
+          cat reach.log
+          failed=0
+          if [ "$code" -ne 0 ]; then
+            echo "::error::reachability suite exited $code"
+            failed=1
+          fi
           if grep -q "TESTS FAILED" reach.log; then
             echo "::error::reachability suite reported TESTS FAILED"
             grep -E "^\s*FAIL" reach.log | head -20
-            echo "reach_failed=1" >> $GITHUB_OUTPUT
-          else
-            echo "reach_failed=0" >> $GITHUB_OUTPUT
+            failed=1
+          elif grep -q "TESTS PASSED, PARTIAL" reach.log; then
+            echo "::error::reachability suite could not ask every question it exists to ask"
+            grep -E "^\s*UNCHECKED" reach.log | head -20
+            failed=1
+          elif ! grep -q "TESTS PASSED" reach.log; then
+            echo "::error::reachability suite printed no verdict — did it run at all?"
+            failed=1
           fi
+          echo "reach_failed=$failed" >> $GITHUB_OUTPUT
 
       - name: Summary
         if: always()

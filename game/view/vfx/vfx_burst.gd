@@ -234,5 +234,13 @@ func _draw() -> void:
 		draw_multiline_colors(_streak_pts, _streak_cols, 1.6)
 
 
+## Where particle `i` is right now, in world pixels. Diagnostics and tests only —
+## nothing in the effects layer reads a particle back out.
+func position_of(i: int) -> Vector2:
+	if i < 0 or i >= count:
+		return Vector2.ZERO
+	return Vector2(_x[i], _y[i])
+
+
 func stats() -> Dictionary:
 	return {"live": count, "drawn": _drawn, "capacity": capacity, "dropped": _dropped}

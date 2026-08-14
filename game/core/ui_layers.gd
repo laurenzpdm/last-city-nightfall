@@ -123,6 +123,22 @@ const RESERVED_LENS: Array[int] = [KEY_4, KEY_5, KEY_6]
 ## Sim speed each of 1/2/3 selects. Matches [P16]'s SPEED_STEPS.
 const SPEED_STEPS: Array[float] = [1.0, 2.0, 3.0]
 
+
+## True for a key `LcnInputRouter` dispatches itself. A part must never bind one
+## of these in its own `_input`, whatever the InputMap happens to say at the
+## moment it asks.
+##
+## Asking the InputMap is not a substitute for asking this. [P19] decided which
+## bare numbers it could take by probing `InputMap`, which is only populated when
+## [P16]'s camera installs the action map — and with a display attached the
+## self-installing parts come up BEFORE boot builds the camera. So [P19] probed
+## an empty map, concluded 1/2/3 were free, bound them as lens keys and consumed
+## them with `set_input_as_handled()`. Sim speed was dead on 2 and 3 for every
+## player, and green in the one headless order where [P19] happened to install
+## last. A reservation that depends on who booted first is not a reservation.
+static func key_is_reserved(code: int) -> bool:
+	return RESERVED_TIME.has(code) or RESERVED_LENS.has(code)
+
 ## The screens a human must be able to open, and the key that opens each.
 ## The reachability suite iterates this literally.
 const SCREENS: Array[Dictionary] = [

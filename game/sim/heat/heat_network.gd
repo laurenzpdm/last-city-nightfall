@@ -53,11 +53,22 @@ func topology(members: PackedInt32Array, nodes: Dictionary[int, HeatNode],
 	return topo
 
 
+## Throws away everything cached about how heat currently reaches whom.
+##
+## `topo.scratch` used to stand where `invalidate_residuals()` now does. There
+## has been no `scratch` on HeatTopology since the residual routes became a
+## memoised ring, so this raised "Invalid access to property or key 'scratch'"
+## on every call — and a GDScript runtime error ABORTS THE FUNCTION, so
+## `route_dirty = true` on the last line never ran. The two callers are
+## `rebuild_networks()` and save loading, which are precisely the two moments the
+## routing must be rebuilt from nothing: a network that already had a topology
+## kept its stale routes and its stale residual cache, and was then told they
+## were clean. It never showed up in play because nothing in play calls it.
 func clear_routing() -> void:
 	if topo != null:
 		topo.primary.valid = false
 		topo.primary.bump()
-		topo.scratch.bump()
+		topo.invalidate_residuals()
 	route_dirty = true
 
 

@@ -50,6 +50,11 @@ var _view: Rect2 = Rect2()
 ## how many structures the model offered, and how many survived the view cull.
 var _seen: int = 0
 var _in_view: int = 0
+## Rebuilds since this layer was created. The anchor list only changes when this
+## number does, so a reader comparing two counts can tell "nothing moved" apart
+## from "the list was never rebuilt between the two reads" — a distinction that
+## cost `feel_gallery` a one-run-in-two failure on the reduce-motion beat.
+var _rebuilds: int = 0
 
 
 func _ready() -> void:
@@ -93,6 +98,7 @@ func stats() -> Dictionary:
 		"anchors": _anchors.size(),
 		"seen": _seen,
 		"in_view": _in_view,
+		"rebuilds": _rebuilds,
 		"zoom": snappedf(zoom, 0.001),
 		"view": "%.0f,%.0f %.0fx%.0f" % [_view.position.x, _view.position.y, _view.size.x, _view.size.y],
 		"draw_us": _draw_us,
@@ -104,6 +110,7 @@ func stats() -> Dictionary:
 ## whole feel layer and it happens twice a second.
 func _rebuild() -> void:
 	_anchors.clear()
+	_rebuilds += 1
 	_seen = 0
 	_in_view = 0
 	if _model == null or zoom < MIN_ZOOM:
