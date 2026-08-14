@@ -47,11 +47,18 @@ var focus_index: int = -1
 var accepts_input: bool = true
 
 var _dragging: int = -1
+## Pixels the rows are shifted up by. The controls page is thirty rows and the
+## first screenshot of it drew fifteen of them straight through the bottom of
+## the panel and out over the stores bar.
+var _scroll: float = 0.0
 
 
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	focus_mode = Control.FOCUS_NONE
+	# Nothing this control draws may leave it. Without this a list longer than
+	# its panel paints over the footer, the plate and the game behind it.
+	clip_contents = true
 
 
 ## Replaces the rows and keeps the focus on the same row id when it still exists.
@@ -60,6 +67,8 @@ func set_rows(new_rows: Array[Dictionary]) -> void:
 	rows = new_rows
 	var at: int = index_of(previous)
 	focus_index = at if at >= 0 else first_selectable()
+	_scroll = clampf(_scroll, 0.0, max_scroll())
+	ensure_focus_visible()
 	queue_redraw()
 
 
@@ -113,6 +122,7 @@ func move_focus(delta: int) -> void:
 		if is_selectable(at):
 			if at != focus_index:
 				focus_index = at
+				ensure_focus_visible()
 				focus_moved.emit(focused_id())
 				queue_redraw()
 			return
@@ -123,6 +133,7 @@ func focus_id(id: StringName) -> bool:
 	if at < 0:
 		return false
 	focus_index = at
+	ensure_focus_visible()
 	focus_moved.emit(id)
 	queue_redraw()
 	return true
@@ -146,6 +157,14 @@ func handle_key(event: InputEventKey) -> bool:
 		KEY_HOME:
 			focus_index = -1
 			move_focus(1)
+			return true
+		KEY_PAGEUP:
+			for _i: int in 5:
+				move_focus(-1)
+			return true
+		KEY_PAGEDOWN:
+			for _i: int in 5:
+				move_focus(1)
 			return true
 		KEY_END:
 			focus_index = 0
@@ -225,6 +244,14 @@ func _gui_input(event: InputEvent) -> void:
 	if click.button_index == MOUSE_BUTTON_LEFT and not click.pressed:
 		_dragging = -1
 		return
+	if click.pressed and click.button_index == MOUSE_BUTTON_WHEEL_UP:
+		scroll_by(-style.row_height() if style != null else -40.0)
+		accept_event()
+		return
+	if click.pressed and click.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+		scroll_by(style.row_height() if style != null else 40.0)
+		accept_event()
+		return
 	if click.button_index != MOUSE_BUTTON_LEFT or not click.pressed:
 		return
 	var at: int = _row_at(click.position)
@@ -300,14 +327,40 @@ func row_height_of(row: Dictionary) -> float:
 	return h
 
 
+## In the control's own coordinates, i.e. already scrolled. Hit-testing and
+## drawing both go through this, so they cannot disagree about where a row is.
 func row_rect(i: int) -> Rect2:
-	var y: float = 0.0
+	var y: float = -_scroll
 	for k: int in rows.size():
 		var h: float = row_height_of(rows[k])
 		if k == i:
 			return Rect2(Vector2(0.0, y), Vector2(size.x, h))
 		y += h
 	return Rect2()
+
+
+func max_scroll() -> float:
+	return maxf(0.0, content_height() - size.y)
+
+
+func scroll_by(pixels: float) -> void:
+	var was: float = _scroll
+	_scroll = clampf(_scroll + pixels, 0.0, max_scroll())
+	if not is_equal_approx(was, _scroll):
+		queue_redraw()
+
+
+## Brings the focused row inside the visible band. Called on every focus move,
+## which is what makes a long page navigable with the keyboard alone.
+func ensure_focus_visible() -> void:
+	if focus_index < 0 or focus_index >= rows.size():
+		return
+	var r: Rect2 = row_rect(focus_index)
+	var margin: float = 8.0
+	if r.position.y < margin:
+		scroll_by(r.position.y - margin)
+	elif r.end.y > size.y - margin:
+		scroll_by(r.end.y - size.y + margin)
 
 
 ## Total height the rows need. The screen uses it to size and centre the list.
@@ -338,7 +391,27 @@ func _draw() -> void:
 	if style == null:
 		return
 	for i: int in rows.size():
-		_draw_row(i, rows[i], row_rect(i))
+		var r: Rect2 = row_rect(i)
+		if r.end.y < -2.0 or r.position.y > size.y + 2.0:
+			continue
+		_draw_row(i, rows[i], r)
+	_draw_scroll_hint()
+
+
+## A thin rail on the right when there is more list than panel. Without it a
+## player has no way to know the page continues.
+func _draw_scroll_hint() -> void:
+	var over: float = max_scroll()
+	if over <= 1.0:
+		return
+	var total: float = content_height()
+	var frac: float = clampf(size.y / total, 0.08, 1.0)
+	var top: float = (_scroll / total) * size.y
+	var rail := Rect2(Vector2(size.x - 4.0, 0.0), Vector2(2.0, size.y))
+	draw_rect(rail, Color(LcnMetaStyle.P.COLD_RIM.r, LcnMetaStyle.P.COLD_RIM.g,
+		LcnMetaStyle.P.COLD_RIM.b, 0.35), true)
+	draw_rect(Rect2(Vector2(size.x - 4.0, top), Vector2(2.0, size.y * frac)),
+		Color(style.accent().r, style.accent().g, style.accent().b, 0.7), true)
 
 
 func _draw_row(i: int, row: Dictionary, r: Rect2) -> void:
