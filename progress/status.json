@@ -1,7 +1,7 @@
 {
  "round": 4,
  "phase": "D \u2014 The look, the belts, the tutorial, the meta",
- "state": "7 builders live on disjoint folders. Baseline in this container: 1070 tests pass / 1 fail, 0 blocking engine errors, determinism holds. Perf floors miss here because the cloud box is slower than the Mac they were set on \u2014 not a regression.",
+ "state": "Baseline gate finished: CHECK RED, 5 failing of 34 stages. Two are real defects and both are assigned (the shift-change frame spike -> D5, the build.rejected_total band -> D6). Three are this container and not the code: the perf floors were set on a Mac, feel_perf needs a real GPU, and boot trips an ALSA error because the container has no sound card. Determinism holds, 0 blocking engine errors in every scenario, reachability 14/14.",
  "agents_live": 7,
  "critic_score": 4.2,
  "blind_wins": 0,
@@ -172,7 +172,7 @@
  },
  "gate": {
   "label": "Gate baseline (here)",
-  "value": "1070 / 1",
-  "note": "tests pass/fail \u00b7 0 blocking engine errors"
+  "value": "RED \u2014 5",
+  "note": "2 real (frame spike, rejected band) \u00b7 3 are this container"
  }
 }
