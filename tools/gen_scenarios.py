@@ -38,6 +38,24 @@ OUT = os.path.join(ROOT, "tests", "scenarios")
 #                         capacity or radiance — i.e. it joins the heat graph
 #                         and is worthless off the grid
 DEFS = {
+    # --- [P03] logistics ------------------------------------------------------
+    # These were missing entirely, which is WHY first_night moves zero items over
+    # 11000 ticks while its contract asserts logistics.items_moved >= 1. It was
+    # never a logistics bug — tests/logistics/ lays belts and moves items and
+    # passes its bands. This generator simply had no vocabulary for a belt, so no
+    # scenario it emits could contain one, and the flagship run that the art,
+    # audio and UI parts screenshot against has no automation in it at all.
+    #
+    # Footprints are the ones in game/content/buildings/*.tres, which is what
+    # build actually enforces. None of them take or conduct heat, and none are
+    # nodes in the heat graph, so all three flags are False.
+    "belt_mk1": (1, 1, False, False, False),
+    "crate": (1, 1, False, False, False),
+    "inserter_mk1": (1, 1, False, False, False),
+    "long_arm_mk1": (1, 1, False, False, False),
+    "splitter_mk1": (1, 2, False, False, False),
+    "underground_mk1": (1, 1, False, False, False),
+    # --------------------------------------------------------------------------
     "coal_generator": (3, 2, False, False, True),
     "field_kitchen": (3, 2, False, False, True),
     "geothermal_tap": (3, 3, False, False, True),
