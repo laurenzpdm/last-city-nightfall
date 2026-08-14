@@ -1,0 +1,177 @@
+name: gate
+
+# The honest gate, running in the cloud on every push.
+#
+# Why this exists: in round 2 a fresh critic found that 768 tests, a determinism
+# replay and a perf gate all reported CHECK GREEN on a build where the main menu
+# was never in the scene tree and 68 engine errors printed per run. A gate that
+# only ever agrees with the person who wrote the code is worthless. This one runs
+# on a machine nobody is logged into, and it publishes what it saw.
+#
+# Free and unmetered: standard GitHub-hosted runners, including macOS, are free
+# for PUBLIC repositories with no minute cap. If this repo is ever made private
+# again, macOS minutes bill at a 10x multiplier and this file should be cut back
+# to the Linux jobs only.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: 4.7.1-stable
+
+jobs:
+  gate-macos:
+    name: gate (macOS, headless)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Godot
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: ~/godot
+          key: godot-macos-${{ env.GODOT_VERSION }}
+
+      - name: Install Godot
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot && cd ~/godot
+          curl -fsSL -o godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_macos.universal.zip"
+          unzip -q godot.zip
+          rm godot.zip
+
+      - name: Godot version
+        run: |
+          echo "GODOT=$HOME/godot/Godot.app/Contents/MacOS/Godot" >> $GITHUB_ENV
+          "$HOME/godot/Godot.app/Contents/MacOS/Godot" --headless --version
+
+      - name: Import assets
+        run: |
+          "$GODOT" --headless --path . --import 2>&1 | tail -20
+
+      # Engine-level errors go to stderr and never touch our own Log, which is
+      # exactly how a broken build stayed green for a whole phase. Capture both
+      # streams and count them ourselves.
+      - name: Run the gate
+        id: gate
+        run: |
+          set +e
+          bash tools/check.sh 2>&1 | tee gate.log
+          echo "gate_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          set -e
+
+      - name: Count engine-level errors
+        id: engine
+        run: |
+          n=$(grep -cE "^ERROR:|SCRIPT ERROR:|Parse Error|add_child\(\) failed" gate.log || true)
+          echo "count=$n" >> $GITHUB_OUTPUT
+          echo "engine-level errors: $n"
+          if [ "$n" -gt 0 ]; then
+            echo "::warning::$n engine-level error line(s) in the gate output"
+            grep -E "^ERROR:|SCRIPT ERROR:|Parse Error|add_child\(\) failed" gate.log | sort | uniq -c | sort -rn | head -20
+          fi
+
+      - name: Deterministic simulation run
+        run: |
+          "$GODOT" --headless --path . -- --harness --scenario=first_night \
+            --ticks=12000 --out=artifacts/ci_sim 2>&1 | tail -25
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Gate result"
+            echo ""
+            echo "| check | value |"
+            echo "|---|---|"
+            echo "| check.sh exit code | ${{ steps.gate.outputs.gate_exit }} |"
+            echo "| engine-level error lines | ${{ steps.engine.outputs.count }} |"
+            echo "| GDScript files | $(find game tests -name '*.gd' | wc -l | tr -d ' ') |"
+            echo "| GDScript lines | $(find game tests -name '*.gd' -exec cat {} + | wc -l | tr -d ' ') |"
+            echo ""
+            echo '```'
+            tail -40 gate.log 2>/dev/null || echo "(no gate.log)"
+            echo '```'
+          } >> $GITHUB_STEP_SUMMARY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gate-macos-artifacts
+          path: |
+            gate.log
+            artifacts/
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Fail if the gate failed
+        if: steps.gate.outputs.gate_exit != '0'
+        run: |
+          echo "check.sh exited ${{ steps.gate.outputs.gate_exit }}"
+          exit 1
+
+  screenshots:
+    name: screenshots (Linux, xvfb)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install xvfb and GL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1 libglu1-mesa fontconfig
+
+      - name: Cache Godot
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: ~/godot
+          key: godot-linux-${{ env.GODOT_VERSION }}
+
+      - name: Install Godot
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot && cd ~/godot
+          curl -fsSL -o godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip && rm godot.zip
+          mv Godot_v${GODOT_VERSION}_linux.x86_64 godot
+          chmod +x godot
+
+      - name: Import assets
+        run: |
+          xvfb-run -a ~/godot/godot --headless --path . --import 2>&1 | tail -20
+
+      # Real frames from the real renderer. This is what a critic is handed
+      # instead of a builder's summary.
+      - name: Render the scenario
+        run: |
+          xvfb-run -a -s "-screen 0 1920x1080x24" \
+            ~/godot/godot --path . --resolution 1920x1080 \
+            -- --harness --visual --scenario=first_night --out=artifacts/ci_vis 2>&1 | tail -30
+          ls -la artifacts/ci_vis/shots/ || echo "NO SHOTS PRODUCED"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Screenshots"
+            n=$(ls artifacts/ci_vis/shots/*.png 2>/dev/null | wc -l | tr -d ' ')
+            echo "frames written: **$n**"
+            [ "$n" = "0" ] && echo "" && echo "No frames were produced. The visual harness did not render."
+          } >> $GITHUB_STEP_SUMMARY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: artifacts/ci_vis/
+          retention-days: 14
+          if-no-files-found: warn
