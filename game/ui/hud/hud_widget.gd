@@ -28,6 +28,23 @@ var hud: Node = null
 ## {rect: Rect2, title: String, body: String, action: StringName, arg: Variant}
 var hot: Array[Dictionary] = []
 
+## How loud this panel is meant to be in the composition the screen is currently
+## in, 0..1. Set by `LcnHud._place_panels` from `LcnHudLayout.EMPHASIS`; a panel
+## never decides its own prominence, because prominence is a comparison and a
+## panel cannot see its neighbours.
+##
+## It moves two things and deliberately no more: the lamplight on the plate, and
+## the panel's overall alpha. The floor is 0.62 rather than 0 — a HUD that fades
+## a panel to the point of illegibility has stopped composing and started hiding.
+var emphasis: float = 1.0:
+	set(value):
+		var v: float = clampf(value, 0.0, 1.0)
+		if is_equal_approx(v, emphasis):
+			return
+		emphasis = v
+		modulate.a = 0.62 + 0.38 * v
+		queue_redraw()
+
 var hover_index: int = -1
 var key_index: int = -1
 var _signature: String = ""
@@ -231,7 +248,11 @@ func content_top() -> float:
 ## Returns `content_top()` so a `_draw` can start where `layout` did.
 func draw_frame(title: String, sev: int = S.Sev.CALM, lit: float = 0.35) -> float:
 	var rect := Rect2(Vector2.ZERO, size)
-	style.draw_plate(self, rect, lit, sev, _panel_seed)
+	# Emphasis rides ON TOP of whatever light the panel asked for, so a panel that
+	# lights itself for a reason of its own still gets to; it just does it louder
+	# when the composition wants it read first.
+	style.draw_plate(self, rect, clampf(lit * (0.55 + 0.75 * emphasis), 0.0, 1.0),
+		sev, _panel_seed)
 	if title == "":
 		return content_top()
 	var y: float = title_baseline()

@@ -14,9 +14,22 @@ const WIDTH: float = 372.0
 
 var alerts: LcnHudAlerts = null
 
+## Design pixels this panel may occupy before it starts shedding rows. Written by
+## `LcnHud._place_panels` from the room the composition actually has left, so a
+## bad night with nine simultaneous problems cannot push the attention stack
+## through the stores shelf and off the bottom of a 1280x720 screen.
+var max_height: float = 100000.0:
+	set(value):
+		var v: float = maxf(0.0, value)
+		if is_equal_approx(v, max_height):
+			return
+		max_height = v
+		invalidate()
+
 var _rows: Array[Dictionary] = []
 var _height: float = 0.0
 var _row_rects: Array[Rect2] = []
+var _dropped: int = 0
 
 
 func bind_alerts(model: LcnHudAlerts) -> void:
@@ -45,6 +58,7 @@ func signature() -> String:
 func layout() -> void:
 	_rows = alerts.top()
 	_row_rects.clear()
+	_dropped = 0
 	clear_hot()
 	var line_h: float = float(style.fs(12)) * 1.28
 	var head_h: float = float(style.fs(13)) + 12.0
@@ -59,6 +73,14 @@ func layout() -> void:
 			if fix != "":
 				h += float(_wrap(fix, WIDTH - 46.0, style.fs(12)).size()) * line_h + 2.0
 			h += 6.0
+		# Worst-first is already the row order, so the rows that do not fit are by
+		# construction the least urgent ones — and they are counted, never
+		# silently lost. The first row always draws even if the screen is absurd:
+		# a panel that hides the thing killing the city is worse than one that
+		# overflows.
+		if i > 0 and y + h + 8.0 + float(style.fs(11)) > max_height:
+			_dropped = _rows.size() - i
+			break
 		var rect := Rect2(9.0, y, WIDTH - 18.0, h)
 		_row_rects.append(rect)
 		var tip: String = body
@@ -69,9 +91,13 @@ func layout() -> void:
 			tip += "  (click to look at it)"
 		add_hot(rect, String(e.get("head", "")), tip, &"focus", focus)
 		y += h + 4.0
-	if alerts.hidden_count() > 0:
+	if alerts.hidden_count() + _dropped > 0:
 		y += float(style.fs(11)) + 10.0
-	_height = y + 8.0
+	# Hard clamp with `clip_contents`, for the same reason the selection panel has
+	# one: a panel that reports one height and draws another makes every rectangle
+	# placed beneath it wrong.
+	_height = minf(y + 8.0, max_height)
+	clip_contents = true
 	custom_minimum_size = Vector2(WIDTH, _height)
 	size = custom_minimum_size
 
@@ -85,7 +111,7 @@ func _draw() -> void:
 	for i: int in mini(_rows.size(), _row_rects.size()):
 		_draw_row(_rows[i], _row_rects[i], i == 0)
 		y = _row_rects[i].position.y + _row_rects[i].size.y
-	var hidden: int = alerts.hidden_count()
+	var hidden: int = alerts.hidden_count() + _dropped
 	if hidden > 0:
 		style.draw_text(self, Vector2(17.0, y + float(style.fs(11)) + 6.0),
 			"and %d more" % hidden, style.fs(11), style.ink_faint())

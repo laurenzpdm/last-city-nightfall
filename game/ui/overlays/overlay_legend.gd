@@ -16,15 +16,23 @@ const PAD: float = 14.0
 const WIDTH: float = 508.0
 const ROW: float = 21.0
 const MARGIN: float = 22.0
-## The panel sits this far off the bottom edge, leaving [P17]'s HUD strip room
-## to exist underneath it instead of fighting it for the same pixels. Measured
-## against the real stores shelf in artifacts/p00_shots: at 78 the legend's last
-## line landed on the word STORES.
+## Where the legend sits when there is NO HUD in this build to ask. It used to be
+## `108`, "measured against the real stores shelf in artifacts/p00_shots" — a
+## number taken off one screenshot at one resolution with one number of chips on
+## the shelf, which is exactly the kind of constant that is wrong everywhere
+## else. When [P17] is present the solver answers instead and this is unused.
 const BOTTOM_CLEARANCE: float = 108.0
-## The lens rail hangs down the right edge BELOW [P17]'s vitals and wave panels.
-## As a fraction of viewport height, so it survives a different resolution and a
-## HUD scaled up by Settings.graphics.ui_scale.
+## Same contract for the lens rail: a fallback fraction, only when nobody can be
+## asked where [P17]'s right column ends.
 const RAIL_TOP_FRACTION: float = 0.375
+const RAIL_ROW: float = 28.0
+const RAIL_BOX_H: float = 24.0
+
+## Screen rects handed down by `LcnHudLayout` through [P17]. Empty means "no HUD
+## in this build" and the fallbacks above are used instead.
+var legend_slot: Rect2 = Rect2()
+var rail_slot: Rect2 = Rect2()
+var hint_slot: Rect2 = Rect2()
 
 var pal: LcnOverlayPalette = null
 var snap: LcnOverlaySnapshot = null
@@ -69,11 +77,25 @@ func _draw() -> void:
 # --- the always-there hint -------------------------------------------------
 
 func _draw_hint() -> void:
-	var size: Vector2 = get_viewport_rect().size
-	var text: String = "%s  overlays      ALT  details" % _key_summary()
-	var w: float = _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 13).x
-	_text(Vector2(size.x - w - MARGIN, size.y - BOTTOM_CLEARANCE), text, 13,
+	var r: Rect2 = hint_rect()
+	_text(Vector2(r.position.x, r.end.y - 4.0), _hint_text(), 13,
 		LcnOverlayPalette.with_a(LcnOverlayPalette.INK_DIM, 0.7))
+
+
+func _hint_text() -> String:
+	return "%s  overlays      ALT  details" % _key_summary()
+
+
+## Where the always-there overlay reminder goes. It shares the hotkey strip's
+## baseline on the opposite side of the screen when [P17] is present.
+func hint_rect() -> Rect2:
+	var size: Vector2 = get_viewport_rect().size
+	var w: float = 200.0
+	if _font != null:
+		w = _font.get_string_size(_hint_text(), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 13).x
+	if hint_slot.size.x > 1.0:
+		return Rect2(hint_slot.end.x - w, hint_slot.position.y, w, 18.0)
+	return Rect2(size.x - w - MARGIN, size.y - BOTTOM_CLEARANCE - 14.0, w, 18.0)
 
 
 func _key_summary() -> String:
@@ -84,12 +106,43 @@ func _key_summary() -> String:
 
 # --- the lens rail ---------------------------------------------------------
 
+## Screen size the lens rail needs, so [P17]'s solver can reserve it under the
+## right-hand column instead of the rail guessing a fraction of the height.
+func rail_size() -> Vector2:
+	if _font == null:
+		return Vector2(180.0, RAIL_ROW * float(LcnOverlayDefs.MODE_COUNT - 1))
+	var w: float = 0.0
+	for m: int in range(1, LcnOverlayDefs.MODE_COUNT):
+		var key: String = keys[m] if m < keys.size() else "?"
+		var text: String = "%s  %s" % [key, LcnOverlayDefs.MODE_TITLES[m]]
+		w = maxf(w, _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 14).x + 18.0)
+	return Vector2(w, RAIL_ROW * float(LcnOverlayDefs.MODE_COUNT - 2) + RAIL_BOX_H)
+
+
+## Screen height the panel needs for `for_mode`. Takes the mode as an argument
+## rather than reading `self.mode`, because the root knows the mode a frame
+## before this node is told it — and the layout is solved on that earlier frame.
+func height_for(for_mode: int) -> float:
+	var was: int = mode
+	mode = for_mode
+	_build_rows()
+	mode = was
+	return _panel_height()
+
+
+func _panel_height() -> float:
+	return PAD * 2.0 + 26.0 + 20.0 + 22.0 + float(_rows.size()) * ROW + 26.0
+
+
 func _draw_rail() -> void:
 	var size: Vector2 = get_viewport_rect().size
 	if mode == LcnOverlayDefs.Mode.NONE and not alt:
 		return
 	var x: float = size.x - MARGIN
 	var y: float = maxf(MARGIN + 108.0, size.y * RAIL_TOP_FRACTION)
+	if rail_slot.size.x > 1.0:
+		x = rail_slot.end.x
+		y = rail_slot.position.y
 	for m: int in range(1, LcnOverlayDefs.MODE_COUNT):
 		var active: bool = m == mode
 		var key: String = keys[m] if m < keys.size() else "?"
@@ -109,8 +162,10 @@ func _draw_rail() -> void:
 
 func _draw_panel() -> void:
 	var size: Vector2 = get_viewport_rect().size
-	var h: float = PAD * 2.0 + 26.0 + 20.0 + 22.0 + float(_rows.size()) * ROW + 26.0
+	var h: float = _panel_height()
 	var origin := Vector2(MARGIN, size.y - h - BOTTOM_CLEARANCE)
+	if legend_slot.size.x > 1.0:
+		origin = legend_slot.position
 	var panel := Rect2(origin, Vector2(WIDTH, h))
 	draw_rect(panel, LcnOverlayPalette.PANEL, true)
 	draw_rect(panel, LcnOverlayPalette.PANEL_EDGE, false, 1.5)

@@ -17,6 +17,19 @@ const PAD: float = 13.0
 const MAX_CHIPS: int = 9
 const ALWAYS_SHOW: int = 5
 
+## How many chips the shelf may show. Written by `LcnHud._place_panels`, which
+## knows two things this widget cannot: how wide the screen actually is, and
+## whether it is night. Nine chips at 126 design px is 1160 px of shelf — it ran
+## straight off a 1280-wide screen, and at night it was competing for the eye
+## with the thing that was killing the city.
+var chip_budget: int = MAX_CHIPS:
+	set(value):
+		var v: int = clampi(value, 1, MAX_CHIPS)
+		if v == chip_budget:
+			return
+		chip_budget = v
+		invalidate()
+
 var _shown: Array[StringName] = []
 var _top: float = 34.0
 var _height: float = 96.0
@@ -42,12 +55,13 @@ func signature() -> String:
 func _pick() -> Array[StringName]:
 	var out: Array[StringName] = []
 	var i: int = 0
+	var cap: int = clampi(chip_budget, 1, MAX_CHIPS)
 	for id: StringName in probe.stock_order:
 		var amount: int = probe.stock.get(id, 0)
 		if amount > 0 or i < ALWAYS_SHOW:
 			out.append(id)
 		i += 1
-		if out.size() >= MAX_CHIPS:
+		if out.size() >= cap:
 			break
 	return out
 

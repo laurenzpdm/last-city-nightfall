@@ -57,8 +57,15 @@ var selected_id: int = -1
 ## which of the two it is looking at.
 var selected_is_citizen: bool = false
 
+## Which composition the screen is in. `LcnHudLayout.State`. Read by the panels
+## through `emphasis`, by the vignette, and by the audit suite.
+var state: int = LcnHudLayout.State.LULL
+## The stage director: places [P22]'s card and tells us when one is up.
+var stage: LcnHudStage = null
+
 var _root: Control = null
 var _vignette: Control = null
+var _scrim: Control = null
 var _footer: Control = null
 var _widgets: Array[LcnHudWidget] = []
 var _context: Object = null
@@ -69,6 +76,10 @@ var _urgency_target: float = 0.0
 var _since_poll: float = 0.0
 var _last_layout: Vector2 = Vector2.ZERO
 var _footer_signature: String = ""
+var _rects: Dictionary = {}
+var _panels_by_name: Dictionary = {}
+var _scrim_alpha: float = 0.0
+var _footer_ceiling: float = 0.0
 
 
 ## Name and layer are set in _init, not _ready: `LcnLayers.audit()` identifies a
@@ -80,9 +91,16 @@ func _init() -> void:
 	layer = LAYER
 
 
+## How [P18] and [P19] ask where the composition put their strips. A group and a
+## method, never a path: both parts work without a HUD in the build, and both
+## fall back to their own bottom margin when this answers an empty rect.
+const CHROME_GROUP: StringName = &"lcn_hud_chrome"
+
+
 func _ready() -> void:
 	name = "LcnHud"
 	layer = LAYER
+	add_to_group(CHROME_GROUP)
 	style = LcnHudStyle.new()
 	probe = LcnHudProbe.new()
 	alerts = LcnHudAlerts.new()
@@ -91,6 +109,14 @@ func _ready() -> void:
 	_root.name = "HudRoot"
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
+
+	# Under every panel and over the world: the scrim is what turns [P22]'s card
+	# from a rectangle floating on a lit city into a question being asked.
+	_scrim = Control.new()
+	_scrim.name = "Scrim"
+	_scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_scrim.draw.connect(_draw_scrim)
+	_root.add_child(_scrim)
 
 	_vignette = Control.new()
 	_vignette.name = "Vignette"
@@ -126,10 +152,18 @@ func _ready() -> void:
 	tooltip.setup(style)
 	_root.add_child(tooltip)
 
+	stage = LcnHudStage.new()
+	add_child(stage)
+
 	probe.bind()
 	Bus.world_ready.connect(_on_world_ready)
 	Bus.ui_scale_changed.connect(_on_ui_scale_changed)
 	Bus.alert_raised.connect(_on_alert_raised)
+	# A lens coming up changes how much of the bottom rail and the right column
+	# [P19] needs, which changes where everything else may sit. Without this the
+	# composition only caught up on the next probe poll, so pressing F1 shuffled
+	# the shelf a tenth of a second later.
+	Bus.overlay_mode_changed.connect(_on_overlay_mode_changed)
 	get_viewport().size_changed.connect(_relayout)
 	_relayout()
 	Log.info("hud", "installed (%d panels)" % _widgets.size())
@@ -150,6 +184,8 @@ func _exit_tree() -> void:
 		Bus.ui_scale_changed.disconnect(_on_ui_scale_changed)
 	if Bus.alert_raised.is_connected(_on_alert_raised):
 		Bus.alert_raised.disconnect(_on_alert_raised)
+	if Bus.overlay_mode_changed.is_connected(_on_overlay_mode_changed):
+		Bus.overlay_mode_changed.disconnect(_on_overlay_mode_changed)
 	# The probe and the alert model live on Bus subscriptions; without this they
 	# outlive the HUD that owns them and keep answering signals forever.
 	if probe != null:
@@ -242,6 +278,10 @@ func _on_world_ready() -> void:
 		w.invalidate()
 
 
+func _on_overlay_mode_changed(_mode: StringName) -> void:
+	_place_panels()
+
+
 func _on_ui_scale_changed(_value: float) -> void:
 	style.refresh_from_settings()
 	_relayout()
@@ -267,6 +307,13 @@ func _process(delta: float) -> void:
 		_since_poll = 0.0
 		_force_refresh()
 	last_refresh_us = Time.get_ticks_usec() - t0
+
+	var want_scrim: float = 1.0 if (stage != null and stage.card_visible()) else 0.0
+	var scrim_next: float = move_toward(_scrim_alpha, want_scrim,
+		delta * (4.0 if not style.reduce_motion else 100.0))
+	if not is_equal_approx(scrim_next, _scrim_alpha):
+		_scrim_alpha = scrim_next
+		_scrim.queue_redraw()
 
 	var speed: float = 2.4 if not style.reduce_motion else 100.0
 	var next: float = move_toward(_urgency, _urgency_target, delta * speed)
@@ -336,53 +383,219 @@ func _alert_pressure() -> float:
 ## has to think about ui_scale. Font scale is applied separately inside the
 ## style, which is what lets a player enlarge the text without inflating the
 ## panels around it.
+## A panel's LOGICAL size depends on `font_scale` and on its content — never on
+## `ui_scale`, which is applied once on this CanvasLayer. That is what makes the
+## fit below a single pass rather than a fixed-point iteration: measure the
+## panels at any scale, and the answer is the same.
 func _relayout() -> void:
 	style.refresh_from_settings()
 	var vp: Vector2 = Vector2(get_viewport().get_visible_rect().size)
-	scale = Vector2(style.ui_scale, style.ui_scale)
-	var logical: Vector2 = vp / maxf(0.01, style.ui_scale)
-	_root.size = logical
-	_root.position = Vector2.ZERO
-	_vignette.size = logical
-	_footer.size = logical
-	tooltip.size = logical
-	_last_layout = logical
-	for w: LcnHudWidget in _widgets:
-		w.invalidate()
-		w.refresh()
+	var requested: float = style.ui_scale
+	_resize_root(vp, requested)
+	for w0: LcnHudWidget in _widgets:
+		w0.invalidate()
+		w0.refresh()
+
+	# The requested scale is honoured only as far as the screen can carry it, and
+	# the numbers come from the panels that were just measured rather than from
+	# constants that go stale. Measured on this build at ui 1.6 with font 1.4, the
+	# uncapped composition left the city 15 % of the screen: that is not a large
+	# interface, it is no game.
+	var rails: float = maxf(heat_panel.size.x, alert_panel.size.x) \
+		+ maxf(vitals_panel.size.x, maxf(wave_panel.size.x, selection_panel.size.x))
+	var bands: float = clock_panel.size.y + resource_panel.size.y
+	# [P18]'s hotkey strip and [P19]'s legend are drawn UNSCALED, so they come off
+	# the height as fixed screen pixels rather than as part of the scaled bands.
+	var fixed: float = 0.0
+	var tree0: SceneTree = get_tree()
+	if tree0 != null:
+		var menu0: Node = tree0.get_first_node_in_group(&"lcn_build_menu")
+		if menu0 != null and menu0.has_method(&"hint_size"):
+			fixed += (menu0.call(&"hint_size") as Vector2).y + LcnHudLayout.STRIP_GAP
+		var lens0: Node = tree0.get_first_node_in_group(&"lcn_overlay_root")
+		if lens0 != null and lens0.has_method(&"legend_size"):
+			fixed += (lens0.call(&"legend_size") as Vector2).y
+	var fit: float = LcnHudLayout.fit_scale(vp, requested, rails, bands, fixed)
+	if not is_equal_approx(fit, requested):
+		_resize_root(vp, fit)
+		for w1: LcnHudWidget in _widgets:
+			w1.invalidate()
+			w1.refresh()
 	_place_panels()
 	_vignette.queue_redraw()
 	_footer.queue_redraw()
 
 
+func _resize_root(vp: Vector2, ui: float) -> void:
+	style.ui_scale = ui
+	scale = Vector2(ui, ui)
+	var logical: Vector2 = vp / maxf(0.01, ui)
+	_root.size = logical
+	_root.position = Vector2.ZERO
+	_scrim.size = logical
+	_vignette.size = logical
+	_footer.size = logical
+	tooltip.size = logical
+	_last_layout = logical
+
+
+## Panel name → the widget that draws it. The one place the two vocabularies
+## meet, so the solver never has to know about node names and the widgets never
+## have to know about the solver.
+func _panel_map() -> Dictionary:
+	if _panels_by_name.is_empty():
+		_panels_by_name = {
+			"clock": clock_panel, "heat": heat_panel, "alerts": alert_panel,
+			"vitals": vitals_panel, "wave": wave_panel, "stores": resource_panel,
+			"selection": selection_panel,
+		}
+	return _panels_by_name
+
+
+## What composition the screen should be in right now. Night or an assault beats
+## a build; a build beats the lull.
+func _resolve_state() -> int:
+	var night: bool = probe != null and probe.is_night
+	var attack: bool = probe != null and (probe.wave_active or probe.enemies_alive > 0)
+	var building: bool = false
+	if _context != null and _context.has_method("get"):
+		building = bool(_context.get("build_mode"))
+	if not building and _build_menu_block() > 0.0:
+		building = true
+	return LcnHudLayout.state_for(night, attack, building)
+
+
+## Screen pixels of the left edge that [P18]'s open build panels own, so the left
+## rail can slide out from under them instead of being covered. Asked of the live
+## node through a group and a method name, never a path — and zero when [P18] is
+## not in this build at all.
+func _build_menu_block() -> float:
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		return 0.0
+	var menu: Node = tree.get_first_node_in_group(&"lcn_build_menu")
+	if menu == null or not menu.has_method(&"left_block"):
+		return 0.0
+	return float(menu.call(&"left_block"))
+
+
+## The screen rectangle the composition reserved for `key`, or an empty Rect2
+## when this solve did not place one. `hint`, `lens_hint`, `legend`, `rail`,
+## `stage` and `card` are the keys other parts ask for.
+func solved_rect(key: StringName) -> Rect2:
+	return _rects.get(String(key), Rect2()) as Rect2
+
+
+## Every rectangle the HUD is drawing, in SCREEN pixels, by name. The audit suite
+## reads this; so does anything that wants to know where it may not draw.
+func chrome_rects() -> Dictionary:
+	var out: Dictionary = {}
+	for name_key: String in _panel_map():
+		var w: LcnHudWidget = _panel_map()[name_key]
+		if w != null and w.visible and w.size.x > 1.0:
+			out[name_key] = Rect2(w.position * style.ui_scale, w.size * style.ui_scale)
+	if stage != null and stage.card_rect.size.x > 1.0:
+		out["card"] = stage.card_rect
+	return out
+
+
+## Hands the caps the last solve produced to the panels they belong to. Returns
+## true when anything actually changed, which is the signal to solve again.
+func _apply_caps() -> bool:
+	var moved: bool = false
+	if _rects.has("alerts_max_h"):
+		var a: float = (_rects["alerts_max_h"] as Rect2).size.y
+		moved = moved or not is_equal_approx(a, alert_panel.max_height)
+		alert_panel.max_height = a
+	if _rects.has("selection_max_h"):
+		var s2: float = (_rects["selection_max_h"] as Rect2).size.y
+		moved = moved or not is_equal_approx(s2, selection_panel.max_height)
+		selection_panel.max_height = s2
+	if resource_panel != null:
+		var chips: int = LcnHudLayout.chip_budget(state, _last_layout.x * style.ui_scale,
+			style.ui_scale, LcnHudResources.CHIP.x, LcnHudResources.PAD)
+		moved = moved or chips != resource_panel.chip_budget
+		resource_panel.chip_budget = chips
+	return moved
+
+
 func _place_panels() -> void:
 	var w: float = _last_layout.x
-	var h: float = _last_layout.y
 	if w <= 0.0:
 		return
-	if clock_panel.visible:
-		clock_panel.position = Vector2(roundf((w - clock_panel.size.x) * 0.5), 10.0)
+	var view: Vector2 = _last_layout * style.ui_scale
+	state = _resolve_state()
 
-	var left_y: float = DESIGN_MARGIN
-	if heat_panel.visible:
-		heat_panel.position = Vector2(DESIGN_MARGIN, left_y)
-		left_y += heat_panel.size.y + GAP
-	if alert_panel.visible:
-		alert_panel.position = Vector2(DESIGN_MARGIN, left_y)
+	var sizes: Dictionary = {}
+	for name_key: String in _panel_map():
+		var widget: LcnHudWidget = _panel_map()[name_key]
+		if widget != null and widget.visible:
+			sizes[name_key] = widget.size
 
-	var right_y: float = DESIGN_MARGIN
-	if vitals_panel.visible:
-		vitals_panel.position = Vector2(w - vitals_panel.size.x - DESIGN_MARGIN, right_y)
-		right_y += vitals_panel.size.y + GAP
-	if wave_panel.visible:
-		wave_panel.position = Vector2(w - wave_panel.size.x - DESIGN_MARGIN, right_y)
+	var extra: Dictionary = {"left_block": _build_menu_block()}
+	if stage != null and stage.card_size.x > 1.0:
+		extra["card"] = stage.card_size
+	var tree: SceneTree = get_tree()
+	if tree != null:
+		var menu: Node = tree.get_first_node_in_group(&"lcn_build_menu")
+		if menu != null and menu.has_method(&"hint_size"):
+			extra["hint"] = menu.call(&"hint_size") as Vector2
+		var lens: Node = tree.get_first_node_in_group(&"lcn_overlay_root")
+		if lens != null and lens.has_method(&"legend_size"):
+			extra["legend"] = lens.call(&"legend_size") as Vector2
+			extra["rail"] = lens.call(&"rail_size") as Vector2
 
-	if resource_panel.visible:
-		resource_panel.position = Vector2(DESIGN_MARGIN,
-			h - resource_panel.size.y - DESIGN_MARGIN)
-	if selection_panel.visible:
-		selection_panel.position = Vector2(w - selection_panel.size.x - DESIGN_MARGIN,
-			h - selection_panel.size.y - DESIGN_MARGIN)
+	# SOLVED TWICE, and it has to be. The first solve is what tells the attention
+	# stack and the selection panel how much room they actually have; both then
+	# shed rows and change height, which changes where everything below them goes.
+	# Solving once left the lens rail placed against last frame's selection panel
+	# and 26,000 px² of overlap on screen until the next poll caught up — a
+	# composition that is only correct one frame late is a composition that is
+	# wrong every time the player changes anything.
+	_rects = LcnHudLayout.solve(view, style.ui_scale, state, sizes, extra)
+	# Three passes at most. Each one is a solve over eight rectangles and two
+	# panel re-layouts, and it converges in one on every configuration measured;
+	# the bound is there so a pathological content size can cost a frame rather
+	# than a hang.
+	for _pass: int in 3:
+		if not _apply_caps():
+			break
+		for name_key3: String in _panel_map():
+			var widget3: LcnHudWidget = _panel_map()[name_key3]
+			if widget3 != null and widget3.visible:
+				widget3.refresh()
+				sizes[name_key3] = widget3.size
+		_rects = LcnHudLayout.solve(view, style.ui_scale, state, sizes, extra)
+	_footer_ceiling = (_rects["footer_ceiling"] as Rect2).position.y / style.ui_scale
+
+	for name_key2: String in _panel_map():
+		var widget2: LcnHudWidget = _panel_map()[name_key2]
+		if widget2 == null or not _rects.has(name_key2):
+			continue
+		var r: Rect2 = _rects[name_key2]
+		widget2.position = (r.position / style.ui_scale).round()
+		widget2.emphasis = LcnHudLayout.emphasis_of(state, name_key2)
+	if stage != null:
+		stage.slot = _rects.get("card", Rect2())
+		stage.ticker_slot = _rects.get("ticker", Rect2())
+
+
+# =====================================================================  scrim =
+
+## The world dims behind a decision. Drawn on the HUD layer, which is over the
+## world and under [P22]'s card, so a question being asked reads as one thing
+## instead of as a rectangle that happens to be there. It fades rather than
+## snapping, it is skipped entirely when nothing is asking, and the stage
+## rectangle is left brightest in the middle so the city is still legible behind
+## the card — a scrim that blacks out the game is a loading screen.
+func _draw_scrim() -> void:
+	if _scrim_alpha <= 0.01:
+		return
+	var w: float = _scrim.size.x
+	var h: float = _scrim.size.y
+	var deep: Color = LcnHudStyle.P.COLD_ABYSS
+	_scrim.draw_rect(Rect2(0.0, 0.0, w, h),
+		Color(deep.r, deep.g, deep.b, 0.52 * _scrim_alpha), true)
 
 
 # ==================================================================  vignette =
@@ -501,16 +714,21 @@ func _draw_footer() -> void:
 
 	var works: String = _works_line()
 	if works != "":
-		style.draw_text_right(_footer, w - 18.0, h - 14.0, works, style.fs(11),
+		# The city's quiet business shares the stores shelf's own baseline on the
+		# far side. It used to be pinned to `h - 14`, which put it under the
+		# shelf at every resolution where the shelf was not exactly 96 px tall.
+		var works_y: float = h - 14.0
+		if resource_panel != null and resource_panel.visible:
+			works_y = resource_panel.position.y + resource_panel.size.y - 14.0
+		style.draw_text_right(_footer, w - 18.0, works_y, works, style.fs(11),
 			style.ink_faint())
 
-	# Above the stores shelf, not on it. The shelf is drawn by a real panel with
-	# a real height, so ask it rather than guessing a constant that goes stale
-	# the first time somebody adds a row or the player scales the interface up.
-	var shelf_top: float = h - DESIGN_MARGIN
-	if resource_panel != null and resource_panel.visible:
-		shelf_top = resource_panel.position.y
-	var y: float = minf(h - 52.0, shelf_top - 14.0)
+	# Above the WHOLE bottom rail, not just above the shelf. The solver already
+	# worked out where the rail's ceiling is — [P18]'s hotkey strip and [P19]'s
+	# legend are both under it — so ask it rather than guessing a constant that
+	# goes stale the first time another part adds a strip.
+	var ceiling: float = _footer_ceiling if _footer_ceiling > 0.0 else h - DESIGN_MARGIN
+	var y: float = minf(h - 52.0, ceiling - 14.0)
 	var toast_list: Array[Dictionary] = alerts.toasts()
 	for i: int in range(toast_list.size() - 1, -1, -1):
 		var t: Dictionary = toast_list[i]

@@ -167,14 +167,98 @@ func _build_panels() -> void:
 	_screen.add_child(tooltip)
 
 
+## The hotkey strip. It used to be anchored BOTTOM_LEFT at (18, -26), which put
+## it straight through [P17]'s stores shelf at 1920x1080 and at every other
+## resolution — two parts, two private opinions about the same forty pixels.
+## It is now placed by `LcnHudLayout`, which knows how tall the shelf is because
+## it put the shelf there.
 func _build_hint_bar() -> void:
 	_hint_bar = LcnUiStyle.label(
 		"B build    I recipes    T research    N blueprints    L laws",
 		LcnUiStyle.FS_TINY, LcnUiStyle.TEXT_FAINT)
-	_hint_bar.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_hint_bar.position = Vector2(18.0, -26.0)
-	_hint_bar.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_hint_bar.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_hint_bar.position = Vector2(18.0, 8.0)
 	_screen.add_child(_hint_bar)
+	_place_chrome()
+
+
+## Screen size the hotkey strip needs. Read by [P17]'s solver.
+func hint_size() -> Vector2:
+	if _hint_bar == null:
+		return Vector2.ZERO
+	return Vector2(maxf(1.0, _hint_bar.size.x), maxf(14.0, _hint_bar.size.y))
+
+
+## Screen pixels of the left edge an OPEN build panel owns, so [P17]'s left rail
+## can slide out from under it in build mode rather than being covered by it.
+## Zero when nothing is open.
+func left_block() -> float:
+	var edge: float = 0.0
+	for id: StringName in PANEL_IDS:
+		var p: LcnUiPanel = panel(id)
+		if p != null and p.is_open() and p.visible:
+			edge = maxf(edge, p.position.x + p.size.x)
+	return edge
+
+
+## Every rectangle this part draws, in screen pixels. The audit suite reads it.
+func chrome_rects() -> Dictionary:
+	var out: Dictionary = {}
+	if _hint_bar != null and _hint_bar.visible:
+		out["hint"] = Rect2(_hint_bar.position, hint_size())
+	if tooltip != null and tooltip.visible and tooltip.size.x > 1.0:
+		out["sheet"] = Rect2(tooltip.position, tooltip.size)
+	for id: StringName in PANEL_IDS:
+		var p: LcnUiPanel = panel(id)
+		if p != null and p.is_open() and p.visible:
+			out[String(id)] = Rect2(p.position, p.size)
+	return out
+
+
+## Puts the hotkey strip where [P17]'s solver says the bottom rail's second strip
+## is. Falls back to sitting directly on the bottom margin when there is no HUD
+## in this build at all — [P18] is playable without [P17] and must not vanish.
+func _place_chrome() -> void:
+	if _hint_bar == null or _screen == null:
+		return
+	var view: Vector2 = _screen.size
+	if view.x <= 0.0:
+		return
+	var slot: Rect2 = _hud_rect(&"hint")
+	if slot.size.x > 1.0:
+		_hint_bar.position = slot.position
+	else:
+		_hint_bar.position = Vector2(LcnHudLayout.MARGIN,
+			view.y - LcnHudLayout.MARGIN - hint_size().y)
+	_place_panels_in_stage()
+
+
+## Open browsers hang from the top of the STAGE, not from a y this file picked
+## once. The palette used to sit at y = 152 whatever else was on screen, which at
+## ui_scale 1.35 put it through the bottom of [P17]'s clock — and, worse, made the
+## clock's own free band 365 px wide, so a 675 px clock had nowhere to be but
+## inside the people panel. Asking where the stage starts costs one group lookup
+## and settles it for every scale at once.
+func _place_panels_in_stage() -> void:
+	var stage: Rect2 = _hud_rect(&"stage")
+	if stage.size.x <= 1.0:
+		return
+	for id: StringName in PANEL_IDS:
+		var p: LcnUiPanel = panel(id)
+		if p == null or not p.is_open() or not p.visible:
+			continue
+		p.position = Vector2(p.position.x,
+			maxf(stage.position.y, LcnHudLayout.MARGIN))
+
+
+func _hud_rect(key: StringName) -> Rect2:
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		return Rect2()
+	for node: Node in tree.get_nodes_in_group(&"lcn_hud_chrome"):
+		if node.has_method(&"solved_rect"):
+			return node.call(&"solved_rect", key) as Rect2
+	return Rect2()
 
 
 func panel(id: StringName) -> LcnUiPanel:
@@ -426,6 +510,19 @@ func _top_panel() -> LcnUiPanel:
 	return null
 
 
+## Opens or closes one panel by id. The same path the hotkey takes, exposed so a
+## suite can put the build into BUILD MODE without synthesising a key event —
+## and so [P21]'s tutorial can open the palette when it teaches it.
+func set_open(id: StringName, open: bool) -> void:
+	var p: LcnUiPanel = panel(id)
+	if p == null or p.is_open() == open:
+		return
+	if open:
+		_open(id)
+	else:
+		_close(id)
+
+
 func open_panels() -> Array[StringName]:
 	var out: Array[StringName] = []
 	for id: StringName in PANEL_IDS:
@@ -504,6 +601,12 @@ func _process(delta: float) -> void:
 	_accum += delta
 	if _shot_dir != "":
 		_drive_shots()
+	# OUTSIDE the 4 Hz gate on purpose. Chrome placement is two float compares and
+	# an assignment, and inside the gate it lagged a window resize by up to a
+	# quarter of a second — long enough for the audit suite to photograph the
+	# hotkey strip 732 px off the bottom of the screen, and long enough for a
+	# player dragging a window edge to watch it swim.
+	_place_chrome()
 	if _accum < 1.0 / REFRESH_HZ:
 		return
 	_accum = 0.0
@@ -631,6 +734,21 @@ func _place_tooltip() -> void:
 	else:
 		var mouse: Vector2 = _screen.get_local_mouse_position()
 		pos = mouse + Vector2(TOOLTIP_MARGIN, TOOLTIP_MARGIN)
+	var card: Rect2 = _hud_rect(&"card")
+	if card.size.x > 1.0:
+		# A 380 px sheet about a wall segment does not get to lie across a
+		# decision the player has been asked to make. Flip to whichever side of
+		# the card has more room; if neither has, the sheet stands down — the
+		# question outranks the inspection.
+		var want := Rect2(pos, tooltip.size)
+		if want.intersects(card):
+			var left_room: float = card.position.x - 8.0
+			var right_room: float = screen.x - card.end.x - 8.0
+			if maxf(left_room, right_room) < tooltip.size.x:
+				tooltip.visible = false
+				return
+			pos.x = card.position.x - tooltip.size.x - 12.0 if left_room >= right_room \
+				else card.end.x + 12.0
 	tooltip.position = Vector2(
 		clampf(pos.x, 8.0, maxf(8.0, screen.x - tooltip.size.x - 8.0)),
 		clampf(pos.y, 8.0, maxf(8.0, screen.y - tooltip.size.y - 8.0)))

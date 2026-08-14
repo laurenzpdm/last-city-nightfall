@@ -137,6 +137,80 @@ func _exit_tree() -> void:
 		_instance = null
 
 
+# =========================================================================
+# composition
+# =========================================================================
+#
+# The legend and the lens rail are CHROME, and chrome has neighbours. This part
+# used to decide where they went with two constants — a bottom clearance of 108
+# measured off one 1920x1080 screenshot, and a rail top at 0.375 of the height —
+# and both were wrong the moment the stores shelf changed height, the player
+# scaled the interface, or anyone opened the game at 1280x720. [P17]'s
+# `LcnHudLayout` now solves the whole bottom rail and the whole right column at
+# once; this part publishes how much room it needs and reads back where it got.
+#
+# Both directions are optional. With no HUD in the build, `legend_slot` stays
+# empty and the old constants still draw a legible legend.
+
+## Screen size the legend panel wants, or ZERO when no lens is up. Read by [P17].
+##
+## The MODE COMES FROM THIS NODE, not from the legend's copy of it. The legend
+## only learns the current mode inside `refresh()` during `_process`, so asking
+## the legend answered with LAST frame's mode — and [P17] re-solves the layout on
+## `Bus.overlay_mode_changed`, which fires BEFORE that. The result was a legend
+## that reserved nothing on the frame it came up, fell back to its own
+## `BOTTOM_CLEARANCE = 108`, and landed on [P18]'s hotkey strip. One frame of
+## staleness, four thousand square pixels of overlap.
+func legend_size() -> Vector2:
+	if _legend == null or (mode == LcnOverlayDefs.Mode.NONE and not alt_held):
+		return Vector2.ZERO
+	return Vector2(LcnOverlayLegend.WIDTH, _legend.height_for(mode))
+
+
+## Screen size the lens rail wants, or ZERO when no lens is up.
+func rail_size() -> Vector2:
+	if _legend == null or (mode == LcnOverlayDefs.Mode.NONE and not alt_held):
+		return Vector2.ZERO
+	return _legend.rail_size()
+
+
+## Every rectangle this part draws in SCREEN space. The audit suite reads it.
+func chrome_rects() -> Dictionary:
+	var out: Dictionary = {}
+	if _legend == null:
+		return out
+	if mode != LcnOverlayDefs.Mode.NONE or alt_held:
+		var ls: Vector2 = legend_size()
+		if ls.x > 1.0:
+			var origin: Vector2 = _legend.legend_slot.position
+			if _legend.legend_slot.size.x <= 1.0:
+				origin = Vector2(LcnOverlayLegend.MARGIN,
+					get_viewport().get_visible_rect().size.y - ls.y
+					- LcnOverlayLegend.BOTTOM_CLEARANCE)
+			out["legend"] = Rect2(origin, ls)
+		var rs: Vector2 = rail_size()
+		if rs.x > 1.0 and _legend.rail_slot.size.x > 1.0:
+			out["rail"] = Rect2(_legend.rail_slot.position, rs)
+	else:
+		out["lens_hint"] = _legend.hint_rect()
+	return out
+
+
+func _pull_slots() -> void:
+	if _legend == null:
+		return
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		return
+	for node: Node in tree.get_nodes_in_group(&"lcn_hud_chrome"):
+		if not node.has_method(&"solved_rect"):
+			continue
+		_legend.legend_slot = node.call(&"solved_rect", &"legend") as Rect2
+		_legend.rail_slot = node.call(&"solved_rect", &"rail") as Rect2
+		_legend.hint_slot = node.call(&"solved_rect", &"lens_hint") as Rect2
+		return
+
+
 func _add_lens(m: int, lens: LcnOverlayLayer) -> void:
 	lens.visible = false
 	_world.add_child(lens)
@@ -314,6 +388,7 @@ func _process(delta: float) -> void:
 	if lens != null:
 		lens.sync(snap, pal, _view, _wpp, t, alt_held, detail)
 		lens.queue_redraw()
+	_pull_slots()
 	_legend.refresh(pal, snap, mode, alt_held, _keys, _zoom_text())
 
 	var us: float = float(_icons.draw_us) + (float(lens.draw_us) if lens != null else 0.0)
