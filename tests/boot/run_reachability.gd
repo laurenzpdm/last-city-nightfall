@@ -296,11 +296,15 @@ func _suite_time_control_survives_a_full_quickbar() -> void:
 			filled += 1
 			if filled >= 10:
 				break
-	# `_ok(true, ...)` stood here. The whole premise of this suite is "with a FULL
-	# quickbar", so an empty one does not make the speed keys safe — it makes the
-	# next four assertions meaningless. Assert the premise.
-	_ok(filled > 0,
-		"quickbar loaded with %d entr(ies) before the speed keys are tried" % filled)
+	# `_ok(true, ...)` stood here, then `filled > 0`, and neither is the premise.
+	# [P18] maps a number key to a slot with `slot = keycode - KEY_1`, so 1, 2 and
+	# 3 address slots 0, 1 and 2 — with two entries loaded, pressing 3 reaches an
+	# EMPTY slot, the quickbar declines it, the speed key works, and this suite
+	# reports that the collision it exists to catch is gone. Three is the smallest
+	# number that puts something under every key the next four checks press.
+	_ok(filled >= 3,
+		"quickbar loaded with %d entr(ies) — enough to put a building under each "
+		% filled + "of the keys 1, 2 and 3 before the speed keys are tried")
 
 	SimClock.start()
 	await _press(KEY_2)

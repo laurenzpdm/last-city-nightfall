@@ -808,7 +808,11 @@ func advance(tick: int) -> void:
 				_agents.erase(id2)
 		return
 
-	if preview != null:
+	# Belt and braces with the refusal in `ensure_preview_settlement`: that one
+	# empties the crowd, this one makes sure an automated run can never walk it
+	# even if something refills it. A screenshot of citizens the simulation does
+	# not have is the same lie as a screenshot of buildings it does not have.
+	if preview != null and preview_allowed():
 		preview.step_agents(tick)
 		for a: Dictionary in preview.agents:
 			set_agent(int(a["id"]), a["kind"], a["pos"])
@@ -828,6 +832,17 @@ func ensure_preview_settlement(core: Vector2i) -> void:
 			+ "plain, which is what the simulation actually contains")
 			% preview_denied_reason())
 		_preview_dropped = true
+		# Setting the flag is not enough. With no grid system at all, `attach()`
+		# has ALREADY built a preview world and generated its structures and its
+		# crowd, as the terrain fallback — so leaving it standing would keep
+		# `showing_preview_settlement()` answering true (the ready line would say
+		# PLACEHOLDERS over an empty frame) and would let `_step_agents` walk a
+		# phantom population into the render model on every tick. The terrain
+		# fallback stays, because without a grid there is no world size without
+		# it; the invented city and the invented people do not.
+		if preview != null:
+			preview.buildings.clear()
+			preview.agents.clear()
 		return
 	if preview == null:
 		preview = LcnPreviewWorld.new(Rng.seed_value, world_size(), core)

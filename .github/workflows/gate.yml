@@ -110,6 +110,17 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+      # check.sh prints its verdict in the middle of a 1000-line job log, so
+      # reading "what is red now" costs a log download and a scroll. Reprint it
+      # here, at the very end, where `tail` finds it.
+      - name: What is red
+        if: always()
+        run: |
+          echo "──────────────── failing / unchecked stages ────────────────"
+          grep -E '^ (FAIL|SKIP)  ' gate.log || echo "(none)"
+          echo "──────────────── verdict ────────────────"
+          grep -E '^CHECK (RED|GREEN)' gate.log || echo "(check.sh printed no verdict — it did not finish)"
+
       - name: Fail if the gate failed
         if: steps.gate.outputs.gate_exit != '0'
         run: |
