@@ -1,5 +1,9 @@
 .godot/
 artifacts/
 /build/
+# [P24]'s Steam export writes the Linux and Windows builds here — 272 MB of
+# binaries that are rebuilt from source by definition. export_presets.cfg is
+# the part worth keeping; its output is not.
+/dist/
 *.import
 __pycache__/
