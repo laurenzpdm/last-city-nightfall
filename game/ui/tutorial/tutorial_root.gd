@@ -40,7 +40,11 @@ extends CanvasLayer
 ## guide that quietly ate a hotkey would be a worse bug than no guide at all.
 
 const GROUP: StringName = &"lcn_tutorial"
-const LAYER: int = 80
+## Read from the table rather than restated as 80. [P24]'s modal stack took 80
+## as well, and at the same layer the winner is sibling order in the tree — the
+## guide strip was being painted over the pause menu. `LcnLayers` now gives the
+## guide 79 of its own, and this reads it so the two can never drift apart.
+const LAYER: int = LcnLayers.TUTORIAL
 
 const MARGIN: float = 26.0
 const PAD: float = 18.0

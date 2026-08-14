@@ -14,6 +14,9 @@ extends RefCounted
 ## ── CANVAS LAYERS ────────────────────────────────────────────────────────────
 ##
 ##   0   WORLD          [P13] terrain, entities, lights (a plain Node2D canvas)
+##                      — and four other parts paint inside it. See the Z LADDER
+##                        below: layer 0 is shared, so the ordering there is by
+##                        `z_index` and it is allocated here like everything else.
 ##   60  POST           [P13] grade, bloom, vignette, grain, cold split
 ##   61  FEEL_SCREEN    [P15] hit flashes, freeze frames, screen impulses
 ##   62  OVERLAY_WORLD  [P19] readability lenses + world badges  ← WORLD SPACE
@@ -22,8 +25,23 @@ extends RefCounted
 ##   74  BUILD_MENU     [P18] palette, recipes, tech, blueprints, laws
 ##   76  STATS          [P20] production graphs, flow history, the night report
 ##   78  NARRATIVE      [P22] the dilemma card — it is answered, so it is on top
-##   80  MODAL          reserved: [P21] tutorial gates, [P24] settings, pause
+##   79  TUTORIAL       [P21] the guide strip — chrome, never a modal
+##   80  MODAL          [P24] title, pause, settings, saves — it stops the world
 ##   90  DEBUG          reserved: profiler HUDs, harness annotations
+##
+## 79 EXISTS BECAUSE TWO PARTS BOTH TOOK 80. The row above used to read
+## "reserved: [P21] tutorial gates, [P24] settings, pause", and both parts read
+## it and obeyed it: `LcnTutorial` and `LcnMetaRoot` came up on layer 80
+## together, and NEITHER had a row in SLOTS — so `enforce()` had nothing to
+## correct, `audit()` called both unclaimed, and boot logged them as layers it
+## did not know about on every launch. Two CanvasLayers with the same `layer`
+## are ordered by the order they reached the viewport's canvas, which here is
+## decided by one installing from `PENDING` and the other from a `.tres` the
+## Registry scans — a tie-break neither part can see, state, or test. A slot two
+## parts share is not an allocation, it is a coincidence that has not bitten yet.
+## The tutorial is chrome the player reads WHILE playing; MODAL is the layer that
+## stops the world, and it is [P24]'s alone. Verified with `tools/layer_probe.gd`
+## against a real display: ten canvas layers, ten rows, no two on one number.
 ##
 ## THE RULE, in one sentence: **anything drawn in world coordinates goes UNDER
 ## the interface, anything drawn in screen coordinates goes OVER the world.**
@@ -33,6 +51,31 @@ extends RefCounted
 ## a lens is a thing painted on the ground, and the ground does not get to cover
 ## the clock. The legend is not a lens: it is chrome, it lives in screen space,
 ## and it belongs on top with the rest of the chrome.
+##
+## ── THE Z LADDER INSIDE LAYER 0 ──────────────────────────────────────────────
+##
+## Five parts draw in world coordinates on the one canvas, and `enforce()` cannot
+## help there: `z_index` is a property of a CanvasItem, not of a CanvasLayer, so
+## nothing audits it. This is the allocation, read off the running build:
+##
+##   -100  terrain quad                    [P13] terrain_renderer
+##    -40  building shadows                [P13] entity_renderer ShadowPass
+##    -20  building glow                   [P13] entity_renderer GlowPass
+##    -18  idle life (smoke, birds)        [P15] idle_life
+##      0  entities, lights, vfx root      [P13] / [P17]
+##      1  belt surfaces                   [D2] item_flow_root Z_BELTS
+##      3  items in flight                 [D2] item_flow_root Z_ITEMS
+##      4  inserters, splitters, tunnels   [D2] item_flow_root Z_MACHINES
+##      5  world juice                     [P15] world_fx
+##      6  hover feedback                  [P15] hover_fx
+##      8  decay                           [P14] vfx_decay
+##     20+ particles, combat, weather      [P14] vfx_*
+##
+## [D2] asked for the rows at 1/3/4 rather than taking a canvas layer of its own,
+## which was the right call: an item on a belt is a thing lying on the ground and
+## a canvas layer above the HUD is not where the ground goes. The gap between the
+## simulation paint (1–4) and the juice (5) is deliberate — juice reads as
+## something happening TO the factory, so it goes over it.
 ##
 ## ── HOTKEYS ──────────────────────────────────────────────────────────────────
 ##
@@ -77,6 +120,7 @@ const OVERLAY_UI: int = 72
 const BUILD_MENU: int = 74
 const STATS: int = 76
 const NARRATIVE: int = 78
+const TUTORIAL: int = 79
 const MODAL: int = 80
 const DEBUG: int = 90
 
@@ -87,8 +131,14 @@ const PENDING: Array[Dictionary] = [
 	{"key": &"stats", "owner": "P20 stats", "hotkey": "G",
 		"script": "res://game/ui/stats/stats_root.gd", "layer": STATS,
 		"why": "production graphs, flow history and the night report"},
-	{"key": &"tutorial", "owner": "P21 tutorial", "hotkey": "F1 help",
-		"script": "res://game/ui/tutorial/tutorial_root.gd", "layer": MODAL,
+	# [P21] HAS LANDED — this row is what installs it, so it stays. Only the
+	# hotkey text was wrong: it advertised "F1 help", and F1 is [P19]'s
+	# readability lens, which `tests/boot/run_reachability.tscn` asserts. The
+	# guide took no key at all; it is mouse-only on real Buttons, like [P22]'s
+	# card. A row in this table that names a key another part owns is exactly
+	# the disagreement this file exists to prevent, even when it is only text.
+	{"key": &"tutorial", "owner": "P21 tutorial", "hotkey": "no key — mouse only",
+		"script": "res://game/ui/tutorial/tutorial_root.gd", "layer": TUTORIAL,
 		"why": "the first twenty minutes"},
 ]
 
@@ -112,6 +162,10 @@ const SLOTS: Array[Dictionary] = [
 		"names": ["LcnStatsRoot", "StatsRoot", "LcnStats"]},
 	{"key": &"narrative", "layer": NARRATIVE, "owner": "P22 narrative",
 		"names": ["LcnNarrativeCard", "NarrativeCard"]},
+	{"key": &"tutorial", "layer": TUTORIAL, "owner": "P21 tutorial",
+		"names": ["LcnTutorial", "LcnTutorialRoot"]},
+	{"key": &"meta", "layer": MODAL, "owner": "P24 meta",
+		"names": ["LcnMetaRoot", "MetaRoot"]},
 ]
 
 # --- hotkeys -----------------------------------------------------------------
