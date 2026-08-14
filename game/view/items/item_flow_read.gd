@@ -57,6 +57,11 @@ var by_cell: Dictionary[Vector2i, int] = {}
 
 var counts: Array[int] = [0, 0, 0, 0]
 var read_us: int = 0
+## World pixels one item on belt tile `i` travels per SECOND, already zeroed on
+## a tile the classifier calls BACKED_UP. Parallel to `belts`, and the reason
+## the item layer can interpolate a thousand items without doing six dictionary
+## lookups each: at a thousand items that arithmetic is the frame.
+var step_of: PackedVector2Array = PackedVector2Array()
 
 var _speed_of: Dictionary[StringName, float] = {}
 var _rate_of: Dictionary[StringName, float] = {}
@@ -111,6 +116,7 @@ func sample(logi: Object, bounds: Rect2i, force: bool = false, want_items: bool 
 func _classify(logi: Object) -> void:
 	by_cell.clear()
 	counts = [0, 0, 0, 0]
+	step_of.resize(belts.size())
 	for i: int in belts.size():
 		var b: Dictionary = belts[i]
 		var cell: Vector2i = LogiTypes.to_cell(b["cell"])
@@ -127,10 +133,13 @@ func _classify(logi: Object) -> void:
 			state = Flow.SATURATED
 		elif fill <= EMPTY_FILL and flow <= 0.35:
 			state = Flow.STARVED
+		var speed: float = _speed(logi, kind)
 		b["fill"] = fill
 		b["flow"] = flow
 		b["state"] = state
-		b["speed"] = _speed(logi, kind)
+		b["speed"] = speed
+		step_of[i] = Vector2.ZERO if state == Flow.BACKED_UP \
+			else Vector2(LogiTypes.dir_vec(int(b["rot"]))) * (speed * LogiTypes.TILE)
 		counts[state] += 1
 
 

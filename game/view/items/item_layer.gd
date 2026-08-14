@@ -101,7 +101,12 @@ func _draw() -> void:
 	# every silhouette is the same four grey pixels, so they all collapse to a
 	# quad — which is where most of the cost of a full factory goes.
 	var on_screen_px: float = r * 2.0 * zoom
-	rimmed = items_drawn <= RIM_BUDGET and on_screen_px >= LcnItemArt.SILHOUETTE_MIN_SCREEN_PX
+	# The rim is kept at every size the items themselves are kept at: below six
+	# pixels the OUTLINE is the only thing separating an item from the belt it
+	# rides, so dropping it there would be dropping the readability and keeping
+	# the cost. With PIP bodies a rim is six more vertices, cheaper than one
+	# full silhouette. It goes only when there are simply too many bodies.
+	rimmed = items_drawn <= RIM_BUDGET
 
 	# Rims first, all of them, so a body is never outlined over its neighbour.
 	if rimmed:
@@ -135,17 +140,28 @@ func _gather() -> void:
 	var step: float = SimClock.DT * alpha
 	var margin: float = TILE
 	var w: int = 0
+	# One dictionary lookup per item, not six: the per-tile travel vector is
+	# precomputed by the sampler and already zero where the belt is jammed.
+	var steps: PackedVector2Array = read.step_of
+	var by_cell: Dictionary[Vector2i, int] = read.by_cell
+	var last_kind: StringName = &""
+	var last_slot: int = -1
 	for it: Dictionary in read.items:
 		var pos: Vector2 = it["pos"]
 		var cell := Vector2i(int(floor(pos.x / TILE)), int(floor(pos.y / TILE)))
-		var bi: int = int(read.by_cell.get(cell, -1))
-		if bi >= 0:
-			var b: Dictionary = read.belts[bi]
-			if int(b["state"]) != LcnItemFlowRead.Flow.BACKED_UP:
-				pos += Vector2(LogiTypes.dir_vec(int(b["rot"]))) * (float(b["speed"]) * TILE * step)
+		var bi: int = int(by_cell.get(cell, -1))
+		if bi >= 0 and bi < steps.size():
+			pos += steps[bi] * step
 		if not on_screen(pos, margin):
 			continue
-		var s: int = _slot_for(StringName(it["kind"]))
+		# Items arrive grouped by segment and lane, so consecutive items are
+		# almost always the same kind. One remembered answer removes the lookup.
+		var kind := StringName(it["kind"])
+		var s: int = last_slot
+		if kind != last_kind or s < 0:
+			s = _slot_for(kind)
+			last_kind = kind
+			last_slot = s
 		_pos[w] = pos
 		_slot[w] = s
 		_counts[s] += 1

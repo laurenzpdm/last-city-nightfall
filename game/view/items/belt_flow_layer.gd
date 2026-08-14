@@ -26,9 +26,12 @@ extends LcnItemDrawLayer
 ## graded down at the exact hour a player needs to read it, and it never muddies
 ## [P13]'s belt art underneath.
 
-## Half-width of the painted band, in world pixels. A belt tile is 32 across;
-## this leaves the slats and the frame visible either side.
-const HALF_W: float = 9.0
+## Half-width of the painted band, in world pixels. A belt tile is 32 across
+## and `LogiTypes.lane_offset` puts a lane 8 px off the centreline, so the band
+## has to reach past 8 or the items ride outside the state they are in — which
+## is what the first frames showed. This covers both lanes and still leaves the
+## frame of [P13]'s belt art visible either side.
+const HALF_W: float = 11.0
 ## The band is allowed to grow this far when the zoom would otherwise take it
 ## under a couple of screen pixels.
 const HALF_W_MAX: float = 15.0

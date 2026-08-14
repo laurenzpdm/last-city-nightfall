@@ -23,6 +23,15 @@ extends Node
 ## the noise control is measured every run rather than assumed, so weather and
 ## the light rig cannot fake a pass either.
 ##
+## HEADLESS. `get_viewport().get_texture().get_image()` has nothing in it
+## without a display, so the two pixel proofs cannot be asked. They are then
+## counted UNCHECKED and the verdict is downgraded to `TESTS PASSED, PARTIAL`
+## with exit 126 — the contract `tests/boot/run_reachability.gd` established and
+## `tools/check.sh` reads, because a suite that quietly drops its central
+## assertion and prints PASSED is this project's oldest failure mode.
+##
+## REQUIRES: --force-ui
+##
 ## The factory below is built to produce all four flow states ON PURPOSE —
 ## a jammed dead end, a compressed line delivering into a crate, a trickle and
 ## an empty run — because "a saturated belt and a backed-up belt must look
@@ -56,6 +65,8 @@ var _logi: Object = null
 var _lines: Dictionary[String, Array] = {}
 var _states_seen: Dictionary[int, bool] = {}
 var _perf: Dictionary = {}
+var _unchecked: PackedStringArray = PackedStringArray()
+var _stress_mid_row: int = -1
 
 
 func _ready() -> void:
@@ -211,47 +222,47 @@ func _beat_states() -> void:
 
 
 ## THE CENTRAL ASSERTION. Real pixels, measured against a real noise floor.
+##
+## The comparison is over the FACTORY REGION of the frame — the screen rectangle
+## the belts actually occupy — and it is done twice: once between two identical
+## frames to establish what the renderer does on its own (weather, lights, the
+## grain pass), and once with the surface under test hidden. Only real drawn
+## pixels can separate the two. Delete the body of `LcnItemLayer._draw()` and
+## the signal falls to the noise floor and this goes red.
 func _beat_items_are_really_drawn() -> void:
 	_look_at_factory(0.95)
 	await _render(3)
 	var drawn: int = _root.items.items_drawn
 	_check(drawn > 0, "the item surface drew bodies this frame (%d)" % drawn)
 	if _headless:
-		# get_image() on a headless viewport returns nothing to compare.
-		_check(true, "pixel proof skipped: no display (assertions above still ran)")
+		_skip("the item pixel proof needs a display — no frame to compare")
 		return
-	var rects: Array[Rect2i] = _belt_rects()
-	var a: Image = await _capture()
-	var b: Image = await _capture()
-	var noise: int = _diff(a, b, rects)
-	_root.items.visible = false
-	var c: Image = await _capture()
-	_root.items.visible = true
-	var signal_px: int = _diff(b, c, rects)
-	print("  pixels: %d changed when the items were hidden, against a %d noise floor" % [
-		signal_px, noise])
-	_check(signal_px > maxi(60, noise * 4),
-		"hiding the items changes the frame far beyond the frame's own noise (%d vs %d)" % [
-			signal_px, noise])
-	_perf["item_pixels"] = signal_px
-	_perf["frame_noise"] = noise
+	var region: Rect2i = _factory_region()
+	_check(region.size.x > 8 and region.size.y > 8,
+		"the factory is on screen to be photographed (%s)" % str(region))
+	var res: Dictionary = await _hide_and_compare(_root.items, region)
+	print("  items: %d px changed when hidden, against a %d px noise floor (mean %.3f vs %.3f), bbox %s" % [
+		int(res["px"]), int(res["noise_px"]), float(res["signal"]), float(res["noise"]),
+		str(res["bbox"])])
+	_check(_beats_noise(res),
+		"hiding the items changes the frame far beyond its own noise (%d px vs %d)" % [
+			int(res["px"]), int(res["noise_px"])])
+	_perf["item_pixels"] = int(res["px"])
+	_perf["item_noise_pixels"] = int(res["noise_px"])
 
 
 func _beat_belts_are_really_drawn() -> void:
 	if _headless:
+		_skip("the belt-state pixel proof needs a display — no frame to compare")
 		return
-	var rects: Array[Rect2i] = _belt_rects()
-	var a: Image = await _capture()
-	var b: Image = await _capture()
-	var noise: int = _diff(a, b, rects)
-	_root.belts.visible = false
-	var c: Image = await _capture()
-	_root.belts.visible = true
-	var signal_px: int = _diff(b, c, rects)
-	_check(signal_px > maxi(60, noise * 4),
-		"hiding the belt-state paint changes the frame beyond its noise (%d vs %d)" % [
-			signal_px, noise])
-	_perf["belt_pixels"] = signal_px
+	var region: Rect2i = _factory_region()
+	var res: Dictionary = await _hide_and_compare(_root.belts, region)
+	print("  belt state: %d px changed when hidden, against a %d px noise floor (mean %.3f vs %.3f)" % [
+		int(res["px"]), int(res["noise_px"]), float(res["signal"]), float(res["noise"])])
+	_check(_beats_noise(res),
+		"hiding the belt-state paint changes the frame beyond its noise (%d px vs %d)" % [
+			int(res["px"]), int(res["noise_px"])])
+	_perf["belt_pixels"] = int(res["px"])
 
 
 ## An arm that never leaves its parked angle is not swinging.
@@ -326,7 +337,10 @@ func _beat_zoom() -> void:
 ## The number the mandate asks for: what it costs to draw a full factory.
 func _beat_perf() -> void:
 	var built: int = _build_stress()
-	_look_at_factory(0.62)
+	# Aimed AT the stress, with no lift: `items_for_view()` is culled to the
+	# visible rect, so measuring the draw cost of a factory half of which is off
+	# screen would be measuring the culling.
+	_look_at_factory(0.55, _stress_mid_row, 0.0)
 	await _render(6)
 	var items_in_flight: int = _root.read.items.size()
 	var draw_total: int = 0
@@ -362,6 +376,7 @@ func _beat_perf() -> void:
 ## Packs belts until there are well over a thousand items on them.
 func _build_stress() -> int:
 	var y: int = ORIGIN.y + 14
+	_stress_mid_row = -1
 	var laid: int = 0
 	var rows: Array[int] = []
 	for _i: int in STRESS_LINES:
@@ -374,6 +389,8 @@ func _build_stress() -> int:
 		rows.append(row)
 		laid += STRESS_LEN
 		y = row + 2
+	if not rows.is_empty():
+		_stress_mid_row = rows[rows.size() / 2]
 	SimClock.advance(2)
 	# Every tile of every line, several times: a dead-ended run packs solid.
 	var kinds: Array[StringName] = [&"copper_ore", &"iron_plate", &"coal", &"gear", &"ammo_shell"]
@@ -390,54 +407,117 @@ func _build_stress() -> int:
 
 # ------------------------------------------------------------------ helpers --
 
-func _look_at_factory(zoom_level: float) -> void:
+func _look_at_factory(zoom_level: float, row_override: int = -1, lift_frac: float = 0.30) -> void:
 	if _camera == null:
 		return
 	var rows: Array = _lines.values()
 	var mid_y: float = float(ORIGIN.y + 6)
 	if not rows.is_empty():
 		mid_y = float(int(rows[rows.size() / 2][0]))
+	if row_override >= 0:
+		mid_y = float(row_override)
 	var centre := Vector2(float(ORIGIN.x + LINE_LEN / 2) * 32.0 + 16.0, mid_y * 32.0 + 16.0)
 	_camera.set_zoom_level(zoom_level, false)
-	_camera.focus_on(centre, true)
+	# Aimed ABOVE the factory on purpose, so the belts sit in the lower half of
+	# the frame. [P22]'s day-one chapter card opens on every session, is centred,
+	# and is on canvas layer 78 — it covered the whole factory in the first run
+	# of this suite and took the pixel comparison to zero, which is a true
+	# measurement of a photograph of a dialogue box.
+	var lift: float = get_viewport().get_visible_rect().size.y * lift_frac / maxf(zoom_level, 0.01)
+	_camera.focus_on(centre - Vector2(0.0, lift), true)
 
 
-## Screen rectangles of every belt tile this suite laid. The pixel comparison
-## looks only here, so weather over the rest of the map cannot drown the signal.
-func _belt_rects() -> Array[Rect2i]:
-	var out: Array[Rect2i] = []
-	var xf: Transform2D = get_viewport().get_canvas_transform()
+## Screen rectangle the belts this suite laid occupy, grown a little. Looking
+## only here keeps weather over the rest of the map out of the measurement.
+func _factory_region() -> Rect2i:
+	var xf: Transform2D = get_viewport().get_final_transform() * get_viewport().get_canvas_transform()
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
 	for b: Dictionary in _root.read.belts:
 		var cell: Vector2i = b["cell_v"]
-		var a: Vector2 = xf * (Vector2(cell) * 32.0)
-		var c: Vector2 = xf * (Vector2(cell + Vector2i.ONE) * 32.0)
-		var r := Rect2i(Vector2i(a.floor()), Vector2i((c - a).ceil()))
-		if r.size.x > 0 and r.size.y > 0:
-			out.append(r)
+		for corner: Vector2i in [cell, cell + Vector2i.ONE]:
+			var p: Vector2 = xf * (Vector2(corner) * 32.0)
+			lo = lo.min(p)
+			hi = hi.max(p)
+	if lo.x > hi.x:
+		return Rect2i()
+	var full := Rect2i(Vector2i.ZERO, get_viewport().get_texture().get_size())
+	return Rect2i(Vector2i(lo.floor()) - Vector2i(6, 6),
+		Vector2i((hi - lo).ceil()) + Vector2i(12, 12)).intersection(full)
+
+
+## Renders the region three times — twice unchanged, once with `surface` hidden
+## — and reports the difference each way, in the same units, so the comparison
+## is against what this renderer does on its own rather than against zero.
+## [P13]'s post stack animates a grain pass every frame, so "two identical
+## frames" is NOT two identical images and a test that assumed it was would be
+## asserting against a floor of zero that does not exist.
+## {noise, signal, px, noise_px, bbox}.
+func _hide_and_compare(surface: CanvasItem, region: Rect2i) -> Dictionary:
+	var a: Image = await _capture(region)
+	var b: Image = await _capture(region)
+	var noise: float = _metric(a, b)
+	var noise_counted: Dictionary = _count_changed(a, b)
+	surface.visible = false
+	var c: Image = await _capture(region)
+	surface.visible = true
+	var counted: Dictionary = _count_changed(b, c)
+	return {"noise": noise, "signal": _metric(b, c), "px": counted["px"],
+		"noise_px": noise_counted["px"], "bbox": counted["bbox"]}
+
+
+## Both measures have to clear the floor by a wide margin. With the surface's
+## draw removed the two comparisons are the same comparison and every ratio
+## falls to 1.0, so 2x on the pixel count AND 2.5x on the mean is a gap nothing
+## but drawn pixels can open. The multipliers are not tighter than that because
+## [P13]'s grain pass re-rolls every frame and its own floor moved between 3332
+## and 6196 px on identical frames — a threshold under the measured spread of
+## the noise is a test that flaps, and a test that flaps gets ignored.
+func _beats_noise(res: Dictionary) -> bool:
+	return int(res["px"]) > maxi(400, int(res["noise_px"]) * 2) \
+		and float(res["signal"]) > float(res["noise"]) * 2.5
+
+
+## Mean per-pixel difference, computed in the engine rather than in GDScript.
+func _metric(a: Image, b: Image) -> float:
+	if a == null or b == null or a.get_size() != b.get_size():
+		return 0.0
+	var m: Dictionary = a.compute_image_metrics(b, false)
+	return float(m.get("mean", 0.0))
+
+
+## How many pixels changed, and where. Coarse (every second pixel) so a
+## megapixel comparison stays a fraction of a frame.
+func _count_changed(a: Image, b: Image) -> Dictionary:
+	var out: Dictionary = {"px": 0, "bbox": Rect2i()}
+	if a == null or b == null or a.get_size() != b.get_size():
+		return out
+	var n: int = 0
+	var lo := Vector2i(1 << 30, 1 << 30)
+	var hi := Vector2i(-1, -1)
+	var size: Vector2i = a.get_size()
+	for y: int in range(0, size.y, 2):
+		for x: int in range(0, size.x, 2):
+			var ca: Color = a.get_pixel(x, y)
+			var cb: Color = b.get_pixel(x, y)
+			if absf(ca.r - cb.r) + absf(ca.g - cb.g) + absf(ca.b - cb.b) > 0.06:
+				n += 1
+				lo = lo.min(Vector2i(x, y))
+				hi = hi.max(Vector2i(x, y))
+	out["px"] = n * 4   # every second pixel in each axis
+	if hi.x >= 0:
+		out["bbox"] = Rect2i(lo, hi - lo)
 	return out
 
 
-func _capture() -> Image:
+## One rendered frame, optionally cropped to a region.
+func _capture(region: Rect2i = Rect2i()) -> Image:
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
-	return get_viewport().get_texture().get_image()
-
-
-## Pixels differing by more than a threshold, inside the given rectangles only.
-func _diff(a: Image, b: Image, rects: Array[Rect2i]) -> int:
-	if a == null or b == null or a.get_size() != b.get_size():
-		return 0
-	var bounds := Rect2i(Vector2i.ZERO, a.get_size())
-	var n: int = 0
-	for r: Rect2i in rects:
-		var clipped: Rect2i = r.intersection(bounds)
-		for y: int in range(clipped.position.y, clipped.end.y):
-			for x: int in range(clipped.position.x, clipped.end.x):
-				var ca: Color = a.get_pixel(x, y)
-				var cb: Color = b.get_pixel(x, y)
-				if absf(ca.r - cb.r) + absf(ca.g - cb.g) + absf(ca.b - cb.b) > 0.09:
-					n += 1
-	return n
+	var img: Image = get_viewport().get_texture().get_image()
+	if img != null and region.size.x > 0 and region.size.y > 0:
+		return img.get_region(region)
+	return img
 
 
 func _near_color(a: Color, b: Color, tol: float) -> bool:
@@ -469,6 +549,12 @@ func _check(ok: bool, what: String) -> void:
 	print("  ✗ %s" % what)
 
 
+## A question this configuration could not ask. Never counted as an answer.
+func _skip(what: String) -> void:
+	_unchecked.append(what)
+	print("  UNCHECKED %s" % what)
+
+
 func _fail(what: String) -> void:
 	_checks += 1
 	_failures.append(what)
@@ -485,9 +571,12 @@ func _finish() -> void:
 	if not _headless:
 		print("  %d shot(s) in %s" % [_shots, OUT_DIR])
 	if _failures.is_empty():
-		print(" belt gallery  %d checks passed" % _checks)
-		print("TESTS PASSED")
-		get_tree().quit(0)
+		for u: String in _unchecked:
+			print("  UNCHECKED %s" % u)
+		var partial: String = "" if _unchecked.is_empty() else ", PARTIAL"
+		print(" belt gallery  %d checks passed, %d unchecked" % [_checks, _unchecked.size()])
+		print("TESTS PASSED%s" % partial)
+		get_tree().quit(0 if _unchecked.is_empty() else 126)
 		return
 	for f: String in _failures:
 		print("  FAILED: %s" % f)
