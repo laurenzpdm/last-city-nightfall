@@ -107,6 +107,15 @@ func _setup() -> void:
 		# the ground refuses some placements, and a camera pointed at empty snow
 		# makes every view-culled layer correctly draw nothing.
 		cam2.focus_on(_city_centre(), true)
+		print("  DBG core=%s map=%s centre=%s campos=%s bounds=%s vis=%s zoom=%.2f" % [
+			_core(), (Sim.get_system(&"grid").call("map_size") as Vector2i), _city_centre(),
+			cam2.global_position, cam2.world_bounds(), cam2.visible_world_rect(),
+			cam2.zoom_level()])
+		var rr: WorldRenderer = get_tree().get_first_node_in_group(WorldRenderer.GROUP)
+		if rr != null:
+			var bb: Array[Dictionary] = rr.world_model().buildings()
+			print("  DBG buildings=%d first=%s renderer_view=%s" % [
+				bb.size(), (bb[0] if not bb.is_empty() else {}), rr.view_rect()])
 
 
 ## A dense city, so the idle-life layer has far more candidates than its cap and

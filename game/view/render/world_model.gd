@@ -590,6 +590,7 @@ func add_building(id: int, kind: StringName, cell: Vector2i) -> void:
 	var scale: float = 1.0
 	var industrial: bool = arch in [
 		&"foundry", &"heat_plant", &"generator", &"hearth", &"mine", &"drill", &"workshop",
+		&"assembler",
 	]
 	# Heat output is the honest source of warmth. Buildings that make none still
 	# show a little window light if their archetype is a place people live.
