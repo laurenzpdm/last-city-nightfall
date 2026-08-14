@@ -84,7 +84,11 @@
         },
         "build.rejected_total": {
           "final_max": 0,
-          "why": "tools/gen_scenarios.py refuses to emit a placement that would be refused at runtime, so a rejection here means the generator and the build system disagree about what fits."
+          "why": "tools/gen_scenarios.py refuses to emit a placement that would be refused at runtime, so a rejection here means the generator and the build system disagree about what fits. Since 2026-08-14 this counter is GENUINE command rejections only \u2014 BuildSystem._reject() books a cell declined inside a line drag, an area fill or a blueprint stamp to build.sweep_skipped_total instead, because a sweep is defined to run through what already stands. Zero is therefore a threshold that can actually hold."
+        },
+        "build.sweep_skipped_total": {
+          "final_max": 30,
+          "why": "The other half of the split. A sweep skipping cells is normal and this scenario places no lines at all today (0), so this is not the teeth \u2014 build.rejected_total is. It is a runaway ceiling: a generator that started drawing every trunk through the finished city would show up here instead of hiding inside a metric nobody prints."
         },
         "heat.networks": {
           "max": 2,
@@ -127,7 +131,11 @@
         },
         "build.rejected_total": {
           "final_max": 0,
-          "why": "Every placement in this scenario was generated against the real footprints; a rejection is a contract break between the generator and [P11]."
+          "why": "Every single-cell placement in this scenario was generated against the real footprints; a rejection is a contract break between the generator and [P11]. This band read 13 and failed for a year of runs because it also counted the cells a heat trunk deliberately overdraws \u2014 tools/gen_scenarios.py's Layout.line() runs THROUGH what already stands and says so in its own comment. Those now land in build.sweep_skipped_total, so a zero here is a claim the build can hold and a 1 here is a real authoring mistake."
+        },
+        "build.sweep_skipped_total": {
+          "final_max": 60,
+          "why": "The deliberate overdraw, counted where it can be read. 13 in the reference run: the heat trunks crossing structures that were already up. A loose runaway ceiling, NOT the teeth \u2014 the teeth is build.rejected_total at 0. If this ever reaches 60 the generator has started drawing lines across the whole city and the scenario is no longer placing what it says it places."
         },
         "heat.networks": {
           "final_max": 3,
