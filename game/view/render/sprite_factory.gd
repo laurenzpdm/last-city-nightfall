@@ -346,7 +346,19 @@ func _mass(c: LcnVectorCanvas, r: Rect2, h: float, top: Color, ft: Color, fb: Co
 	]), Color(0, 0, 0, 0.0), Color(0, 0, 0, 0.26), Vector2(r.end.x - r.size.x * 0.26, 0.0), Vector2(r.end.x, 0.0))
 
 	var top_rect := Rect2(r.position.x, r.position.y - h, r.size.x, r.size.y)
-	c.fill_rect_gradient(top_rect, top, top.darkened(0.22))
+	# A ROOF, not a filled rectangle. Top-down, the roof plane is most of what the
+	# player sees of a structure, so a flat gradient there means every industrial
+	# block in the frame is the same grey slab — which is exactly what the frames
+	# showed. Three cheap things fix it: the far edge falls away, the near eave
+	# catches the light, and the whole plate is bevelled in from the silhouette.
+	c.fill_rect_gradient(top_rect, top.lightened(0.10), top.darkened(0.34))
+	c.fill_rect_gradient(
+		Rect2(top_rect.position.x, top_rect.position.y, top_rect.size.x, top_rect.size.y * 0.30),
+		Color(0, 0, 0, 0.30), Color(0, 0, 0, 0.0))
+	c.fill_rect_gradient(
+		Rect2(top_rect.position.x, top_rect.end.y - top_rect.size.y * 0.22,
+			top_rect.size.x, top_rect.size.y * 0.22),
+		Color(1, 1, 1, 0.0), Color(1, 1, 1, 0.13))
 	# Panel seams and a ridge beam. A roof is most of what a top-down camera sees
 	# of a building, and an unbroken filled rectangle up there is what made every
 	# industrial block read as the same grey slab at far zoom.
@@ -389,8 +401,15 @@ static func _blob(centre: Vector2, rx: float, ry: float, seed_value: int, wobble
 func _snow_roof(c: LcnVectorCanvas, r: Rect2, h: float, coverage: float, seed_value: int,
 		roof_col: Color = Color(0.184, 0.224, 0.298)) -> void:
 	var top_rect := Rect2(r.position.x, r.position.y - h, r.size.x, r.size.y)
+	# THE GROUND SNOW RAMP, not the interface ramp. A 5x5 roof filled from
+	# SNOW_MID to SNOW_LIT is a 160 px near-white card, and next to a plain that
+	# has been brought down to a polar blue-grey it is the single brightest thing
+	# in a midday frame — which is precisely what a critic saw and called washed
+	# out. Snow on a roof is the same material as the snow beside it and has to be
+	# painted out of the same tin.
 	c.fill_rect_gradient(top_rect,
-		LcnPalette.SNOW_MID.darkened(0.30), LcnPalette.SNOW_LIT)
+		LcnPalette.GROUND_SNOW_SHADOW.lerp(LcnPalette.GROUND_SNOW_MID, 0.18),
+		LcnPalette.GROUND_SNOW_MID.lerp(LcnPalette.GROUND_SNOW_LIT, 0.30))
 	# A drift banked against the windward edge. Without it the roof is a flat
 	# gradient and every roofed building in the frame is the same rectangle.
 	var bank: float = top_rect.size.x * 0.30
@@ -399,28 +418,48 @@ func _snow_roof(c: LcnVectorCanvas, r: Rect2, h: float, coverage: float, seed_va
 		Vector2(top_rect.position.x + bank, top_rect.position.y),
 		Vector2(top_rect.position.x + bank * 0.45, top_rect.end.y),
 		Vector2(top_rect.position.x, top_rect.end.y),
-	]), Color(1.0, 1.0, 1.0, 0.34))
+	]), Color(LcnPalette.GROUND_SNOW_LIT.r, LcnPalette.GROUND_SNOW_LIT.g,
+		LcnPalette.GROUND_SNOW_LIT.b, 0.80))
 	c.fill_polygon(PackedVector2Array([
 		Vector2(top_rect.end.x - bank * 0.5, top_rect.position.y),
 		Vector2(top_rect.end.x, top_rect.position.y),
 		Vector2(top_rect.end.x, top_rect.end.y),
 		Vector2(top_rect.end.x - bank * 0.22, top_rect.end.y),
-	]), Color(0.42, 0.49, 0.60, 0.28))
+	]), Color(LcnPalette.GROUND_SNOW_SHADOW.r, LcnPalette.GROUND_SNOW_SHADOW.g,
+		LcnPalette.GROUND_SNOW_SHADOW.b, 0.62))
 
-	# Wind-scoured patches where the roof shows through.
-	var bare: int = clampi(int((1.0 - coverage) * 7.0), 1, 5)
+	# Wind-scoured PANELS, not blobs. A roof is built out of plates on ribs, and
+	# the wind strips whole plates; scattering soft ellipses of roof colour across
+	# a white field instead produced grey clouds sitting on a white card, which is
+	# what the second pass shipped and what a critic read as fog on a slab. Every
+	# bare patch is now a rectangle on the panel pitch with a snow lip banked
+	# against its upwind rib, so the building visibly has a STRUCTURE under the
+	# snow — and that is what makes it read as steel rather than as a stain.
+	var panels: int = clampi(int(top_rect.size.x / 14.0), 2, 8)
+	var pw: float = top_rect.size.x / float(panels)
+	var bare: int = clampi(int((1.0 - coverage) * float(panels) * 1.2), 1, panels)
 	for i: int in bare:
-		var fx: float = LcnNoise.hash3(i, seed_value, 3)
-		var fy: float = LcnNoise.hash3(i, seed_value, 11)
-		var centre := Vector2(
-			lerpf(top_rect.position.x + 3.0, top_rect.end.x - 3.0, fx),
-			lerpf(top_rect.position.y + 3.0, top_rect.end.y - 3.0, fy))
-		var rx: float = top_rect.size.x * lerpf(0.10, 0.26, LcnNoise.hash3(i, seed_value, 19))
-		var ry: float = top_rect.size.y * lerpf(0.10, 0.24, LcnNoise.hash3(i, seed_value, 23))
-		c.fill_polygon(_blob(centre, rx, ry, seed_value * 7 + i, 0.42),
-			Color(roof_col.r, roof_col.g, roof_col.b, 0.88))
-		c.fill_polygon(_blob(centre + Vector2(0.0, -1.4), rx * 0.94, ry * 0.9, seed_value * 7 + i, 0.42),
-			Color(0.70, 0.77, 0.87, 0.28))
+		var col_i: int = int(LcnNoise.hash3(i, seed_value, 3) * float(panels)) % panels
+		var y0f: float = LcnNoise.hash3(i, seed_value, 11)
+		var hf: float = lerpf(0.34, 0.86, LcnNoise.hash3(i, seed_value, 19))
+		var px: float = top_rect.position.x + pw * float(col_i) + 1.0
+		var py: float = lerpf(top_rect.position.y + 1.0,
+			top_rect.end.y - top_rect.size.y * hf - 1.0, y0f)
+		var plate := Rect2(px, py, pw - 2.0, top_rect.size.y * hf)
+		c.fill_rect_gradient(plate,
+			Color(roof_col.r * 1.06, roof_col.g * 1.06, roof_col.b * 1.10),
+			Color(roof_col.r * 0.66, roof_col.g * 0.66, roof_col.b * 0.74))
+		# The lip of the drift banked against the plate's upwind rib. Snow stands
+		# up where the wind lifted off the plate, so a bare panel has a raised
+		# edge and reads as a hole in a layer, not as paint on one.
+		c.fill_polygon(PackedVector2Array([
+			Vector2(plate.position.x - 1.4, plate.position.y - 1.6),
+			Vector2(plate.end.x + 1.4, plate.position.y - 1.6),
+			Vector2(plate.end.x + 0.4, plate.position.y + 1.6),
+			Vector2(plate.position.x - 0.4, plate.position.y + 1.6),
+		]), Color(LcnPalette.GROUND_SNOW_LIT.r, LcnPalette.GROUND_SNOW_LIT.g,
+			LcnPalette.GROUND_SNOW_LIT.b, 0.80))
+		c.stroke_rect(plate, Color(SEAM.r, SEAM.g, SEAM.b, 0.75), 1.1)
 
 	# Drift streaks running with the prevailing wind.
 	for i: int in 4:
@@ -430,7 +469,8 @@ func _snow_roof(c: LcnVectorCanvas, r: Rect2, h: float, coverage: float, seed_va
 			Vector2(top_rect.position.x + 1.0, y),
 			Vector2(top_rect.position.x + top_rect.size.x * 0.5, y - 1.4),
 			Vector2(top_rect.end.x - 1.0, y + 0.6),
-		]), Color(1.0, 1.0, 1.0, 0.30), 1.3)
+		]), Color(LcnPalette.GROUND_SNOW_LIT.r, LcnPalette.GROUND_SNOW_LIT.g,
+			LcnPalette.GROUND_SNOW_LIT.b, 0.55), 1.3)
 	c.stroke_polyline(PackedVector2Array([
 		top_rect.position, Vector2(top_rect.end.x, top_rect.position.y),
 	]), Color(0.44, 0.51, 0.62, 0.55), 2.0)
@@ -441,7 +481,8 @@ func _snow_roof(c: LcnVectorCanvas, r: Rect2, h: float, coverage: float, seed_va
 		Vector2(r.end.x + 1.2, lip_y - 2.6),
 		Vector2(r.end.x + 1.2, lip_y + 1.4),
 		Vector2(r.position.x - 1.2, lip_y + 1.4),
-	]), Color(LcnPalette.SNOW.r, LcnPalette.SNOW.g, LcnPalette.SNOW.b, 0.88))
+	]), Color(LcnPalette.GROUND_SNOW_LIT.r, LcnPalette.GROUND_SNOW_LIT.g,
+		LcnPalette.GROUND_SNOW_LIT.b, 0.94))
 	var drips: int = maxi(2, int(r.size.x / 11.0))
 	for i: int in drips:
 		var f: float = (float(i) + 0.5) / float(drips)
@@ -451,7 +492,8 @@ func _snow_roof(c: LcnVectorCanvas, r: Rect2, h: float, coverage: float, seed_va
 			Vector2(x - 1.7, lip_y + 1.0),
 			Vector2(x + 1.7, lip_y + 1.0),
 			Vector2(x, lip_y + 1.0 + len_px),
-		]), Color(0.86, 0.91, 0.97, 0.80))
+		]), Color(LcnPalette.GROUND_SNOW_MID.r, LcnPalette.GROUND_SNOW_MID.g,
+			LcnPalette.GROUND_SNOW_MID.b, 0.85))
 
 
 ## A grid of lit windows on a front face, with their bloom pre-baked.
@@ -1899,6 +1941,45 @@ static func sprite_key(arch: StringName, tiles: Vector2i) -> StringName:
 	return StringName("bld_%s_%dx%d" % [arch, tiles.x, tiles.y])
 
 
+## Atlas region key for a building's EMISSIVE mask — the windows, grilles and
+## firelight cut out of the baked sprite. Drawn additively after dark.
+static func emissive_key(arch: StringName, tiles: Vector2i) -> StringName:
+	return StringName("em_%s_%dx%d" % [arch, tiles.x, tiles.y])
+
+
+## The lit parts of a sprite, extracted from the sprite itself.
+##
+## Every archetype already paints its own fire: a window, a grille, an open door,
+## a crucible. Those pixels are the only decisively WARM ones in an otherwise
+## blue-grey sheet, so they can be separated by hue instead of by hand — which
+## means a new archetype gets night lighting for free the moment it is drawn,
+## and no draw function has to be rewritten to declare where its light is.
+##
+## Alpha is how emissive the pixel is; the colour is kept so a window stays amber
+## and a forge stays red-hot instead of every light in the city being one tint.
+static func _extract_emissive(src: Image) -> Image:
+	var w: int = src.get_width()
+	var h: int = src.get_height()
+	var out: Image = Image.create(w, h, false, Image.FORMAT_RGBA8)
+	out.fill(Color(0, 0, 0, 0))
+	for y: int in h:
+		for x: int in w:
+			var c: Color = src.get_pixel(x, y)
+			if c.a < 0.35:
+				continue
+			var warmth: float = c.r - c.b
+			if warmth <= 0.055 or c.r < 0.30:
+				continue
+			var e: float = clampf((warmth - 0.055) * 3.4, 0.0, 1.0) \
+				* clampf(c.r * 1.25, 0.0, 1.0)
+			if e < 0.02:
+				continue
+			out.set_pixel(x, y, Color(
+				minf(c.r * 1.15, 1.0), minf(c.g * 1.05, 1.0), minf(c.b * 0.9, 1.0),
+				e * c.a))
+	return out
+
+
 ## Atlas region key for an agent sprite.
 static func agent_key(kind: StringName) -> StringName:
 	return StringName("agent_%s" % kind)
@@ -1920,8 +2001,11 @@ func atlas(extra_buildings: Array = []) -> Dictionary:
 	var entries: Array[Dictionary] = []
 	for arch: StringName in archetypes():
 		var s: Dictionary = building(arch)
-		entries.append({"key": sprite_key(arch, s["tiles"]),
-			"img": (s["texture"] as ImageTexture).get_image()})
+		var im: Image = (s["texture"] as ImageTexture).get_image()
+		entries.append({"key": sprite_key(arch, s["tiles"]), "img": im})
+		var em: Image = _emissive_for(sprite_key(arch, s["tiles"]), im)
+		if em != null:
+			entries.append({"key": emissive_key(arch, s["tiles"]), "img": em})
 	for req: Variant in extra_buildings:
 		var pair: Array = req
 		var arch2: StringName = pair[0]
@@ -1935,7 +2019,11 @@ func atlas(extra_buildings: Array = []) -> Dictionary:
 		if known:
 			continue
 		var s2: Dictionary = building(arch2, t)
-		entries.append({"key": key2, "img": (s2["texture"] as ImageTexture).get_image()})
+		var im2: Image = (s2["texture"] as ImageTexture).get_image()
+		entries.append({"key": key2, "img": im2})
+		var em2: Image = _emissive_for(key2, im2)
+		if em2 != null:
+			entries.append({"key": emissive_key(arch2, t), "img": em2})
 	for kind: StringName in AGENT_KINDS:
 		var a: Dictionary = agent(kind)
 		entries.append({"key": agent_key(kind), "img": (a["texture"] as ImageTexture).get_image()})
@@ -1949,6 +2037,20 @@ func atlas(extra_buildings: Array = []) -> Dictionary:
 	for e2: Dictionary in entries:
 		_atlas_keys[e2["key"]] = true
 	return _atlas
+
+
+## Cached because extracting a mask is a per-pixel walk over a sprite and the
+## atlas is rebuilt every time a footprint the packer has never seen is placed.
+func _emissive_for(key: StringName, src: Image) -> Image:
+	var img: Image = LcnArtCache.get_image("em_%s" % key,
+		func() -> Image: return _extract_emissive(src))
+	# A structure with no lit surface at all (a wall, a belt) has nothing to add
+	# to the night pass and should not take a slot in the sheet.
+	var data: PackedByteArray = img.get_data()
+	for i: int in range(3, data.size(), 4):
+		if data[i] > 6:
+			return img
+	return null
 
 
 func _atlas_covers(extra_buildings: Array) -> bool:

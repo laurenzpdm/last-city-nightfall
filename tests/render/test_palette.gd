@@ -62,20 +62,43 @@ func test_night_canvas_tint_is_a_cast_not_a_blackout() -> void:
 		assert_gt(sky.b, sky.r, "and it is still cold at %.2f" % t)
 
 
-## DEFECT: unlit buildings vanished at night. The bounce term is the legibility
-## floor, and it has to exist over the city and NOT over the wilderness.
-func test_night_has_a_legibility_floor_only_over_the_city() -> void:
+## THE NIGHT READOUT. Third pass, and this test now asserts the opposite of what
+## it used to.
+##
+## It used to demand that `light_at(night, city = 1.0, warm = 0.0)` came back
+## bright: a legibility floor bought by PRESENCE, so any disc of ground with
+## buildings on it got a blue lift whether or not anything in it was burning.
+## That is what shipped, and the consequence is visible in the deep-night frames
+## from that build: not one warm pixel anywhere, a settlement of 362 structures
+## uniformly blue, and a Hearth at full output indistinguishable from a frozen
+## shed. In a game whose whole subject is heat in the dark, the renderer was
+## handing out light for free.
+##
+## The floor is now bought by WARMTH. A building that is running is legible; one
+## that has frozen goes out; the plain beyond both is darker still. The ground
+## shader (terrain.gdshader) and LcnEntityRenderer._light_for evaluate the same
+## expression, so all three agree.
+func test_night_light_is_bought_by_warmth_not_by_presence() -> void:
 	var night: Dictionary = LcnPalette.grade_at(0.0)
-	assert_gt(float(night["bounce"]), 0.6, "deep night carries a strong city bounce")
+	assert_gt(float(night["bounce"]), 0.6, "deep night carries a strong warm bounce")
 	assert_gt(float(night["wild"]), 0.4, "and darkens the wilderness")
+	var bc: Color = night["bounce_col"]
+	assert_gt(bc.r, bc.b, "and that bounce is FIRELIGHT, not a blue lift over the rooftops")
 
-	var in_city: Color = LcnPalette.light_at(night, 1.0, 0.0)
-	var out_there: Color = LcnPalette.light_at(night, 0.0, 0.0)
-	var lum_city: float = in_city.r + in_city.g + in_city.b
-	var lum_wild: float = out_there.r + out_there.g + out_there.b
-	assert_gt(lum_city, lum_wild * 2.0, "the city is at least twice as lit as the plain beyond it")
-	assert_gt(lum_city, 0.6, "and a building inside it is never black")
-	assert_lt(lum_wild, lum_city * 0.6, "while the plain genuinely goes dark")
+	var burning: Color = LcnPalette.light_at(night, 1.0, 0.9)
+	var frozen: Color = LcnPalette.light_at(night, 1.0, 0.0)
+	var wild: Color = LcnPalette.light_at(night, 0.0, 0.0)
+	var lum_burn: float = burning.r + burning.g + burning.b
+	var lum_frozen: float = frozen.r + frozen.g + frozen.b
+	var lum_wild: float = wild.r + wild.g + wild.b
+
+	assert_gt(lum_burn, 0.9, "a working building is unmistakably lit at deep night")
+	assert_gt(lum_burn, lum_frozen * 2.5,
+		"and at least 2.5x the same building after it has frozen — this is the readout")
+	assert_gt(lum_frozen, lum_wild,
+		"a dead building still reads against the plain by its silhouette")
+	assert_lt(lum_wild, lum_burn * 0.35, "while the plain genuinely goes dark")
+	assert_gt(burning.r, burning.b * 1.15, "and the light on a working building is WARM")
 
 
 func test_noon_has_no_bounce_and_no_wilderness_penalty() -> void:

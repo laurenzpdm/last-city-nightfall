@@ -37,10 +37,26 @@ const STEEL: Color = Color(0.239, 0.322, 0.443)           # #3d5271
 const STEEL_LIGHT: Color = Color(0.353, 0.443, 0.573)     # #5a7192
 
 # ---------------------------------------------------------------- snow ramp --
+## These four are the INTERFACE ramp: HUD body text, secondary text, panel
+## hairlines. They are anchors for readability, not for the ground.
 const SNOW_SHADOW: Color = Color(0.498, 0.573, 0.678)     # #7f92ad
 const SNOW_MID: Color = Color(0.765, 0.812, 0.878)        # #c3cfe0
 const SNOW: Color = Color(0.910, 0.933, 0.969)            # #e8eef7  ANCHOR
 const SNOW_LIT: Color = Color(0.976, 0.988, 1.000)        # #f9fcff
+
+# ------------------------------------------------------------- ground snow --
+## The GROUND ramp, which is a different problem from the interface ramp and
+## used to share it. Snow lit by an overcast polar sky is not white — it is a
+## pale blue-grey that only reaches white on a crest the sun actually catches.
+## Painting the plain at interface-white is exactly how a midday frame came out
+## at 0.72 mean luminance with no shadow anywhere in it, and a critic called the
+## whole build washed out on the strength of it.
+##
+## Held one ramp so cold reads as one colour: every step is on the same
+## blue-violet line, and nothing on the ground is ever neutral grey.
+const GROUND_SNOW_SHADOW: Color = Color(0.318, 0.396, 0.545)   # #51658b
+const GROUND_SNOW_MID: Color = Color(0.588, 0.659, 0.769)      # #96a8c4
+const GROUND_SNOW_LIT: Color = Color(0.831, 0.878, 0.941)      # #e0e9f6
 
 # ---------------------------------------------------------------- warm ramp --
 const EMBER: Color = Color(1.000, 0.369, 0.169)           # #ff5e2b
@@ -54,7 +70,7 @@ const DANGER: Color = Color(0.886, 0.255, 0.227)          # #e2413a
 const CAUTION: Color = Color(0.949, 0.729, 0.243)         # #f2ba3e
 const GOOD: Color = Color(0.373, 0.784, 0.596)            # #5fc898
 const ICE_BLUE: Color = Color(0.541, 0.749, 0.851)        # #8abfd9
-const ASH: Color = Color(0.169, 0.149, 0.129)             # #2b2621
+const ASH: Color = Color(0.208, 0.204, 0.216)             # #353437
 const RUST: Color = Color(0.482, 0.271, 0.169)            # #7b452b
 
 # ---------------------------------------------------------------- terrain ----
@@ -81,28 +97,30 @@ static func terrain_tones(kind: int) -> Dictionary:
 	match kind:
 		Terrain.SNOW_DEEP:
 			return {
-				"base": Color(0.851, 0.886, 0.937), "low": Color(0.663, 0.729, 0.816),
-				"high": Color(0.976, 0.988, 1.000), "grain": 0.055, "ridges": 1.0,
+				"base": Color(0.671, 0.729, 0.827), "low": Color(0.396, 0.478, 0.620),
+				"high": Color(0.910, 0.941, 0.980), "grain": 0.045, "ridges": 1.0,
 			}
 		Terrain.SNOW:
 			return {
-				"base": Color(0.749, 0.796, 0.867), "low": Color(0.545, 0.612, 0.714),
-				"high": Color(0.902, 0.929, 0.969), "grain": 0.070, "ridges": 0.55,
+				"base": Color(0.588, 0.647, 0.749), "low": Color(0.325, 0.400, 0.533),
+				"high": Color(0.855, 0.894, 0.949), "grain": 0.060, "ridges": 0.62,
 			}
 		Terrain.ICE:
 			return {
-				"base": Color(0.435, 0.545, 0.647), "low": Color(0.247, 0.345, 0.463),
-				"high": Color(0.706, 0.827, 0.902), "grain": 0.040, "ridges": 0.0,
+				"base": Color(0.322, 0.435, 0.557), "low": Color(0.153, 0.239, 0.361),
+				"high": Color(0.686, 0.831, 0.925), "grain": 0.035, "ridges": 0.0,
 			}
 		Terrain.ROCK:
+			# The exposed bones of the plain. Nearly black, and blue-violet rather
+			# than grey, so bare rock reads as cold stone and never as a hole.
 			return {
-				"base": Color(0.157, 0.196, 0.271), "low": Color(0.075, 0.102, 0.157),
-				"high": Color(0.286, 0.341, 0.427), "grain": 0.090, "ridges": 0.0,
+				"base": Color(0.114, 0.129, 0.192), "low": Color(0.051, 0.059, 0.098),
+				"high": Color(0.271, 0.294, 0.376), "grain": 0.075, "ridges": 0.0,
 			}
 		Terrain.GRAVEL:
 			return {
-				"base": Color(0.208, 0.243, 0.310), "low": Color(0.114, 0.141, 0.196),
-				"high": Color(0.353, 0.396, 0.475), "grain": 0.150, "ridges": 0.0,
+				"base": Color(0.169, 0.184, 0.243), "low": Color(0.082, 0.094, 0.137),
+				"high": Color(0.353, 0.376, 0.451), "grain": 0.140, "ridges": 0.0,
 			}
 		Terrain.ASH_FIELD:
 			# Warm volcanic grit, not a hole in the map. The caldera floor is where
@@ -200,81 +218,81 @@ static func _keyframes() -> Array[Dictionary]:
 			# beyond it goes properly black.
 			"t": 0.00, "name": &"deep_night",
 			"sky": Color(0.790, 0.835, 0.960), "ambient": Color(0.090, 0.130, 0.230),
-			"shadow": Color(0.030, 0.050, 0.100), "shadow_alpha": 0.34,
+			"shadow": Color(0.020, 0.035, 0.090), "shadow_alpha": 0.48,
 			"shadow_dir": Vector2(0.05, 0.55), "shadow_len": 0.9,
 			"lift": Color(0.010, 0.018, 0.040), "gain": Color(0.86, 0.92, 1.10),
-			"sat": 0.78, "fog": Color(0.075, 0.106, 0.192), "fog_amt": 0.30,
-			"light_energy": 0.86, "bloom": 0.72, "chroma": 1.00, "star_amt": 1.00,
-			"sun_dir": Vector2(-0.42, -0.55), "sun_col": Color(0.60, 0.72, 1.00), "sun_energy": 0.20,
+			"sat": 0.94, "fog": Color(0.055, 0.078, 0.157), "fog_amt": 0.34,
+			"light_energy": 1.30, "bloom": 0.50, "chroma": 1.00, "star_amt": 1.00,
+			"sun_dir": Vector2(-0.42, -0.55), "sun_col": Color(0.46, 0.60, 1.00), "sun_energy": 0.16,
 			"sun_height": 0.72,
-			"sky_col": Color(0.150, 0.210, 0.380), "sky_energy": 0.30,
-			"bounce": 0.95, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.70,
+			"sky_col": Color(0.098, 0.145, 0.310), "sky_energy": 0.26,
+			"bounce": 0.85, "bounce_col": Color(1.00, 0.72, 0.42), "wild": 0.88,
 		},
 		{
 			"t": 0.19, "name": &"night",
 			"sky": Color(0.820, 0.860, 0.965), "ambient": Color(0.120, 0.165, 0.290),
-			"shadow": Color(0.035, 0.055, 0.110), "shadow_alpha": 0.36,
+			"shadow": Color(0.025, 0.040, 0.098), "shadow_alpha": 0.50,
 			"shadow_dir": Vector2(-0.35, 0.60), "shadow_len": 1.2,
 			"lift": Color(0.008, 0.015, 0.034), "gain": Color(0.90, 0.95, 1.10),
-			"sat": 0.82, "fog": Color(0.086, 0.118, 0.208), "fog_amt": 0.26,
-			"light_energy": 0.82, "bloom": 0.68, "chroma": 0.85, "star_amt": 0.85,
-			"sun_dir": Vector2(0.30, -0.60), "sun_col": Color(0.62, 0.74, 1.00), "sun_energy": 0.23,
+			"sat": 0.94, "fog": Color(0.063, 0.090, 0.173), "fog_amt": 0.30,
+			"light_energy": 1.25, "bloom": 0.52, "chroma": 0.85, "star_amt": 0.85,
+			"sun_dir": Vector2(0.30, -0.60), "sun_col": Color(0.48, 0.62, 1.00), "sun_energy": 0.19,
 			"sun_height": 0.68,
-			"sky_col": Color(0.160, 0.225, 0.395), "sky_energy": 0.32,
-			"bounce": 0.88, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.64,
+			"sky_col": Color(0.110, 0.160, 0.330), "sky_energy": 0.27,
+			"bounce": 0.80, "bounce_col": Color(1.00, 0.74, 0.45), "wild": 0.82,
 		},
 		{
 			# Dawn: a long low key from the east, still a cold fill behind it.
 			"t": 0.27, "name": &"dawn",
 			"sky": Color(0.930, 0.950, 0.995), "ambient": Color(0.330, 0.420, 0.600),
-			"shadow": Color(0.075, 0.102, 0.180), "shadow_alpha": 0.46,
+			"shadow": Color(0.055, 0.078, 0.165), "shadow_alpha": 0.68,
 			"shadow_dir": Vector2(-0.86, 0.51), "shadow_len": 2.7,
 			"lift": Color(0.004, 0.010, 0.026), "gain": Color(0.95, 0.99, 1.12),
-			"sat": 0.88, "fog": Color(0.290, 0.360, 0.490), "fog_amt": 0.42,
-			"light_energy": 0.80, "bloom": 0.62, "chroma": 0.55, "star_amt": 0.25,
-			"sun_dir": Vector2(0.90, -0.44), "sun_col": Color(1.00, 0.74, 0.58), "sun_energy": 0.52,
+			"sat": 1.00, "fog": Color(0.200, 0.265, 0.410), "fog_amt": 0.36,
+			"light_energy": 0.60, "bloom": 0.50, "chroma": 0.55, "star_amt": 0.25,
+			"sun_dir": Vector2(0.90, -0.44), "sun_col": Color(1.00, 0.70, 0.52), "sun_energy": 0.50,
 			"sun_height": 0.20,
-			"sky_col": Color(0.320, 0.420, 0.620), "sky_energy": 0.40,
-			"bounce": 0.32, "bounce_col": Color(0.70, 0.80, 1.00), "wild": 0.20,
+			"sky_col": Color(0.235, 0.330, 0.560), "sky_energy": 0.34,
+			"bounce": 0.34, "bounce_col": Color(1.00, 0.80, 0.60), "wild": 0.26,
 		},
 		{
 			"t": 0.37, "name": &"morning",
 			"sky": Color(0.985, 0.990, 1.000), "ambient": Color(0.600, 0.670, 0.790),
-			"shadow": Color(0.110, 0.140, 0.220), "shadow_alpha": 0.44,
+			"shadow": Color(0.071, 0.098, 0.196), "shadow_alpha": 0.64,
 			"shadow_dir": Vector2(-0.52, 0.62), "shadow_len": 1.6,
 			"lift": Color(0.002, 0.006, 0.018), "gain": Color(0.99, 1.00, 1.06),
-			"sat": 0.90, "fog": Color(0.470, 0.540, 0.650), "fog_amt": 0.26,
-			"light_energy": 0.62, "bloom": 0.50, "chroma": 0.35, "star_amt": 0.0,
-			"sun_dir": Vector2(0.58, -0.64), "sun_col": Color(1.00, 0.955, 0.895), "sun_energy": 0.78,
+			"sat": 1.00, "fog": Color(0.330, 0.395, 0.520), "fog_amt": 0.18,
+			"light_energy": 0.26, "bloom": 0.34, "chroma": 0.35, "star_amt": 0.0,
+			"sun_dir": Vector2(0.58, -0.64), "sun_col": Color(1.00, 0.945, 0.875), "sun_energy": 0.66,
 			"sun_height": 0.58,
-			"sky_col": Color(0.480, 0.560, 0.720), "sky_energy": 0.40,
-			"bounce": 0.08, "bounce_col": Color(0.80, 0.86, 1.00), "wild": 0.05,
+			"sky_col": Color(0.265, 0.380, 0.700), "sky_energy": 0.32,
+			"bounce": 0.10, "bounce_col": Color(1.00, 0.86, 0.68), "wild": 0.06,
 		},
 		{
 			"t": 0.50, "name": &"noon",
 			"sky": Color(1.000, 1.000, 1.000), "ambient": Color(0.820, 0.860, 0.930),
-			"shadow": Color(0.150, 0.185, 0.270), "shadow_alpha": 0.40,
+			"shadow": Color(0.086, 0.118, 0.220), "shadow_alpha": 0.62,
 			"shadow_dir": Vector2(-0.10, 0.56), "shadow_len": 0.75,
 			"lift": Color(0.000, 0.003, 0.012), "gain": Color(1.02, 1.02, 1.03),
-			"sat": 0.72, "fog": Color(0.640, 0.690, 0.770), "fog_amt": 0.16,
-			"light_energy": 0.42, "bloom": 0.40, "chroma": 0.22, "star_amt": 0.0,
-			"sun_dir": Vector2(0.10, -0.86), "sun_col": Color(1.00, 0.985, 0.955), "sun_energy": 0.76,
+			"sat": 1.02, "fog": Color(0.400, 0.470, 0.610), "fog_amt": 0.12,
+			"light_energy": 0.14, "bloom": 0.30, "chroma": 0.22, "star_amt": 0.0,
+			"sun_dir": Vector2(0.10, -0.86), "sun_col": Color(1.00, 0.975, 0.930), "sun_energy": 0.64,
 			"sun_height": 0.95,
-			"sky_col": Color(0.560, 0.630, 0.780), "sky_energy": 0.34,
-			"bounce": 0.0, "bounce_col": Color(0.85, 0.90, 1.00), "wild": 0.0,
+			"sky_col": Color(0.290, 0.420, 0.760), "sky_energy": 0.33,
+			"bounce": 0.0, "bounce_col": Color(1.00, 0.88, 0.70), "wild": 0.0,
 		},
 		{
 			"t": 0.63, "name": &"afternoon",
 			"sky": Color(1.000, 0.995, 0.985), "ambient": Color(0.760, 0.740, 0.740),
-			"shadow": Color(0.140, 0.150, 0.230), "shadow_alpha": 0.44,
+			"shadow": Color(0.078, 0.090, 0.196), "shadow_alpha": 0.66,
 			"shadow_dir": Vector2(0.46, 0.60), "shadow_len": 1.5,
 			"lift": Color(0.002, 0.005, 0.016), "gain": Color(1.04, 1.00, 0.98),
-			"sat": 0.82, "fog": Color(0.610, 0.610, 0.660), "fog_amt": 0.22,
-			"light_energy": 0.58, "bloom": 0.52, "chroma": 0.30, "star_amt": 0.0,
-			"sun_dir": Vector2(-0.50, -0.70), "sun_col": Color(1.00, 0.930, 0.830), "sun_energy": 0.74,
+			"sat": 1.00, "fog": Color(0.380, 0.410, 0.510), "fog_amt": 0.16,
+			"light_energy": 0.44, "bloom": 0.40, "chroma": 0.30, "star_amt": 0.0,
+			"sun_dir": Vector2(-0.50, -0.70), "sun_col": Color(1.00, 0.905, 0.780), "sun_energy": 0.70,
 			"sun_height": 0.52,
-			"sky_col": Color(0.520, 0.590, 0.740), "sky_energy": 0.40,
-			"bounce": 0.06, "bounce_col": Color(0.80, 0.86, 1.00), "wild": 0.04,
+			"sky_col": Color(0.255, 0.375, 0.720), "sky_energy": 0.34,
+			"bounce": 0.10, "bounce_col": Color(1.00, 0.86, 0.66), "wild": 0.08,
 		},
 		{
 			# Dusk. The orange belongs to the KEY, not to the frame: lit faces go
@@ -282,41 +300,41 @@ static func _keyframes() -> Array[Dictionary]:
 			# old flat multiply tinted snow forty tiles from any light source.
 			"t": 0.74, "name": &"dusk",
 			"sky": Color(1.000, 0.980, 0.960), "ambient": Color(0.540, 0.410, 0.380),
-			"shadow": Color(0.090, 0.085, 0.150), "shadow_alpha": 0.52,
+			"shadow": Color(0.055, 0.055, 0.130), "shadow_alpha": 0.72,
 			"shadow_dir": Vector2(0.86, 0.50), "shadow_len": 2.9,
 			"lift": Color(0.008, 0.008, 0.024), "gain": Color(1.04, 0.99, 0.98),
-			"sat": 0.98, "fog": Color(0.330, 0.300, 0.360), "fog_amt": 0.30,
-			"light_energy": 0.90, "bloom": 0.58, "chroma": 0.40, "star_amt": 0.10,
-			"sun_dir": Vector2(-0.93, -0.37), "sun_col": Color(1.00, 0.560, 0.300), "sun_energy": 0.72,
+			"sat": 1.06, "fog": Color(0.230, 0.215, 0.290), "fog_amt": 0.26,
+			"light_energy": 1.00, "bloom": 0.50, "chroma": 0.40, "star_amt": 0.10,
+			"sun_dir": Vector2(-0.93, -0.37), "sun_col": Color(1.00, 0.520, 0.245), "sun_energy": 0.78,
 			"sun_height": 0.16,
-			"sky_col": Color(0.290, 0.360, 0.560), "sky_energy": 0.38,
-			"bounce": 0.14, "bounce_col": Color(0.90, 0.78, 0.72), "wild": 0.14,
+			"sky_col": Color(0.185, 0.255, 0.500), "sky_energy": 0.34,
+			"bounce": 0.30, "bounce_col": Color(1.00, 0.76, 0.50), "wild": 0.30,
 		},
 		{
 			"t": 0.83, "name": &"twilight",
 			"sky": Color(0.900, 0.895, 0.975), "ambient": Color(0.250, 0.250, 0.370),
-			"shadow": Color(0.055, 0.060, 0.115), "shadow_alpha": 0.44,
+			"shadow": Color(0.040, 0.045, 0.110), "shadow_alpha": 0.58,
 			"shadow_dir": Vector2(0.55, 0.58), "shadow_len": 1.8,
 			"lift": Color(0.010, 0.014, 0.032), "gain": Color(1.00, 0.96, 1.02),
-			"sat": 0.88, "fog": Color(0.250, 0.240, 0.330), "fog_amt": 0.34,
-			"light_energy": 0.84, "bloom": 0.76, "chroma": 0.65, "star_amt": 0.55,
-			"sun_dir": Vector2(-0.80, -0.60), "sun_col": Color(0.86, 0.62, 0.62), "sun_energy": 0.34,
+			"sat": 0.98, "fog": Color(0.160, 0.160, 0.245), "fog_amt": 0.32,
+			"light_energy": 1.20, "bloom": 0.54, "chroma": 0.65, "star_amt": 0.55,
+			"sun_dir": Vector2(-0.80, -0.60), "sun_col": Color(0.74, 0.52, 0.58), "sun_energy": 0.30,
 			"sun_height": 0.28,
-			"sky_col": Color(0.230, 0.270, 0.450), "sky_energy": 0.36,
-			"bounce": 0.55, "bounce_col": Color(0.72, 0.78, 0.98), "wild": 0.42,
+			"sky_col": Color(0.150, 0.190, 0.375), "sky_energy": 0.30,
+			"bounce": 0.62, "bounce_col": Color(1.00, 0.74, 0.46), "wild": 0.60,
 		},
 		{
 			"t": 1.00, "name": &"deep_night",
 			"sky": Color(0.790, 0.835, 0.960), "ambient": Color(0.090, 0.130, 0.230),
-			"shadow": Color(0.030, 0.050, 0.100), "shadow_alpha": 0.34,
+			"shadow": Color(0.020, 0.035, 0.090), "shadow_alpha": 0.48,
 			"shadow_dir": Vector2(0.05, 0.55), "shadow_len": 0.9,
 			"lift": Color(0.010, 0.018, 0.040), "gain": Color(0.86, 0.92, 1.10),
-			"sat": 0.78, "fog": Color(0.075, 0.106, 0.192), "fog_amt": 0.30,
-			"light_energy": 0.86, "bloom": 0.72, "chroma": 1.00, "star_amt": 1.00,
-			"sun_dir": Vector2(-0.42, -0.55), "sun_col": Color(0.60, 0.72, 1.00), "sun_energy": 0.20,
+			"sat": 0.94, "fog": Color(0.055, 0.078, 0.157), "fog_amt": 0.34,
+			"light_energy": 1.30, "bloom": 0.50, "chroma": 1.00, "star_amt": 1.00,
+			"sun_dir": Vector2(-0.42, -0.55), "sun_col": Color(0.46, 0.60, 1.00), "sun_energy": 0.16,
 			"sun_height": 0.72,
-			"sky_col": Color(0.150, 0.210, 0.380), "sky_energy": 0.30,
-			"bounce": 0.95, "bounce_col": Color(0.62, 0.74, 0.98), "wild": 0.70,
+			"sky_col": Color(0.098, 0.145, 0.310), "sky_energy": 0.26,
+			"bounce": 0.85, "bounce_col": Color(1.00, 0.72, 0.42), "wild": 0.88,
 		},
 	]
 	return _keys_cache
@@ -381,9 +399,16 @@ static func light_at(grade: Dictionary, city: float, warm: float, up: float = 0.
 	var sky: Color = grade["sky_col"]
 	var bc: Color = grade["bounce_col"]
 	var fill: float = float(grade["sky_energy"]) * (0.70 + 0.30 * up)
-	var b: float = float(grade["bounce"]) * clampf(city, 0.0, 1.0) * 0.60
-	var dark: float = 1.0 - float(grade["wild"]) * (1.0 - clampf(city * 1.15, 0.0, 1.0))
-	var w: float = clampf(warm, 0.0, 1.0) * 0.34
+	# The night floor is EARNED. It used to be `bounce * city`, a blue lift over
+	# any disc of ground that had buildings on it, which meant a frozen district
+	# looked exactly like a burning one and the game about heat in the dark had
+	# no dark and no heat. It is driven by local warmth first and by mere
+	# presence only faintly, and the ground shader evaluates the same expression.
+	var b: float = float(grade["bounce"]) \
+		* clampf(warm * 2.30 + clampf(city, 0.0, 1.0) * 0.16, 0.0, 1.0) * 0.46
+	var dark: float = 1.0 - float(grade["wild"]) \
+		* (1.0 - clampf(warm * 2.6 + city * 0.55, 0.0, 1.0))
+	var w: float = clampf(warm, 0.0, 1.0) * (0.55 + 0.45 * clampf(warm, 0.0, 1.0)) * 1.15
 	return Color(
 		(sun.r * key + sky.r * fill + bc.r * b) * dark + WARM_EDGE.r * w,
 		(sun.g * key + sky.g * fill + bc.g * b) * dark + WARM_EDGE.g * w,

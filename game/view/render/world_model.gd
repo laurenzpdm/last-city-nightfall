@@ -594,9 +594,16 @@ func add_building(id: int, kind: StringName, cell: Vector2i) -> void:
 	]
 	# Heat output is the honest source of warmth. Buildings that make none still
 	# show a little window light if their archetype is a place people live.
-	var warm: float = float(sp["warm"]) * 0.35
+	# NOT throttled to a third any more. A previous pass cut every source to 0.35
+	# to stop radiators resolving as blown-out white discs; the actual fix for
+	# that was the falloff cookie and the amber-capped ramp in
+	# LcnPalette.heat_light_color, and the throttle it left behind is why a
+	# 1.0-warmth Hearth reached the ground shader as 0.35 and the deep-night
+	# frame contained no warm pixel at all. A fire is the brightest thing in this
+	# game and it is allowed to say so.
+	var warm: float = float(sp["warm"]) * 0.88
 	if heat_produced > 0.0:
-		warm = clampf(0.30 + heat_produced / 90.0, 0.0, 1.0)
+		warm = clampf(0.34 + heat_produced / 55.0, 0.0, 1.0)
 	var radius: float = float(sp["light_radius"])
 	if heat_radius_tiles > 0.0:
 		radius = maxf(radius, heat_radius_tiles * float(TILE) * 1.35)
@@ -606,6 +613,7 @@ func add_building(id: int, kind: StringName, cell: Vector2i) -> void:
 		"kind": kind,
 		"arch": arch,
 		"sprite": LcnSpriteFactory.sprite_key(arch, sp["tiles"]),
+		"sprite_em": LcnSpriteFactory.emissive_key(arch, sp["tiles"]),
 		"cell": cell,
 		"tiles": tiles,
 		"scale": scale,

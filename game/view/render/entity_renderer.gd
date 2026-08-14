@@ -35,6 +35,7 @@ const TILE: int = 32
 ## Camera zoom under which detail passes are dropped.
 const LOD_ZOOM: float = 0.42
 const RIM_ZOOM: float = 0.45
+const SILHOUETTE_SHADER: String = "res://game/view/render/silhouette.gdshader"
 ## A warm pool smaller than this many screen pixels is a smudge; drawing it costs
 ## a full quad and buys nothing.
 const MIN_POOL_PX: float = 9.0
@@ -78,6 +79,9 @@ var _frozen: Dictionary[int, bool] = {}
 var _vis_b: Array[Dictionary] = []
 var _vis_rect: PackedFloat32Array = PackedFloat32Array()
 var _vis_src: PackedFloat32Array = PackedFloat32Array()
+## Atlas region of each visible structure's EMISSIVE mask, parallel to _vis_b.
+## Zero width means "this archetype has no lit surface".
+var _vis_em: PackedFloat32Array = PackedFloat32Array()
 var _srcs: Array[Dictionary] = []
 ## Dictionary[int, Array[int]] — an Array, not a PackedInt32Array, on purpose:
 ## Packed arrays are value types, so get/append/set copies the whole bucket every
@@ -96,6 +100,10 @@ var _l_key: float = 1.0
 var _l_fill: float = 0.0
 var _l_bounce: float = 0.0
 var _l_wild: float = 0.0
+## True when the hour is dark enough for lit windows to be drawn at all. At noon
+## nothing in the glow pass survives, so neither the per-building atlas lookup in
+## _collect nor the quad in _draw_glow is worth paying for.
+var _want_emissive: bool = false
 ## Source lookup grid cell, in world px. One bucket is a comfortable superset of
 ## the largest light radius, so _nearest_source only ever scans one bucket.
 const BUCKET_PX: float = 256.0
@@ -117,6 +125,15 @@ func setup(world_model: LcnWorldModel, sprite_factory: LcnSpriteFactory) -> void
 	_rebuild_atlas()
 
 	_shadow = _make_pass("ShadowPass", 0, -40, false)
+	# Shadows draw the SPRITES, so they must not be tinted by the sprites'
+	# colours — see silhouette.gdshader.
+	var sil: Shader = load(SILHOUETTE_SHADER) as Shader
+	if sil != null:
+		var sm := ShaderMaterial.new()
+		sm.shader = sil
+		_shadow.material = sm
+	else:
+		Log.error("render", "silhouette shader missing at %s — shadows will be tinted" % SILHOUETTE_SHADER)
 	_glow = _make_pass("GlowPass", 1, -20, true)
 	_main = _make_pass("MainPass", 2, 0, false)
 
@@ -190,8 +207,9 @@ func _cache_light_rig() -> void:
 	_l_bnc = grade["bounce_col"]
 	_l_key = float(grade["sun_energy"]) * (0.28 + 0.80 * facing)
 	_l_fill = float(grade["sky_energy"]) * (0.70 + 0.30 * UP)
-	_l_bounce = float(grade["bounce"]) * 0.60
+	_l_bounce = float(grade["bounce"]) * 0.46
 	_l_wild = float(grade["wild"])
+	_want_emissive = float(grade["light_energy"]) > 0.30
 
 
 ## One walk over the world per frame instead of three, with the sprite rect and
@@ -201,6 +219,7 @@ func _collect() -> void:
 	_vis_b.clear()
 	_vis_rect.clear()
 	_vis_src.clear()
+	_vis_em.clear()
 	if model == null:
 		return
 	if model.building_stamp() != _atlas_stamp:
@@ -235,6 +254,12 @@ func _collect() -> void:
 		_vis_src.append(region.position.y)
 		_vis_src.append(region.size.x)
 		_vis_src.append(region.size.y)
+		if _want_emissive:
+			var em: Rect2 = _regions.get(b.get("sprite_em", &""), Rect2())
+			_vis_em.append(em.position.x)
+			_vis_em.append(em.position.y)
+			_vis_em.append(em.size.x)
+			_vis_em.append(em.size.y)
 	_visible_buildings = _vis_b.size()
 
 	_cull_us = Time.get_ticks_usec() - t0
@@ -282,6 +307,12 @@ func _rect_at(i: int, offset: Vector2) -> Rect2:
 func _src_at(i: int) -> Rect2:
 	var o: int = i * 4
 	return Rect2(_vis_src[o], _vis_src[o + 1], _vis_src[o + 2], _vis_src[o + 3])
+
+
+## Atlas source rect of the i-th visible structure's emissive mask.
+func _em_at(i: int) -> Rect2:
+	var o: int = i * 4
+	return Rect2(_vis_em[o], _vis_em[o + 1], _vis_em[o + 2], _vis_em[o + 3])
 
 
 func mark_frozen(id: int, is_frozen: bool) -> void:
@@ -338,9 +369,12 @@ func _light_for(centre: Vector2, warm: float) -> Color:
 		var cell := Vector2i(int(centre.x / float(TILE)), int(centre.y / float(TILE)))
 		city = field.city_at(cell)
 		heat = maxf(heat, field.heat_at(cell))
-	var b: float = _l_bounce * clampf(city, 0.0, 1.0)
-	var dark: float = 1.0 - _l_wild * (1.0 - clampf(city * 1.15, 0.0, 1.0))
-	var w: float = clampf(heat, 0.0, 1.0) * 0.34
+	# Same expression as LcnPalette.light_at and as terrain.gdshader: a building
+	# is legible after dark because it is BURNING, not because it exists.
+	var hc: float = clampf(heat, 0.0, 1.0)
+	var b: float = _l_bounce * clampf(hc * 2.30 + clampf(city, 0.0, 1.0) * 0.16, 0.0, 1.0)
+	var dark: float = 1.0 - _l_wild * (1.0 - clampf(hc * 2.6 + city * 0.55, 0.0, 1.0))
+	var w: float = hc * (0.55 + 0.45 * hc) * 1.15
 	return Color(
 		(_l_sun.r * _l_key + _l_sky.r * _l_fill + _l_bnc.r * b) * dark + LcnPalette.WARM_EDGE.r * w,
 		(_l_sun.g * _l_key + _l_sky.g * _l_fill + _l_bnc.g * b) * dark + LcnPalette.WARM_EDGE.g * w,
@@ -359,10 +393,16 @@ func _draw_shadows(ci: CanvasItem) -> void:
 	var detailed: bool = zoom >= LOD_ZOOM and _smear_r.size.x > 0.0
 	var min_foot: float = MIN_SHADOW_PX / maxf(zoom, 0.01)
 
-	# TWO loops on purpose. draw_texture_rect_region and draw_polygon are different
-	# canvas primitives, and alternating them per building ends the batch every
-	# time — 2N draw calls instead of 2. Every blob first, then every smear.
-	var contact := Color(col.r, col.g, col.b, a * 0.85)
+	# TWO loops on purpose. Every contact patch first, then every cast shadow, so
+	# neither the destination rects nor the source regions jump around inside a
+	# batch — one pass, a handful of draw calls, 1700 structures.
+	#
+	# The contact patch is a tight dark ellipse under the footprint, pushed a few
+	# pixels toward the shadow so it peeks out on one side. It is the cheap trick
+	# that makes an object SIT on a surface instead of floating above a picture of
+	# one, and spread over the footprint plus 12 px at 0.85 alpha it was too wide
+	# and too faint to do the job.
+	var contact := Color(col.r, col.g, col.b, clampf(a * 1.15, 0.0, 0.95))
 	for i: int in _vis_b.size():
 		var b: Dictionary = _vis_b[i]
 		if int(b.get("state", LcnWorldModel.BUILD_OPERATIONAL)) == LcnWorldModel.BUILD_GHOST:
@@ -372,8 +412,9 @@ func _draw_shadows(ci: CanvasItem) -> void:
 			continue
 		var cell: Vector2i = b["cell"]
 		ci.draw_texture_rect_region(_atlas,
-			Rect2(Vector2(float(cell.x), float(cell.y)) * float(TILE) - Vector2(6.0, 4.0),
-				Vector2(float(tiles.x), float(tiles.y)) * float(TILE) + Vector2(12.0, 10.0)),
+			Rect2(Vector2(float(cell.x), float(cell.y)) * float(TILE)
+					+ Vector2(dir.x * 3.0 - 3.0, 1.0),
+				Vector2(float(tiles.x), float(tiles.y)) * float(TILE) + Vector2(6.0, 6.0)),
 			_shadow_r, contact)
 
 	if draw_agents and detailed:
@@ -387,11 +428,14 @@ func _draw_shadows(ci: CanvasItem) -> void:
 
 	if not detailed:
 		return
-	var smear := Color(col.r, col.g, col.b, a * 0.70)
-	var smear_cols := PackedColorArray([smear, smear, smear, smear])
-	var smear_uvs := PackedVector2Array([
-		_uv(_smear_r, 0.0, 0.0), _uv(_smear_r, 1.0, 0.0),
-		_uv(_smear_r, 1.0, 1.0), _uv(_smear_r, 0.0, 1.0)])
+
+	# THE CAST SHADOW is the building's own silhouette, squashed toward the
+	# ground and pushed away from the key. Everything before this pass cast a
+	# sheared quad of flat colour, which is a smudge with a direction, not a
+	# shadow — and it is most of why 1700 structures looked like decals lying on
+	# a photograph instead of objects standing on a plain. Same atlas, same
+	# primitive, so the whole pass is still one batch.
+	var cast_col := Color(col.r, col.g, col.b, a * 0.78)
 	for i2: int in _vis_b.size():
 		var b2: Dictionary = _vis_b[i2]
 		if int(b2.get("state", LcnWorldModel.BUILD_OPERATIONAL)) == LcnWorldModel.BUILD_GHOST:
@@ -399,30 +443,26 @@ func _draw_shadows(ci: CanvasItem) -> void:
 		var lift: float = float(b2["lift"])
 		if lift < 8.0:
 			continue
-		var tiles2: Vector2i = b2["tiles"]
-		var cell2: Vector2i = b2["cell"]
-		var foot := Rect2(
-			Vector2(float(cell2.x), float(cell2.y)) * float(TILE),
-			Vector2(float(tiles2.x), float(tiles2.y)) * float(TILE))
+		var r: Rect2 = _rect_at(i2, Vector2.ZERO)
 
 		# After dark the dominant light is the nearest fire, not the sun.
 		var use_dir: Vector2 = dir
 		if night > 0.05:
-			var nearest: Dictionary = _nearest_source(foot.get_center())
+			var nearest: Dictionary = _nearest_source(b2["centre"])
 			if not nearest.is_empty():
-				var away: Vector2 = foot.get_center() - (nearest["pos"] as Vector2)
+				var away: Vector2 = (b2["centre"] as Vector2) - (nearest["pos"] as Vector2)
 				if away.length() > 4.0:
 					use_dir = dir.lerp(away.normalized(), night * 0.85).normalized()
 
-		# One sheared, textured quad: bright at the foot of the building, gone at
-		# the tip. Same texture as everything else, so this stays batched.
-		var o: Vector2 = use_dir * (lift * len_mul)
-		var side: Vector2 = Vector2(-use_dir.y, use_dir.x) * (foot.size.x * 0.42)
-		var p0: Vector2 = foot.get_center() - side + Vector2(0.0, foot.size.y * 0.34)
-		var p1: Vector2 = foot.get_center() + side + Vector2(0.0, foot.size.y * 0.34)
-		ci.draw_polygon(
-			PackedVector2Array([p0, p1, p1 + o + side * 0.35, p0 + o - side * 0.35]),
-			smear_cols, smear_uvs, _atlas)
+		# A shadow lying on the ground is foreshortened: the taller the building
+		# the further it reaches, but it never stands up again.
+		var squash: float = clampf(0.30 + len_mul * 0.26, 0.24, 0.86)
+		var reach: Vector2 = use_dir * (lift * len_mul * 0.75)
+		var foot_y: float = r.end.y - 2.0
+		var sh := Rect2(
+			r.position.x + reach.x, foot_y + reach.y - r.size.y * squash,
+			r.size.x, r.size.y * squash)
+		ci.draw_texture_rect_region(_atlas, sh, _src_at(i2), cast_col)
 
 
 ## Atlas pixel coordinates for a normalised point in a region. draw_polygon takes
@@ -470,10 +510,42 @@ func _draw_glow(ci: CanvasItem) -> void:
 		# 0.11, not 0.16: with the light rig no longer crushing the whole frame,
 		# the additive pass no longer has to shout to be seen, and a radiator
 		# stops resolving as a blown-out white disc.
-		var strength: float = clampf(0.11 * intensity * energy * flicker, 0.0, 0.62)
+		var strength: float = clampf(0.085 * intensity * energy * flicker, 0.0, 0.34)
 		ci.draw_texture_rect_region(_atlas,
 			Rect2(pos - Vector2(radius, radius), Vector2(radius * 2.0, radius * 2.0)),
 			_glow_r, Color(col.r, col.g, col.b, strength))
+
+	# WINDOWS. Every archetype already paints its own fire — a window, a grille, a
+	# crucible — and LcnSpriteFactory cuts those pixels out into an emissive mask
+	# packed in the SAME atlas, so blazing every lit surface in the city costs one
+	# more quad per structure inside a batch that was already running.
+	#
+	# This is the readout the mandate asks for: from across the map, at any zoom,
+	# a building that is RUNNING has its lights on and one that has frozen or lost
+	# its heat does not. Nothing else in the frame separates the two at 0.24 zoom.
+	if _want_emissive and _vis_em.size() >= _vis_b.size() * 4:
+		for i: int in _vis_b.size():
+			var o: int = i * 4
+			if _vis_em[o + 2] <= 0.0:
+				continue
+			var be: Dictionary = _vis_b[i]
+			var st: int = int(be.get("state", LcnWorldModel.BUILD_OPERATIONAL))
+			if st == LcnWorldModel.BUILD_GHOST or st == LcnWorldModel.BUILD_CONSTRUCTING:
+				continue
+			# A frozen building is DARK. That is the whole point of the readout.
+			var lit: float = float(be["warm"])
+			if _frozen.has(int(be["id"])) or st == LcnWorldModel.BUILD_FROZEN:
+				lit *= 0.05
+			elif st == LcnWorldModel.BUILD_DISABLED:
+				lit *= 0.18
+			if lit < 0.04:
+				continue
+			# Two detuned sines: one reads as a pulsing UI element, two read as fire.
+			var t: float = SimClock.seconds()
+			var sd: float = float(be["seed"])
+			var fl: float = 1.0 + sin(t * 4.1 + sd * 0.31) * 0.06 + sin(t * 9.7 + sd * 0.87) * 0.03
+			ci.draw_texture_rect_region(_atlas, _rect_at(i, Vector2.ZERO), _em_at(i),
+				Color(1.0, 0.92, 0.80, clampf(lit * energy * 0.62 * fl, 0.0, 0.95)))
 
 	if zoom < RIM_ZOOM:
 		return

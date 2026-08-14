@@ -9,7 +9,7 @@ extends RefCounted
 ## will happily serve you yesterday's silhouettes.
 
 ## Bump me when any procedural draw routine changes.
-const ART_VERSION: String = "v14"
+const ART_VERSION: String = "v17"
 
 const DIR: String = "user://art_cache/%s" % ART_VERSION
 

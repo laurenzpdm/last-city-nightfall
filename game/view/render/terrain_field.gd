@@ -258,7 +258,11 @@ func refresh_heat(sources: Array[Dictionary], region: Rect2 = Rect2()) -> void:
 	for k: int in order.size():
 		var s: Dictionary = sources[int(order[k] & 0xFFFFFFFF)]
 		var pos: Vector2 = s["pos"]
-		var r: float = float(s["radius"]) / float(TILE) * 0.92
+		# 0.62, not 0.92. The heat FIELD is what melts snow, wets the ground and
+		# throws the warm pool; a light's reach is much wider than the patch of
+		# plain it actually thaws, and at 0.92 a midday frame came back with half
+		# the settlement painted salmon.
+		var r: float = float(s["radius"]) / float(TILE) * 0.62
 		if cull and not region.grow(r * float(TILE)).has_point(pos):
 			continue
 		var v: int = 255 - int(order[k] >> 32)

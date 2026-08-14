@@ -98,9 +98,11 @@ func bind_world() -> void:
 	ground_material.set_shader_parameter("pal_tex", field.palette_tex)
 	ground_material.set_shader_parameter("map_px", Vector2(field.size) * float(TILE))
 	ground_material.set_shader_parameter("snow_scale", field.snow_scale)
-	ground_material.set_shader_parameter("snow_mid", _v3(LcnPalette.SNOW_MID))
-	ground_material.set_shader_parameter("snow_lit", _v3(LcnPalette.SNOW_LIT))
-	ground_material.set_shader_parameter("snow_shadow", _v3(LcnPalette.SNOW_SHADOW))
+	# The GROUND ramp, not the interface ramp. Painting the plain with the colour
+	# the HUD writes its body text in is how a midday frame came out white.
+	ground_material.set_shader_parameter("snow_mid", _v3(LcnPalette.GROUND_SNOW_MID))
+	ground_material.set_shader_parameter("snow_lit", _v3(LcnPalette.GROUND_SNOW_LIT))
+	ground_material.set_shader_parameter("snow_shadow", _v3(LcnPalette.GROUND_SNOW_SHADOW))
 	ground_material.set_shader_parameter("ash_col", _v3(LcnPalette.ASH))
 	ground_material.set_shader_parameter("warm_col", _v3(LcnPalette.WARM_EDGE))
 	_buildings_stamp = -1
