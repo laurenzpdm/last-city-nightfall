@@ -376,10 +376,13 @@ func _audit_slot_fidelity(label: String, st: String) -> void:
 		_unchecked.append("%s — no legend slot was reserved; nothing to be faithful to" % label)
 		return
 
-	# HALF the height it was given, floored well below anything the content could
-	# want. Enough to be genuinely too small and never so small that no legend
-	# could honour it.
-	var tight: float = maxf(140.0, floorf(slot.size.y * 0.5))
+	# Half the height it was given, floored at 150 px. The floor is not a taste:
+	# [P19]'s panel is a title, a blurb, a headline, a footer and at least one row
+	# of numbers, and that is 143 px however hard it sheds. A slot below that is
+	# one no legend could honour, and a suite that asserts on it is testing
+	# itself. 150 is comfortably above the floor and comfortably below anything
+	# a live lens has ever wanted.
+	var tight: float = maxf(150.0, floorf(slot.size.y * 0.5))
 
 	# The lens root re-reads its slots from [P17] on EVERY `_process` frame, so a
 	# slot written from here is overwritten before the next redraw — the first
