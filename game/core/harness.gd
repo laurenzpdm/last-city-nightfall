@@ -147,10 +147,61 @@ func _shoot(name: String) -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
-	var img: Image = get_viewport().get_texture().get_image()
-	var path: String = "%s/shots/%s.png" % [_out_dir, name]
-	img.save_png(ProjectSettings.globalize_path(path))
+	_save(get_viewport().get_texture().get_image(), name)
 	Log.info("harness", "shot %s" % name)
+
+	# A card sitting over the middle of the screen is what a player sees, so the
+	# shot above keeps it. But [P22]'s event cards are opaque and undismissed for
+	# the whole of an automated run — nobody is here to press Read — so EVERY
+	# frame this tour produced was a photograph of a panel rather than of the
+	# game. A critic judging the build by its screenshots was judging the modal.
+	#
+	# So take the world as well, with the modal layers hidden for the capture and
+	# restored immediately. Presentation only: NarrativeCard.dismiss_current()
+	# exists and would be the honest way to put a card away, but it answers a
+	# dilemma by taking its first option, and a visual run that makes a decision a
+	# headless run of the same scenario does not would break determinism — the
+	# rule this whole harness exists to protect.
+	var hidden: Array[CanvasLayer] = _hide_modal_layers()
+	if hidden.is_empty():
+		return
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	_save(get_viewport().get_texture().get_image(), name + ".world")
+	for cl: CanvasLayer in hidden:
+		cl.visible = true
+	Log.info("harness", "shot %s.world — %d modal layer(s) held back" % [name, hidden.size()])
+
+
+func _save(img: Image, name: String) -> void:
+	if img == null:
+		Log.error("harness", "shot %s: the viewport handed back no image" % name)
+		return
+	img.save_png(ProjectSettings.globalize_path("%s/shots/%s.png" % [_out_dir, name]))
+
+
+## Everything at or above [LcnLayers.NARRATIVE] draws over the city rather than
+## as part of it. Selecting by LAYER rather than by node name means a part that
+## lands a new modal after this was written is covered without touching this
+## file — which matters, because [P21]'s tutorial is landing in this same wave.
+func _hide_modal_layers() -> Array[CanvasLayer]:
+	var hidden: Array[CanvasLayer] = []
+	for cl: CanvasLayer in _all_canvas_layers(get_tree().root):
+		if cl.visible and cl.layer >= LcnLayers.NARRATIVE:
+			cl.visible = false
+			hidden.append(cl)
+	return hidden
+
+
+func _all_canvas_layers(from: Node) -> Array[CanvasLayer]:
+	var out: Array[CanvasLayer] = []
+	for child: Node in from.get_children():
+		var cl := child as CanvasLayer
+		if cl != null:
+			out.append(cl)
+		out.append_array(_all_canvas_layers(child))
+	return out
 
 
 func _on_alert(severity: int, key: StringName, text: String, _pos: Vector2) -> void:
