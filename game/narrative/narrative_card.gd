@@ -37,6 +37,28 @@ extends CanvasLayer
 ## discarded and it is not answered: the sim's deadline is untouched, and the
 ## card is on screen again the frame after Escape.
 ##
+## THE ALTERNATIVE WAS PHOTOGRAPHED BEFORE IT WAS REJECTED. Reordering without
+## standing down is in `artifacts/E3_probe/shots/01_palette.png`: 300 px of card
+## hangs out of the right-hand side of the palette reading "still", "at is the",
+## "miles that", "when the", and the card's title bleeds through the palette's
+## own semi-transparent plate as a ghost across the building list. A torn
+## fragment of a sentence is worse than no sentence.
+##
+## AND IT HAS A CONSEQUENCE IN [P18], WRITTEN DOWN SO IT IS NOT A SURPRISE.
+## [P18]'s hover sheet stands down while a decision is on screen, keyed on
+## [P17]'s solved `card` rect. With the card standing down first, that rect goes
+## empty and the sheet comes back — correctly, there is no decision to outrank —
+## and `tests/d7/run_layout_audit.tscn` then fails `palette x sheet` in four
+## cases. The overlap is [P18]'s and it is the MOUSE-FOLLOW branch of
+## `_place_tooltip()`, not the docked one: the sheet lands at
+## `mouse + (18, 18)` = (978, 558) with the pointer parked at the centre of a
+## 1920x1080 screen, and that is 35 px inside a palette running from x 24 to
+## 1013. The docked branch exists precisely so "a tooltip that hides the list it
+## describes" cannot happen; the world-hover branch clamps to the screen and to
+## the stage floor but never to `left_block()`, which [P18] already computes for
+## exactly this. It was never measurable before, because in the audit's build
+## state there was always a card up and the sheet was always hidden.
+##
 ## INPUT. Mouse only, on real Buttons. Every key on the keyboard is claimed by
 ## somebody in `LcnLayers` and the number row is claimed twice, so a card that
 ## bound 1/2/3 to its options would silently fight the sim-speed keys.

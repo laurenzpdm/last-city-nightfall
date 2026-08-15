@@ -24,16 +24,36 @@ extends Node
 ##      browsers, and a header carrying its own copy of a layer number is how
 ##      that kind of move goes stale.
 ##
-## ONE SENTENCE WAS DELETED FROM THIS HEADER, AND IT IS WORTH SAYING WHY.
-## It claimed the card also drove "the suppression of [P18]'s world-hover sheet".
-## Nothing in the build ever did that: `card_visible()` has exactly one caller —
-## [P17]'s scrim — and the string "hover sheet" appeared nowhere in the tree
-## except in that sentence. A comment describing behaviour that does not exist is
-## this project's oldest and most expensive failure mode, so the sentence is gone
-## rather than softened. The yielding that DOES happen now runs the other way and
-## is implemented, not described: [P22]'s card stands itself down while a work
-## surface is open (`narrative_card.gd::_work_surface_open`), and this file
-## republishes that as `card_deferred`.
+##   3. THE SHEET SUPPRESSION, AND THE MEMBER THAT ACTUALLY DRIVES IT.
+##      This header used to say the card drove "the suppression of [P18]'s
+##      world-hover sheet" and attribute it to `card_visible()`, which has
+##      exactly one caller — the scrim. The claim was half wrong in the way that
+##      is worse than being wrong: the BEHAVIOUR exists and is [P18]'s
+##      `_place_tooltip()` standing its inspection sheet down while a decision is
+##      on screen; what it reads is not `card_visible()` but `card_size` — this
+##      file's measurement of the card, through [P17]'s solver, arriving as
+##      `solved_rect(&"card")`. So the sentence is now written against the member
+##      a reader can follow, because a true sentence pointing at the wrong
+##      function sends the next person looking in the wrong file.
+##
+##      IT IS LOAD-BEARING IN BOTH DIRECTIONS AND THAT MATTERS NOW. When the
+##      card stands down for a work surface (below), `card_size` goes to zero,
+##      `solved_rect(&"card")` goes empty, and [P18]'s sheet comes back — which
+##      is right, because with the card gone there is no decision for an
+##      inspection to outrank. It also unmasked a defect in [P18]: the
+##      world-hover sheet follows the mouse, and with an open palette under the
+##      pointer it is drawn on top of the palette —
+##      `tests/d7/run_layout_audit.tscn` now fails four cases on
+##      `palette x sheet`. That pair could never have been measured before,
+##      because in the one state the audit drives with the palette open there was
+##      always a card up and the sheet was always hidden. See E3's report: the
+##      fix belongs in `_place_tooltip()`, which already computes `left_block()`
+##      for this exact purpose and never applies it to the mouse-follow branch.
+##
+## THE YIELDING THAT THIS WAVE ADDED runs the other way and is implemented, not
+## described: [P22]'s card stands itself down while a work surface is open
+## (`narrative_card.gd::_work_surface_open`), and this file republishes that as
+## `card_deferred`.
 ##
 ## HOW IT REACHES THE CARD, AND WHY THAT IS NOT A FOLDER VIOLATION
 ##
@@ -90,7 +110,9 @@ func _init() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
 
-## True while [P22] has a card on screen. One caller: [P17]'s scrim.
+## True while [P22] has a card on screen. One caller, and this comment names it
+## rather than implying a constituency: [P17]'s scrim. What [P18] reads to stand
+## its hover sheet down is `card_size`, not this.
 func card_visible() -> bool:
 	return _panel != null and _panel.visible and _panel.size.x > 1.0
 
