@@ -113,6 +113,7 @@ var _last_alert_tick: Dictionary[StringName, int] = {}
 var _defended: bool = false
 var _defended_tick: int = -100000
 var _index_tick: int = -100000
+## [P11]'s roster_version() at the last index rebuild. See _roster_version.
 var _index_count: int = -1
 ## False until the turret battery has been filled from [P11]'s building list at
 ## least once. THE OPENING SCREEN OF THE GAME DEPENDED ON THIS. The sync ran on
@@ -1001,7 +1002,7 @@ func find_enemy_target(from: Vector2, pref: StringName, radius_px: float) -> Dic
 		# or without the block that was finished this morning. The index is a
 		# cache of [P11]'s building list and it is invalidated by that list
 		# changing size, not only by the clock.
-		if not _target_index.has(pref) or _building_count() != _index_count \
+		if not _target_index.has(pref) or _roster_version() != _index_count \
 				or SimClock.tick - _index_tick >= TARGET_INDEX_TICKS:
 			_rebuild_target_index()
 		if not _target_index.has(pref):
@@ -1458,16 +1459,19 @@ func _rebuild_target_index() -> void:
 		bucket2["x"] = PackedFloat32Array(bucket2["x"] as Array)
 		bucket2["y"] = PackedFloat32Array(bucket2["y"] as Array)
 	_index_tick = SimClock.tick
-	_index_count = _building_count()
+	_index_count = _roster_version()
 
 
-## How many buildings [P11] is holding, or -1 when it cannot say. The seek
-## index's cache key: it is a snapshot of that list and a list of a different
-## length is a different list.
-func _building_count() -> int:
-	if _build == null or not _build.has_method("building_count"):
+## [P11]'s own monotonic "did anything move?" counter, or -1 when it cannot say.
+## The seek index is a snapshot of the building list and this is its cache key.
+##
+## Deliberately NOT building_count(): one placed and one removed between two
+## seeks leaves the count identical and the index holding a building that is not
+## there. roster_version() exists for exactly this and costs one integer.
+func _roster_version() -> int:
+	if _build == null or not _build.has_method("roster_version"):
 		return -1
-	return int(_build.call("building_count"))
+	return int(_build.call("roster_version"))
 
 
 ## The tags worth maintaining a list for: the standard set plus every preference

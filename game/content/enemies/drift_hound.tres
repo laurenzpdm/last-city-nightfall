@@ -29,6 +29,6 @@ attack_range = 0.7
 splash_radius = 0.0
 preferred_multiplier = 1.0
 target_pref = &"any"
-seek_radius = 3.0
+seek_radius = 0.0
 render_arch = &"swarm"
 tint = Color(0.78, 0.36, 0.32, 1)

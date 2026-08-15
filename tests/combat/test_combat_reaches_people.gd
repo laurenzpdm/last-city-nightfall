@@ -152,6 +152,53 @@ func test_the_roster_has_a_housing_seeker() -> void:
 		+ "every scenario in this build and this is why")
 
 
+## EVERY tagged preference in the roster has to resolve to something, or the
+## specialist that names it is a generic biter with a description that lies.
+##
+## RED against the Packed-array accumulator: `_target_index` was empty for every
+## tag on every tick, find_enemy_target is forbidden from falling back to the
+## untagged search, and so the pale stalker walked past the guns, the leech past
+## the mains, the breaker past the wall and the borer past the generators — each
+## one chewing whatever happened to block its next step. Four of the ten answers
+## in this roster, silently absent from the game.
+func test_every_preference_in_the_roster_resolves_to_a_real_building() -> void:
+	var seats: Dictionary[StringName, StringName] = {
+		&"housing": &"housing_block",
+		&"wall": &"wall",
+		&"turret": &"turret_mount",
+		&"heat_source": &"coal_generator",
+		&"conduit": &"heat_pipe",
+	}
+	var wanted: Dictionary[StringName, bool] = {}
+	for id: StringName in combat.enemy_kinds():
+		var def: CombatEnemyDef = combat.swarm.def_resource(combat.swarm.def_slot(id))
+		if def != null and def.target_pref != CombatTypes.PREF_ANY:
+			wanted[def.target_pref] = true
+	assert_true(wanted.size() >= 4,
+		"this roster is supposed to answer a defence with specialists; only %d "
+		% wanted.size() + "preferences are named at all")
+
+	var keys: Array = wanted.keys()
+	keys.sort()
+	var at: Vector2i = _housing_seat(Vector2i(8, 0))
+	for pref: StringName in keys:
+		if not seats.has(pref):
+			fail("no building in this build carries the tag '%s', so the enemies "
+				% pref + "that prefer it can never find anything")
+			continue
+		var b: BuildingInstance = _place(seats[pref], at)
+		if b == null:
+			continue
+		var from: Vector2 = b.world_center() + Vector2(0.0, 5.0 * 32.0)
+		var found: Dictionary = combat.find_enemy_target(from, pref, 20.0 * 32.0)
+		assert_false(found.is_empty(),
+			"nothing answers preference '%s' five tiles from a finished %s — the "
+			% [pref, seats[pref]] + "seek index is empty for that tag and every "
+			+ "enemy that names it is behaving as a generic biter")
+		build.execute({"op": &"remove", "cell": [at.x, at.y], "instant": true})
+		_step(1)
+
+
 ## A seeker standing in the street finds the house.
 ##
 ## RED against the old think gate: the body is spawned into slot 0 here on

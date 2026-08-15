@@ -32,6 +32,14 @@
    }
   },
   {
+   "tick": 1,
+   "cmd": {
+    "system": "threat",
+    "op": "peace",
+    "on": true
+   }
+  },
+  {
    "tick": 2,
    "cmd": {
     "system": "build",
@@ -449,11 +457,11 @@
     "kind": "wall",
     "from": [
      104,
-     146
+     143
     ],
     "to": [
      152,
-     146
+     143
     ],
     "free": true,
     "instant": true
@@ -467,7 +475,7 @@
     "kind": "wall",
     "from": [
      104,
-     146
+     143
     ],
     "to": [
      104,
@@ -485,7 +493,7 @@
     "kind": "wall",
     "from": [
      152,
-     146
+     143
     ],
     "to": [
      152,
@@ -678,7 +686,7 @@
     "system": "combat",
     "op": "spawn",
     "kind": "hoarfrost_breaker",
-    "count": 4,
+    "count": 2,
     "at": [
      128,
      170
@@ -691,7 +699,7 @@
     "system": "combat",
     "op": "spawn",
     "kind": "drift_hound",
-    "count": 24,
+    "count": 14,
     "at": [
      128,
      170
@@ -708,12 +716,12 @@
    }
   },
   {
-   "tick": 6900,
+   "tick": 6960,
    "cmd": {
     "system": "combat",
     "op": "spawn",
     "kind": "snow_widow",
-    "count": 6,
+    "count": 3,
     "at": [
      128,
      170
@@ -730,27 +738,27 @@
    }
   },
   {
-   "tick": 7300,
+   "tick": 7320,
    "cmd": {
     "system": "combat",
     "op": "spawn",
-    "kind": "snow_widow",
-    "count": 6,
+    "kind": "drift_hound",
+    "count": 10,
     "at": [
-     122,
+     134,
      170
     ]
    }
   },
   {
-   "tick": 7300,
+   "tick": 7320,
    "cmd": {
     "system": "combat",
     "op": "spawn",
-    "kind": "drift_hound",
-    "count": 18,
+    "kind": "snow_widow",
+    "count": 3,
     "at": [
-     134,
+     122,
      170
     ]
    }
