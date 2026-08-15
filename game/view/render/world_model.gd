@@ -782,6 +782,13 @@ func set_agent(id: int, kind: StringName, pos: Vector2) -> void:
 	a["cur"] = pos
 
 
+## The render kind of a live agent, or &"" once it is gone. The death effect
+## needs it at the moment the agent is removed.
+func agent_kind(id: int) -> StringName:
+	var a: Dictionary = _agents.get(id, {})
+	return a.get("kind", &"") as StringName
+
+
 func remove_agent(id: int) -> void:
 	_agents.erase(id)
 
@@ -810,8 +817,18 @@ func advance(tick: int) -> void:
 				var id: int = int(d2.get("id", -1))
 				if id < 0:
 					continue
+				# `kind` is the provider's coarse archetype; [P07] also hands
+				# over `threat`, which is the enemy's REAL id and the thing the
+				# player has been told about by name in the wave panel. Prefer
+				# it whenever [P13] has art for it, so the ten designed enemies
+				# arrive as ten creatures on the streaming path too and not only
+				# on the Bus.enemy_spawned one.
+				var rk: StringName = StringName(str(d2.get("kind", &"citizen")))
+				var real: StringName = StringName(str(d2.get("threat", "")))
+				if real != &"" and LcnSpriteFactory.ENEMY_KINDS.has(real):
+					rk = real
 				seen[id] = true
-				set_agent(id, StringName(str(d2.get("kind", &"citizen"))), d2.get("pos", Vector2.ZERO))
+				set_agent(id, rk, d2.get("pos", Vector2.ZERO))
 		for id2: int in _agents.keys():
 			if not seen.has(id2):
 				_agents.erase(id2)

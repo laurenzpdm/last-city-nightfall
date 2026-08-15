@@ -77,6 +77,25 @@ var _sources_us: int = 0
 var _bucket_us: int = 0
 var _frozen: Dictionary[int, bool] = {}
 
+## SOMETHING DIED HERE. Parallel arrays, capped, drawn in the glow pass out of
+## the same atlas — so a night full of kills costs no extra draw calls.
+##
+## Why the renderer owns a death effect at all when [P14] owns particles: a kill
+## with no visual is a kill the player does not know happened, and the one thing
+## a tower-defense night must answer every second is "is what I built working".
+## This is the sprite half of that answer — the thing that died, flashed white,
+## thrown up and faded, over a stain that outlives it — and it is drawn from the
+## dead creature's OWN silhouette, so a boss going down does not look like a
+## hound going down.
+const DEATH_MAX: int = 96
+const DEATH_FLASH_S: float = 0.22
+const DEATH_LIFE_S: float = 1.25
+var _death_x: PackedFloat32Array = PackedFloat32Array()
+var _death_y: PackedFloat32Array = PackedFloat32Array()
+var _death_t: PackedFloat32Array = PackedFloat32Array()
+var _death_kind: Array[StringName] = []
+var _deaths_drawn: int = 0
+
 ## Per-frame scratch, PARALLEL arrays and reused between frames. The first pass
 ## built one Dictionary per visible building per frame; at the stress city's 1581
 ## visible structures that alone was 3 ms of allocation before a single pixel was
@@ -341,10 +360,44 @@ func mark_frozen(id: int, is_frozen: bool) -> void:
 		_frozen.erase(id)
 
 
+## Records a kill at `pos`. `kind` is the render kind of the thing that died, so
+## the mark is drawn in its own silhouette; an unknown kind still leaves a stain.
+##
+## Time is read from SimClock.seconds(), never from a frame delta, because the
+## renderer must not become a second clock — a death that fades at a rate the
+## simulation cannot see is a death that looks different on every machine.
+func mark_death(pos: Vector2, kind: StringName) -> void:
+	if _death_x.size() >= DEATH_MAX:
+		# Oldest out. A night that kills 400 things does not get to grow this
+		# array without bound, and the ones that fall off are the faintest.
+		_death_x.remove_at(0)
+		_death_y.remove_at(0)
+		_death_t.remove_at(0)
+		_death_kind.remove_at(0)
+	_death_x.append(pos.x)
+	_death_y.append(pos.y)
+	_death_t.append(SimClock.seconds())
+	_death_kind.append(kind)
+
+
+## Drops every death mark. Called when the world is rebuilt.
+func clear_deaths() -> void:
+	_death_x.clear()
+	_death_y.clear()
+	_death_t.clear()
+	_death_kind.clear()
+
+
+## Live death marks, for the suite that proves a kill is visible.
+func death_count() -> int:
+	return _death_x.size()
+
+
 func stats() -> Dictionary:
 	return {
 		"visible_buildings": _visible_buildings,
 		"visible_agents": _visible_agents,
+		"deaths_drawn": _deaths_drawn,
 		"draw_us": _draw_us,
 		"collect_us": _collect_us,
 		"cull_us": _cull_us,
@@ -574,6 +627,8 @@ func _draw_glow(ci: CanvasItem) -> void:
 			ci.draw_texture_rect_region(_atlas, _rect_at(i, Vector2.ZERO), _em_at(i),
 				Color(1.0, 0.92, 0.80, clampf(lit * energy * 0.62 * fl, 0.0, 0.95)))
 
+	_draw_deaths(ci)
+
 	if zoom < RIM_ZOOM:
 		return
 
@@ -657,15 +712,90 @@ static func _agent_before(x: Dictionary, y: Dictionary) -> bool:
 
 
 func _draw_agent(ci: CanvasItem, ag: Dictionary) -> void:
-	var region: Rect2 = _regions.get(LcnSpriteFactory.agent_key(ag["kind"]), Rect2())
+	var kind: StringName = ag["kind"]
+	var region: Rect2 = _regions.get(LcnSpriteFactory.agent_key(kind), Rect2())
 	if region.size.x <= 0.0:
-		return
+		# An unknown kind used to draw NOTHING, so a mis-mapped enemy was an
+		# invisible enemy. Fall back to the archetype rather than to silence.
+		region = _regions.get(
+			LcnSpriteFactory.agent_key(LcnSpriteFactory.agent_arch(kind)), Rect2())
+		if region.size.x <= 0.0:
+			return
 	var pos: Vector2 = (ag["pos"] as Vector2) + Vector2(-region.size.x * 0.5, -region.size.y + 5.0)
 	# Sub-pixel snapping keeps 14px figures from shimmering as they walk.
 	pos = Vector2(round(pos.x), round(pos.y))
 	var lit: Color = _light_for(ag["pos"], 0.0)
-	ci.draw_texture_rect_region(_atlas, Rect2(pos, region.size), region,
+	# FACING. `model.agents()` has published a facing since the first pass and
+	# nothing read it, so every enemy in the game walked at the city sideways.
+	# A negative destination width is the whole implementation: same batch, same
+	# atlas, no extra sprite, and the pack now visibly comes FROM somewhere.
+	var w: float = region.size.x
+	if float(ag.get("facing", 0.0)) > 0.0:
+		pos.x += w
+		w = -w
+	ci.draw_texture_rect_region(_atlas, Rect2(pos, Vector2(w, region.size.y)), region,
 		Color(lit.r, lit.g, lit.b, 1.0))
+
+
+## THE DEATHS. Two marks per kill, both out of the atlas, both additive because
+## this pass is additive:
+##
+##   the flash   the creature's own silhouette, thrown up and scaled out over
+##               DEATH_FLASH_S. It is white-hot for two frames and gone — the
+##               shape you were shooting at, coming apart.
+##   the stain   a soft dark pool that outlives it by a second, so the ground
+##               after a fight is not the ground before it.
+##
+## Cost is bounded by DEATH_MAX and by the view cull, and the whole pass is
+## inside the batch that was already running.
+func _draw_deaths(ci: CanvasItem) -> void:
+	_deaths_drawn = 0
+	if _death_x.is_empty():
+		return
+	var now: float = SimClock.seconds()
+	var alive: int = 0
+	var n: int = _death_x.size()
+	for i: int in n:
+		var age: float = now - _death_t[i]
+		# A rewound or reset clock must not strand marks forever.
+		if age < 0.0 or age > DEATH_LIFE_S:
+			continue
+		# Compact in place: survivors move down, the tail is trimmed after.
+		_death_x[alive] = _death_x[i]
+		_death_y[alive] = _death_y[i]
+		_death_t[alive] = _death_t[i]
+		_death_kind[alive] = _death_kind[i]
+		alive += 1
+		var p := Vector2(_death_x[i], _death_y[i])
+		if not view_rect.grow(48.0).has_point(p):
+			continue
+		var life: float = age / DEATH_LIFE_S
+		# The stain: darkest immediately, gone at the end of the life.
+		var stain: float = (1.0 - life) * (1.0 - life) * 0.34
+		ci.draw_texture_rect_region(_atlas,
+			Rect2(p - Vector2(13.0, 8.0), Vector2(26.0, 16.0)), _shadow_r,
+			Color(0.30, 0.12, 0.10, stain))
+		_deaths_drawn += 1
+		if age > DEATH_FLASH_S:
+			continue
+		var f: float = age / DEATH_FLASH_S
+		var region: Rect2 = _regions.get(
+			LcnSpriteFactory.agent_key(_death_kind[i]), Rect2())
+		if region.size.x <= 0.0:
+			continue
+		# Up and out: the silhouette lifts a few pixels and grows by a fifth
+		# while it burns off, which is what separates "it died" from "it
+		# vanished because the array shrank".
+		var s: float = 1.0 + f * 0.22
+		var size: Vector2 = region.size * s
+		var top: Vector2 = p + Vector2(-size.x * 0.5, -size.y + 5.0 - f * 6.0)
+		ci.draw_texture_rect_region(_atlas, Rect2(top, size), region,
+			Color(1.0, 0.86, 0.72, (1.0 - f) * 0.95))
+	if alive < n:
+		_death_x.resize(alive)
+		_death_y.resize(alive)
+		_death_t.resize(alive)
+		_death_kind.resize(alive)
 
 
 ## A planned or half-built structure: surveyed footprint, scaffold uprights and

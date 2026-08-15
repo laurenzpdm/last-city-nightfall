@@ -47,15 +47,27 @@ func _buildings_sheet() -> void:
 
 func _agents_sheet() -> void:
 	var f := LcnSpriteFactory.new()
-	var kinds: Array[StringName] = [&"citizen", &"worker", &"soldier", &"swarm", &"brute"]
-	var sheet: Image = Image.create(60 * kinds.size(), 60, false, Image.FORMAT_RGBA8)
+	# Townspeople on the top row, the ten designed enemies on the row below,
+	# every sprite BOTTOM-ALIGNED on a common baseline so the sheet answers the
+	# question a critic actually asks: does a 30 hp hound read as a different
+	# creature from a 9000 hp boss, and does it read as a smaller one.
+	var kinds: Array[StringName] = LcnSpriteFactory.AGENT_KINDS
+	var foes: Array[StringName] = LcnSpriteFactory.ENEMY_KINDS
+	var cols: int = maxi(kinds.size(), foes.size())
+	var cw: int = 64
+	var rh: int = 64
+	var sheet: Image = Image.create(cw * cols, rh * 2, false, Image.FORMAT_RGBA8)
 	sheet.fill(Color(0.043, 0.071, 0.125, 1.0))
 	for i: int in kinds.size():
 		var img: Image = (f.agent(kinds[i])["texture"] as ImageTexture).get_image()
 		sheet.blend_rect(img, Rect2i(Vector2i.ZERO, img.get_size()),
-			Vector2i(i * 60 + (60 - img.get_width()) / 2, 60 - img.get_height() - 10))
-	var barrel: Image = (f.turret_barrel()["texture"] as ImageTexture).get_image()
-	sheet.blend_rect(barrel, Rect2i(Vector2i.ZERO, barrel.get_size()), Vector2i(4, 4))
+			Vector2i(i * cw + (cw - img.get_width()) / 2, rh - img.get_height() - 8))
+	for j: int in foes.size():
+		var fi: Image = (f.agent(foes[j])["texture"] as ImageTexture).get_image()
+		sheet.blend_rect(fi, Rect2i(Vector2i.ZERO, fi.get_size()),
+			Vector2i(j * cw + (cw - fi.get_width()) / 2,
+				rh * 2 - fi.get_height() - 8))
+		print("  foe %-20s %dx%d" % [foes[j], fi.get_width(), fi.get_height()])
 	sheet.save_png(ProjectSettings.globalize_path("%s/agents.png" % OUT))
 
 

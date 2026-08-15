@@ -2027,6 +2027,12 @@ func atlas(extra_buildings: Array = []) -> Dictionary:
 	for kind: StringName in AGENT_KINDS:
 		var a: Dictionary = agent(kind)
 		entries.append({"key": agent_key(kind), "img": (a["texture"] as ImageTexture).get_image()})
+	# The ten designed enemies ride the SAME atlas as everything else, so ten
+	# silhouettes cost the same number of draw calls as the one blob they
+	# replace. That is the whole reason they could be added at all.
+	for ek: StringName in ENEMY_KINDS:
+		var ae: Dictionary = agent(ek)
+		entries.append({"key": agent_key(ek), "img": (ae["texture"] as ImageTexture).get_image()})
 	entries.append({"key": &"barrel", "img": (turret_barrel()["texture"] as ImageTexture).get_image()})
 	entries.append({"key": &"glow", "img": glow_texture(256).get_image()})
 	entries.append({"key": &"shadow", "img": shadow_texture(96).get_image()})
@@ -2140,6 +2146,8 @@ func _bake_agent(kind: StringName) -> Image:
 			return _bake_swarm()
 		&"brute":
 			return _bake_brute()
+	if ENEMY_KINDS.has(kind):
+		return _bake_enemy(kind)
 	return _bake_person(kind)
 
 
@@ -2222,4 +2230,428 @@ func _bake_brute() -> Image:
 	]), Color(0.95, 0.24, 0.20, 0.92))
 	c.fill_glow(Vector2(15.0, 13.6), 16.0, Color(0.95, 0.22, 0.18, 0.48), Color(0.95, 0.22, 0.18, 0.0))
 	c.stroke_polygon(body, Color(0.016, 0.008, 0.012, 0.92), 1.6)
+	return c.to_image()
+
+
+# =============================================================== THE ENEMIES ==
+#
+# TEN DESIGNED KINDS, ONE 14 px BLOB. `world_renderer._on_enemy_spawned` mapped
+# every id in the game with
+#
+#     &"brute" if String(kind).to_lower().contains("brute") else &"swarm"
+#
+# and not one of ash_spitter, cinder_leech, drift_hound, frost_shade,
+# hoarfrost_breaker, keener, pale_stalker, permafrost_borer, rime_sapper or
+# the_long_cold contains the word "brute". So every enemy this game has ever
+# shipped — a 30 hp hound that comes in sixes and a 9000 hp boss — drew the same
+# eighteen pixels, and the night was unreadable because there was nothing in it
+# to read.
+#
+# THE RULE THESE TEN OBEY: silhouette first. A player at zoom 0.60 sees a shape
+# about twelve pixels tall with no interior detail, so the thing that has to
+# carry the identity is the OUTLINE and the aspect ratio, not the palette. Each
+# kind therefore takes a different footprint and a different profile, and the
+# set was chosen so no two share both:
+#
+#   drift_hound         wide, low, four legs             — a running animal
+#   rime_sapper         round, squat, one bright core    — a walking bomb
+#   cinder_leech        segmented arc, head down         — a worm on a cable
+#   frost_shade         tall, tapered, hollow, legless   — nothing solid
+#   keener              tall, thin, flared head          — a horn on legs
+#   pale_stalker        wide wingspan, small body        — the only flier
+#   ash_spitter         squat, lopsided, a raised tube   — artillery
+#   permafrost_borer    a cone half-sunk in the ground   — a drill
+#   hoarfrost_breaker   broad plated slab, two arms      — a wall
+#   the_long_cold       twice everything, spired crown   — the boss
+#
+# The tints match the `tint` on each `game/content/enemies/*.tres`, so the
+# creature the designer described is the creature that walks. They are written
+# out here rather than read from the Registry because a baked sprite is cached
+# on disk by key: art that changes when a data file changes would serve a stale
+# image from `LcnArtCache`, and a bake that touches the Registry cannot run in
+# the sprite tests.
+
+## Every enemy id in game/content/enemies/, each with its own sprite.
+const ENEMY_KINDS: Array[StringName] = [
+	&"drift_hound", &"rime_sapper", &"cinder_leech", &"frost_shade", &"keener",
+	&"pale_stalker", &"ash_spitter", &"permafrost_borer", &"hoarfrost_breaker",
+	&"the_long_cold",
+]
+
+## Enemy sprites are drawn walking LEFT (-X). `_draw_agent` flips them when the
+## thing is moving the other way, which is the whole of "facing" and costs
+## nothing: a negative width on the destination rect.
+const ENEMY_FACES_LEFT: bool = true
+
+
+## The render kind for a spawn id. Ten designed enemies each get their own
+## sprite; anything the content folder grows later falls back to the old two
+## archetypes by name rather than drawing nothing.
+##
+## This is the function `world_renderer._on_enemy_spawned` must call. The bug it
+## replaces was not that the mapping was crude, it was that the mapping was
+## never TRUE for any input the game can produce.
+static func agent_arch(kind: StringName) -> StringName:
+	if ENEMY_KINDS.has(kind) or AGENT_KINDS.has(kind):
+		return kind
+	var s: String = String(kind).to_lower()
+	# Heaviest words first: "hoarfrost_breaker" is a breaker before it is frost.
+	for word: String in ["boss", "breaker", "brute", "siege", "borer", "titan"]:
+		if s.contains(word):
+			return &"brute"
+	return &"swarm"
+
+
+## True when this render kind is one of the ten, i.e. draws hostile art.
+static func is_enemy_kind(kind: StringName) -> bool:
+	return ENEMY_KINDS.has(kind) or kind == &"swarm" or kind == &"brute"
+
+
+func _bake_enemy(kind: StringName) -> Image:
+	match kind:
+		&"drift_hound": return _bake_drift_hound()
+		&"rime_sapper": return _bake_rime_sapper()
+		&"cinder_leech": return _bake_cinder_leech()
+		&"frost_shade": return _bake_frost_shade()
+		&"keener": return _bake_keener()
+		&"pale_stalker": return _bake_pale_stalker()
+		&"ash_spitter": return _bake_ash_spitter()
+		&"permafrost_borer": return _bake_permafrost_borer()
+		&"hoarfrost_breaker": return _bake_hoarfrost_breaker()
+		&"the_long_cold": return _bake_the_long_cold()
+	return _bake_swarm()
+
+
+## Shared chassis tone. Every enemy is built out of the same near-black so the
+## whole faction reads as one thing at a glance, and its own `tint` only ever
+## appears as the light coming OUT of it — which is what makes an enemy legible
+## on a black plain without lighting it like a lamp.
+static func _hide(tint: Color, dark: float = 0.86) -> Color:
+	return Color(
+		lerpf(tint.r * 0.32, 0.055, dark),
+		lerpf(tint.g * 0.32, 0.043, dark),
+		lerpf(tint.b * 0.32, 0.063, dark), 1.0)
+
+
+## Six legs' worth of quadruped: long, low, head dropped, tail out behind. The
+## only enemy that is wider than it is tall by more than two to one.
+func _bake_drift_hound() -> Image:
+	var t := Color(0.78, 0.36, 0.32)
+	var c := LcnVectorCanvas.new(22, 13, SS)
+	c.fill_ellipse(Vector2(11.0, 11.6), 8.0, 1.6, Color(0.043, 0.020, 0.031, 0.5))
+	var body := PackedVector2Array([
+		Vector2(6.0, 4.4), Vector2(13.0, 3.6), Vector2(16.4, 5.0),
+		Vector2(15.6, 8.0), Vector2(7.0, 8.4), Vector2(5.0, 6.6),
+	])
+	c.fill_polygon_gradient(body, _hide(t, 0.55), _hide(t, 0.95),
+		Vector2(0.0, 3.6), Vector2(0.0, 8.4))
+	# Four legs, splayed front and back — a running animal, not a table.
+	for l: int in 4:
+		var lx: float = [6.6, 8.6, 13.0, 15.0][l]
+		var sx: float = -1.4 if l < 2 else 1.4
+		c.stroke_polyline(PackedVector2Array([
+			Vector2(lx, 7.4), Vector2(lx + sx * 0.6, 9.6), Vector2(lx + sx, 11.2),
+		]), _hide(t, 0.92), 1.2)
+	# Head down and forward: the thing is coming at you.
+	c.fill_polygon(PackedVector2Array([
+		Vector2(5.2, 5.0), Vector2(1.6, 6.2), Vector2(1.8, 8.0), Vector2(5.6, 7.8),
+	]), _hide(t, 0.72))
+	c.fill_circle(Vector2(3.0, 6.7), 0.85, t * Color(1.4, 1.0, 1.0, 1.0), 8)
+	# Tail, straight out — it lengthens the silhouette down the axis of travel.
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(16.2, 5.4), Vector2(19.4, 4.2), Vector2(21.0, 5.4),
+	]), _hide(t, 0.9), 1.1)
+	c.fill_glow(Vector2(3.0, 6.7), 5.0, Color(t.r, t.g, t.b, 0.34), Color(t.r, t.g, t.b, 0.0))
+	c.stroke_polygon(body, Color(0.012, 0.008, 0.012, 0.9), 1.0)
+	return c.to_image()
+
+
+## A walking charge. Round, squat, no head, and a core so bright it is the only
+## enemy whose interior out-reads its outline — because the read the player
+## needs is "that one is about to go off".
+func _bake_rime_sapper() -> Image:
+	var t := Color(0.90, 0.42, 0.24)
+	var c := LcnVectorCanvas.new(16, 16, SS)
+	c.fill_ellipse(Vector2(8.0, 14.2), 5.4, 1.7, Color(0.043, 0.020, 0.031, 0.5))
+	var body: PackedVector2Array = LcnVectorCanvas.circle_points(Vector2(8.0, 7.6), 5.6, 5.0, 14)
+	c.fill_polygon_radial(body, _hide(t, 0.50), _hide(t, 0.96), Vector2(8.0, 6.0), 6.4)
+	# Two stubby legs under a body far too big for them.
+	for lx: float in [6.0, 10.0]:
+		c.stroke_polyline(PackedVector2Array([
+			Vector2(lx, 11.4), Vector2(lx, 13.6)]), _hide(t, 0.94), 1.5)
+	# Ribbed shell so the core reads as something contained.
+	for r: int in 3:
+		c.stroke_polyline(PackedVector2Array([
+			Vector2(3.4, 6.0 + float(r) * 1.9), Vector2(12.6, 6.0 + float(r) * 1.9),
+		]), Color(0.02, 0.014, 0.02, 0.55), 0.7)
+	c.fill_circle(Vector2(8.0, 7.4), 2.5, Color(t.r, t.g * 0.85, t.b * 0.7, 0.95), 12)
+	c.fill_circle(Vector2(8.0, 7.4), 1.3, Color(1.0, 0.92, 0.72, 1.0), 10)
+	c.fill_glow(Vector2(8.0, 7.4), 9.0, Color(t.r, t.g, t.b, 0.5), Color(t.r, t.g, t.b, 0.0))
+	c.stroke_polygon(body, Color(0.012, 0.008, 0.012, 0.9), 1.1)
+	return c.to_image()
+
+
+## Segmented, head to the ground, body arched. It siphons, so it is drawn
+## attached to something: the profile is a hook, not a walker.
+func _bake_cinder_leech() -> Image:
+	var t := Color(0.94, 0.55, 0.22)
+	var c := LcnVectorCanvas.new(20, 14, SS)
+	c.fill_ellipse(Vector2(10.0, 12.4), 7.0, 1.5, Color(0.043, 0.020, 0.031, 0.45))
+	# Six segments along an arc. Each is drawn separately, so the outline is a
+	# scallop and not a sausage — that is the whole silhouette read.
+	for s: int in 6:
+		var f: float = float(s) / 5.0
+		var px: float = lerpf(4.0, 17.0, f)
+		var py: float = 9.6 - sin(f * PI) * 5.0
+		var rad: float = 2.6 - f * 0.9
+		c.fill_circle(Vector2(px, py), rad, _hide(t, 0.58 + f * 0.34), 10)
+		if s % 2 == 0:
+			c.fill_circle(Vector2(px, py - rad * 0.3), rad * 0.36,
+				Color(t.r, t.g, t.b, 0.75), 8)
+	# The proboscis, planted.
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(4.0, 9.6), Vector2(2.2, 11.4), Vector2(1.4, 12.6),
+	]), _hide(t, 0.9), 1.3)
+	c.fill_glow(Vector2(9.0, 6.2), 8.0, Color(t.r, t.g, t.b, 0.30), Color(t.r, t.g, t.b, 0.0))
+	return c.to_image()
+
+
+## Legless, tall, and it does not close at the bottom. Every other enemy stands
+## on the ground; this one is a column of cold that fades into it, which is the
+## fastest possible read for "you cannot block this the usual way".
+func _bake_frost_shade() -> Image:
+	var t := Color(0.55, 0.78, 0.92)
+	var c := LcnVectorCanvas.new(16, 24, SS)
+	var body := PackedVector2Array([
+		Vector2(8.0, 1.6), Vector2(11.6, 5.0), Vector2(12.4, 12.0),
+		Vector2(11.0, 21.0), Vector2(5.0, 21.0), Vector2(3.6, 12.0),
+		Vector2(4.4, 5.0),
+	])
+	# Top-lit and bottom-transparent: it is thickest at the head and gone at the
+	# hem. `fill_polygon_gradient` carries the alpha, so the fade is in the
+	# silhouette itself rather than painted on afterwards.
+	c.fill_polygon_gradient(body,
+		Color(0.30, 0.42, 0.55, 0.92), Color(0.10, 0.17, 0.26, 0.05),
+		Vector2(0.0, 1.6), Vector2(0.0, 21.0))
+	# The hollow. A shade with a solid middle is a ghost costume.
+	c.fill_polygon(PackedVector2Array([
+		Vector2(8.0, 8.0), Vector2(10.2, 12.0), Vector2(8.0, 17.4), Vector2(5.8, 12.0),
+	]), Color(0.02, 0.05, 0.09, 0.72))
+	c.fill_ellipse(Vector2(8.0, 4.6), 2.0, 2.4, Color(t.r * 0.5, t.g * 0.6, t.b * 0.7, 0.9))
+	c.fill_circle(Vector2(6.9, 4.4), 0.75, Color(0.85, 0.97, 1.0, 0.95), 8)
+	c.fill_circle(Vector2(9.1, 4.4), 0.75, Color(0.85, 0.97, 1.0, 0.95), 8)
+	c.fill_glow(Vector2(8.0, 6.0), 11.0, Color(t.r, t.g, t.b, 0.34), Color(t.r, t.g, t.b, 0.0))
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(4.4, 5.0), Vector2(8.0, 1.6), Vector2(11.6, 5.0),
+	]), Color(t.r, t.g, t.b, 0.55), 1.0)
+	return c.to_image()
+
+
+## A horn with legs. It does no damage; it makes everything else worse, so it is
+## drawn as an instrument — the flared head is the widest thing at the top of any
+## silhouette in the set and it is what a player learns to shoot first.
+func _bake_keener() -> Image:
+	var t := Color(0.72, 0.42, 0.85)
+	var c := LcnVectorCanvas.new(18, 24, SS)
+	c.fill_ellipse(Vector2(9.0, 22.0), 5.0, 1.6, Color(0.043, 0.020, 0.031, 0.5))
+	# Thin body: a stalk.
+	c.fill_polygon_gradient(PackedVector2Array([
+		Vector2(7.4, 8.0), Vector2(10.6, 8.0), Vector2(11.4, 21.0), Vector2(6.6, 21.0),
+	]), _hide(t, 0.58), _hide(t, 0.95), Vector2(0.0, 8.0), Vector2(0.0, 21.0))
+	for lx: float in [7.4, 10.6]:
+		c.stroke_polyline(PackedVector2Array([
+			Vector2(lx, 18.0), Vector2(lx + (lx - 9.0) * 0.5, 21.6)]), _hide(t, 0.94), 1.2)
+	# The bell, opening upward and forward.
+	var bell := PackedVector2Array([
+		Vector2(8.4, 9.0), Vector2(1.2, 3.0), Vector2(2.4, 0.8),
+		Vector2(16.0, 2.2), Vector2(15.2, 5.4), Vector2(9.8, 9.0),
+	])
+	c.fill_polygon_gradient(bell, Color(t.r * 0.55, t.g * 0.40, t.b * 0.62, 1.0),
+		_hide(t, 0.80), Vector2(0.0, 0.8), Vector2(0.0, 9.0))
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(1.2, 3.0), Vector2(2.4, 0.8), Vector2(16.0, 2.2),
+	]), Color(t.r, t.g, t.b, 0.85), 1.1)
+	c.fill_glow(Vector2(8.6, 3.0), 12.0, Color(t.r, t.g, t.b, 0.36), Color(t.r, t.g, t.b, 0.0))
+	c.stroke_polygon(bell, Color(0.014, 0.010, 0.018, 0.85), 1.0)
+	return c.to_image()
+
+
+## The only thing in the game with a wingspan, and it is drawn ABOVE its own
+## shadow with a visible gap — the one silhouette cue that survives at any zoom
+## and the only way "it ignores your walls" can be read from a still frame.
+func _bake_pale_stalker() -> Image:
+	var t := Color(0.86, 0.90, 0.96)
+	# 32x15. The aspect ratio IS the identity: at play zoom this is a horizontal
+	# bar where every other enemy is a lump, and the suite holds it to being the
+	# widest-for-its-height shape in the set so it can never quietly narrow.
+	var c := LcnVectorCanvas.new(32, 15, SS)
+	# The shadow sits low and small; the body is high. The gap is the read.
+	c.fill_ellipse(Vector2(16.0, 13.6), 3.8, 1.1, Color(0.043, 0.048, 0.070, 0.55))
+	var lwing := PackedVector2Array([
+		Vector2(15.0, 4.4), Vector2(6.0, 0.8), Vector2(0.5, 2.6),
+		Vector2(4.4, 4.4), Vector2(1.0, 5.8), Vector2(14.2, 6.6),
+	])
+	var rwing := PackedVector2Array([
+		Vector2(17.0, 4.4), Vector2(26.0, 0.8), Vector2(31.5, 2.6),
+		Vector2(27.6, 4.4), Vector2(31.0, 5.8), Vector2(17.8, 6.6),
+	])
+	for wing: PackedVector2Array in [lwing, rwing]:
+		c.fill_polygon_gradient(wing, Color(0.25, 0.28, 0.34, 0.95),
+			Color(0.08, 0.10, 0.14, 0.85), Vector2(0.0, 0.8), Vector2(0.0, 6.6))
+		c.stroke_polygon(wing, Color(0.012, 0.014, 0.020, 0.85), 0.9)
+	c.fill_polygon(PackedVector2Array([
+		Vector2(16.0, 1.8), Vector2(18.0, 4.4), Vector2(16.0, 9.6), Vector2(14.0, 4.4),
+	]), _hide(t, 0.60))
+	c.fill_circle(Vector2(16.0, 3.4), 1.0, Color(t.r, t.g, t.b, 0.95), 10)
+	c.fill_glow(Vector2(16.0, 4.0), 8.0, Color(t.r, t.g, t.b, 0.22), Color(t.r, t.g, t.b, 0.0))
+	return c.to_image()
+
+
+## Artillery: a squat asymmetric mass with one tube pointing up and back. It is
+## the only enemy whose outline is deliberately UNBALANCED, so it can be picked
+## out of a mixed pack without reading any interior detail.
+func _bake_ash_spitter() -> Image:
+	var t := Color(0.60, 0.52, 0.30)
+	# 26x18, LOW AND WIDE. The borer is the other squat siege body in the set and
+	# the two used to overlap at 0.675 of each other's area, i.e. they were one
+	# creature with two names. The spitter is now decisively a horizontal
+	# platform and the borer a vertical cone; there is no zoom at which they
+	# resolve to the same shape.
+	var c := LcnVectorCanvas.new(26, 18, SS)
+	c.fill_ellipse(Vector2(13.0, 16.4), 10.4, 2.0, Color(0.043, 0.031, 0.020, 0.55))
+	var body := PackedVector2Array([
+		Vector2(1.6, 11.0), Vector2(4.0, 8.2), Vector2(17.0, 7.8),
+		Vector2(23.4, 10.4), Vector2(22.2, 15.4), Vector2(3.0, 15.4),
+	])
+	c.fill_polygon_gradient(body, _hide(t, 0.52), _hide(t, 0.94),
+		Vector2(0.0, 7.8), Vector2(0.0, 15.4))
+	# The tube. Raised, angled back over the body: a mortar.
+	c.fill_polygon(PackedVector2Array([
+		Vector2(15.0, 9.2), Vector2(18.4, 8.4), Vector2(25.2, 2.4),
+		Vector2(22.6, 0.8), Vector2(15.4, 6.8),
+	]), _hide(t, 0.66))
+	c.fill_circle(Vector2(24.0, 1.6), 1.6, Color(0.95, 0.52, 0.20, 0.85), 10)
+	c.fill_glow(Vector2(24.0, 1.6), 8.0, Color(0.95, 0.5, 0.2, 0.42), Color(0.95, 0.5, 0.2, 0.0))
+	# Six short legs across the full width — it is a platform, it does not run.
+	for l: int in 6:
+		var lx: float = 3.2 + float(l) * 3.6
+		c.stroke_polyline(PackedVector2Array([
+			Vector2(lx, 14.8), Vector2(lx, 16.8)]), _hide(t, 0.94), 1.3)
+	c.fill_polygon(PackedVector2Array([
+		Vector2(4.0, 10.8), Vector2(10.0, 10.4), Vector2(9.6, 12.8), Vector2(4.2, 13.0),
+	]), Color(0.72, 0.42, 0.16, 0.55))
+	c.stroke_polygon(body, Color(0.014, 0.010, 0.008, 0.9), 1.2)
+	return c.to_image()
+
+
+## A cone with its point in the ground and its ridges showing. Half of it is
+## missing below the surface, which is why the silhouette is a triangle sitting
+## in a spoil ring rather than a body standing on legs.
+func _bake_permafrost_borer() -> Image:
+	var t := Color(0.45, 0.40, 0.52)
+	# 18x26: TALL AND NARROW, the inverse of the ash spitter's platform. A drill
+	# standing out of the ground is a spike, and a spike is the one profile in
+	# this set that is taller than it is wide by more than half again.
+	var c := LcnVectorCanvas.new(18, 26, SS)
+	# The spoil ring: it came UP through the snow, so there is a mess around it.
+	c.fill_ellipse(Vector2(9.0, 23.0), 8.6, 2.6, Color(0.10, 0.10, 0.13, 0.62))
+	c.fill_ellipse(Vector2(9.0, 23.0), 5.6, 1.7, Color(0.045, 0.043, 0.059, 0.85))
+	var cone := PackedVector2Array([
+		Vector2(9.0, 0.6), Vector2(12.4, 14.0), Vector2(13.0, 22.4),
+		Vector2(5.0, 22.4), Vector2(5.6, 14.0),
+	])
+	c.fill_polygon_gradient(cone, _hide(t, 0.44), _hide(t, 0.90),
+		Vector2(0.0, 0.6), Vector2(0.0, 22.4))
+	# Helical ridges. Five chevrons up a tall cone read as a screw thread.
+	for r: int in 5:
+		var y: float = 4.4 + float(r) * 3.6
+		var half: float = 1.3 + float(r) * 1.1
+		c.stroke_polyline(PackedVector2Array([
+			Vector2(9.0 - half, y + 1.4), Vector2(9.0, y - 0.5), Vector2(9.0 + half, y + 1.4),
+		]), Color(0.72, 0.76, 0.86, 0.42), 0.9)
+	c.fill_circle(Vector2(9.0, 2.8), 1.1, Color(0.62, 0.86, 1.0, 0.8), 10)
+	c.fill_glow(Vector2(9.0, 3.6), 10.0, Color(t.r + 0.2, t.g + 0.3, t.b + 0.4, 0.24),
+		Color(t.r, t.g, t.b, 0.0))
+	c.stroke_polygon(cone, Color(0.012, 0.012, 0.018, 0.9), 1.3)
+	return c.to_image()
+
+
+## 900 hp of plate. Broad, flat-topped, shoulders wider than it is tall, and two
+## arms that hang past its feet. If the player reads one thing off this shape it
+## should be "that is not going to stop for a wall".
+func _bake_hoarfrost_breaker() -> Image:
+	var t := Color(0.62, 0.68, 0.78)
+	var c := LcnVectorCanvas.new(32, 28, SS)
+	c.fill_ellipse(Vector2(16.0, 25.6), 11.5, 3.0, Color(0.043, 0.047, 0.062, 0.6))
+	var body := PackedVector2Array([
+		Vector2(3.4, 10.0), Vector2(6.0, 6.0), Vector2(26.0, 6.0),
+		Vector2(28.6, 10.0), Vector2(27.0, 22.0), Vector2(5.0, 22.0),
+	])
+	c.fill_polygon_gradient(body, _hide(t, 0.46), _hide(t, 0.92),
+		Vector2(0.0, 6.0), Vector2(0.0, 22.0))
+	# Plates. Horizontal banding is what says armour at eight pixels.
+	for p: int in 3:
+		c.stroke_polyline(PackedVector2Array([
+			Vector2(4.6, 10.4 + float(p) * 3.8), Vector2(27.4, 10.4 + float(p) * 3.8),
+		]), Color(0.70, 0.78, 0.90, 0.20), 1.0)
+	# Two heavy arms, hanging below the hem.
+	for sx: float in [-1.0, 1.0]:
+		var ax: float = 16.0 + sx * 13.0
+		c.fill_polygon(PackedVector2Array([
+			Vector2(ax - sx * 2.4, 9.0), Vector2(ax + sx * 2.6, 10.4),
+			Vector2(ax + sx * 2.0, 25.0), Vector2(ax - sx * 2.2, 24.0),
+		]), _hide(t, 0.66))
+	# Rime crust on the shoulders: it carries the cold with it.
+	c.stroke_polyline(PackedVector2Array([
+		Vector2(6.0, 6.4), Vector2(11.0, 5.0), Vector2(16.0, 6.4),
+		Vector2(21.0, 5.0), Vector2(26.0, 6.4),
+	]), Color(0.78, 0.90, 1.0, 0.62), 1.2)
+	c.fill_polygon(PackedVector2Array([
+		Vector2(11.0, 12.4), Vector2(21.0, 12.4), Vector2(19.4, 15.6), Vector2(12.6, 15.6),
+	]), Color(0.62, 0.84, 1.0, 0.88))
+	c.fill_glow(Vector2(16.0, 14.0), 17.0, Color(0.5, 0.75, 1.0, 0.42), Color(0.5, 0.75, 1.0, 0.0))
+	c.stroke_polygon(body, Color(0.012, 0.014, 0.020, 0.92), 1.6)
+	return c.to_image()
+
+
+## The boss. It is not a bigger brute; it is a different object — a crowned mass
+## with spires coming off it and a cold that reaches past its own outline. At
+## 52x48 it is over three times the height of a drift hound in the same frame,
+## which is the only honest way to draw 9000 hp next to 30.
+func _bake_the_long_cold() -> Image:
+	var t := Color(0.36, 0.44, 0.62)
+	var c := LcnVectorCanvas.new(52, 48, SS)
+	c.fill_ellipse(Vector2(26.0, 43.6), 20.0, 5.0, Color(0.031, 0.039, 0.063, 0.66))
+	var body := PackedVector2Array([
+		Vector2(8.0, 22.0), Vector2(12.0, 13.0), Vector2(21.0, 8.0),
+		Vector2(31.0, 8.0), Vector2(40.0, 13.0), Vector2(44.0, 22.0),
+		Vector2(41.0, 38.0), Vector2(11.0, 38.0),
+	])
+	c.fill_polygon_gradient(body, _hide(t, 0.40), _hide(t, 0.94),
+		Vector2(0.0, 8.0), Vector2(0.0, 38.0))
+	# The crown: seven ice spires of uneven length. Uneven on purpose — a
+	# symmetrical crown reads as a machine part.
+	var spire_h: Array[float] = [7.0, 12.0, 9.0, 16.0, 8.5, 13.0, 6.5]
+	for s: int in spire_h.size():
+		var sx2: float = 13.0 + float(s) * 4.4
+		var top: float = 9.0 - spire_h[s]
+		c.fill_polygon(PackedVector2Array([
+			Vector2(sx2 - 1.8, 11.0), Vector2(sx2, top), Vector2(sx2 + 1.8, 11.0),
+		]), Color(0.42, 0.58, 0.78, 0.88))
+		c.stroke_polyline(PackedVector2Array([
+			Vector2(sx2, top), Vector2(sx2, 11.0)]), Color(0.80, 0.92, 1.0, 0.5), 0.8)
+	# Ribs down the mass.
+	for r2: int in 4:
+		c.stroke_polyline(PackedVector2Array([
+			Vector2(10.0, 22.0 + float(r2) * 4.4), Vector2(42.0, 22.0 + float(r2) * 4.4),
+		]), Color(0.60, 0.74, 0.94, 0.16), 1.2)
+	# Two eyes far apart: the width between them is a size cue on its own.
+	for ex: float in [19.0, 33.0]:
+		c.fill_ellipse(Vector2(ex, 20.0), 2.6, 1.7, Color(0.58, 0.84, 1.0, 0.95))
+		c.fill_circle(Vector2(ex, 20.0), 1.0, Color(0.92, 0.98, 1.0, 1.0), 10)
+	c.fill_polygon(PackedVector2Array([
+		Vector2(17.0, 27.0), Vector2(35.0, 27.0), Vector2(31.0, 33.0), Vector2(21.0, 33.0),
+	]), Color(0.46, 0.72, 1.0, 0.70))
+	c.fill_glow(Vector2(26.0, 24.0), 30.0, Color(0.42, 0.66, 1.0, 0.40), Color(0.42, 0.66, 1.0, 0.0))
+	c.stroke_polygon(body, Color(0.010, 0.012, 0.020, 0.94), 2.0)
 	return c.to_image()

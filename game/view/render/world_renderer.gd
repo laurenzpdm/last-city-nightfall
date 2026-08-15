@@ -74,6 +74,8 @@ func _ready() -> void:
 		sprites.building(arch)
 	for kind: StringName in LcnSpriteFactory.AGENT_KINDS:
 		sprites.agent(kind)
+	for ek: StringName in LcnSpriteFactory.ENEMY_KINDS:
+		sprites.agent(ek)
 	sprites.turret_barrel()
 
 	model = LcnWorldModel.new(sprites)
@@ -172,12 +174,23 @@ func _on_building_froze(id: int) -> void:
 	entities.mark_frozen(id, true)
 
 
+## The kind on this signal is the enemy's REAL id (`CombatEnemyDef.id`), which is
+## one of ash_spitter, cinder_leech, drift_hound, frost_shade, hoarfrost_breaker,
+## keener, pale_stalker, permafrost_borer, rime_sapper, the_long_cold.
+##
+## It used to be reduced here with
+##     &"brute" if String(kind).to_lower().contains("brute") else &"swarm"
+## and NOT ONE of those ten contains "brute" — so every enemy in the game, from a
+## 30 hp hound to a 9000 hp boss, drew the same eighteen pixels. The mapping was
+## not crude, it was never true for any input the simulation can produce.
 func _on_enemy_spawned(id: int, kind: StringName, pos: Vector2) -> void:
-	var arch: StringName = &"brute" if String(kind).to_lower().contains("brute") else &"swarm"
-	model.set_agent(id, arch, pos)
+	model.set_agent(id, LcnSpriteFactory.agent_arch(kind), pos)
 
 
-func _on_enemy_killed(id: int, _pos: Vector2) -> void:
+func _on_enemy_killed(id: int, pos: Vector2) -> void:
+	# Read the kind BEFORE dropping it: the death mark is drawn in the shape of
+	# the thing that died, and a boss going down must not look like a hound.
+	entities.mark_death(pos, model.agent_kind(id))
 	model.remove_agent(id)
 
 

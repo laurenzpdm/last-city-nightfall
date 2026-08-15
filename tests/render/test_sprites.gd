@@ -260,3 +260,119 @@ func test_atlas_is_one_texture_and_stays_a_sane_size() -> void:
 	assert_lt(float(px), 4.0 * 1024.0 * 1024.0,
 		"atlas is %dx%d — small enough to stay resident on any GPU" % [tex.get_width(), tex.get_height()])
 	assert_gt(float((a["regions"] as Dictionary).size()), 25.0, "and it earns its size")
+
+
+# =========================================================== THE TEN ENEMIES ==
+#
+# `world_renderer._on_enemy_spawned` mapped every spawn with
+#
+#     &"brute" if String(kind).to_lower().contains("brute") else &"swarm"
+#
+# and not one of the ten ids in game/content/enemies/ contains "brute". So the
+# expression was not merely coarse — it was FALSE for every input the simulation
+# can produce, and every enemy in the game drew one 18x16 sprite. These three
+# tests fail against that expression, which is the point of them: the first two
+# fail on the mapping, the third on the art it maps to.
+
+
+## THE MAPPING IS TRUE FOR THE THINGS THAT ACTUALLY SPAWN. Read off the content
+## folder, not off a list in this file, so an enemy added tomorrow without art
+## fails here rather than silently becoming a blob at midnight.
+func test_every_shipped_enemy_maps_to_its_own_sprite() -> void:
+	var dir := DirAccess.open("res://game/content/enemies")
+	if dir == null:
+		skip("no enemy content in this build")
+		return
+	var ids: Array[StringName] = []
+	for file: String in dir.get_files():
+		if file.ends_with(".tres"):
+			ids.append(StringName(file.get_basename()))
+	assert_ge(float(ids.size()), 10.0, "the designed roster is present (%d)" % ids.size())
+
+	var archs: Dictionary[StringName, bool] = {}
+	for id: StringName in ids:
+		var arch: StringName = LcnSpriteFactory.agent_arch(id)
+		assert_eq(arch, id,
+			"%s renders as itself, not as a generic archetype (got '%s')" % [id, arch])
+		archs[arch] = true
+	assert_eq(archs.size(), ids.size(),
+		"%d enemies produce %d distinct render kinds" % [ids.size(), archs.size()])
+
+
+## Every one of them is in the atlas, so drawing ten creatures still costs the
+## draw calls of one. An enemy sprite outside the atlas would bind a second
+## texture and break the batch the whole renderer is built on.
+func test_every_enemy_sprite_rides_the_one_atlas() -> void:
+	var a: Dictionary = f.atlas([])
+	var regions: Dictionary = a["regions"]
+	for kind: StringName in LcnSpriteFactory.ENEMY_KINDS:
+		assert_true(regions.has(LcnSpriteFactory.agent_key(kind)),
+			"atlas contains enemy %s" % kind)
+
+
+## SILHOUETTE, NOT PALETTE. At the zoom this game is played at an enemy is about
+## a dozen pixels tall with no readable interior, so two kinds that share an
+## outline are the same creature to the player however differently they are
+## tinted. Rasterised at a COMMON world scale — a 30 hp hound and a 9000 hp boss
+## differ by size as much as by shape, and normalising per sprite would throw
+## exactly that away.
+##
+## The bar is 0.62, tighter than the 0.82 the buildings are held to, because a
+## building is identified at leisure and an enemy is identified while it is
+## walking at you.
+func test_the_ten_enemies_are_distinguishable_by_shape_alone() -> void:
+	var kinds: Array[StringName] = LcnSpriteFactory.ENEMY_KINDS
+	var masks: Dictionary[StringName, PackedByteArray] = {}
+	for kind: StringName in kinds:
+		var m: PackedByteArray = _mask_at(f.agent(kind), 64.0)
+		var on: int = 0
+		for v: int in m:
+			on += v
+		assert_gt(float(on), 12.0, "%s draws something at play scale (%d cells)" % [kind, on])
+		masks[kind] = m
+	var worst: float = 0.0
+	var pair: String = ""
+	for i: int in kinds.size():
+		for j: int in range(i + 1, kinds.size()):
+			var same: float = _similarity(masks[kinds[i]], masks[kinds[j]])
+			if same > worst:
+				worst = same
+				pair = "%s vs %s" % [kinds[i], kinds[j]]
+	assert_lt(worst, 0.62,
+		"closest enemy silhouette pair is %s at %.3f overlap" % [pair, worst])
+
+
+## The boss must not be a big hound. Size IS information in a tower defense:
+## 9000 hp and 30 hp arriving in the same frame have to be told apart before
+## either of them is in range.
+func test_size_carries_the_threat() -> void:
+	var hound: Image = (f.agent(&"drift_hound")["texture"] as ImageTexture).get_image()
+	var boss: Image = (f.agent(&"the_long_cold")["texture"] as ImageTexture).get_image()
+	var breaker: Image = (f.agent(&"hoarfrost_breaker")["texture"] as ImageTexture).get_image()
+	assert_gt(float(boss.get_height()), float(hound.get_height()) * 3.0,
+		"the boss is over three times the height of the swarm trash (%d vs %d)"
+			% [boss.get_height(), hound.get_height()])
+	assert_gt(float(breaker.get_height()), float(hound.get_height()) * 1.8,
+		"the 900 hp breaker reads as heavy next to the 30 hp hound (%d vs %d)"
+			% [breaker.get_height(), hound.get_height()])
+	# ...and the flier is the widest thing in the set, because a wingspan is the
+	# only cue that survives when everything is twelve pixels tall.
+	var stalker: Image = (f.agent(&"pale_stalker")["texture"] as ImageTexture).get_image()
+	for kind: StringName in LcnSpriteFactory.ENEMY_KINDS:
+		if kind == &"pale_stalker" or kind == &"the_long_cold":
+			continue
+		var im: Image = (f.agent(kind)["texture"] as ImageTexture).get_image()
+		assert_gt(float(stalker.get_width()) / float(stalker.get_height()),
+			float(im.get_width()) / float(im.get_height()),
+			"the flier is the widest-for-its-height silhouette (vs %s)" % kind)
+
+
+## An id nobody has drawn must still draw SOMETHING. The fallback is the reason
+## adding an enemy to the content folder can never produce an invisible one.
+func test_an_undrawn_enemy_still_lands_on_an_archetype() -> void:
+	assert_eq(LcnSpriteFactory.agent_arch(&"grave_titan"), &"brute",
+		"a heavy-sounding unknown falls back to the brute")
+	assert_eq(LcnSpriteFactory.agent_arch(&"nibbler"), &"swarm",
+		"anything else falls back to the swarm")
+	assert_eq(LcnSpriteFactory.agent_arch(&"citizen"), &"citizen",
+		"and the townspeople are left alone")
