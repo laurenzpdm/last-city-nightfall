@@ -331,6 +331,7 @@ def write(scenario):
     # A scenario that claims to refuse to emit what the game would refuse, doing
     # exactly that, silently, in the half of the A/B pair whose whole job is to
     # be read against the other half.
+    #
     # Only the commands that CLAIM GROUND matter, and only when an inverted pair
     # actually shares a tile: a `set_priority` or a heat dump written out of
     # sequence changes nothing the model tracks, and two placements that never

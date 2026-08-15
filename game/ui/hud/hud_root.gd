@@ -485,10 +485,11 @@ func _build_menu_block() -> float:
 	return float(menu.call(&"left_block"))
 
 
-## The left edge of [P17]'s right-hand column, in SCREEN pixels, or the viewport
-## width when nothing is standing there. The mirror of the `left_block()` this
-## file already asks [P18] for, and it exists for the same reason in the other
-## direction.
+## The left edge of [P17]'s right-hand column, in SCREEN pixels — the viewport
+## width when nothing is standing there, and INF before this HUD has a style or a
+## viewport, which reads to a caller as "no constraint" rather than as zero. The
+## mirror of the `left_block()` this file already asks [P18] for, and it exists
+## for the same reason in the other direction.
 ##
 ## `solved_rect(&"stage")` cannot answer this. The stage is deliberately allowed
 ## to be WIDENED PAST the rails — see `LcnHudLayout`, "the world is drawn
@@ -497,7 +498,10 @@ func _build_menu_block() -> float:
 ## keep-out line, and reading it as one is why [P18]'s sheet still landed on the
 ## alerts after being told to stay inside the stage.
 func right_block() -> float:
-	var view: float = float(get_viewport().get_visible_rect().size.x)
+	var vp: Viewport = get_viewport()
+	if vp == null or style == null:
+		return INF
+	var view: float = float(vp.get_visible_rect().size.x)
 	var edge: float = view
 	for name_key: String in _panel_map():
 		var w: LcnHudWidget = _panel_map()[name_key]
