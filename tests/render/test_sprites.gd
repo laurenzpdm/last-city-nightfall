@@ -113,6 +113,105 @@ func test_every_archetype_bakes_something_with_an_outline() -> void:
 		assert_lt(fill, 0.92, "%s is a silhouette, not a filled rectangle (fill %.3f)" % [arch, fill])
 
 
+# ============================================== THE PEOPLE, AT THE PLAY ZOOM ==
+#
+# A blind judge looking at a real 1920x1080 frame of this build "could find one
+# human figure". The ten enemies were given ten silhouettes last pass and are
+# held to 0.62 overlap here; the CITY'S OWN PEOPLE were never graded at all, and
+# `_bake_person` drew citizen, worker and soldier from ONE polygon list with a
+# different coat colour and a different belt. Three roles, one shape.
+#
+# Colour is not the answer at this scale. `LcnEntityRenderer.agent_scale` holds
+# every figure at MIN_AGENT_PX on screen, so at zoom 0.60 a citizen and a
+# soldier are both seventeen pixels tall — the height difference the world
+# sprites have is spent by the figure floor before it reaches the eye. What
+# survives is the OUTLINE and the ASPECT RATIO, and that is what these two tests
+# measure: each sprite rasterised to the screen height the renderer will
+# actually give it, then compared as a shape.
+#
+# That is a stricter frame than the enemy test above, which normalises at a
+# common WORLD scale and therefore gets size for free. It is also the honest
+# one for the townspeople, because they all arrive at the same screen height.
+
+## Every render kind the city itself can put in the street. Enemies are graded
+## by test_the_ten_enemies_are_distinguishable_by_shape_alone.
+const HUMAN_KINDS: Array[StringName] = [&"citizen", &"worker", &"porter", &"soldier"]
+
+## The screen height the figure floor gives a person at play zoom.
+const PLAY_PX: int = 17
+## Cells across the mask. A figure this size cannot be wider than twice its
+## height without being something other than a person.
+const ROLE_W: int = 34
+const ROLE_H: int = 20
+
+
+## THE ROLES READ APART AS SHAPES, at seventeen pixels, with no colour.
+##
+## Fails at 1.000 against the old `_bake_person`, which returned the same
+## polygon for all three of its kinds.
+func test_the_city_roles_are_distinguishable_by_shape_alone() -> void:
+	var masks: Dictionary[StringName, PackedByteArray] = {}
+	for kind: StringName in HUMAN_KINDS:
+		var m: PackedByteArray = _mask_at_play_height(f.agent(kind))
+		var on: int = 0
+		for v: int in m:
+			on += v
+		assert_gt(float(on), 24.0,
+			"%s is a figure and not a smudge at %d px (%d cells)" % [kind, PLAY_PX, on])
+		masks[kind] = m
+	var worst: float = 0.0
+	var pair: String = ""
+	for i: int in HUMAN_KINDS.size():
+		for j: int in range(i + 1, HUMAN_KINDS.size()):
+			var same: float = _similarity(masks[HUMAN_KINDS[i]], masks[HUMAN_KINDS[j]])
+			if same > worst:
+				worst = same
+				pair = "%s vs %s" % [HUMAN_KINDS[i], HUMAN_KINDS[j]]
+	assert_lt(worst, 0.62,
+		"closest city-role silhouette pair is %s at %.3f overlap at play zoom" % [pair, worst])
+
+
+## ...and they are not the enemy either. A hooded citizen crossing the plaza and
+## a drift hound coming out of the dark are the one pair in this game that must
+## never be confused, and they arrive at the same seventeen pixels.
+func test_a_person_never_reads_as_a_creature() -> void:
+	var worst: float = 0.0
+	var pair: String = ""
+	for hk: StringName in HUMAN_KINDS:
+		var hm: PackedByteArray = _mask_at_play_height(f.agent(hk))
+		for ek: StringName in LcnSpriteFactory.ENEMY_KINDS:
+			var em: PackedByteArray = _mask_at_play_height(f.agent(ek))
+			var same: float = _similarity(hm, em)
+			if same > worst:
+				worst = same
+				pair = "%s vs %s" % [hk, ek]
+	assert_lt(worst, 0.70,
+		"closest person/creature pair is %s at %.3f overlap at play zoom" % [pair, worst])
+
+
+## The sprite as the screen gets it: scaled so its HEIGHT is exactly the figure
+## floor, aspect preserved, standing on the bottom row, centred horizontally —
+## which is what `LcnEntityRenderer._draw_agent` does about the feet.
+static func _mask_at_play_height(sprite: Dictionary) -> PackedByteArray:
+	var img: Image = (sprite["texture"] as ImageTexture).get_image()
+	var out := PackedByteArray()
+	out.resize(ROLE_W * ROLE_H)
+	var w: int = img.get_width()
+	var h: int = img.get_height()
+	var s: float = float(PLAY_PX) / float(maxi(h, 1))
+	var ox: float = (float(ROLE_W) - float(w) * s) * 0.5
+	var oy: float = float(ROLE_H) - float(h) * s - 1.0
+	for y: int in ROLE_H:
+		for x: int in ROLE_W:
+			var sx: int = int((float(x) - ox) / s)
+			var sy: int = int((float(y) - oy) / s)
+			var on: int = 0
+			if sx >= 0 and sy >= 0 and sx < w and sy < h and img.get_pixel(sx, sy).a > 0.45:
+				on = 1
+			out[y * ROLE_W + x] = on
+	return out
+
+
 ## Two archetypes whose alpha masks are nearly identical are the same building to
 ## a player at far zoom, whatever colours are inside them.
 func test_archetype_silhouettes_are_measurably_different() -> void:

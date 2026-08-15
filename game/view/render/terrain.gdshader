@@ -45,6 +45,9 @@ uniform vec2 map_px = vec2(8192.0, 8192.0);
 uniform float snow_scale = 1.0;
 uniform float detail = 1.0;
 uniform float time_s = 0.0;
+// 0..1 from [P09] via LcnWorldModel.storm(). Drives the spindrift, which is the
+// only part of this game's weather that survives being photographed.
+uniform float storm = 0.0;
 
 // --- the light rig (see LcnPalette.light_at, which evaluates the same terms) --
 uniform vec2 sun_dir = vec2(-0.5, -0.7);
@@ -311,6 +314,32 @@ void fragment() {
 	albedo = mix(albedo, albedo * vec3(0.80, 0.72, 0.66) + vec3(0.055, 0.034, 0.020), wet * 0.60);
 	float slush = melt * (1.0 - melt) * 4.0;
 	albedo = mix(albedo, mix(snow_shadow, snow_lit, 0.55), slush * 0.30);
+
+	// ---- blowing snow --------------------------------------------------------
+	// WEATHER YOU CAN SEE IN A STILL. [P14] draws the flakes in the air and does
+	// it well, but a photograph of falling snow from this camera is a scatter of
+	// white specks, which is why a critic holding a real frame of this build said
+	// there is no visible weather in it. What a still CAN carry is what the wind
+	// is doing to the GROUND: long tongues of spindrift streaming downwind,
+	// bright where they lift over a drift crest, gone in the lee behind it.
+	//
+	// They are anisotropic along the same WIND every drift on this plain lies
+	// down, so a storm does not look like a second unrelated texture laid over
+	// the first — it looks like the wind that built the drifts, harder. Scrolled
+	// by `time_s` so they stream in motion; frozen, they are unmistakably a plain
+	// in a blizzard rather than a plain at noon.
+	if (storm > 0.01) {
+		vec2 sq = vec2(q.x - time_s * (0.9 + storm * 2.6), q.y);
+		float tongue = n1(vec2(sq.x * 0.085, sq.y * 2.7) + vec2(23.0, 61.0));
+		float tongue2 = n1(vec2(sq.x * 0.150, sq.y * 4.3) + vec2(137.0, 5.0));
+		float band = smoothstep(0.62 - storm * 0.24, 0.88, max(tongue, tongue2 * 0.94));
+		// It rides over the crests and pours into the troughs behind them.
+		band *= 0.40 + 0.80 * smoothstep(thr - 0.20, thr + 0.28, h);
+		albedo = mix(albedo, snow_lit, clamp(band * storm * 0.60, 0.0, 0.66));
+		// ...and everything behind it loses a little of its contrast, which is
+		// what makes the streaks read as being IN FRONT of the ground.
+		albedo = mix(albedo, mix(snow_mid, snow_shadow, 0.42), storm * 0.11);
+	}
 
 	// ---- lighting ------------------------------------------------------------
 	// The normal comes from the SAME drift field the crust does, so light rakes

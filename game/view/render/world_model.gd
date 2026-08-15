@@ -24,6 +24,18 @@ extends RefCounted
 ##                                               {pos: Vector2, radius: float, intensity: float}
 ##   any     agents_for_view() -> Array[Dictionary]
 ##                                               {id: int, kind: StringName, pos: Vector2}
+##                                               optional: threat (enemy id),
+##                                               role (citizen/worker/porter/soldier)
+##
+## THE ROLE KEY, and why it is optional. [P13] now draws four different PEOPLE —
+## a hooded citizen, a worker with a bar, a porter bent under a crate and a
+## soldier — and they are four different SHAPES at play zoom, not four tints of
+## one shape (LcnSpriteFactory.PERSON_KINDS). [P05] currently publishes only
+## `kind`, worker-if-employed else citizen, so a real run puts two of the four on
+## the street. Any provider that adds a `role` to its rows lights the other two up
+## with no change here: a citizen carrying goods reads as a porter, one on the
+## wall reads as a soldier, and the difference is visible in a still frame at the
+## zoom a session is played at. Unknown roles fall back to `kind`.
 ##
 ## Anything the sim does not provide is synthesised here so the art direction is
 ## always fully visible — see LcnPreviewWorld. `using_preview()` reports it and
@@ -827,6 +839,12 @@ func advance(tick: int) -> void:
 				var real: StringName = StringName(str(d2.get("threat", "")))
 				if real != &"" and LcnSpriteFactory.ENEMY_KINDS.has(real):
 					rk = real
+				else:
+					# ...and a provider that knows what its people are DOING gets
+					# the figure that shows it. See the role contract at the top.
+					var role: StringName = StringName(str(d2.get("role", "")))
+					if role != &"" and LcnSpriteFactory.PERSON_KINDS.has(role):
+						rk = role
 				seen[id] = true
 				set_agent(id, rk, d2.get("pos", Vector2.ZERO))
 		for id2: int in _agents.keys():

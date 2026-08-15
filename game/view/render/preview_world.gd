@@ -80,23 +80,67 @@ static func _key(cell: Vector2i) -> int:
 
 # ---------------------------------------------------------------- settlement --
 
-## A plaza around the generator with four radiating avenues and two ring roads.
-## Deliberately legible: streets read as streets from the air.
+## A plaza off the generator, three avenues that do not agree with each other,
+## and one ring that only ever got two thirds of the way round.
+##
+## IT USED TO BE A MANDALA. Four avenues of identical length on the two screen
+## axes, two complete concentric rings, and a plaza centred on the core: the road
+## plan was symmetric under reflection in BOTH axes, so the left of the frame was
+## the right of the frame and a critic said the opening settlement "reads as
+## generated rather than settled". That is exactly what it was — the output of
+## `for i in range(-30, 31)`, four times.
+##
+## A town is not laid out, it is arrived at. The main street runs where the
+## ground let it and is longer one way than the other; the second street meets it
+## at an angle nobody would draw; the third is a short spur to the mine. The ring
+## road was surveyed all the way round and built as far as the money went. The
+## numbers are still FIXED, not random: the frame lab has to photograph the same
+## city every run or a shader change and a layout change are indistinguishable.
 func _lay_roads() -> void:
-	for r: int in range(-4, 5):
-		for c: int in range(-4, 5):
+	# The plaza sits north-west of the core rather than around it, because the
+	# core was dropped first and the market grew on the sheltered side.
+	for r: int in range(-7, 3):
+		for c: int in range(-8, 4):
 			_roads[_key(centre + Vector2i(c, r))] = true
-	for i: int in range(-30, 31):
-		for w: int in range(-1, 2):
-			_roads[_key(centre + Vector2i(i, w))] = true
-			_roads[_key(centre + Vector2i(w, i))] = true
-	for ring: int in [14, 26]:
-		for i2: int in range(-ring, ring + 1):
-			for w2: int in range(-1, 1):
-				_roads[_key(centre + Vector2i(i2, ring + w2))] = true
-				_roads[_key(centre + Vector2i(i2, -ring + w2))] = true
-				_roads[_key(centre + Vector2i(ring + w2, i2))] = true
-				_roads[_key(centre + Vector2i(-ring + w2, i2))] = true
+	# The main street: long to the east where the plain is flat, short to the
+	# west where it runs into rising ground.
+	_street(Vector2i(-17, -2), Vector2i(31, -2), 2)
+	# The second street leaves it at an angle. Nothing on this map is at right
+	# angles to anything else except the belt line, which is machinery.
+	_street(Vector2i(2, -26), Vector2i(-6, 24), 2)
+	# A spur to the mine, one lane wide, and a lane down to the south gate.
+	_street(Vector2i(-9, -9), Vector2i(-24, -16), 1)
+	_street(Vector2i(4, 6), Vector2i(9, 27), 1)
+	# The ring road, surveyed as a circle and built in two arcs with a gap in the
+	# north-east where it was abandoned.
+	_arc(21, 0.10, 0.62)
+	_arc(21, 0.72, 1.02)
+
+
+## A straight run of road from a to b, `half` tiles either side of the line.
+## Bresenham-free: it is a rasterised segment, which is what a surveyed street is.
+func _street(from: Vector2i, to: Vector2i, half: int) -> void:
+	var a := Vector2(from)
+	var b := Vector2(to)
+	var steps: int = int(maxf(absf(b.x - a.x), absf(b.y - a.y))) * 2
+	for s: int in range(steps + 1):
+		var p: Vector2 = a.lerp(b, float(s) / float(maxi(steps, 1)))
+		var cell := Vector2i(int(round(p.x)), int(round(p.y)))
+		for dy: int in range(-half, half + 1):
+			for dx: int in range(-half, half + 1):
+				_roads[_key(centre + cell + Vector2i(dx, dy))] = true
+
+
+## An arc of the ring road, `from`..`to` in turns (0..1).
+func _arc(radius: int, from: float, to: float) -> void:
+	var steps: int = int(float(radius) * TAU * (to - from) * 2.0)
+	for s: int in range(maxi(steps, 1) + 1):
+		var ang: float = lerpf(from, to, float(s) / float(maxi(steps, 1))) * TAU
+		var cell := Vector2i(int(round(cos(ang) * float(radius))),
+			int(round(sin(ang) * float(radius) * 0.88)))
+		for dy: int in range(-1, 1):
+			for dx: int in range(-1, 2):
+				_roads[_key(centre + cell + Vector2i(dx, dy))] = true
 
 
 func _place_settlement() -> void:
@@ -231,8 +275,14 @@ func _scatter_props() -> void:
 
 # ------------------------------------------------------------------- agents --
 
+## The crowd of a working town: mostly crew, a quarter idle, porters on the
+## depot run and a few on the wall. Four SHAPES, so a still of the placeholder
+## city shows the same mix of figures a real session does.
 func _spawn_agents() -> void:
-	var kinds: Array[StringName] = [&"citizen", &"citizen", &"worker", &"worker", &"soldier"]
+	var kinds: Array[StringName] = [
+		&"worker", &"citizen", &"worker", &"porter", &"citizen",
+		&"worker", &"soldier", &"porter", &"citizen", &"worker",
+	]
 	for i: int in 46:
 		var a: float = _rng.randf() * TAU
 		var r: float = _rng.randf() * 22.0

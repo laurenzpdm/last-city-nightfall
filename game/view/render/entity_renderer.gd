@@ -115,6 +115,47 @@ var _death_t: PackedFloat32Array = PackedFloat32Array()
 var _death_kind: Array[StringName] = []
 var _deaths_drawn: int = 0
 
+## THE TRACKS. Where people have actually walked, in the last few minutes.
+##
+## A critic looking at a still of this build said the city "does not occupy the
+## screen" and that nobody in it is visibly going anywhere. Both of those are
+## true of a frame with thirty figures in it and no evidence that any of them
+## moved: a photograph cannot show motion, so the motion has to be left ON THE
+## GROUND. Snow is the one surface in games that remembers, and this city stands
+## on nothing else.
+##
+## So every agent drops a boot mark behind it every STEP_EVERY_PX of travel,
+## alternating left and right of its heading, and the marks fade over STEP_LIFE_S.
+## In a single frame that reads as: this person came from over there, that queue
+## of four is walking to the hearth, the plaza is worn and the north ditch is
+## not. It also fills the frame with the city's own activity at the zoom the game
+## is played at, where a 17 px figure is a dot and its 40 px trail is a sentence.
+##
+## Cost is one quad per mark out of the SAME atlas region the contact shadows
+## use, inside the batch that was already running — no new texture, no new pass,
+## no per-mark state change. STEP_MAX bounds it at a few hundred quads however
+## many people the city grows.
+##
+## Determinism: view-only. Marks are derived from positions the simulation has
+## already published and are never read back into it.
+const STEP_MAX: int = 420
+const STEP_EVERY_PX: float = 11.0
+const STEP_LIFE_S: float = 26.0
+## A mark smaller than this on screen is one grey pixel; below it the whole trail
+## is dropped rather than drawn as noise.
+const MIN_STEP_PX: float = 1.6
+var _step_x: PackedFloat32Array = PackedFloat32Array()
+var _step_y: PackedFloat32Array = PackedFloat32Array()
+var _step_t: PackedFloat32Array = PackedFloat32Array()
+## Half the width of the mark, so a boot is an oval and a boss is a crater.
+var _step_r: PackedFloat32Array = PackedFloat32Array()
+var _step_head: int = 0
+var _steps_drawn: int = 0
+## agent id -> where it last left a mark, and which foot it was.
+var _step_last: Dictionary[int, Vector2] = {}
+var _step_side: Dictionary[int, int] = {}
+var _step_tick: int = -1
+
 ## Per-frame scratch, PARALLEL arrays and reused between frames. The first pass
 ## built one Dictionary per visible building per frame; at the stress city's 1581
 ## visible structures that alone was 3 ms of allocation before a single pixel was
@@ -233,6 +274,7 @@ func refresh(day_grade: Dictionary, view: Rect2, interp: float, camera_zoom: flo
 	zoom = camera_zoom
 	_cache_light_rig()
 	_collect()
+	_lay_tracks()
 	_shadow.queue_redraw()
 	_glow.queue_redraw()
 	_main.queue_redraw()
@@ -412,11 +454,90 @@ func death_count() -> int:
 	return _death_x.size()
 
 
+# ------------------------------------------------------------------ tracks ---
+
+## Records one tick of boot marks. Called from `refresh`, does its work once per
+## SIMULATION tick rather than once per frame, so the trail a figure leaves is
+## the distance it actually walked and not a function of the frame rate.
+func _lay_tracks() -> void:
+	if model == null or not draw_agents:
+		return
+	if SimClock.tick == _step_tick:
+		return
+	_step_tick = SimClock.tick
+	var now: float = SimClock.seconds()
+	var live: Dictionary[int, bool] = {}
+	for ag: Dictionary in model.agents(1.0):
+		var id: int = int(ag["id"])
+		live[id] = true
+		var p: Vector2 = ag["pos"]
+		if not _step_last.has(id):
+			_step_last[id] = p
+			continue
+		var last: Vector2 = _step_last[id]
+		var d: Vector2 = p - last
+		var travelled: float = d.length()
+		if travelled < STEP_EVERY_PX:
+			continue
+		# A spawn, a save load or a teleport is not a walk. Re-anchor instead of
+		# ruling a line of boot prints across half the map.
+		if travelled > 320.0:
+			_step_last[id] = p
+			continue
+		var side: int = int(_step_side.get(id, 0))
+		_step_side[id] = 1 - side
+		_step_last[id] = p
+		var lateral: Vector2 = Vector2(-d.y, d.x).normalized() * (2.0 if side == 0 else -2.0)
+		_push_step(p + lateral, now,
+			3.8 if LcnSpriteFactory.is_enemy_kind(ag["kind"]) else 2.5)
+	# Whatever died, went home or was culled stops being tracked. Without this
+	# the two side dictionaries are a slow leak across a long night.
+	if _step_last.size() > live.size():
+		for id2: int in _step_last.keys():
+			if not live.has(id2):
+				_step_last.erase(id2)
+				_step_side.erase(id2)
+
+
+## Ring buffer: the oldest mark is overwritten, which is also the faintest.
+func _push_step(pos: Vector2, at: float, radius: float) -> void:
+	if _step_x.size() < STEP_MAX:
+		_step_x.append(pos.x)
+		_step_y.append(pos.y)
+		_step_t.append(at)
+		_step_r.append(radius)
+		return
+	_step_x[_step_head] = pos.x
+	_step_y[_step_head] = pos.y
+	_step_t[_step_head] = at
+	_step_r[_step_head] = radius
+	_step_head = (_step_head + 1) % STEP_MAX
+
+
+## Drops every boot mark. Called when the world is rebuilt.
+func clear_tracks() -> void:
+	_step_x.clear()
+	_step_y.clear()
+	_step_t.clear()
+	_step_r.clear()
+	_step_head = 0
+	_step_last.clear()
+	_step_side.clear()
+	_step_tick = -1
+
+
+## Live boot marks, for the suite that proves the city looks walked-in.
+func track_count() -> int:
+	return _step_x.size()
+
+
 func stats() -> Dictionary:
 	return {
 		"visible_buildings": _visible_buildings,
 		"visible_agents": _visible_agents,
 		"deaths_drawn": _deaths_drawn,
+		"tracks": _step_x.size(),
+		"tracks_drawn": _steps_drawn,
 		"draw_us": _draw_us,
 		"collect_us": _collect_us,
 		"cull_us": _cull_us,
@@ -508,6 +629,8 @@ func _draw_shadows(ci: CanvasItem) -> void:
 				Vector2(float(tiles.x), float(tiles.y)) * float(TILE) + Vector2(6.0, 6.0)),
 			_shadow_r, contact)
 
+	_draw_tracks(ci, col)
+
 	if draw_agents and detailed:
 		# The contact blob grows with the figure floor, or a figure enlarged for
 		# legibility ends up standing beside its own shadow.
@@ -565,6 +688,45 @@ func _draw_shadows(ci: CanvasItem) -> void:
 			r.position.x + reach.x, r.end.y - 2.0 + reach.y * 0.30 - sq_h * 0.58,
 			r.size.x, sq_h)
 		ci.draw_texture_rect_region(_atlas, sh, _src_at(i2), cast_col)
+
+
+## The boot marks, out of the same atlas region as the contact shadows and in
+## the same batch — a trail costs no draw call of its own.
+##
+## Drawn under everything and never on the ghost pass, so a track is always
+## something that HAPPENED. The figure floor scales them with the figures: at
+## play zoom a person is enlarged to 17 px and its footprints are enlarged with
+## it, or the trail would vanish exactly where it is needed most.
+func _draw_tracks(ci: CanvasItem, col: Color) -> void:
+	_steps_drawn = 0
+	if not draw_agents or _step_x.is_empty() or _shadow_r.size.x <= 0.0:
+		return
+	var grow: float = agent_scale(16.0, zoom)
+	if 3.6 * 2.0 * grow * zoom < MIN_STEP_PX:
+		return
+	var now: float = SimClock.seconds()
+	# As strong as a contact shadow when it is fresh: a boot print in snow is a
+	# dimple with a shadow in it, and at 0.8 of one the whole trail sat under the
+	# threshold where a still frame carries it.
+	var base_a: float = float(grade["shadow_alpha"]) * 1.05
+	var pad: Rect2 = view_rect.grow(24.0)
+	for i: int in _step_x.size():
+		var age: float = now - _step_t[i]
+		# A rewound clock must not strand marks forever, and must not draw them
+		# from the future either.
+		if age < 0.0 or age > STEP_LIFE_S:
+			continue
+		var p := Vector2(_step_x[i], _step_y[i])
+		if not pad.has_point(p):
+			continue
+		var fade: float = 1.0 - age / STEP_LIFE_S
+		var r: float = _step_r[i] * grow
+		ci.draw_texture_rect_region(_atlas,
+			Rect2(p - Vector2(r, r * 0.62), Vector2(r * 2.0, r * 1.24)), _shadow_r,
+			# Holds its weight for most of its life and then goes: snow fills a
+			# print in slowly and then a gust takes the rest of it at once.
+			Color(col.r, col.g, col.b, base_a * fade * (0.45 + 0.55 * fade)))
+		_steps_drawn += 1
 
 
 ## Atlas pixel coordinates for a normalised point in a region. draw_polygon takes

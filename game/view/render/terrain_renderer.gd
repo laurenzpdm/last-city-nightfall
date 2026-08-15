@@ -161,6 +161,9 @@ func render(view: Rect2, grade: Dictionary, zoom: float, full: bool = false) -> 
 	ground_material.set_shader_parameter("bounce_col", _v3(grade["bounce_col"]))
 	ground_material.set_shader_parameter("bounce", float(grade["bounce"]))
 	ground_material.set_shader_parameter("wild", float(grade["wild"]))
+	# The storm reaches the GROUND, not only [P14]'s air. A still frame of a
+	# blizzard has to be different from a still frame of a calm afternoon.
+	ground_material.set_shader_parameter("storm", model.storm())
 	_quad.queue_redraw()
 	_update_us = Time.get_ticks_usec() - t0
 

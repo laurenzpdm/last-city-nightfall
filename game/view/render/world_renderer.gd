@@ -122,6 +122,10 @@ func _ready() -> void:
 func _on_world_created(_seed_value: int) -> void:
 	if terrain != null:
 		terrain.clear_all()
+	if entities != null:
+		# A new world does not inherit the last one's dead or its footprints.
+		entities.clear_deaths()
+		entities.clear_tracks()
 	_first_frame = true
 
 
@@ -382,13 +386,14 @@ func _drive_tour_camera() -> void:
 func _log_frame_cost() -> void:
 	var ts: Dictionary = terrain.stats()
 	var es: Dictionary = entities.stats()
-	Log.info("render", "frame %.2f ms | ground %.2f (field %d KB, detail %.2f) | collect %.2f | draw %.2f | lights %.2f | %d bld %d agents %d lights | %d draw calls" % [
+	Log.info("render", "frame %.2f ms | ground %.2f (field %d KB, detail %.2f) | collect %.2f | draw %.2f | lights %.2f | %d bld %d agents %d tracks %d lights | %d draw calls" % [
 		_frame_us_avg / 1000.0,
 		float(_ground_us) / 1000.0, int(ts["field_kb"]), float(ts["detail"]),
 		float(es["collect_us"]) / 1000.0,
 		float(es["draw_us"]) / 1000.0,
 		float(_light_us) / 1000.0,
-		int(es["visible_buildings"]), int(es["visible_agents"]), lights.active_lights(),
+		int(es["visible_buildings"]), int(es["visible_agents"]),
+		int(es["tracks_drawn"]), lights.active_lights(),
 		int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
 	])
 

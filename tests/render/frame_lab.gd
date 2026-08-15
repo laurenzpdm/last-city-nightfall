@@ -104,6 +104,16 @@ var _foe_wait: int = 0
 var _foe_report: Array[Dictionary] = []
 ## The control plate: the staged night with `draw_agents` off.
 var _bare: Image = null
+var _crowd_done: bool = false
+var _crowd_step: int = 0
+var _crowd_bare: Image = null
+var _crowd_lit_at: int = 0
+var _crowd: Dictionary = {}
+var _storm_done: bool = false
+var _storm_step: int = 0
+var _calm_plate: Image = null
+var _storm_report: Dictionary = {}
+var _stub_climate: SimSystem = null
 
 
 func _ready() -> void:
@@ -161,6 +171,12 @@ func _process(_delta: float) -> void:
 	if _cursor >= _shots.size():
 		if not _foes_done:
 			_stage_the_night()
+			return
+		if not _crowd_done:
+			_stage_the_crowd()
+			return
+		if not _storm_done:
+			_stage_the_storm()
 			return
 		_summarise()
 		return
@@ -304,6 +320,241 @@ static func _contrast_at(lit: Image, bare: Image, scr: Vector2) -> Dictionary:
 	return {
 		"pixels": pixels, "contrast": peak,
 		"fill": float(pixels) / float(maxi(total, 1)),
+	}
+
+
+# ------------------------------------------------------ the city, inhabited --
+#
+# THE COMPLAINT THIS BEAT EXISTS FOR, in a critic's words about a real frame of
+# this build: "`render` logs 18–34 agents and I could find one human figure",
+# and "the city does not occupy the screen". Both are statements about PIXELS at
+# the zoom a session is played at, and neither was measured by anything.
+#
+# So: the settlement, the camera at 0.60 where the overlay legends say a player
+# sits, the crowd walked for CROWD_TICKS so it has been somewhere — then the
+# frame photographed twice from the identical camera at the identical tick, once
+# with `entities.draw_agents` off and once with it on. What the people and only
+# the people put on the screen is the difference, and it is graded two ways:
+#
+#   REACH    how many pixels of the frame they changed at all. A city whose
+#            population is invisible changes almost none.
+#   PLACES   how many 24x24 screen blocks contain enough changed pixels to be
+#            somebody. This is the "I could find one human figure" number, and
+#            it is the one a whole-frame statistic cannot fake: forty people in
+#            one corner and one person is the same REACH and a very different
+#            PLACES.
+#
+# The floors are set below what the current build measures, with headroom, and
+# above what the build BEFORE this pass measured — which was 18 unenlarged
+# figures with no tracks behind them. Proven by reverting game/view/render in a
+# scratch tree and watching this beat go red, which is the only way to know a
+# green means anything.
+const CROWD_TICKS: int = 64
+const CROWD_BLOCK: int = 24
+## Changed pixels in a block before that block counts as "somebody is there".
+const CROWD_BLOCK_MIN: int = 7
+const CROWD_MIN_REACH: int = 6000
+const CROWD_MIN_PLACES: int = 45
+
+
+func _stage_the_crowd() -> void:
+	if _renderer == null:
+		_crowd_done = true
+		return
+	var model: LcnWorldModel = _renderer.world_model()
+	if _crowd_step == 0:
+		if _cam != null:
+			_cam.position = _centre
+			_cam.zoom = Vector2(0.60, 0.60)
+			_cam.force_update_scroll()
+		# Start mid-afternoon so the figures are read against lit snow, which is
+		# the hardest case for a dark coat and the commonest frame in a session.
+		SimClock.tick = int(fposmod(0.58 - 0.22, 1.0) * 40.0 * 20.0)
+		# The night beat left eleven creatures standing on the plain 520 px north
+		# of here, and they are agents. This beat is about the CITY's people, so
+		# they go before anything is counted — otherwise the population number
+		# includes the enemy and the floor below means nothing.
+		for i: int in LcnSpriteFactory.ENEMY_KINDS.size():
+			model.remove_agent(9000 + i)
+		_renderer.entities.clear_tracks()
+		_renderer.entities.clear_deaths()
+	_crowd_step += 1
+	if _crowd_step <= CROWD_TICKS:
+		# One simulation tick per frame: the renderer lays boot marks on tick
+		# CHANGES, so walking the crowd inside one frame would leave no trail at
+		# all and grading it would be grading a bug.
+		SimClock.tick += 1
+		model.advance(SimClock.tick)
+		return
+	# From here the clock is FROZEN, so the two plates differ by the crowd and
+	# by nothing else — not by a figure that took another step between them.
+	if _crowd_step == CROWD_TICKS + 1:
+		_renderer.entities.draw_agents = false
+		return
+	if _crowd_bare == null:
+		if _crowd_step <= CROWD_TICKS + 1 + SETTLE_FRAMES:
+			return
+		_strip_chrome()
+		var btex: ViewportTexture = get_viewport().get_texture()
+		_crowd_bare = btex.get_image() if btex != null else null
+		if _crowd_bare != null:
+			_crowd_bare.save_png(ProjectSettings.globalize_path("%s/crowd_bare.png" % OUT))
+		_renderer.entities.draw_agents = true
+		_crowd_lit_at = _crowd_step + SETTLE_FRAMES
+		return
+	if _crowd_step < _crowd_lit_at:
+		return
+	_crowd_done = true
+	_strip_chrome()
+	var tex: ViewportTexture = get_viewport().get_texture()
+	var img: Image = tex.get_image() if tex != null else null
+	if img == null or _crowd_bare == null:
+		print("  UNCHECKED the crowd — the viewport handed back no image")
+		return
+	img.save_png(ProjectSettings.globalize_path("%s/crowd.png" % OUT))
+	_crowd = _crowd_grade(img, _crowd_bare)
+	_crowd["agents"] = model.agent_count()
+	_crowd["tracks"] = int(_renderer.entities.stats()["tracks"])
+	print("  crowd  %d agents, %d boot marks — they change %d px in %d places on the screen"
+		% [int(_crowd["agents"]), int(_crowd["tracks"]),
+			int(_crowd["reach"]), int(_crowd["places"])])
+
+
+## REACH and PLACES: what the people put on the screen, and how spread out it is.
+static func _crowd_grade(lit: Image, bare: Image) -> Dictionary:
+	var w: int = mini(lit.get_width(), bare.get_width())
+	var h: int = mini(lit.get_height(), bare.get_height())
+	var reach: int = 0
+	var places: int = 0
+	var by: int = 0
+	while by + CROWD_BLOCK <= h:
+		var bx: int = 0
+		while bx + CROWD_BLOCK <= w:
+			var hits: int = 0
+			for y: int in range(by, by + CROWD_BLOCK):
+				for x: int in range(bx, bx + CROWD_BLOCK):
+					var a: Color = lit.get_pixel(x, y)
+					var b: Color = bare.get_pixel(x, y)
+					var d: float = absf(
+						(a.r - b.r) * 0.2126 + (a.g - b.g) * 0.7152 + (a.b - b.b) * 0.0722)
+					if d > 0.012:
+						hits += 1
+			reach += hits
+			if hits >= CROWD_BLOCK_MIN:
+				places += 1
+			bx += CROWD_BLOCK
+		by += CROWD_BLOCK
+	return {"reach": reach, "places": places}
+
+
+# ------------------------------------------------------- the weather, still --
+#
+# "There is no visible weather in a still." [P14] draws the flakes and does it
+# well, but a photograph of falling snow at 0.60 is a scatter of specks, so the
+# weather has to reach the GROUND to survive being looked at — see the spindrift
+# block in terrain.gdshader.
+#
+# Graded as a differential, for the same reason the night beat is: the same
+# camera, the same hour, the same frozen tick, [P14]'s layers HIDDEN so what is
+# measured is [P13]'s ground and not somebody else's particles, and the only
+# difference between the two plates is what [P09] says the wind is doing. With
+# the old shader that difference is exactly zero, because `storm` reached
+# nothing.
+#
+# The storm is delivered the way the game delivers it — a climate system with
+# `storm_intensity()` — and not by poking the material, so this grades the path
+# a player's blizzard actually takes.
+const STORM_MIN_REACH: float = 0.10
+const STORM_MIN_DELTA: float = 0.006
+
+
+class StubClimate extends SimSystem:
+	## Exactly the one method LcnWorldModel.storm() looks for, and nothing else:
+	## a stub that also answered the hour would move every other number in this
+	## report.
+	var intensity: float = 0.0
+
+	func system_name() -> StringName:
+		return &"climate"
+
+	func storm_intensity() -> float:
+		return intensity
+
+
+func _stage_the_storm() -> void:
+	if _renderer == null:
+		_storm_done = true
+		return
+	if _storm_step == 0:
+		_stub_climate = StubClimate.new()
+		Sim.by_name[&"climate"] = _stub_climate
+		_renderer.world_model().attach()
+		# [P14]'s snow lives on layers 52–59, under [P13]'s post layer, so the
+		# chrome strip leaves it alone — correctly, it is part of the look. It is
+		# hidden HERE because this particular measurement is of the ground, and a
+		# particle field that animates between two plates would sign the check
+		# for a shader that did nothing.
+		_hide_vfx()
+	_storm_step += 1
+	if _storm_step <= SETTLE_FRAMES:
+		return
+	if _calm_plate == null:
+		_strip_chrome()
+		var ctex: ViewportTexture = get_viewport().get_texture()
+		_calm_plate = ctex.get_image() if ctex != null else null
+		if _calm_plate != null:
+			_calm_plate.save_png(ProjectSettings.globalize_path("%s/weather_calm.png" % OUT))
+		(_stub_climate as StubClimate).intensity = 1.0
+		_storm_step = 1
+		return
+	_storm_done = true
+	_strip_chrome()
+	var tex: ViewportTexture = get_viewport().get_texture()
+	var img: Image = tex.get_image() if tex != null else null
+	if img == null or _calm_plate == null:
+		print("  UNCHECKED the weather — the viewport handed back no image")
+		return
+	img.save_png(ProjectSettings.globalize_path("%s/weather_storm.png" % OUT))
+	_storm_report = _storm_grade(img, _calm_plate)
+	print("  storm  changes %.1f%% of the frame, mean |delta| %.4f — the ground in a blizzard"
+		% [float(_storm_report["reach"]) * 100.0, float(_storm_report["delta"])])
+
+
+func _hide_vfx() -> void:
+	for n: Node in get_tree().get_nodes_in_group(&"lcn_vfx"):
+		var cl := n as CanvasLayer
+		if cl != null:
+			cl.visible = false
+			continue
+		var ci := n as CanvasItem
+		if ci != null:
+			ci.visible = false
+
+
+## Fraction of the frame the weather touched, and by how much on average.
+static func _storm_grade(storm: Image, calm: Image) -> Dictionary:
+	var w: int = mini(storm.get_width(), calm.get_width())
+	var h: int = mini(storm.get_height(), calm.get_height())
+	var changed: int = 0
+	var total: int = 0
+	var sum: float = 0.0
+	var y: int = 0
+	while y < h:
+		var x: int = 0
+		while x < w:
+			var a: Color = storm.get_pixel(x, y)
+			var b: Color = calm.get_pixel(x, y)
+			var d: float = absf(
+				(a.r - b.r) * 0.2126 + (a.g - b.g) * 0.7152 + (a.b - b.b) * 0.0722)
+			sum += d
+			if d > 0.010:
+				changed += 1
+			total += 1
+			x += 2
+		y += 2
+	return {
+		"reach": float(changed) / float(maxi(total, 1)),
+		"delta": sum / float(maxi(total, 1)),
 	}
 
 
@@ -624,6 +875,32 @@ func _summarise() -> void:
 	if _foe_report.size() < LcnSpriteFactory.ENEMY_KINDS.size():
 		fails.append("only %d of %d enemies were staged and graded — the night beat did not run"
 			% [_foe_report.size(), LcnSpriteFactory.ENEMY_KINDS.size()])
+
+	# 0c. THE CITY IS INHABITED, AT THE ZOOM IT IS PLAYED AT. A blind judge found
+	#     one human figure in a real frame of the last build. These two numbers
+	#     are that sentence, computed: how much of the screen the people put
+	#     there, and in how many separate places.
+	if _crowd.is_empty():
+		fails.append("the crowd was never staged — the inhabited-city beat did not run")
+	else:
+		if int(_crowd["reach"]) < CROWD_MIN_REACH:
+			fails.append("the people change only %d screen pixels at zoom 0.60 (want %d) — %d agents and the frame is empty"
+				% [int(_crowd["reach"]), CROWD_MIN_REACH, int(_crowd["agents"])])
+		if int(_crowd["places"]) < CROWD_MIN_PLACES:
+			fails.append("there is somebody in only %d places on the screen (want %d) — a player looking at this frame finds a figure, not a population"
+				% [int(_crowd["places"]), CROWD_MIN_PLACES])
+
+	# 0d. THE WEATHER IS IN THE PICTURE. Not in the air where a still cannot see
+	#     it: on the ground, where a photograph can.
+	if _storm_report.is_empty():
+		fails.append("the storm was never staged — the weather beat did not run")
+	else:
+		if float(_storm_report["reach"]) < STORM_MIN_REACH:
+			fails.append("a full blizzard changes only %.1f%% of the ground (want %.0f%%) — there is no visible weather in a still"
+				% [float(_storm_report["reach"]) * 100.0, STORM_MIN_REACH * 100.0])
+		if float(_storm_report["delta"]) < STORM_MIN_DELTA:
+			fails.append("a full blizzard moves the frame by %.4f of a stop (want %.3f) — the weather is not doing anything the eye can see"
+				% [float(_storm_report["delta"]), STORM_MIN_DELTA])
 
 	# 0. THE GROUND SHADER ACTUALLY COMPILED. A canvas shader that fails to
 	#    compile does not throw and does not stop the frame: Godot falls back to

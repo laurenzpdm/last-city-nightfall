@@ -14,7 +14,10 @@ extends RefCounted
 ## both times, because `user://art_cache/v17/agent_keener.png` had been written
 ## on the first run and `get_image` never asks the baker again. The cache is
 ## correct for shipping and lethal for iteration.
-const ART_VERSION: String = "v18"
+## v19: four city roles with four silhouettes (citizen / worker / porter /
+## soldier), and the snow widow, which shipped in the content folder with no
+## drawing at all.
+const ART_VERSION: String = "v19"
 
 const DIR: String = "user://art_cache/%s" % ART_VERSION
 
