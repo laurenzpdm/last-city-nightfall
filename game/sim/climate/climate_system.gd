@@ -86,11 +86,15 @@ func setup() -> void:
 	_profile = _load_profile()
 	_day_ticks = _profile.day_ticks
 	_sim_tick = 0
-	_clock_tick = 0
-	_offset = 0
+	# A run does not begin at tick 0 of the day. `opening_tick` is where it begins
+	# — see ClimateProfile.opening_tick for why the first frame of a new game used
+	# to be 93% black under a HUD that said "Dawn". Everything downstream reads the
+	# climate clock, not the sim tick, so nothing else has to know.
+	_offset = clampi(_profile.opening_tick, 0, maxi(0, _day_ticks - 1))
+	_clock_tick = _offset
 	_day = 1
-	_tick_in_day = 0
-	_phase_idx = ClimateDefs.Phase.DAWN
+	_tick_in_day = _clock_tick
+	_phase_idx = _phase_index_at(_tick_in_day)
 	_era_idx = _profile.era_index_for_day(1)
 	_plans.clear()
 	_warnings.clear()
@@ -109,15 +113,19 @@ func setup() -> void:
 	_schedule_storm_warnings(_plans[1])
 	_schedule_storm_warnings(_plans[2])
 
-	# Seed the lagged accumulators at their steady-state value so the first
-	# minute of the game is not a thermal transient.
-	_sun = _profile.sun_at(0.0)
-	_update_weather(0)
+	# Seed the lagged accumulators at their steady-state value FOR THE OPENING
+	# TICK, not for midnight. Seeding at sun 0 while the run starts in the morning
+	# would open the game 12 C colder than the clock says and spend the first 42 s
+	# (the solar time constant) crawling back — a thermal transient nobody asked
+	# for, in the one minute a player is deciding whether the game is any good.
+	_sun = _profile.sun_at(day_progress())
+	_update_weather(_phase_idx)
 	_solar_c = lerpf(_profile.solar_cold_c, _profile.solar_warm_c, _sun)
-	_weather_c = _weather_target(false)
-	_ambient = _profile.base_temperature_for_day(1.0) + _solar_c + _weather_c
+	_weather_c = _weather_target(_phase_idx >= ClimateDefs.Phase.NIGHT)
+	_ambient = _profile.base_temperature_for_day(1.0 + day_progress()) + _solar_c + _weather_c
 
-	Log.info(TAG, "day 1 begins — %s, %.1f C, forecast: %s" % [
+	Log.info(TAG, "day 1 begins at %s (tick %d of %d) — %s, %.1f C, forecast: %s" % [
+		phase_of_day(), _tick_in_day, _day_ticks,
 		_profile.display_name, _ambient, _plans[1].forecast_text(),
 	])
 	Bus.day_started.emit(1)
@@ -193,6 +201,20 @@ func phase_progress() -> float:
 ## 1-based campaign day.
 func day() -> int:
 	return _day
+
+
+## The CLIMATE's own tick — sim tick plus the opening offset (and any commanded
+## jump). Storm schedules, day plans and `next_storm().start_tick` are all quoted
+## on this timeline, not on SimClock.tick, and since a run no longer begins at
+## tick 0 of day 1 the two are not the same number. Anything comparing against a
+## climate schedule must ask here.
+func clock_tick() -> int:
+	return _clock_tick
+
+
+## Tick within day 1 at which a new run begins. See ClimateProfile.opening_tick.
+func opening_tick() -> int:
+	return _profile.opening_tick if _profile != null else 0
 
 
 ## True through night and deep night.

@@ -91,10 +91,16 @@ func _test_cycle_length_exact() -> void:
 	Bus.day_started.connect(on_day)
 	Bus.night_started.connect(on_night)
 
+	var open_at: int = c.opening_tick()
 	_ok(c.day() == 1, "day starts at 1, got %d" % c.day())
-	_ok(is_equal_approx(c.day_progress(), 0.0), "progress starts at 0")
+	_ok(c.clock_tick() == open_at,
+			"a run begins at the profile's opening tick %d, got %d" % [open_at, c.clock_tick()])
+	_ok(is_equal_approx(c.day_progress(), float(open_at) / float(dt)),
+			"progress starts at %.4f, got %.4f" % [float(open_at) / float(dt), c.day_progress()])
+	_ok(c.phase_of_day() != &"night" and c.phase_of_day() != &"deep_night",
+			"a new game does not open in the dark, got %s" % c.phase_of_day())
 
-	SimClock.advance(dt - 1)
+	_advance_to_clock(c, dt - 1)
 	_ok(c.day() == 1, "still day 1 one tick before rollover, got %d" % c.day())
 	_ok(c.phase_of_day() == &"deep_night", "last tick of the day is deep night, got %s" % c.phase_of_day())
 
@@ -120,16 +126,25 @@ func _test_phase_arc_exact() -> void:
 	var starts: PackedInt32Array = c.profile().phase_starts
 	var dt: int = c.profile().day_ticks
 
+	# Walked over a WHOLE day measured on the climate clock, starting from the
+	# opening tick, so the six beats are still checked to the tick even though the
+	# run no longer begins on the first one.
 	var seen: Array[StringName] = [c.phase_of_day()]
-	var first_tick: Dictionary = {String(c.phase_of_day()): 0}
+	var first_tick: Dictionary = {String(c.phase_of_day()): c.clock_tick() % dt}
 	for _i: int in dt - 1:
 		SimClock.advance(1)
 		var p: StringName = c.phase_of_day()
 		if p != seen[seen.size() - 1]:
 			seen.append(p)
-			first_tick[String(p)] = SimClock.tick
+			first_tick[String(p)] = c.clock_tick() % dt
 
-	var expected: Array[StringName] = ClimateDefs.PHASE_NAMES
+	# The arc is the same six beats in the same order; the run simply joins it at
+	# `morning`, so the sequence read from the opening tick is rotated by one.
+	var expected: Array[StringName] = []
+	var first_idx: int = ClimateDefs.PHASE_NAMES.find(seen[0])
+	_ok(first_idx >= 0, "the opening phase is one of the six, got %s" % seen[0])
+	for i: int in ClimateDefs.PHASE_COUNT:
+		expected.append(ClimateDefs.PHASE_NAMES[(maxi(0, first_idx) + i) % ClimateDefs.PHASE_COUNT])
 	_ok(seen.size() == expected.size(), "six phases in one day, got %d (%s)" % [seen.size(), str(seen)])
 	for i: int in mini(seen.size(), expected.size()):
 		_ok(seen[i] == expected[i], "phase %d is %s, got %s" % [i, expected[i], seen[i]])
@@ -148,13 +163,18 @@ func _test_night_boundaries() -> void:
 	var night: int = p.night_start_tick()
 	var dt: int = p.day_ticks
 
-	_ok(not c.is_night(), "dawn is not night")
-	_ok(is_equal_approx(c.seconds_until_night(), float(night) * SimClock.DT),
-			"countdown at dawn is %.2f s, got %.2f" % [float(night) * SimClock.DT, c.seconds_until_night()])
+	var open_at: int = c.opening_tick()
+	_ok(not c.is_night(), "the opening moment is not night")
+	_ok(is_equal_approx(c.seconds_until_night(), float(night - open_at) * SimClock.DT),
+			"countdown at the opening is %.2f s, got %.2f" % [
+				float(night - open_at) * SimClock.DT, c.seconds_until_night()])
+	_ok(c.seconds_until_night() > 120.0,
+			"and a new run gets at least two minutes of daylight to read the city, got %.2f s"
+					% c.seconds_until_night())
 	_ok(is_equal_approx(c.daylight_seconds(), 316.8), "daylight is 316.8 s, got %.2f" % c.daylight_seconds())
 	_ok(is_equal_approx(c.night_length_seconds(), 163.2), "night is 163.2 s, got %.2f" % c.night_length_seconds())
 
-	SimClock.advance(night - 1)
+	_advance_to_clock(c, night - 1)
 	_ok(not c.is_night(), "one tick before nightfall it is still day")
 	_ok(is_equal_approx(c.seconds_until_night(), SimClock.DT),
 			"countdown is one tick, got %.4f" % c.seconds_until_night())
@@ -262,8 +282,10 @@ func _test_storm_schedule_is_fixed() -> void:
 			"opens at tick %d, got %d" % [2 * dt + rel, int(first.get("start_tick", -1))])
 	_ok(String(first.get("title", "")) == "First Frost",
 			"named 'First Frost', got '%s'" % String(first.get("title", "")))
-	_ok(is_equal_approx(float(first.get("seconds_until", 0.0)), float(2 * dt + rel) * SimClock.DT),
-			"lead time is %.1f s, got %.1f" % [float(2 * dt + rel) * SimClock.DT, float(first.get("seconds_until", 0.0))])
+	# Counted from where the run actually starts, not from midnight of day 1.
+	var lead: float = float(2 * dt + rel - c.clock_tick()) * SimClock.DT
+	_ok(is_equal_approx(float(first.get("seconds_until", 0.0)), lead),
+			"lead time is %.1f s, got %.1f" % [lead, float(first.get("seconds_until", 0.0))])
 
 	# Walk past the day-3 storm; the next one must be day 7.
 	SimClock.advance(3 * dt)
@@ -291,7 +313,7 @@ func _test_storm_envelope_shape() -> void:
 	var dt: int = p.day_ticks
 	var open_at: int = 2 * dt + int(p.frost_start_progress * float(dt))
 
-	SimClock.advance(open_at - 1)
+	_advance_to_clock(c, open_at - 1)
 	_ok(is_equal_approx(c.storm_intensity(), 0.0), "no storm one tick before it opens, got %.3f" % c.storm_intensity())
 	_ok(not c.is_storm_active(), "storm inactive before it opens")
 
@@ -302,17 +324,17 @@ func _test_storm_envelope_shape() -> void:
 		SimClock.advance(1)
 		var v: float = c.storm_intensity()
 		if v > 0.0 and began == 0:
-			began = SimClock.tick
+			began = c.clock_tick()
 		if v > peak:
 			peak = v
-			peak_tick = SimClock.tick
+			peak_tick = c.clock_tick()
 
 	_ok(began >= open_at, "storm starts no earlier than scheduled (%d vs %d)" % [began, open_at])
 	_ok(began <= open_at + 2, "storm starts on schedule, got %d vs %d" % [began, open_at])
 	_ok(absf(peak - 0.50) < 0.02, "first frost peaks at its scripted 0.50 intensity, got %.3f" % peak)
 	_ok(peak_tick > open_at + p.frost_ramp_ticks - 1, "peak is reached after the ramp, got %d" % peak_tick)
 	_ok(is_equal_approx(c.storm_intensity(), 0.0),
-			"storm has faded to exactly 0 by tick %d, got %.4f" % [SimClock.tick, c.storm_intensity()])
+			"storm has faded to exactly 0 by tick %d, got %.4f" % [c.clock_tick(), c.storm_intensity()])
 	_ok(not c.is_storm_active(), "storm reported inactive after it passes")
 	_ok(c.day() == 3, "the whole first frost fits inside day 3, got day %d" % c.day())
 
@@ -331,9 +353,9 @@ func _test_storm_is_telegraphed() -> void:
 	var narrative_steps: Array[int] = []
 	var on_alert: Callable = func(_sev: int, key: StringName, _text: String, _pos: Vector2) -> void:
 		if key == ClimateDefs.KEY_STORM_WARNING:
-			warn_ticks.append(SimClock.tick)
+			warn_ticks.append(c.clock_tick())
 		elif key == ClimateDefs.KEY_STORM_BEGAN:
-			began_tick.append(SimClock.tick)
+			began_tick.append(c.clock_tick())
 	var on_narrative: Callable = func(id: StringName, payload: Dictionary) -> void:
 		if id == ClimateDefs.KEY_STORM_WARNING:
 			narrative_steps.append(int(payload.get("step", -1)))
@@ -367,7 +389,7 @@ func _test_storm_actually_bites() -> void:
 	var sample_at: int = 2 * dt + 5900   # mid-plateau of the day-3 storm
 
 	var with_storm: ClimateSystem = _new_world(4242)
-	SimClock.advance(sample_at)
+	_advance_to_clock(with_storm, sample_at)
 	var t_storm: float = with_storm.ambient_temperature()
 	var i_storm: float = with_storm.storm_intensity()
 	var w_storm: StringName = with_storm.weather()
@@ -380,7 +402,7 @@ func _test_storm_actually_bites() -> void:
 	# Removing storms consumes no RNG, so the weather rolls stay bit-identical.
 	no_storm.profile().frost_day = PackedInt32Array()
 	no_storm.profile().frost_repeat_every_days = 0
-	SimClock.advance(sample_at)
+	_advance_to_clock(no_storm, sample_at)
 	var t_calm: float = no_storm.ambient_temperature()
 	var kind_calm: String = String(no_storm.serialize().get("weather_kind", ""))
 	var wi_calm: float = no_storm.weather_intensity()
@@ -629,6 +651,24 @@ func _test_commands() -> void:
 ## Fresh world. `isolate` silences every other part's step() so a climate unit
 ## test measures climate and not the rest of the build; the determinism and heat
 ## tests deliberately run with the whole simulation live.
+## Advance until the CLIMATE clock reads `target`.
+##
+## A run begins at ClimateProfile.opening_tick, not at tick 0 of day 1, so
+## SimClock.tick and the climate's own clock differ by that constant for the
+## whole run. Every assertion below is about the climate's timeline — "the storm
+## opens 5760 ticks into day 3" — so every walk to a moment goes through here.
+## Advancing by a raw count from tick 0 was only ever correct while the offset
+## was zero, and it is exactly what made 36 assertions here go red the moment a
+## new game stopped opening in the dark.
+func _advance_to_clock(c: ClimateSystem, target: int) -> void:
+	var delta: int = target - c.clock_tick()
+	if delta < 0:
+		_ok(false, "cannot walk backwards to clock tick %d (now %d)" % [target, c.clock_tick()])
+		return
+	if delta > 0:
+		SimClock.advance(delta)
+
+
 func _new_world(seed_value: int, isolate: bool = true) -> ClimateSystem:
 	SimClock.set_manual(true)
 	Sim.create_world(seed_value)
