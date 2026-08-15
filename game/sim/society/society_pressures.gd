@@ -246,7 +246,9 @@ func _food(reading: SocietyReading, pop: SocietyPopulace) -> void:
 
 func _health(pop: SocietyPopulace, sick_share: float, book: LawBook) -> void:
 	if sick_share > 0.02:
-		var text: String = "%s are ill. It is moving room to room." % SocietyDefs.sentence(SocietyDefs.people(int(round(pop.sick))))
+		var sick_n: int = int(round(pop.sick))
+		var text: String = "%s %s ill. It is moving room to room." % [
+			SocietyDefs.sentence(SocietyDefs.people(sick_n)), SocietyDefs.is_are(sick_n)]
 		_push(DISCONTENT, &"sickness", "The fever", text, 4.0 * sick_share)
 		_push(HOPE, &"sickness", "The fever", text, -1.8 * sick_share)
 	var care: float = book.policy_value(&"medical_care")
@@ -297,9 +299,10 @@ func _dead(pop: SocietyPopulace, book: LawBook, corpse_share: float) -> void:
 ## there it gets its own line rather than being folded into an average.
 func _citizen_mood(reading: SocietyReading, pop: SocietyPopulace) -> void:
 	if reading.citizens_unrest > 0.02:
+		var bitter: int = int(round(reading.citizens_unrest * pop.population))
 		_push(DISCONTENT, &"bitterness", "People have had enough",
-			"%s of us are past arguing about it." % SocietyDefs.sentence(SocietyDefs.people(
-				int(round(reading.citizens_unrest * pop.population)))),
+			"%s of us %s past arguing about it." % [
+				SocietyDefs.sentence(SocietyDefs.people(bitter)), SocietyDefs.is_are(bitter)],
 			5.5 * reading.citizens_unrest)
 	if reading.citizens_morale >= 0.0 and reading.citizens_morale < 40.0:
 		_push(HOPE, &"morale", "Nobody talks at meals",
@@ -375,8 +378,9 @@ func _the_council(council: SocietyCouncil) -> void:
 	if resent > 0.0:
 		var worst: float = council.lowest_approval()
 		_push(DISCONTENT, &"resentment", "They have decided about you",
-			"The worst standing you have with anyone is %d out of a hundred, and %d group(s) have stopped negotiating."
-				% [int(round(worst)), council.radical_count()],
+			"The worst standing you have with anyone is %d out of a hundred, and %d %s stopped negotiating."
+				% [int(round(worst)), council.radical_count(),
+					"group has" if council.radical_count() == 1 else "groups have"],
 			resent)
 	var good: float = council.goodwill_rate()
 	if good > 0.0:
@@ -410,17 +414,23 @@ func _grievances(reading: SocietyReading, pop: SocietyPopulace, book: LawBook,
 			SocietyDefs.sentence(SocietyDefs.spell(reading.homes_cold)),
 			SocietyDefs.spell(reading.homes_total)]
 	_grievance(&"cold", cold_share, cold_detail)
-	_grievance(&"hunger", pop.hunger_share,
-		"%s go short today." % SocietyDefs.sentence(SocietyDefs.people(int(round(pop.population * pop.hunger_share)))))
+	var hungry: int = int(round(pop.population * pop.hunger_share))
+	_grievance(&"hunger", pop.hunger_share, "%s %s short today." % [
+		SocietyDefs.sentence(SocietyDefs.people(hungry)),
+		SocietyDefs.verb_s(hungry, "go")])
 	_grievance(&"overwork", strain,
 		"The shift is %.0f hours long." % book.policy_value(&"work_hours"))
+	var ill: int = int(round(pop.sick))
 	_grievance(&"sickness", clampf(sick_share * 3.5, 0.0, 1.0),
-		"%s are ill." % SocietyDefs.sentence(SocietyDefs.people(int(round(pop.sick)))))
+		"%s %s ill." % [SocietyDefs.sentence(SocietyDefs.people(ill)),
+			SocietyDefs.is_are(ill)])
 	var tent_share: float = clampf(pop.tented / maxf(pop.population, 1.0), 0.0, 1.0)
+	var unbunked: int = int(round(pop.homeless))
+	var tented: int = int(round(pop.tented))
 	_grievance(&"homeless", clampf(maxf(homeless_share * 2.5, tent_share * 0.55), 0.0, 1.0),
-		"%s have no bunk. %s are under canvas." % [
-			SocietyDefs.sentence(SocietyDefs.people(int(round(pop.homeless)))),
-			SocietyDefs.sentence(SocietyDefs.people(int(round(pop.tented))))])
+		"%s %s no bunk. %s %s under canvas." % [
+			SocietyDefs.sentence(SocietyDefs.people(unbunked)), SocietyDefs.has_have(unbunked),
+			SocietyDefs.sentence(SocietyDefs.people(tented)), SocietyDefs.is_are(tented)])
 
 	var child: float = 0.9 if book.policy_flag(SocietyDefs.FLAG_CHILD_LABOUR) else 0.0
 	if book.policy_value(&"child_risk") > 0.0 and child < 0.5:
@@ -428,8 +438,9 @@ func _grievances(reading: SocietyReading, pop: SocietyPopulace, book: LawBook,
 	_grievance(&"children", child, "The children are in the works.")
 
 	var dead: float = corpse_share if book.policy_value(&"corpse_capacity") <= 0.0 else corpse_share * 0.2
-	_grievance(&"dead_unburied", dead,
-		"%s are stacked by the east wall." % SocietyDefs.sentence(SocietyDefs.people(int(round(pop.corpses)))))
+	var unburied: int = int(round(pop.corpses))
+	_grievance(&"dead_unburied", dead, "%s %s stacked by the east wall." % [
+		SocietyDefs.sentence(SocietyDefs.people(unburied)), SocietyDefs.is_are(unburied)])
 
 	var fear: float = clampf(book.policy_value(&"discipline") * 0.55, 0.0, 1.0)
 	if book.policy_flag(SocietyDefs.FLAG_MARTIAL_LAW):

@@ -300,8 +300,9 @@ func _death_sentence(cause: StringName, n: int, reading: SocietyReading) -> Stri
 			return "%s froze in their beds. The rooms were at %.0f degrees." % [
 				who, reading.home_temp_avg]
 		&"sickness":
-			return "%s died of the fever. There are %s still coughing." % [
-				who, SocietyDefs.people(int(round(sick)))]
+			var coughing: int = int(round(sick))
+			return "%s died of the fever. There %s %s still coughing." % [
+				who, SocietyDefs.is_are(coughing), SocietyDefs.people(coughing)]
 		&"hunger":
 			return "%s starved. The kitchens have been short for the better part of a day." % who
 	return "%s died." % who

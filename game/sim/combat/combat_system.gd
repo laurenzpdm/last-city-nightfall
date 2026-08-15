@@ -1355,12 +1355,13 @@ func _report_defence() -> void:
 	var dry: int = int(r["dry"])
 	if cold + off > 0:
 		var pos: Array = r["first_cold"]
-		_alert(&"turrets_cold", 1, "%d of %d turret(s) have no heat and cannot fire."
-			% [cold + off, int(r["turrets"])],
+		var n_cold: int = cold + off
+		_alert(&"turrets_cold", 1, "%d of %d guns %s no heat and cannot fire."
+			% [n_cold, int(r["turrets"]), "has" if n_cold == 1 else "have"],
 			Vector2(float(pos[0]), float(pos[1])))
 	elif dry > 0:
-		_alert(&"turrets_dry", 1, "%d of %d turret(s) are out of ammunition."
-			% [dry, int(r["turrets"])], Vector2.ZERO)
+		_alert(&"turrets_dry", 1, "%d of %d guns %s out of ammunition."
+			% [dry, int(r["turrets"]), "is" if dry == 1 else "are"], Vector2.ZERO)
 
 
 func _flush_discontent() -> void:

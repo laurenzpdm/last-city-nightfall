@@ -409,6 +409,20 @@ static func is_are(n: int) -> String:
 	return "is" if n == 1 else "are"
 
 
+## "has" / "have", and "goes" / "go". `people()` returns a SINGULAR subject at
+## n == 1 and six grievance lines paired it with a plural verb, so the ultimatum
+## in `artifacts/play_long/log.txt` reads "One person are stacked by the east
+## wall." These exist because `is_are` already existed, was written for exactly
+## this, and was called at one of the seven sites that needed it.
+static func has_have(n: int) -> String:
+	return "has" if n == 1 else "have"
+
+
+## Third-person present for a plain verb: "goes"/"go", "reaches"/"reach".
+static func verb_s(n: int, stem: String, singular_suffix: String = "es") -> String:
+	return stem + (singular_suffix if n == 1 else "")
+
+
 ## Start of a sentence. String.capitalize() title cases every word, which turns
 ## "one person" into "One Person" and makes the whole part read like a form.
 static func sentence(s: String) -> String:

@@ -892,7 +892,8 @@ func _resolve_wave(at_dawn: bool) -> void:
 	var detail: String = "%d of %d put down%s" % [
 		int(outcome.get("killed", 0)), maxi(1, int(outcome.get("spawned", 0))),
 		"" if int(outcome.get("structures_lost", 0)) == 0
-			else ", %d structure(s) lost" % int(outcome.get("structures_lost", 0))]
+			else ", %d structure%s lost" % [int(outcome.get("structures_lost", 0)),
+				"" if int(outcome.get("structures_lost", 0)) == 1 else "s"]]
 	# The verdict comes FIRST, in words, because that is the thing a player needs
 	# before any of the numbers: was that a good night or a bad one.
 	var verdict: int = ThreatDefs.verdict_of(outcome, wiped, withdrew)

@@ -278,7 +278,7 @@ func _sample_heat() -> void:
 		"last night the grid ran %d%% short" % int(_night_peak * 100.0), &"measured")
 
 	_put(ResearchDefs.SIG_FROZEN, clampf(float(frozen) / 3.0, 0.0, 1.0),
-		"%d building(s) frozen solid" % frozen, &"measured")
+		"%d building%s frozen solid" % [frozen, "" if frozen == 1 else "s"], &"measured")
 
 	var worst_consumers: int = 0
 	var worst_cell: Vector2i = Vector2i.ZERO
@@ -304,7 +304,7 @@ func _sample_heat() -> void:
 		"one tile at %d,%d is throttling %d buildings" % [worst_cell.x, worst_cell.y, worst_consumers],
 		&"measured")
 	_put(ResearchDefs.SIG_FUEL, clampf(float(starved) / 2.0, 0.0, 1.0),
-		"%d burner(s) running on fumes" % starved, &"measured")
+		"%d burner%s running on fumes" % [starved, "" if starved == 1 else "s"], &"measured")
 
 
 ## Scales here are calibrated against the reference run (first_night), not
@@ -350,7 +350,7 @@ func _sample_build(census: Dictionary) -> void:
 	var queued: int = int(m.get("queued", 0))
 	var reference: float = maxf(LABOUR_FLOOR_SITES, float(total) * LABOUR_SHARE)
 	_put(ResearchDefs.SIG_LABOUR, clampf(float(queued) / reference, 0.0, 1.0),
-		"%d site(s) waiting on hands" % queued, &"measured")
+		"%d site%s waiting on hands" % [queued, "" if queued == 1 else "s"], &"measured")
 
 
 ## Armour that a plain kinetic round stops answering. The hoarfrost breaker
@@ -423,7 +423,8 @@ func _sample_threat() -> void:
 	var lost: float = _last_night_losses(t)
 	if lost >= 0.0:
 		_put(ResearchDefs.SIG_STRUCTURE_LOSS, clampf(lost / LOSSES_SEVERE, 0.0, 1.0),
-			"%d structure(s) lost last night" % int(lost), &"measured")
+			"%d structure%s lost last night" % [int(lost),
+				"" if int(lost) == 1 else "s"], &"measured")
 	else:
 		_put(ResearchDefs.SIG_STRUCTURE_LOSS, proxy * 0.5, "", &"proxy")
 
