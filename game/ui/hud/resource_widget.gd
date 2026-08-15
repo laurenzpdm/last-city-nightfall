@@ -170,8 +170,13 @@ func _draw_chip(id: StringName, rect: Rect2) -> void:
 	# three minutes. The tooltip carries the measured window either way.
 	var sustained: float = probe.trend.sustained_per_minute(id)
 	if dir != 0 and absf(sustained) >= 0.05:
+		# WITH ITS UNIT. Every other rate in this game carries one — the heat
+		# grid says "heat/s", the lenses say "u/s", the build menu says "/min" —
+		# and this rail printed a bare "436" beside a stock of "1.2k". Two
+		# numbers, one row, one of them a level and one of them a rate, and
+		# nothing on screen saying which was which.
 		style.draw_text(self, Vector2(x + 13.0, baseline),
-			LcnHudFormat.rate(absf(sustained)), style.fs(11), arrow_col)
+			"%s/min" % LcnHudFormat.rate(absf(sustained)), style.fs(11), arrow_col)
 	elif dir != 0:
 		style.draw_text(self, Vector2(x + 13.0, baseline), "—", style.fs(11),
 			style.ink_faint())

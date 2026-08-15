@@ -56,10 +56,9 @@ func refresh() -> void:
 	if _continue_slot != "":
 		rows.append({
 			"kind": LcnMetaList.Kind.ACTION, "id": &"continue", "label": "Continue",
-			"hint": "%s — day %d, %d alive, %s" % [
+			"hint": "%s  ·  %s" % [
 				String(recent.get("name", _continue_slot)),
-				int(recent.get("day", 1)), int(recent.get("population", 0)),
-				String(recent.get("saved_text", ""))],
+				LcnSaveManager.describe_slot(recent)],
 		})
 	rows.append({"kind": LcnMetaList.Kind.ACTION, "id": &"new", "label": "A new city",
 		"hint": "Caldera Nine, the morning of the first day"})

@@ -66,6 +66,51 @@ static func has_any() -> bool:
 	return not slots().is_empty()
 
 
+## When a save was written, in the language the rest of this game uses.
+##
+## Every other time in this build is written rather than stamped — "Caldera
+## Nine, the morning of the first day", "food runs out in 1.5 days", "0:42 to
+## nightfall". The save list and the Continue row printed
+## "2026-08-15 02:52:46": a machine timestamp, to the second, on the first
+## screen a player sees, next to a line of prose about a lamp on Kettle Row.
+static func when_words(saved_unix: int, now_unix: int = 0) -> String:
+	if saved_unix <= 0:
+		return "date unknown"
+	var now: int = now_unix if now_unix > 0 else int(Time.get_unix_time_from_system())
+	var ago: int = now - saved_unix
+	if ago < 0:
+		return "just now"
+	if ago < 90:
+		return "just now"
+	if ago < 3600:
+		var m: int = int(roundf(float(ago) / 60.0))
+		return "%d minute%s ago" % [m, "" if m == 1 else "s"]
+	if ago < 86400:
+		var h: int = int(roundf(float(ago) / 3600.0))
+		return "%d hour%s ago" % [h, "" if h == 1 else "s"]
+	if ago < 172800:
+		return "yesterday"
+	var d: int = ago / 86400
+	if d < 30:
+		return "%d days ago" % d
+	return Time.get_date_string_from_unix_time(saved_unix)
+
+
+## The one-line description of a save, used by the browser and by Continue so
+## the two cannot drift. The DAY is omitted when the save's own name already
+## carries it — "Dawn of day 4 / day 4 · 0 alive" said day 4 twice.
+static func describe_slot(header: Dictionary) -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	var day: int = int(header.get("day", 1))
+	var name: String = String(header.get("name", ""))
+	if not name.to_lower().contains("day %d" % day):
+		parts.append("day %d" % day)
+	var pop: int = int(header.get("population", 0))
+	parts.append("%d alive" % pop)
+	parts.append(when_words(int(header.get("saved_unix", 0))))
+	return "  ·  ".join(parts)
+
+
 ## The slot "Continue" resumes: the most recently written one.
 static func most_recent() -> Dictionary:
 	var all: Array[Dictionary] = slots()

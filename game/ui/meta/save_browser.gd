@@ -57,9 +57,7 @@ func refresh() -> void:
 		rows.append({
 			"kind": LcnMetaList.Kind.SLOT, "id": id,
 			"label": String(head.get("name", slot)),
-			"sub": "day %d  ·  %d alive  ·  %s" % [
-				int(head.get("day", 1)), int(head.get("population", 0)),
-				String(head.get("saved_text", "unknown"))],
+			"sub": LcnSaveManager.describe_slot(head),
 			"right": ("autosave" if bool(head.get("autosave", false)) else "")
 				+ ("  %s" % _size_text(int(head.get("world_bytes", 0)))),
 			"thumbnail": LcnSaveManager.thumbnail_texture(thumb_bytes),
