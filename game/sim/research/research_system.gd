@@ -741,7 +741,14 @@ func _finish(id: StringName, forced: bool) -> void:
 	_next_pick_tick = 0
 
 	Bus.research_completed.emit(id)
-	_alert(1, ResearchDefs.KEY_COMPLETED, "%s completed. %s" % [n.title, _payoff_text(n)])
+	# SEVERITY 0, and it used to be 1. Severity 1 puts a row in [P17]'s ATTENTION
+	# stack — the panel that ranks what is about to kill you — so a finished
+	# research node was filed one line under "6 light bodies, out of the
+	# south-east" and above "1 machine stalled", wearing the same warning bar.
+	# Good news does not go in the danger list. It goes in the toast lane, which
+	# is where the SAME event was already being announced a second time by
+	# `Bus.research_completed`.
+	_alert(0, ResearchDefs.KEY_COMPLETED, "%s completed. %s" % [n.title, _payoff_text(n)])
 	Bus.narrative_event.emit(ResearchDefs.KEY_COMPLETED, {
 		"id": String(id),
 		"title": n.title,

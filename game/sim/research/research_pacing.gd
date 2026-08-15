@@ -217,7 +217,10 @@ func _sample_climate() -> void:
 
 	# -15 C is survivable in a coat; -40 kills an unsheltered citizen outright.
 	var cold: float = clampf((-15.0 - ambient) / 25.0, 0.0, 1.0)
-	_put(ResearchDefs.SIG_COLD, cold, "%.0f C outside" % ambient, &"measured")
+	# The detail is appended to the signal's own headline, which for SIG_COLD is
+	# already "the plain outside is lethal". "…is lethal — -27°C outside" said
+	# outside twice and put an em dash immediately in front of a minus sign.
+	_put(ResearchDefs.SIG_COLD, cold, "the air is %.0f°C" % ambient, &"measured")
 
 	var storm_sig: float = storm
 	var until: float = float(c.call("seconds_until_storm"))

@@ -166,9 +166,9 @@ func _begin_if_ready() -> void:
 	if course.finished():
 		Log.info("tutorial", "nothing left to teach: this city already answers every lesson")
 	else:
-		Log.info("tutorial", "opening on '%s' (%d of %d), reads %s" % [
-			String(course.current_id()), course.position(), course.size(),
-			facts.source_list()])
+		Log.info("tutorial", "opening on '%s' (%d of %d this city needs, %d in the book), reads %s" % [
+			String(course.current_id()), course.shown_position(), course.shown_total(),
+			course.size(), facts.source_list()])
 
 
 # =========================================================================
@@ -347,9 +347,12 @@ func _refresh() -> void:
 
 
 func _paint(lesson: LcnTutorialLesson) -> void:
+	# `shown_*`, not `position()/size()`: the counter has to describe THIS
+	# player's course, which is the lessons they are going to be shown, not the
+	# six files in game/content/tutorial/.
 	_kicker.text = "%s   %d of %d" % [
 		lesson.kicker.to_upper() if lesson.kicker != "" else "THE GUIDE",
-		course.position(), course.size()]
+		course.shown_position(), course.shown_total()]
 	var showing: bool = not collapsed
 	_headline.visible = showing
 	_body.visible = showing

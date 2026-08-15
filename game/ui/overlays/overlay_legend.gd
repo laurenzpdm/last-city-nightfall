@@ -369,11 +369,11 @@ func _rows_bottlenecks() -> void:
 
 
 func _rows_thermal() -> void:
-	_row("outside air %.0f C" % snap.ambient_c, pal.ice())
-	_row("warmest tile on screen %.0f C" % snap.warm_max, pal.warn())
-	_row("survival line %.0f C — outside it a working building freezes" % LcnThermalLens.SURVIVAL_C,
+	_row("outside air %.0f°C" % snap.ambient_c, pal.ice())
+	_row("warmest tile on screen %.0f°C" % snap.warm_max, pal.warn())
+	_row("survival line %.0f°C — outside it a working building freezes" % LcnThermalLens.SURVIVAL_C,
 		pal.ice())
-	_row("comfort line +%.0f C — below it every building costs more heat" % LcnThermalLens.COMFORT_C,
+	_row("comfort line +%.0f°C — below it every building costs more heat" % LcnThermalLens.COMFORT_C,
 		pal.good())
 	_row("palette: %s" % LcnOverlayPalette.vision_name(pal.vision),
 		LcnOverlayPalette.with_a(LcnOverlayPalette.INK_DIM, 0.8))

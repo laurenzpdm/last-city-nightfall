@@ -62,8 +62,32 @@ func _ready() -> void:
 	z_index = 60
 	z_as_relative = false
 	Bus.world_ready.connect(_on_world_ready)
+	Bus.game_over.connect(_on_game_over)
 	if Sim.alive:
 		_on_world_ready()
+
+
+## THE RUN ENDS WHEN THE RUN ENDS.
+##
+## `Bus.game_over` had five listeners and not one of them was the thing that
+## drives time. Measured on a 24000-tick replay of first_night: the council was
+## put out of its own gate at t=22720, [P22] wrote the epilogue — "The City Did
+## Not Stand" — and the simulation then ran another 1280 ticks, in which it
+## completed a research node, auto-started the next one, and posted two more
+## Great Frost warnings to a city that no longer had a council. The player's
+## last screen was an ending card over a city still cheerfully planning its
+## week.
+##
+## Stopping the clock is the whole fix, and it is deliberately only the clock:
+## the camera still moves, every panel still reads, [P22]'s epilogue card is
+## already on screen behind nothing. A harness run is untouched — `SimClock`
+## in manual mode drives `advance()` itself and does not consult `running` —
+## so determinism, the gate and every scenario replay are exactly as they were.
+func _on_game_over(reason: String) -> void:
+	if not SimClock.running:
+		return
+	SimClock.pause()
+	Log.info("play", "the run is over (%s) — the clock is stopped" % reason)
 
 
 func attach(cam: Node, overlay: Node) -> void:

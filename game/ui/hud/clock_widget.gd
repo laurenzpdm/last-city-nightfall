@@ -183,7 +183,13 @@ func _speed_state() -> int:
 	var clock: Node = _clock()
 	if clock == null:
 		return 1
-	if not bool(clock.get("running")) or float(clock.get("speed")) <= 0.0:
+	# `is_advancing()` and not `running`: a harness-driven or test-driven world
+	# ticks with `running` false, and this chip used to call that PAUSED while
+	# the number under it counted down.
+	if clock.has_method(&"is_advancing"):
+		if not bool(clock.call(&"is_advancing")):
+			return 0
+	elif not bool(clock.get("running")) or float(clock.get("speed")) <= 0.0:
 		return 0
 	return int(roundf(float(clock.get("speed"))))
 

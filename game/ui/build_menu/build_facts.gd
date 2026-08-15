@@ -348,7 +348,7 @@ static func _heat_section(def: Resource, kind: StringName) -> Dictionary:
 		_row(rows, "Rides out", "%s u of brownout" % LcnUiFormat.num(LcnUiFormat.as_number(hd.get(&"local_buffer"))),
 			LcnUiStyle.Tone.DIM)
 	if LcnUiFormat.as_number(hd.get(&"radius")) > 0.0 and LcnUiFormat.as_number(hd.get(&"radiance")) > 0.0:
-		_row(rows, "Warms", "%s tiles, up to +%s C" % [
+		_row(rows, "Warms", "%s tiles, up to +%s°C" % [
 			LcnUiFormat.num(LcnUiFormat.as_number(hd.get(&"radius"))), LcnUiFormat.num(LcnUiFormat.as_number(hd.get(&"radiance")))],
 			LcnUiStyle.Tone.ACCENT)
 	_row(rows, "Insulation", LcnUiFormat.percent(LcnUiFormat.as_number(hd.get(&"insulation"))), LcnUiStyle.Tone.DIM)
@@ -800,7 +800,7 @@ static func instance_sheet(instance: Object, ctx: Ctx) -> Dictionary:
 		var temp: float = float(ctx.heat.call(&"temperature_of", id)) if ctx.heat.has_method(&"temperature_of") else 0.0
 		_row(rows, "Heat served", LcnUiFormat.percent(served),
 			LcnUiStyle.Tone.GOOD if served > 0.98 else (LcnUiStyle.Tone.BAD if served < 0.5 else LcnUiStyle.Tone.WARN))
-		_row(rows, "Inside", "%s C" % LcnUiFormat.num(temp),
+		_row(rows, "Inside", "%d°C" % int(roundf(temp)),
 			LcnUiStyle.Tone.BAD if temp < 0.0 else LcnUiStyle.Tone.NEUTRAL)
 		var nid: int = int(ctx.heat.call(&"network_of", id)) if ctx.heat.has_method(&"network_of") else -1
 		if nid >= 0:

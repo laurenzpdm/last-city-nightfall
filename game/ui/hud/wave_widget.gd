@@ -99,8 +99,16 @@ func _draw() -> void:
 		if _urgent > 0.8:
 			col = col.lerp(style.ink_warm(), style.pulse(5.0) * 0.4)
 	if probe.wave_active:
-		style.draw_text_right(self, right_x, _y_time,
-			"%d in the city" % probe.enemies_alive, style.fs(22), col)
+		# "UNDER ATTACK / 0 in the city" is a headline arguing with its own
+		# number. The wave is live and nothing has crossed the line yet — which
+		# is a different and much better piece of news than "0", and it is the
+		# state the panel spends the first minute of every night in.
+		var body: String = "%d in the city" % probe.enemies_alive
+		var scale: int = 22
+		if probe.enemies_alive <= 0:
+			body = "still outside"
+			scale = 20
+		style.draw_text_right(self, right_x, _y_time, body, style.fs(scale), col)
 	else:
 		style.draw_text_right(self, right_x, _y_time,
 			LcnHudFormat.clock(maxf(0.0, _seconds)), style.fs(30), col)

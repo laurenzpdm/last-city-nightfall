@@ -56,6 +56,23 @@ static func _opening_condition() -> NarrativeCondition:
 	return c
 
 
+## A boolean clause states itself rather than comparing itself, and the plain
+## statement of a boolean fact is "Night: yes." — which is a debug print with a
+## capital letter on it, sitting under a page of prose about the dark coming up
+## the caldera wall. Every other clause in this file reads as a sentence because
+## every other clause has a number in it. These two have to be written.
+static func _night_condition() -> NarrativeCondition:
+	var c := NarrativeCondition.make(&"is_night", NarrativeDefs.Cmp.GE, 1.0)
+	c.phrasing = "The sun is down. It stays down for the rest of the reckoning."
+	return c
+
+
+static func _storm_condition() -> NarrativeCondition:
+	var c := NarrativeCondition.make(&"storm_active", NarrativeDefs.Cmp.GE, 1.0)
+	c.phrasing = "A Great Frost is blowing over the caldera right now."
+	return c
+
+
 ## Index 0 is the opening and always holds. Everything after it needs the world
 ## to have got there.
 static func chapters() -> Array[Chapter]:
@@ -94,7 +111,7 @@ static func chapters() -> Array[Chapter]:
 		+ "Hearth runs hard is coal that does not exist yet. The people on "
 		+ "Kettle Row are going to find out tonight whether the pipes reach "
 		+ "them, and there is no longer time to do anything about the answer.",
-		[NarrativeCondition.make(&"is_night", NarrativeDefs.Cmp.GE, 1.0)]))
+		[_night_condition()]))
 
 	out.append(_chapter(&"what_the_survey_missed", "What the Survey Did Not Say",
 		"The second day, and the numbers arrive",
@@ -116,7 +133,7 @@ static func chapters() -> Array[Chapter]:
 		+ "nearly lagged is a pipe that is not lagged. Every person who was "
 		+ "nearly housed is outside. The Frost does not take the weak first. It "
 		+ "takes whoever you left at the end of the line.",
-		[NarrativeCondition.make(&"storm_active", NarrativeDefs.Cmp.GE, 1.0)]))
+		[_storm_condition()]))
 
 	out.append(_chapter(&"the_long_cold", "The Long Cold",
 		"It is no longer a bad week",

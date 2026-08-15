@@ -629,7 +629,7 @@ func _emit_phase_change(next_phase: int) -> void:
 					% ClimateDefs.format_clock(seconds_until_night()))
 		ClimateDefs.Phase.NIGHT:
 			Bus.night_started.emit(_day)
-			_alert(1, ClimateDefs.KEY_NIGHT, "Night has fallen on day %d. %.0f C outside."
+			_alert(1, ClimateDefs.KEY_NIGHT, "Night has fallen on day %d. %.0f°C outside."
 					% [_day, _ambient])
 		ClimateDefs.Phase.DEEP_NIGHT:
 			_alert(0, ClimateDefs.KEY_NIGHT, "Deep night. Dawn in %s."

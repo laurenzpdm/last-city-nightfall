@@ -1,394 +1,483 @@
 {
-  "$about": [
-    "THE CONTRACT metrics.csv WAS MISSING.",
-    "",
-    "first_night ran 24000 ticks with logistics.belt_lines at 0 and",
-    "logistics.items_moved at 0 for every one of them, fired 43 shots in three",
-    "in-game days, and exited 0. stress_1000 declared a floor of 35 ticks/s while",
-    "the build measured 41. A number nobody asserts against is decoration.",
-    "",
-    "Every band here is a claim about what this game IS. A band that fails today",
-    "is not a bug in the band: it is the gate finally saying out loud that a",
-    "pillar of the design does not run. Bands are deliberately loose \u2014 they catch",
-    "'this pillar is dead', not 'this pillar moved 4%'. Balance lives in",
-    "game/content/economy/ and tools/analyze_balance.py.",
-    "",
-    "Every band carries a why. A magic number with no justification is how a perf",
-    "floor of 35 sat under a build measuring 41 and called itself a gate.",
-    "",
-    "OPERATORS  on a metrics.csv column or a gate.json series:",
-    "  final_min final_max      the last sample",
-    "  min max                  every sample",
-    "  peak_min peak_max        the highest sample",
-    "  mean_min mean_max        the mean",
-    "  delta_min delta_max      last minus first",
-    "  must_move                the series is not a flat line",
-    "  nonzero_by <tick>        it has to be alive by then",
-    "  in_set [..]              enumerations (climate.phase, threat.state)",
-    "state.<dotted path> takes min/max/eq/len_min/len_max/exists against state.json.",
-    "",
-    "LIVENESS is code, configured here: stalled enemies, waves that never end,",
-    "kill and shot ratios, and alerts held against the series they describe."
-  ],
-  "$defaults": {
-    "liveness": {
-      "stalled_enemy_ticks": 2400,
-      "$why_stalled": "Two in-game minutes at 20 Hz. An enemy that exists for that long without ever taking a point of damage is not a threat, it is a statue: enemy #5000018 was born at tick 17036 and was still alive at 24000 at full HP while the wave it belonged to could never end."
-    },
-    "consistency": [
-      {
-        "id": "kills",
-        "metric": "combat.kills",
-        "signal": "enemy_killed",
-        "why": "Every number a panel can print comes from either a metric or a Bus signal. When the two disagree about the same event, one of them is what the player is being shown and the other is what happened."
-      },
-      {
-        "id": "placements",
-        "metric": "build.placed_total",
-        "signal": "building_placed",
-        "why": "The build counter against the signal the renderer and the HUD both listen to."
-      },
-      {
-        "id": "research",
-        "metric": "research.researched_count",
-        "signal": "research_completed",
-        "why": "A tech tree whose counter disagrees with its own completion signal cannot be read by any panel."
-      },
-      {
-        "id": "laws",
-        "metric": "society.laws_signed",
-        "signal": "law_enacted",
-        "why": "The Book of Laws is driven by this signal; the counter is what the HUD prints."
-      },
-      {
-        "id": "waves_cleared",
-        "metric": "threat.waves_cleared",
-        "signal": "wave_cleared",
-        "why": "Caught on 2026-08-13: Bus.wave_cleared fired twice and threat.waves_survived reached 2, while threat.waves_cleared sat frozen at 1. Two counters of the same event in one system, disagreeing, in the metric a wave panel would quote."
-      },
-      {
-        "id": "deaths",
-        "metric": "citizens.dead_total",
-        "signal": "citizen_died",
-        "why": "Deaths are the Frostpunk currency; the obituary and the counter have to be the same number."
-      }
-    ]
+ "$about": [
+  "THE CONTRACT metrics.csv WAS MISSING.",
+  "",
+  "first_night ran 24000 ticks with logistics.belt_lines at 0 and",
+  "logistics.items_moved at 0 for every one of them, fired 43 shots in three",
+  "in-game days, and exited 0. stress_1000 declared a floor of 35 ticks/s while",
+  "the build measured 41. A number nobody asserts against is decoration.",
+  "",
+  "Every band here is a claim about what this game IS. A band that fails today",
+  "is not a bug in the band: it is the gate finally saying out loud that a",
+  "pillar of the design does not run. Bands are deliberately loose \u2014 they catch",
+  "'this pillar is dead', not 'this pillar moved 4%'. Balance lives in",
+  "game/content/economy/ and tools/analyze_balance.py.",
+  "",
+  "Every band carries a why. A magic number with no justification is how a perf",
+  "floor of 35 sat under a build measuring 41 and called itself a gate.",
+  "",
+  "OPERATORS  on a metrics.csv column or a gate.json series:",
+  "  final_min final_max      the last sample",
+  "  min max                  every sample",
+  "  peak_min peak_max        the highest sample",
+  "  mean_min mean_max        the mean",
+  "  delta_min delta_max      last minus first",
+  "  must_move                the series is not a flat line",
+  "  nonzero_by <tick>        it has to be alive by then",
+  "  in_set [..]              enumerations (climate.phase, threat.state)",
+  "state.<dotted path> takes min/max/eq/len_min/len_max/exists against state.json.",
+  "",
+  "LIVENESS is code, configured here: stalled enemies, waves that never end,",
+  "kill and shot ratios, and alerts held against the series they describe."
+ ],
+ "$defaults": {
+  "liveness": {
+   "stalled_enemy_ticks": 2400,
+   "$why_stalled": "Two in-game minutes at 20 Hz. An enemy that exists for that long without ever taking a point of damage is not a threat, it is a statue: enemy #5000018 was born at tick 17036 and was still alive at 24000 at full HP while the wave it belonged to could never end."
   },
-  "scenarios": {
-    "smoke": {
-      "why": "The fast gate and the colour-arc photo run: 30 seconds, one settlement, the climate clock walked through all six phases.",
-      "metrics": {
-        "build.buildings_total": {
-          "final_min": 60,
-          "why": "The scenario places a settlement. Fewer buildings than it scripted means placements are being refused and the run is photographing an empty plain."
-        },
-        "build.rejected_total": {
-          "final_max": 0,
-          "why": "tools/gen_scenarios.py refuses to emit a placement that would be refused at runtime, so a rejection here means the generator and the build system disagree about what fits. Since 2026-08-14 this counter is GENUINE command rejections only \u2014 BuildSystem._reject() books a cell declined inside a line drag, an area fill or a blueprint stamp to build.sweep_skipped_total instead, because a sweep is defined to run through what already stands. Zero is therefore a threshold that can actually hold."
-        },
-        "build.sweep_skipped_total": {
-          "final_max": 30,
-          "why": "The other half of the split. A sweep skipping cells is normal and this scenario places no lines at all today (0), so this is not the teeth \u2014 build.rejected_total is. It is a runaway ceiling: a generator that started drawing every trunk through the finished city would show up here instead of hiding inside a metric nobody prints."
-        },
-        "heat.networks": {
-          "max": 2,
-          "why": "One hearth, one grid. Two networks means a pipe run silently failed to connect and every consumer past the break is on its own."
-        },
-        "heat.delivered": {
-          "peak_min": 1.0,
-          "must_move": true,
-          "why": "Heat is the one resource all three genres share. A grid that never delivers anything is a dead build even when every test passes."
-        },
-        "citizens.population": {
-          "min": 12,
-          "why": "The opening settlement is populated; a population that collapses in 30 seconds is a needs bug, not a difficulty curve."
-        },
-        "citizens.avg_warmth": {
-          "min": 5.0,
-          "why": "Warmth is reported on a 0..100 scale and the opening settlement measures around 60. A floor of 5 says the citizens are attached to the heat grid at all; balance belongs in game/content/economy/, not here."
-        },
-        "climate.phase": {
-          "must_move": true,
-          "why": "The scenario skips through all six phases on purpose \u2014 the six shots are supposed to be dawn, morning, afternoon, dusk, night and deep night rather than six pictures of the same minute."
-        },
-        "combat.turrets": {
-          "final_min": 1,
-          "why": "There is a turret in the settlement. If combat cannot see it, the tower-defense pillar is not wired to the buildings the player places."
-        }
-      },
-      "liveness": {
-        "min_kill_ratio": 0.4,
-        "stalled_enemy_ticks": 400
-      }
+  "consistency": [
+   {
+    "id": "kills",
+    "metric": "combat.kills",
+    "signal": "enemy_killed",
+    "why": "Every number a panel can print comes from either a metric or a Bus signal. When the two disagree about the same event, one of them is what the player is being shown and the other is what happened."
+   },
+   {
+    "id": "placements",
+    "metric": "build.placed_total",
+    "signal": "building_placed",
+    "why": "The build counter against the signal the renderer and the HUD both listen to."
+   },
+   {
+    "id": "research",
+    "metric": "research.researched_count",
+    "signal": "research_completed",
+    "why": "A tech tree whose counter disagrees with its own completion signal cannot be read by any panel."
+   },
+   {
+    "id": "laws",
+    "metric": "society.laws_signed",
+    "signal": "law_enacted",
+    "why": "The Book of Laws is driven by this signal; the counter is what the HUD prints."
+   },
+   {
+    "id": "waves_cleared",
+    "metric": "threat.waves_cleared",
+    "signal": "wave_cleared",
+    "why": "Caught on 2026-08-13: Bus.wave_cleared fired twice and threat.waves_survived reached 2, while threat.waves_cleared sat frozen at 1. Two counters of the same event in one system, disagreeing, in the metric a wave panel would quote."
+   },
+   {
+    "id": "deaths",
+    "metric": "citizens.dead_total",
+    "signal": "citizen_died",
+    "why": "Deaths are the Frostpunk currency; the obituary and the counter have to be the same number."
+   }
+  ]
+ },
+ "scenarios": {
+  "smoke": {
+   "why": "The fast gate and the colour-arc photo run: 30 seconds, one settlement, the climate clock walked through all six phases.",
+   "metrics": {
+    "build.buildings_total": {
+     "final_min": 60,
+     "why": "The scenario places a settlement. Fewer buildings than it scripted means placements are being refused and the run is photographing an empty plain."
     },
-    "first_night": {
-      "why": "THE REFERENCE RUN. One full day into the next: a hearth, a grid, housing, industry, a wall before dusk, a night spent short of heat. This is what the art, audio and UI parts screenshot against, and what a critic is handed.",
-      "metrics": {
-        "build.buildings_total": {
-          "final_min": 180,
-          "must_move": true,
-          "why": "The script builds a city across the day. A flat building count means the construction queue stalled and the rest of the run is a still life."
-        },
-        "build.rejected_total": {
-          "final_max": 0,
-          "why": "Every single-cell placement in this scenario was generated against the real footprints; a rejection is a contract break between the generator and [P11]. This band read 13 and failed for a year of runs because it also counted the cells a heat trunk deliberately overdraws \u2014 tools/gen_scenarios.py's Layout.line() runs THROUGH what already stands and says so in its own comment. Those now land in build.sweep_skipped_total, so a zero here is a claim the build can hold and a 1 here is a real authoring mistake."
-        },
-        "build.sweep_skipped_total": {
-          "final_max": 60,
-          "why": "The deliberate overdraw, counted where it can be read. 13 in the reference run: the heat trunks crossing structures that were already up. A loose runaway ceiling, NOT the teeth \u2014 the teeth is build.rejected_total at 0. If this ever reaches 60 the generator has started drawing lines across the whole city and the scenario is no longer placing what it says it places."
-        },
-        "heat.networks": {
-          "final_max": 3,
-          "why": "The scenario's own expects block says 3. More than that at the end means the grid fragmented and the night is being fought by three separate cities. final_max for the same reason as stress_1000: mid-construction fragmentation is scaffolding, not a fault."
-        },
-        "heat.delivered": {
-          "peak_min": 20.0,
-          "why": "A day of industry on a hearth-fed grid. Single-digit delivery means consumers are not attached to the network."
-        },
-        "heat.deficit": {
-          "peak_min": 0.1,
-          "why": "The night is SUPPOSED to be spent short of heat \u2014 that is the scenario's name and the whole Frostpunk contract. A run that never once runs a deficit has lost its pressure."
-        },
-        "citizens.population": {
-          "final_min": 20,
-          "must_move": true,
-          "why": "Arrivals across the day are the growth loop. A population that never moves means jobs, housing or arrivals are disconnected."
-        },
-        "production.crafts_total": {
-          "final_min": 10,
-          "why": "Scrap becomes plate becomes a meal. Zero crafts in a full day means the production pillar is standing there being ticked and doing nothing."
-        },
-        "research.researched_count": {
-          "final_min": 2,
-          "why": "Research changes what already stands (ARCHITECTURE \u00a77). A day with no completed node means progression is inert."
-        },
-        "logistics.items_moved": {
-          "final_min": 1,
-          "why": "THE 0-BELTS FINDING. A reference day in which the logistics pillar moves not one item is one of the three genres in the pitch not running at all. As of 2026-08-13 belt_mk1..3, inserters and splitters exist as BuildingDefs, so the remaining gap is that no shipped scenario places one and therefore nothing has ever proved an item can travel. This band stays red until something moves."
-        },
-        "logistics.belt_lines": {
-          "peak_min": 1,
-          "why": "The same finding from the other side: a run with zero belt lines has no automation to read, no throughput to optimise and nothing for [P19]'s logistics lens to draw. A belt that exists in the catalogue but never appears in a run is a menu entry, not a pillar."
-        },
-        "climate.day": {
-          "final_min": 2,
-          "why": "11000 ticks is a full day and into the next; if the calendar has not turned over, climate is not advancing at the rate the scenario was written against."
-        },
-        "threat.waves_survived": {
-          "final_min": 1,
-          "why": "One night, one wave survived. A reference run that never finishes a wave cannot demonstrate the tower-defense pillar to anybody."
-        }
-      },
-      "state": {
-        "final.systems.logistics.lines": {
-          "len_min": 1,
-          "why": "The serialized belt lines. Kept alongside the metric so a build cannot satisfy the counter without the structure existing."
-        },
-        "errors": {
-          "len_max": 0,
-          "why": "state.json.errors is what the harness itself is willing to admit went wrong."
-        }
-      },
-      "liveness": {
-        "waves_must_end": true,
-        "min_kill_ratio": 0.5,
-        "min_shots_per_enemy": 2.0,
-        "stalled_enemy_ticks": 2400,
-        "claims": [
-          {
-            "id": "heat_shortfall_is_real",
-            "match": "short (?P<amount>[0-9.]+) heat/s",
-            "implies_series": "heat.deficit",
-            "implies_min": 0.5,
-            "window_ticks": 40,
-            "why": "The ATTENTION panel told the player timber would run out in 20 seconds while the timber series went 715 -> 495 -> flat. An alert is a promise about a number; when the number disagrees, the player is being taught to distrust the UI."
-          },
-          {
-            "id": "freeze_alerts_are_real",
-            "match": "(?i)froze at",
-            "implies_series": "heat.frozen_buildings",
-            "implies_min": 1.0,
-            "window_ticks": 40,
-            "why": "A freeze alert with no frozen building in the metrics is the same lie in a different panel."
-          },
-          {
-            "id": "wave_alerts_are_real",
-            "match": "(?i)^night \\d+:",
-            "implies_series": "threat.live",
-            "implies_min": 1.0,
-            "window_ticks": 200,
-            "why": "Announcing a night assault that never puts a body on the map is how a tower defense loses its threat."
-          },
-          {
-            "id": "depletion_claims_hold",
-            "match": "(?P<item>[A-Za-z ]+) runs out in (?P<secs>[0-9]+) ?s",
-            "series": "stock.{item}",
-            "must_fall_below_fraction": 0.25,
-            "why": "The general form: any alert that names a resource and a horizon is checked against that resource's own series over exactly that horizon. INERT TODAY, on purpose: the ATTENTION panel builds 'Timber runs out in 20 seconds' inside game/ui/hud/hud_alerts.gd and never routes it through Bus.alert_raised, so a headless gate cannot see the text at all. The rule arms itself the day [P17] emits that claim as an alert, and until then the report says INERT rather than pretending to have checked it."
-          }
-        ]
-      }
+    "build.rejected_total": {
+     "final_max": 0,
+     "why": "tools/gen_scenarios.py refuses to emit a placement that would be refused at runtime, so a rejection here means the generator and the build system disagree about what fits. Since 2026-08-14 this counter is GENUINE command rejections only \u2014 BuildSystem._reject() books a cell declined inside a line drag, an area fill or a blueprint stamp to build.sweep_skipped_total instead, because a sweep is defined to run through what already stands. Zero is therefore a threshold that can actually hold."
     },
-    "first_night_endurance": {
-      "why": "first_night driven to 24000 ticks \u2014 three in-game days, two nights, two waves. The shipped scenario stops at 11000 and therefore never reaches wave 2, which is exactly where 'the wave that never ended' lived: enemy #5000018 born at tick 17036, still alive at 24000 at full HP, in a run that reported 43 shots and 19 kills across three days and exited 0. Run with `--scenario=first_night --ticks=24000`; graded here so [P00]'s scenario file stays [P00]'s.",
-      "metrics": {
-        "combat.kills": {
-          "final_min": 15,
-          "why": "Two waves of bodies. Single figures over three days means turrets are watching enemies walk past."
-        },
-        "climate.day": {
-          "final_min": 3,
-          "why": "24000 ticks is three days; a shorter calendar means the second night never arrived."
-        },
-        "citizens.population": {
-          "final_min": 25,
-          "why": "Three days of arrivals at the gate. A population that stops growing after the first night means the arrival loop is tied to day 1 and nothing after it."
-        },
-        "threat.waves_survived": {
-          "final_min": 2,
-          "why": "Two nights, two waves survived. This is the assertion the original finding needed and nobody had written. It reads waves_survived rather than waves_cleared on purpose: the consistency rule below is what holds waves_cleared to account."
-        }
-      },
-      "liveness": {
-        "waves_must_end": true,
-        "min_kill_ratio": 0.7,
-        "min_shots_per_enemy": 1.5,
-        "stalled_enemy_ticks": 2400,
-        "claims": [
-          {
-            "id": "wave_alerts_are_real",
-            "match": "(?i)^night \\d+:",
-            "implies_series": "threat.live",
-            "implies_min": 1.0,
-            "window_ticks": 200,
-            "why": "Announcing a night assault that never puts a body on the map is how a tower defense loses its threat."
-          }
-        ]
-      }
+    "build.sweep_skipped_total": {
+     "final_max": 30,
+     "why": "The other half of the split. A sweep skipping cells is normal and this scenario places no lines at all today (0), so this is not the teeth \u2014 build.rejected_total is. It is a runaway ceiling: a generator that started drawing every trunk through the finished city would show up here instead of hiding inside a metric nobody prints."
     },
-    "economy_60min": {
-      "why": "THE BALANCE RUN. Seven and a half campaign days, a district added every morning, two Great Frosts on the fixed calendar. The input to tools/analyze_balance.py.",
-      "metrics": {
-        "citizens.population": {
-          "final_min": 30,
-          "delta_min": 5,
-          "why": "Seven days of a city that grows. A population that ends where it started means the growth loop is not closed."
-        },
-        "society.hope": {
-          "min": 1.0,
-          "max": 100.0,
-          "must_move": true,
-          "why": "Hope is the Frostpunk dial. Pinned at a constant for seven days means society is being ticked but nothing reaches it."
-        },
-        "heat.networks": {
-          "max": 1,
-          "why": "The scenario's own expects: one city, one grid, all seven days."
-        },
-        "production.crafts_total": {
-          "final_min": 100,
-          "why": "Seven days of industry. Two figures here would mean the chain runs once and stalls."
-        },
-        "logistics.items_moved": {
-          "final_min": 1,
-          "why": "Seven and a half days of a growing city with not one item moved by the logistics pillar is the clearest statement possible that automation is not part of this game yet, whatever the build catalogue lists."
-        },
-        "climate.day": {
-          "final_min": 7,
-          "why": "72000 ticks is 7.5 days; a shorter calendar means the two Great Frosts the run is built around never landed."
-        },
-        "research.researched_count": {
-          "final_min": 5,
-          "why": "A week of a working city should finish more than a couple of nodes, or the tech tree is a menu."
-        }
-      },
-      "implications": [
-        {
-          "id": "a_demand_can_be_answered",
-          "when": {
-            "metric": "society.open_demands",
-            "peak_min": 1
-          },
-          "then": {
-            "metric": "society.laws_signed",
-            "final_min": 1
-          },
-          "why": "The society system issues ultimatums demanding a law. If a run can raise a demand and never sign a single law, the demand is theatre \u2014 and that is exactly the state the build was in while the Book of Laws sat on an unreachable CanvasLayer."
-        },
-        {
-          "id": "machines_that_stall_are_fed",
-          "when": {
-            "metric": "production.stalled",
-            "peak_min": 1
-          },
-          "then": {
-            "metric": "production.crafts_total",
-            "final_min": 1
-          },
-          "why": "A production system that only ever reports stalls has no positive case; the stall counter is measuring the absence of a feature rather than a condition."
-        }
-      ],
-      "liveness": {
-        "stalled_enemy_ticks": 4000,
-        "min_kill_ratio": 0.5
-      }
+    "heat.networks": {
+     "max": 2,
+     "why": "One hearth, one grid. Two networks means a pipe run silently failed to connect and every consumer past the break is on its own."
     },
-    "stress_1000": {
-      "why": "THE PERFORMANCE GATE: 1000+ structures on ONE heat network through nightfall. tools/perf.sh owns the ticks/second; this owns whether the city it measured was real.",
-      "metrics": {
-        "build.buildings_total": {
-          "final_min": 1000,
-          "why": "The scenario's own expects. A perf number measured on a city that failed to place is a fast empty map."
-        },
-        "heat.networks": {
-          "final_max": 6,
-          "why": "The scenario's own expects. The expensive case the perf number is supposed to measure is ONE big connected component; if the city ends fragmented, the measurement is of a cheaper problem than the one that ships. final_max, not max: while the city is under construction the grid legitimately fragments and re-merges as pipe runs complete (it peaks at 14 around tick 900), and failing on that would be failing on the scaffolding rather than the building."
-        },
-        "heat.buildings": {
-          "final_min": 800,
-          "why": "Buildings placed but not attached to the grid do not cost the solver anything, so the perf number would flatter itself."
-        },
-        "grid.buildings": {
-          "final_min": 100,
-          "why": "Only structures that OCCUPY cells register with the grid \u2014 pipes and floors do not \u2014 so this is not a mirror of build.buildings_total (375 vs 1723 in the reference run and both are right). It is the floor that says the occupancy layer is being fed at all, which is what the flow field and every path in the game read."
-        }
-      },
-      "state": {
-        "final.systems.heat.networks": {
-          "len_max": 6,
-          "why": "The structure behind the metric."
-        }
-      },
-      "liveness": {
-        "stalled_enemy_ticks": 3000
-      }
+    "heat.delivered": {
+     "peak_min": 1.0,
+     "must_move": true,
+     "why": "Heat is the one resource all three genres share. A grid that never delivers anything is a dead build even when every test passes."
     },
-    "determinism": {
-      "why": "Pokes every system that owns an Rng stream or a mutable cache. tools/determinism.sh replays it twice and diffs; this checks that the poking did anything at all.",
-      "metrics": {
-        "build.undo_depth": {
-          "peak_min": 1,
-          "why": "The scenario exercises undo/redo. A flat undo depth means the history is not recording and the replay proves nothing about it."
-        },
-        "build.buildings_total": {
-          "must_move": true,
-          "why": "A determinism run that builds nothing is byte-identical for the least interesting reason available."
-        },
-        "climate.day": {
-          "must_move": true,
-          "why": "The scenario jumps the calendar on purpose."
-        },
-        "grid.walkable": {
-          "must_move": true,
-          "why": "The scenario scripts snowfall, melt and placements; the walkable-cell count is the surface every one of those edits lands on. (grid.tiles_dirty was banded here first and it was the WRONG metric: dirty_count() is a per-tick gauge the rebuild clears, so a sample every ten ticks reads 0 forever and the band failed for a reason that had nothing to do with the build.)"
-        },
-        "climate.snow": {
-          "must_move": true,
-          "why": "Snowfall is scripted in this scenario and it feeds the grid's snow carry, one of the mutable caches the replay is supposed to prove stable."
-        }
-      },
-      "liveness": {
-        "stalled_enemy_ticks": 3000
-      }
+    "citizens.population": {
+     "min": 12,
+     "why": "The opening settlement is populated; a population that collapses in 30 seconds is a needs bug, not a difficulty curve."
+    },
+    "citizens.avg_warmth": {
+     "min": 5.0,
+     "why": "Warmth is reported on a 0..100 scale and the opening settlement measures around 60. A floor of 5 says the citizens are attached to the heat grid at all; balance belongs in game/content/economy/, not here."
+    },
+    "climate.phase": {
+     "must_move": true,
+     "why": "The scenario skips through all six phases on purpose \u2014 the six shots are supposed to be dawn, morning, afternoon, dusk, night and deep night rather than six pictures of the same minute."
+    },
+    "combat.turrets": {
+     "final_min": 1,
+     "why": "There is a turret in the settlement. If combat cannot see it, the tower-defense pillar is not wired to the buildings the player places."
     }
+   },
+   "liveness": {
+    "min_kill_ratio": 0.4,
+    "stalled_enemy_ticks": 400
+   }
+  },
+  "first_night": {
+   "why": "THE REFERENCE RUN. One full day into the next: a hearth, a grid, housing, industry, a wall before dusk, a night spent short of heat. This is what the art, audio and UI parts screenshot against, and what a critic is handed.",
+   "metrics": {
+    "build.buildings_total": {
+     "final_min": 180,
+     "must_move": true,
+     "why": "The script builds a city across the day. A flat building count means the construction queue stalled and the rest of the run is a still life."
+    },
+    "build.rejected_total": {
+     "final_max": 0,
+     "why": "Every single-cell placement in this scenario was generated against the real footprints; a rejection is a contract break between the generator and [P11]. This band read 13 and failed for a year of runs because it also counted the cells a heat trunk deliberately overdraws \u2014 tools/gen_scenarios.py's Layout.line() runs THROUGH what already stands and says so in its own comment. Those now land in build.sweep_skipped_total, so a zero here is a claim the build can hold and a 1 here is a real authoring mistake."
+    },
+    "build.sweep_skipped_total": {
+     "final_max": 60,
+     "why": "The deliberate overdraw, counted where it can be read. 13 in the reference run: the heat trunks crossing structures that were already up. A loose runaway ceiling, NOT the teeth \u2014 the teeth is build.rejected_total at 0. If this ever reaches 60 the generator has started drawing lines across the whole city and the scenario is no longer placing what it says it places."
+    },
+    "heat.networks": {
+     "final_max": 3,
+     "why": "The scenario's own expects block says 3. More than that at the end means the grid fragmented and the night is being fought by three separate cities. final_max for the same reason as stress_1000: mid-construction fragmentation is scaffolding, not a fault."
+    },
+    "heat.delivered": {
+     "peak_min": 20.0,
+     "why": "A day of industry on a hearth-fed grid. Single-digit delivery means consumers are not attached to the network."
+    },
+    "heat.deficit": {
+     "peak_min": 0.1,
+     "why": "The night is SUPPOSED to be spent short of heat \u2014 that is the scenario's name and the whole Frostpunk contract. A run that never once runs a deficit has lost its pressure."
+    },
+    "citizens.population": {
+     "final_min": 20,
+     "must_move": true,
+     "why": "Arrivals across the day are the growth loop. A population that never moves means jobs, housing or arrivals are disconnected."
+    },
+    "production.crafts_total": {
+     "final_min": 10,
+     "why": "Scrap becomes plate becomes a meal. Zero crafts in a full day means the production pillar is standing there being ticked and doing nothing."
+    },
+    "research.researched_count": {
+     "final_min": 2,
+     "why": "Research changes what already stands (ARCHITECTURE \u00a77). A day with no completed node means progression is inert."
+    },
+    "logistics.items_moved": {
+     "final_min": 1,
+     "why": "THE 0-BELTS FINDING. A reference day in which the logistics pillar moves not one item is one of the three genres in the pitch not running at all. As of 2026-08-13 belt_mk1..3, inserters and splitters exist as BuildingDefs, so the remaining gap is that no shipped scenario places one and therefore nothing has ever proved an item can travel. This band stays red until something moves."
+    },
+    "logistics.belt_lines": {
+     "peak_min": 1,
+     "why": "The same finding from the other side: a run with zero belt lines has no automation to read, no throughput to optimise and nothing for [P19]'s logistics lens to draw. A belt that exists in the catalogue but never appears in a run is a menu entry, not a pillar."
+    },
+    "climate.day": {
+     "final_min": 2,
+     "why": "11000 ticks is a full day and into the next; if the calendar has not turned over, climate is not advancing at the rate the scenario was written against."
+    },
+    "threat.waves_survived": {
+     "final_min": 1,
+     "why": "One night, one wave survived. A reference run that never finishes a wave cannot demonstrate the tower-defense pillar to anybody."
+    }
+   },
+   "state": {
+    "final.systems.logistics.lines": {
+     "len_min": 1,
+     "why": "The serialized belt lines. Kept alongside the metric so a build cannot satisfy the counter without the structure existing."
+    },
+    "errors": {
+     "len_max": 0,
+     "why": "state.json.errors is what the harness itself is willing to admit went wrong."
+    }
+   },
+   "liveness": {
+    "waves_must_end": true,
+    "min_kill_ratio": 0.5,
+    "min_shots_per_enemy": 2.0,
+    "stalled_enemy_ticks": 2400,
+    "claims": [
+     {
+      "id": "heat_shortfall_is_real",
+      "match": "short (?P<amount>[0-9.]+) heat/s",
+      "implies_series": "heat.deficit",
+      "implies_min": 0.5,
+      "window_ticks": 40,
+      "why": "The ATTENTION panel told the player timber would run out in 20 seconds while the timber series went 715 -> 495 -> flat. An alert is a promise about a number; when the number disagrees, the player is being taught to distrust the UI."
+     },
+     {
+      "id": "freeze_alerts_are_real",
+      "match": "(?i)froze at",
+      "implies_series": "heat.frozen_buildings",
+      "implies_min": 1.0,
+      "window_ticks": 40,
+      "why": "A freeze alert with no frozen building in the metrics is the same lie in a different panel."
+     },
+     {
+      "id": "wave_alerts_are_real",
+      "match": "(?i)^night \\d+:",
+      "implies_series": "threat.live",
+      "implies_min": 1.0,
+      "window_ticks": 200,
+      "why": "Announcing a night assault that never puts a body on the map is how a tower defense loses its threat."
+     },
+     {
+      "id": "depletion_claims_hold",
+      "match": "(?P<item>[A-Za-z ]+) runs out in (?P<secs>[0-9]+) ?s",
+      "series": "stock.{item}",
+      "must_fall_below_fraction": 0.25,
+      "why": "The general form: any alert that names a resource and a horizon is checked against that resource's own series over exactly that horizon. INERT TODAY, on purpose: the ATTENTION panel builds 'Timber runs out in 20 seconds' inside game/ui/hud/hud_alerts.gd and never routes it through Bus.alert_raised, so a headless gate cannot see the text at all. The rule arms itself the day [P17] emits that claim as an alert, and until then the report says INERT rather than pretending to have checked it."
+     }
+    ]
+   }
+  },
+  "first_night_endurance": {
+   "why": "first_night driven to 24000 ticks \u2014 three in-game days, two nights, two waves. The shipped scenario stops at 11000 and therefore never reaches wave 2, which is exactly where 'the wave that never ended' lived: enemy #5000018 born at tick 17036, still alive at 24000 at full HP, in a run that reported 43 shots and 19 kills across three days and exited 0. Run with `--scenario=first_night --ticks=24000`; graded here so [P00]'s scenario file stays [P00]'s.",
+   "metrics": {
+    "combat.kills": {
+     "final_min": 15,
+     "why": "Two waves of bodies. Single figures over three days means turrets are watching enemies walk past."
+    },
+    "climate.day": {
+     "final_min": 3,
+     "why": "24000 ticks is three days; a shorter calendar means the second night never arrived."
+    },
+    "citizens.population": {
+     "final_min": 25,
+     "why": "Three days of arrivals at the gate. A population that stops growing after the first night means the arrival loop is tied to day 1 and nothing after it."
+    },
+    "threat.waves_survived": {
+     "final_min": 2,
+     "why": "Two nights, two waves survived. This is the assertion the original finding needed and nobody had written. It reads waves_survived rather than waves_cleared on purpose: the consistency rule below is what holds waves_cleared to account."
+    }
+   },
+   "liveness": {
+    "waves_must_end": true,
+    "min_kill_ratio": 0.7,
+    "min_shots_per_enemy": 1.5,
+    "stalled_enemy_ticks": 2400,
+    "claims": [
+     {
+      "id": "wave_alerts_are_real",
+      "match": "(?i)^night \\d+:",
+      "implies_series": "threat.live",
+      "implies_min": 1.0,
+      "window_ticks": 200,
+      "why": "Announcing a night assault that never puts a body on the map is how a tower defense loses its threat."
+     }
+    ]
+   }
+  },
+  "economy_60min": {
+   "why": "THE BALANCE RUN. Seven and a half campaign days, a district added every morning, two Great Frosts on the fixed calendar. The input to tools/analyze_balance.py.",
+   "metrics": {
+    "citizens.population": {
+     "final_min": 30,
+     "delta_min": 5,
+     "why": "Seven days of a city that grows. A population that ends where it started means the growth loop is not closed."
+    },
+    "society.hope": {
+     "min": 1.0,
+     "max": 100.0,
+     "must_move": true,
+     "why": "Hope is the Frostpunk dial. Pinned at a constant for seven days means society is being ticked but nothing reaches it."
+    },
+    "heat.networks": {
+     "max": 1,
+     "why": "The scenario's own expects: one city, one grid, all seven days."
+    },
+    "production.crafts_total": {
+     "final_min": 100,
+     "why": "Seven days of industry. Two figures here would mean the chain runs once and stalls."
+    },
+    "logistics.items_moved": {
+     "final_min": 1,
+     "why": "Seven and a half days of a growing city with not one item moved by the logistics pillar is the clearest statement possible that automation is not part of this game yet, whatever the build catalogue lists."
+    },
+    "climate.day": {
+     "final_min": 7,
+     "why": "72000 ticks is 7.5 days; a shorter calendar means the two Great Frosts the run is built around never landed."
+    },
+    "research.researched_count": {
+     "final_min": 5,
+     "why": "A week of a working city should finish more than a couple of nodes, or the tech tree is a menu."
+    }
+   },
+   "implications": [
+    {
+     "id": "a_demand_can_be_answered",
+     "when": {
+      "metric": "society.open_demands",
+      "peak_min": 1
+     },
+     "then": {
+      "metric": "society.laws_signed",
+      "final_min": 1
+     },
+     "why": "The society system issues ultimatums demanding a law. If a run can raise a demand and never sign a single law, the demand is theatre \u2014 and that is exactly the state the build was in while the Book of Laws sat on an unreachable CanvasLayer."
+    },
+    {
+     "id": "machines_that_stall_are_fed",
+     "when": {
+      "metric": "production.stalled",
+      "peak_min": 1
+     },
+     "then": {
+      "metric": "production.crafts_total",
+      "final_min": 1
+     },
+     "why": "A production system that only ever reports stalls has no positive case; the stall counter is measuring the absence of a feature rather than a condition."
+    }
+   ],
+   "liveness": {
+    "stalled_enemy_ticks": 4000,
+    "min_kill_ratio": 0.5
+   }
+  },
+  "stress_1000": {
+   "why": "THE PERFORMANCE GATE: 1000+ structures on ONE heat network through nightfall. tools/perf.sh owns the ticks/second; this owns whether the city it measured was real.",
+   "metrics": {
+    "build.buildings_total": {
+     "final_min": 1000,
+     "why": "The scenario's own expects. A perf number measured on a city that failed to place is a fast empty map."
+    },
+    "heat.networks": {
+     "final_max": 6,
+     "why": "The scenario's own expects. The expensive case the perf number is supposed to measure is ONE big connected component; if the city ends fragmented, the measurement is of a cheaper problem than the one that ships. final_max, not max: while the city is under construction the grid legitimately fragments and re-merges as pipe runs complete (it peaks at 14 around tick 900), and failing on that would be failing on the scaffolding rather than the building."
+    },
+    "heat.buildings": {
+     "final_min": 800,
+     "why": "Buildings placed but not attached to the grid do not cost the solver anything, so the perf number would flatter itself."
+    },
+    "grid.buildings": {
+     "final_min": 100,
+     "why": "Only structures that OCCUPY cells register with the grid \u2014 pipes and floors do not \u2014 so this is not a mirror of build.buildings_total (375 vs 1723 in the reference run and both are right). It is the floor that says the occupancy layer is being fed at all, which is what the flow field and every path in the game read."
+    }
+   },
+   "state": {
+    "final.systems.heat.networks": {
+     "len_max": 6,
+     "why": "The structure behind the metric."
+    }
+   },
+   "liveness": {
+    "stalled_enemy_ticks": 3000
+   }
+  },
+  "determinism": {
+   "why": "Pokes every system that owns an Rng stream or a mutable cache. tools/determinism.sh replays it twice and diffs; this checks that the poking did anything at all.",
+   "metrics": {
+    "build.undo_depth": {
+     "peak_min": 1,
+     "why": "The scenario exercises undo/redo. A flat undo depth means the history is not recording and the replay proves nothing about it."
+    },
+    "build.buildings_total": {
+     "must_move": true,
+     "why": "A determinism run that builds nothing is byte-identical for the least interesting reason available."
+    },
+    "climate.day": {
+     "must_move": true,
+     "why": "The scenario jumps the calendar on purpose."
+    },
+    "grid.walkable": {
+     "must_move": true,
+     "why": "The scenario scripts snowfall, melt and placements; the walkable-cell count is the surface every one of those edits lands on. (grid.tiles_dirty was banded here first and it was the WRONG metric: dirty_count() is a per-tick gauge the rebuild clears, so a sample every ten ticks reads 0 forever and the band failed for a reason that had nothing to do with the build.)"
+    },
+    "climate.snow": {
+     "must_move": true,
+     "why": "Snowfall is scripted in this scenario and it feeds the grid's snow carry, one of the mutable caches the replay is supposed to prove stable."
+    }
+   },
+   "liveness": {
+    "stalled_enemy_ticks": 3000
+   }
+  },
+  "careless_night": {
+   "why": "THE CONTROL FOR BAD PLAY. Every other scenario in this library is a competent player, which means nothing here has ever asked whether the game NOTICES incompetence. This run under-builds heat, drops its one generator on bare ground, never closes the food chain, lays no belt and answers four wave warnings with a turret placed after the attack starts. The bands below are the SIGNATURE OF THAT \u2014 they assert the run stays bad, so that the same bands read against steady_hand (identical seed, day, stock and opening settlement) are a measurement of the player and not of the build.",
+   "metrics": {
+    "heat.networks": {
+     "final_min": 2,
+     "why": "The generator dropped in open ground is its own one-node network. If this ever comes back as 1 the scenario stopped expressing the mistake it exists to express."
+    },
+    "combat.turrets": {
+     "final_max": 1,
+     "why": "One gun, placed after the wave began. Anything above 1 means the script started defending the city and the control is no longer a control."
+    },
+    "logistics.belt_lines": {
+     "final_max": 0,
+     "why": "AUTOMATE NOTHING. The whole automation pillar is deliberately absent here; steady_hand's band is the mirror of this one."
+    },
+    "combat.structures_lost": {
+     "final_max": 4,
+     "why": "A loose ceiling, not a target. The run is supposed to take damage \u2014 what it must not do is lose the city outright, because then the second night never happens and the A/B stops after one data point."
+    },
+    "citizens.population": {
+     "final_min": 20,
+     "must_move": true,
+     "why": "Playing badly is not the same as playing dead. Arrivals still come \u2014 this city has MORE housing than steady_hand and grows faster, which is exactly the trap the run is built to walk into."
+    },
+    "threat.waves_survived": {
+     "final_min": 1,
+     "why": "The night has to actually resolve. A wave that never ends would make every number after it meaningless."
+    },
+    "climate.day": {
+     "final_min": 2,
+     "why": "The run reaches the morning after, which is where the cost of the night is legible."
+    }
+   },
+   "state": {
+    "final.systems.production.produced.ration": {
+     "exists": false,
+     "why": "NO KITCHEN, NO SORTER, NO MEAL. The food interlock in ARCHITECTURE.md \u00a77 is absent by construction here, and its absence is the thing steady_hand's matching band proves is a choice rather than a bug."
+    }
+   },
+   "liveness": {
+    "waves_must_end": true,
+    "stalled_enemy_ticks": 3600,
+    "$why_stalled": "RAISED FROM THE 2400 DEFAULT, ON PURPOSE, AND THIS IS THE FINDING. The default asks 'is anything shooting this thing' and assumes the answer is yes. In a city with no wall, no watchtower and one turret placed after the attack began, the honest answer is no: measured here, 3 of 6 drift hounds were never engaged at all and one of them was alive and untouched for 2750 ticks before the wave resolved at dawn with 'walked away'. That is the DESIGNED consequence of ignoring four warnings, not a stuck unit \u2014 the wave still ends, and threat.waves_survived still reaches 1. 3600 ticks is three in-game minutes, which is longer than a night's worth of wandering and still short enough to catch an enemy that genuinely cannot be resolved."
+   }
+  },
+  "steady_hand": {
+   "why": "THE CONTROL FOR GOOD PLAY, against careless_night: same seed, same day, same opening settlement, same starting stock, spent in the order the game asks for. Heat before draw, the salvage-to-kitchen chain closed and NAMED WHILE IT IS STILL A BUILDING SITE, one belt doing a porter's job, and the perimeter standing before the first countdown runs out. Read every band here next to the same band in careless_night.",
+   "metrics": {
+    "heat.networks": {
+     "final_max": 1,
+     "why": "One city, one grid. final_max because a pipe run half-built is legitimately two networks for a few seconds; what matters is where it ends."
+    },
+    "heat.delivered": {
+     "peak_min": 100.0,
+     "why": "Two generators and a buffer on the founding spine. careless_night peaks at 88 with the same hearth and more buildings drawing on it."
+    },
+    "combat.turrets": {
+     "final_min": 6,
+     "why": "Six guns, all of them standing before the wave's countdown reached zero. The measured consequence: 6 of 6 put down in 13 shots, against 3 of 6 in 106 shots for the careless run."
+    },
+    "logistics.belt_lines": {
+     "peak_min": 1,
+     "why": "THE AUTOMATION PILLAR, present. careless_night's matching band is final_max 0."
+    },
+    "logistics.items_moved": {
+     "final_min": 1,
+     "why": "A belt that exists and never carries anything is scenery."
+    },
+    "combat.structures_lost": {
+     "final_max": 0,
+     "why": "A city that got ready loses nothing to a handful of drift hounds. This is the band that would go red first if the perimeter stopped being built in time."
+    },
+    "threat.waves_survived": {
+     "final_min": 1,
+     "why": "One night, and it has to actually finish. A wave that never resolves would leave every band after it reading a paused world rather than a survived one."
+    },
+    "build.buildings_total": {
+     "final_min": 180,
+     "must_move": true,
+     "why": "The full day of building. A flat count means the construction queue stalled and the comparison is against a still life."
+    }
+   },
+   "state": {
+    "errors": {
+     "len_max": 0,
+     "why": "Playing well produces no run errors. This is the half of the pair that has to stay clean."
+    }
+   }
   }
+ }
 }

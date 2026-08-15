@@ -65,7 +65,7 @@ static func table() -> Dictionary:
 			"Heat spent on the pipes themselves. Insulation and shorter runs cut it."),
 		&"heat_frozen": _row(Kind.LEVEL, "Frozen", G_HEAT, U_NONE, P.DANGER,
 			"Buildings that have gone below their working temperature."),
-		&"heat_avg_warmth": _row(Kind.LEVEL, "Warmth", G_HEAT, " C", P.WARM_MID,
+		&"heat_avg_warmth": _row(Kind.LEVEL, "Warmth", G_HEAT, "°C", P.WARM_MID,
 			"Average degrees of radiant warmth over the inhabited tiles."),
 		&"heat_brownouts": _row(Kind.COUNTER, "Brownouts", G_HEAT, U_PER_MIN, P.EMBER,
 			"Moments the grid dropped below what it had promised."),
@@ -123,7 +123,7 @@ static func table() -> Dictionary:
 			"Research nodes finished. Every one of them changed something already standing."),
 
 		# --------------------------------------------------------- world ----
-		&"temperature": _row(Kind.LEVEL, "Outside", G_WORLD, " C", P.ICE_BLUE,
+		&"temperature": _row(Kind.LEVEL, "Outside", G_WORLD, "°C", P.ICE_BLUE,
 			"Ambient temperature on the plain, before any warmth you make."),
 		&"light": _row(Kind.LEVEL, "Daylight", G_WORLD, U_NONE, P.WARM_CORE,
 			"How much sun there is, 0 to 1."),

@@ -334,12 +334,25 @@ func _derive_threat(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 		if not probe.wave_known:
 			body = "Wave %d. Nothing has been seen yet — the direction is not known." \
 				% maxi(1, probe.wave_number)
-		out.append(_entry(&"wave", "wave",
-			S.Sev.DANGER if probe.wave_seconds < 45.0 else S.Sev.WARN,
+		var advice: String = "Guns on that side, and heat in the pipes that feed them."
+		var sev: int = S.Sev.DANGER if probe.wave_seconds < 45.0 else S.Sev.WARN
+		# THE ONE THING THE COVERAGE LENS SAYS AND THIS PANEL DID NOT.
+		#
+		# Played badly on purpose (tests/scenarios/careless_night.json), the city
+		# reaches dusk of day one with no turret anywhere and 6 bodies inbound.
+		# [P19]'s coverage lens prints "no turrets built" in red — but only if the
+		# player thinks to press F6, and a player who did not think to build a gun
+		# is not the player who thinks to open the gun lens. The alert stack, the
+		# one panel that is always on screen, said exactly what it says to a city
+		# with six turrets. Both halves of this sentence were already measured;
+		# only the sentence was missing.
+		if probe.has_combat and probe.turrets_total <= 0:
+			sev = S.Sev.DANGER
+			body += " Nothing in this city can shoot back."
+			advice = "A turret mount, on a pipe, on that side — before the number reaches zero."
+		out.append(_entry(&"wave", "wave", sev,
 			"Attack %s" % LcnHudFormat.in_words(probe.wave_seconds),
-			body,
-			"Guns on that side, and heat in the pipes that feed them.",
-			where, 1))
+			body, advice, where, 1))
 
 
 func _derive_climate(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
@@ -410,9 +423,15 @@ func _derive_supplies(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 		var first: Dictionary = live[0]
 		out.append(_entry(&"stock_group", "stock",
 			S.Sev.DANGER if float(first["seconds"]) < 60.0 else S.Sev.WARN,
-			"%s are running out" % _capitalise(LcnHudFormat.list_words(names)),
-			"%s goes first — %s left, and it has been falling by %s a minute for "
-				% [LcnHudFormat.item_title(first["id"] as StringName),
+			# Naming all five in the HEADLINE ran to 56 characters and off the
+			# panel. The count is the headline; the names are in the body, which
+			# wraps and is one hover away.
+			("%s and %s are running out" % [_capitalise(names[0]), names[1]])
+				if names.size() == 2 else
+				("%d stores are running out" % names.size()),
+			"%s. %s goes first — %s left, and it has been falling by %s a minute for "
+				% [_capitalise(LcnHudFormat.list_words(names)),
+					LcnHudFormat.item_title(first["id"] as StringName),
 					LcnHudFormat.stock(int(first["amount"])),
 					LcnHudFormat.amount(float(first["rate"]))]
 				+ "the last %s." % LcnHudFormat.clock(
@@ -574,8 +593,15 @@ func _on_placement_rejected(_cell: Vector2i, reason: String) -> void:
 	_push_toast("Cannot build there — %s" % reason, S.Sev.WARN)
 
 
-func _on_research_completed(id: StringName) -> void:
-	_push_toast("%s researched" % LcnHudFormat.titleize(String(id)), S.Sev.INFO)
+## Deliberately silent. [P10] already announces a finished node on
+## `Bus.alert_raised` at severity 0, with the PAYOFF in the sentence ("Field
+## Medicine completed. Opens medical_post"), and that lands in this same toast
+## lane. Toasting it a second time from the id produced two lines about one
+## event, in two wordings, in the same corner: "Field Medicine completed. Opens
+## medical_post" directly above "Field Medicine researched". The subscription is
+## kept so the reason for the silence has somewhere to live.
+func _on_research_completed(_id: StringName) -> void:
+	pass
 
 
 func _on_law_enacted(id: StringName) -> void:

@@ -371,9 +371,16 @@ def first_night():
     L.place(3000, "field_kitchen", -6, -8)
     L.place(3200, "rubble_sorter", -6, -11)
     # A sorter left alone picks sorted_rubble (sort_order 10) and makes building
-    # material the city already has. Say what it is for — AFTER it is standing,
-    # because set_recipe addresses a machine and a building site is not one yet.
-    L.cmd(4650, {"system": "production", "op": "set_recipe",
+    # material the city already has. Say what it is for AS IT IS PLACED.
+    #
+    # This used to wait until t=4650 "because set_recipe addresses a machine and
+    # a building site is not one yet". The site did not finish until t=9471 — the
+    # sorter is 22nd in a queue of 176 — so the order was refused, the reference
+    # run of this game never produced a single ration, and the field kitchen read
+    # `missing_input: grain` for eleven thousand ticks. `set_recipe` on a site is
+    # now a standing order (game/sim/production/production_system.gd), so the
+    # only correct tick to name a recipe on is the one you place the machine on.
+    L.cmd(3201, {"system": "production", "op": "set_recipe",
                  "cell": [CORE[0] - 6, CORE[1] - 11], "recipe": "salvaged_stores"})
     L.line(3400, "heat_pipe", (12, 1), (12, 8))
     L.place(3800, "heat_accumulator", 13, 8)
@@ -901,6 +908,203 @@ def economy():
     }
 
 
+
+# ------------------------------------------------------------ the A/B pair
+#
+# TWO RUNS OF THE SAME DAY, PLAYED BADLY AND PLAYED WELL.
+#
+# Every other scenario in this file is a competent player. That is a blind
+# spot: a game that only ever sees good play cannot be asked whether it NOTICES
+# bad play, and "does the city tell you that you are losing, in time to do
+# something about it" is the whole of the Frostpunk contract in ARCHITECTURE §0.
+#
+# So these two share a seed, a tick count, a starting stock and an opening
+# settlement, and differ only in what the player does with the day:
+#
+#   careless_night  under-builds heat, never closes the food chain, lays no
+#                   belt, and puts nothing on the perimeter before dusk.
+#   steady_hand     does all four, on the same clock, out of the same stock.
+#
+# Diff the two state.json files and the difference is entirely the player's.
+# `_allow_islands` is deliberately non-zero in the careless run: a player who
+# drops a generator where it touches no pipe is the single most common opening
+# mistake in this genre, and a scenario library that cannot express it cannot
+# test whether the heat lens catches it.
+
+
+def _opening_settlement(L):
+    """The city that is already standing when day 1 begins. Identical in both."""
+    L.stock(1, {"iron_plate": 1400, "steel_plate": 900, "stone": 1400,
+                "timber": 900, "scrap": 900, "gear": 400, "copper_coil": 400,
+                "coal": 900})
+    L.unlock(2, "thermal_storage", "pressurised_mains")
+    L.place(3, "the_hearth", -2, -2, free=True, instant=True)
+    L.line(4, "heat_pipe", (3, 0), (12, 0), free=True, instant=True)
+    L.line(5, "heat_pipe", (-3, 0), (-12, 0), free=True, instant=True)
+    L.line(6, "heat_pipe", (3, 2), (12, 2), free=True, instant=True)
+    L.line(7, "heat_pipe", (-3, 2), (-12, 2), free=True, instant=True)
+    L.place(8, "warmth_radiator", 13, -1, free=True, instant=True)
+    L.place(9, "warmth_radiator", -14, -1, free=True, instant=True)
+    L.place(10, "housing_block", 5, 3, free=True, instant=True)
+    L.place(11, "housing_block", -9, 3, free=True, instant=True)
+
+
+_AB_SHOTS = [
+    {"tick": 30, "name": "opening"},
+    {"tick": 3400, "name": "midday"},
+    {"tick": 5500, "name": "dusk"},
+    {"tick": 7200, "name": "assault"},
+    {"tick": 9800, "name": "dawn"},
+]
+
+
+def careless():
+    L = Layout()
+    _opening_settlement(L)
+
+    # 1. UNDER-BUILD HEAT. The player keeps adding draw and never adds supply.
+    #    Two more housing blocks, a workshop and a drill hang off the founding
+    #    grid; nothing that burns anything is ever placed.
+    L.line(600, "heat_pipe", (0, 3), (0, 14))
+    L.place(900, "workshop", 1, 14)
+    L.place(1400, "housing_block", -9, 9)
+    L.line(1500, "heat_pipe", (-1, 8), (-8, 8))
+    L.line(2800, "heat_pipe", (0, -3), (1, -18))
+    L.place(3000, "ore_drill", 2, -19)
+    L.place(3600, "housing_block", 5, 8)
+    L.line(3500, "heat_pipe", (5, 3), (5, 8))
+
+    # 2. THE GENERATOR THAT TOUCHES NOTHING. Placed in open ground twenty tiles
+    #    out, connected to no pipe. It is a network of one, it produces into
+    #    itself, and the only thing in the build that can say so is [P19]'s heat
+    #    lens and [P17]'s "2 grids" line. That is the point of it being here.
+    L.place(4200, "coal_generator", -20, 16)
+
+    # 3. NEVER CLOSE THE FOOD CHAIN. No granary, no kitchen, no sorter. The
+    #    founders' larder is all there is and it is being eaten by a population
+    #    that housing keeps growing.
+
+    # 4. AUTOMATE NOTHING. No crate, no inserter, no belt: every joule of coal
+    #    in this run is carried by a person, and there is no coal_generator on
+    #    the grid for them to carry it to anyway.
+
+    # 5. IGNORE THE FIRST WAVE. Four warnings arrive between t=2700 and t=6000
+    #    and the player answers none of them. No wall, no turret, no watchtower.
+    #    The one gesture toward defence is made after the wave has already
+    #    started, which is exactly when it is worth nothing.
+    L.line(7000, "heat_pipe", (2, -3), (6, -3))
+    L.place(7100, "turret_mount", 5, -5)
+    return {
+        "name": "careless_night",
+        "description": ("PLAYED BADLY ON PURPOSE, and the control for steady_hand. "
+                        "Same seed, same day, same opening settlement, same stock. This "
+                        "player adds four heated buildings and no generator, drops the one "
+                        "generator they own on bare ground where it joins no network, never "
+                        "builds a granary, a kitchen or a sorter, lays no belt, and answers "
+                        "the four wave warnings by placing a single turret after the attack "
+                        "has begun. Read it against steady_hand: every difference in the two "
+                        "state.json files was a decision, and the question this run asks is "
+                        "whether the interface said so at the time."),
+        "tags": ["reference", "visual"],
+        "seed": 7, "ticks": 11000, "sample_every": 20,
+        # A run this bad raises alerts by design; the gate must grade it on what
+        # it measures, not refuse to finish it.
+        # THE ISLAND IS THE CLAIM. Two networks is what this player built, and
+        # saying so out loud is what stops the fragmentation reading as quiet.
+        "expects": {"min_ticks_per_second": 600, "max_errors": 12,
+                    "balance_days": [1], "max_heat_networks": 2},
+        "script": L.script,
+        "_layout": L,
+        # The lone generator is the island, and it is the finding.
+        "_allow_islands": 1,
+        "shots": _AB_SHOTS,
+    }
+
+
+def steady():
+    L = Layout()
+    _opening_settlement(L)
+
+    # 1. HEAT FIRST, AND ON THE GRID. A generator on the founding spine before
+    #    anything that draws from it, a second one before dusk, and a buffer to
+    #    carry the night.
+    L.line(300, "heat_pipe", (0, 3), (0, 14))
+    L.line(400, "heat_pipe", (0, 14), (-1, 14))
+    L.place(500, "coal_generator", -4, 14)
+    L.place(900, "workshop", 1, 14)
+    L.line(1200, "heat_pipe", (12, 1), (12, 8))
+    L.place(1400, "heat_accumulator", 13, 8)
+
+    # 2. THE FOOD CHAIN, CLOSED, AND SAID OUT LOUD AT PLACEMENT TIME.
+    #    `set_recipe` on a cell that holds a construction site is a STANDING
+    #    ORDER: production remembers it and the machine is born running it. The
+    #    alternative — waiting for the site to finish and then naming the
+    #    recipe — is a guess about build time, and in first_night that guess was
+    #    4800 ticks wrong, which is why the reference run never made a ration.
+    L.line(1600, "heat_pipe", (-3, 2), (-3, -11))
+    L.place(1800, "field_kitchen", -6, -8)
+    L.place(2000, "rubble_sorter", -6, -11)
+    L.cmd(2001, {"system": "production", "op": "set_recipe",
+                 "cell": [CORE[0] - 6, CORE[1] - 11], "recipe": "salvaged_stores"})
+    L.line(2400, "heat_pipe", (5, 3), (5, 8))
+    L.place(2600, "granary", 6, 8)
+
+    # 3. AUTOMATE THE THING THAT REPEATS. The founders' coal pile goes on a belt
+    #    into the generator's bunker instead of onto somebody's back.
+    L.place(1000, "crate", -10, 18)
+    L.place(1010, "inserter_mk1", -9, 18, rot=0)
+    L.line(1020, "belt_mk1", (-8, 18), (-3, 17))
+    L.place(1030, "inserter_mk1", -3, 16, rot=3)
+    L.cmd(1100, {"system": "logistics", "op": "insert",
+                 "cell": [CORE[0] - 10, CORE[1] + 18], "item": "coal", "count": 400})
+    L.cmd(6000, {"system": "logistics", "op": "insert",
+                 "cell": [CORE[0] - 10, CORE[1] + 18], "item": "coal", "count": 400})
+
+    # 4. THE PERIMETER GOES UP ON THE FIRST WARNING, NOT ON THE FIRST CASUALTY.
+    #    Warning 1 lands around t=2700. Everything below is finished before the
+    #    countdown reaches zero, and all of it is on the city's own grid, so a
+    #    brownout at the Hearth is felt at the guns.
+    L.line(2900, "heat_pipe", (2, -3), (6, -3))
+    L.line(2940, "heat_pipe", (2, 3), (4, 3))
+    L.line(2960, "heat_pipe", (-2, 3), (-4, 3))
+    L.place(3000, "turret_mount", 5, -5)
+    L.place(3040, "turret_mount", -5, -5)
+    L.place(3080, "turret_mount", 3, 4)
+    L.place(3120, "turret_mount", -4, 4)
+    for i, dx in enumerate([-18, -9, 0, 9, 18]):
+        L.line(3300 + i * 40, "wall", (dx - 4, -35), (dx + 4, -35))
+    L.line(3560, "heat_pipe", (0, -3), (1, -18))
+    L.line(3600, "heat_pipe", (1, -18), (1, -33))
+    L.line(3700, "heat_pipe", (1, -33), (14, -33))
+    L.line(3740, "heat_pipe", (1, -33), (-13, -33))
+    L.place(3800, "watchtower", -12, -32)
+    L.place(3900, "watchtower", 13, -32)
+    L.place(4000, "turret_mount", -9, -32)
+    L.place(4100, "turret_mount", 8, -32)
+
+    # 5. THE SECOND GENERATOR, BEFORE DUSK RATHER THAN DURING THE NIGHT.
+    L.line(4400, "heat_pipe", (0, 14), (0, 18))
+    L.place(4600, "coal_generator", 1, 17)
+    return {
+        "name": "steady_hand",
+        "description": ("PLAYED WELL, and the control for careless_night. The same seed, "
+                        "day, opening settlement and stock, spent in the order the game is "
+                        "actually asking for: heat before draw, the salvage-to-kitchen chain "
+                        "closed and named while it is still a building site, one belt doing "
+                        "the job a porter was doing, and the whole perimeter standing on the "
+                        "city's own heat grid before the first wave's countdown runs out. "
+                        "The two runs diverge on the interface as much as on the numbers, and "
+                        "both halves of that are the finding."),
+        "tags": ["reference", "visual"],
+        "seed": 7, "ticks": 11000, "sample_every": 20,
+        "expects": {"min_ticks_per_second": 600, "max_errors": 0,
+                    "balance_days": [1], "max_heat_networks": 1},
+        "script": L.script,
+        "_layout": L,
+        "shots": _AB_SHOTS,
+    }
+
+
 def _reaches_conduit(layout, kind, origin):
     """True when this footprint would share a border with a conducting cell.
 
@@ -919,5 +1123,6 @@ def _reaches_conduit(layout, kind, origin):
 
 
 if __name__ == "__main__":
-    for build in (smoke, first_night, determinism, stress, economy):
+    for build in (smoke, first_night, determinism, stress, economy,
+                  careless, steady):
         write(build())

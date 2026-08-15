@@ -134,8 +134,14 @@ func _draw_row(e: Dictionary, rect: Rect2, expanded: bool) -> void:
 	var glyph: String = S.SEV_GLYPH[clampi(sev, 0, 4)]
 	if glyph != "":
 		x += style.draw_text(self, Vector2(x, baseline), glyph, style.fs(13), col) + 7.0
-	var head: String = String(e.get("head", ""))
 	var count: int = int(e.get("count", 1))
+	# The body wraps; the headline is one line and `clip_contents` is on, so a
+	# long one used to be cut off mid-word by the panel edge — measured in
+	# artifacts/play3: "Iron plate, gear, stone, scrap and timber are running o".
+	# A sentence that stops in the middle of a word reads as a rendering fault,
+	# and a player cannot tell it from one.
+	var head: String = _elide(String(e.get("head", "")),
+		rect.position.x + rect.size.x - 9.0 - x - (26.0 if count > 1 else 0.0), style.fs(13))
 	x += style.draw_text(self, Vector2(x, baseline), head, style.fs(13),
 		style.ink() if sev >= S.Sev.WARN else style.ink_dim())
 	# The badge only earns its place when the headline does not already say the
@@ -165,6 +171,21 @@ func _draw_row(e: Dictionary, rect: Rect2, expanded: bool) -> void:
 			Color(warm.r, warm.g, warm.b, 0.88))
 		yy += line_h
 		first = false
+
+
+## Trims a single-line string to `width`, ending it on a whole word and an
+## ellipsis. The full sentence is still one hover away in the expanded body.
+func _elide(text: String, width: float, font_size: int) -> String:
+	if width <= 8.0 or style.text_width(text, font_size) <= width:
+		return text
+	var words: PackedStringArray = text.split(" ", false)
+	var line: String = ""
+	for w: String in words:
+		var candidate: String = w if line == "" else line + " " + w
+		if style.text_width(candidate + "…", font_size) > width:
+			break
+		line = candidate
+	return (line + "…") if line != "" else "…"
 
 
 func _wrap(text: String, width: float, font_size: int) -> PackedStringArray:

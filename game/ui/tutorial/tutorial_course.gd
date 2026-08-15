@@ -31,6 +31,18 @@ var _resume_to: int = -1
 ## Lessons retired this session, in the order they were retired. For the log.
 var retired: Array[StringName] = []
 
+## Lessons this course has actually PUT ON SCREEN, in the order it put them
+## there. The kicker counts off this and not `lessons`, because the course
+## deliberately skips anything the opening city already answers: lesson 01
+## ("Three heat networks. One fire.") is retired before it is ever shown,
+## because boot seeds a settlement that is already one network. The first card a
+## new player saw was therefore headed "THE LARDER   2 of 6" — a step counter
+## opening at step two, over a step one that does not exist for them.
+var presented: Array[StringName] = []
+## How many lessons were still open when the course began, i.e. how many this
+## player is actually going to be walked through.
+var planned: int = 0
+
 
 func _init(mem: LcnTutorialMemory = null) -> void:
 	memory = mem if mem != null else LcnTutorialMemory.new()
@@ -90,6 +102,12 @@ func finished() -> bool:
 func begin(facts: LcnTutorialFacts) -> void:
 	current = _next_open(-1, facts)
 	_resume_to = -1
+	presented.clear()
+	planned = 0
+	for l: LcnTutorialLesson in lessons:
+		if not memory.was_taught(l.id) and not l.is_done(facts):
+			planned += 1
+	_note_presented()
 
 
 ## The whole state machine. Returns true when the visible lesson changed.
@@ -103,6 +121,7 @@ func advance(facts: LcnTutorialFacts) -> bool:
 		if _resume_to < 0:
 			_resume_to = current
 		current = urgent
+		_note_presented()
 		return current != before
 	var lesson: LcnTutorialLesson = current_lesson()
 	if lesson == null:
@@ -116,6 +135,7 @@ func advance(facts: LcnTutorialFacts) -> bool:
 		current = _next_open(resume - 1, facts)
 	else:
 		current = _next_open(current, facts)
+	_note_presented()
 	return current != before
 
 
@@ -127,6 +147,32 @@ func dismiss_current(facts: LcnTutorialFacts) -> void:
 		return
 	_retire(lesson)
 	current = _next_open(current, facts)
+	_note_presented()
+
+
+## Records that the visible lesson is now on screen. An urgent lesson that jumps
+## the queue is counted here too, so the denominator grows rather than the
+## numerator overtaking it.
+func _note_presented() -> void:
+	var l: LcnTutorialLesson = current_lesson()
+	if l == null or presented.has(l.id):
+		return
+	presented.append(l.id)
+
+
+## "2 of 5" for the kicker: which lesson of this player's course this is, and how
+## many they are going to see. Never 0 of anything, never a step they were not
+## shown.
+func shown_position() -> int:
+	var l: LcnTutorialLesson = current_lesson()
+	if l == null:
+		return presented.size()
+	var i: int = presented.find(l.id)
+	return (i + 1) if i >= 0 else presented.size() + 1
+
+
+func shown_total() -> int:
+	return maxi(maxi(planned, presented.size()), shown_position())
 
 
 func _retire(lesson: LcnTutorialLesson) -> void:

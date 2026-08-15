@@ -192,7 +192,8 @@ func _draw_card(card: Dictionary) -> void:
 	var id: String = String(card.get("id", ""))
 	var category: String = String(card.get("category", "report"))
 	_showing = id
-	_kicker.text = _kicker_for(category, int(card.get("day", 1)))
+	_kicker.text = _kicker_for(category, int(card.get("day", 1)),
+		String(card.get("era", "")))
 	_title.text = String(card.get("title", ""))
 	_lede.text = String(card.get("lede", ""))
 	_body.text = String(card.get("body", ""))
@@ -203,7 +204,11 @@ func _draw_card(card: Dictionary) -> void:
 	if prose != "":
 		_because.add_child(_label(prose, 12, Color(0.70, 0.66, 0.58)))
 	for line: Variant in card.get("causes", []):
-		_because.add_child(_label("- " + String(line), 12, Color(0.62, 0.68, 0.76)))
+		# "·", not "- ": every cause under BECAUSE is a written sentence, and a
+		# hyphen in front of a sentence is a bullet from a markdown file that
+		# escaped into a piece of fiction. Nothing else in this interface writes
+		# a list that way.
+		_because.add_child(_label("·  " + String(line), 12, Color(0.62, 0.68, 0.76)))
 	# A CARD WITH NOTHING TO EXPLAIN SAYS NOTHING, rather than printing a heading
 	# over empty space. The opening beat is the case: it is the first card in the
 	# game and it has no cause, because nothing caused it.
@@ -238,9 +243,21 @@ func _draw_card(card: Dictionary) -> void:
 		_options.add_child(block)
 
 
-func _kicker_for(category: String, day: int) -> String:
+## The line stamped across the top of every card: the day, and what KIND of
+## thing this is — a decision, the dead, a report from outside.
+##
+## A story beat used to be stamped "THE WINTER", which is the only entry in this
+## list that is not a kind of card, reads like the name of an act, and sat four
+## hundred pixels under [P09]'s era plate on the clock reading THE LULL. Two
+## names for the chapter of the game you are in, on screen together, disagreeing.
+## A beat now carries the SAME era the clock does, so the card is stamped with
+## the date-line rather than arguing with it.
+func _kicker_for(category: String, day: int, era: String) -> String:
 	match category:
-		"beat": return "DAY %d   THE WINTER" % day
+		"beat":
+			if era != "":
+				return "DAY %d   %s" % [day, era.to_upper()]
+			return "DAY %d   THE WINTER" % day
 		"dilemma": return "DAY %d   A DECISION" % day
 		"obituary": return "DAY %d   THE DEAD" % day
 		"scout": return "DAY %d   FROM OUTSIDE" % day

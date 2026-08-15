@@ -232,7 +232,7 @@ func _draw_cost(t: LcnStatsTheme, report: Dictionary, rect: Rect2) -> void:
 		_row("Discontent", "%.0f → %.0f" % [float(soc["discontent_start"]),
 			float(soc["discontent_end"])],
 			t.BAD if float(soc["discontent_end"]) > float(soc["discontent_start"]) else t.GOOD),
-		_row("Coldest it got", "%.1f C" % float(soc["coldest"]), t.COOL),
+		_row("Coldest it got", "%d°C" % int(roundf(float(soc["coldest"]))), t.COOL),
 	]
 	var body: int = t.fs(t.FS_BODY)
 	var step: float = float(body) + 9.0

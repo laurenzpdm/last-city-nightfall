@@ -67,7 +67,7 @@ func _draw_buildings() -> void:
 			LcnOverlayGeometry.box(r.grow(px(2.0 + 3.0 * beat)), _rings)
 			for _k: int in 4:
 				_ring_cols.append(LcnOverlayPalette.with_a(pal.ice(), 0.95))
-			plate(r.position + Vector2(0.0, -px(20.0)), "FROZEN  %.0f C" % temp, 14.0, pal.ice())
+			plate(r.position + Vector2(0.0, -px(20.0)), "FROZEN  %.0f°C" % temp, 14.0, pal.ice())
 			continue
 		if not active:
 			continue
@@ -97,7 +97,7 @@ func _draw_buildings() -> void:
 					when = "freezes in %ds" % int(round(eta))
 				plate(r.position + Vector2(0.0, -px(20.0)), when, 14.0, c)
 		elif alt:
-			label(r.position + Vector2(px(2.0), -px(6.0)), "%.0f C" % temp, 13.0, LcnOverlayPalette.INK_DIM)
+			label(r.position + Vector2(px(2.0), -px(6.0)), "%.0f°C" % temp, 13.0, LcnOverlayPalette.INK_DIM)
 
 
 ## A vertical thermometer against the building's own freeze line. The tick mark

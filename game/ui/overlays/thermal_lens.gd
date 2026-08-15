@@ -45,8 +45,8 @@ func _draw() -> void:
 		return
 	var t0: int = Time.get_ticks_usec()
 	_paint_field()
-	_draw_isoline(SURVIVAL_C, "SURVIVAL LINE  %.0f C" % SURVIVAL_C, pal.ice(), 3.2, 0.0)
-	_draw_isoline(COMFORT_C, "COMFORT  +%.0f C" % COMFORT_C, pal.good(), 2.0, 9.0)
+	_draw_isoline(SURVIVAL_C, "SURVIVAL LINE  %.0f°C" % SURVIVAL_C, pal.ice(), 3.2, 0.0)
+	_draw_isoline(COMFORT_C, "COMFORT  +%.0f°C" % COMFORT_C, pal.good(), 2.0, 9.0)
 	_draw_cold_marks()
 	draw_us = Time.get_ticks_usec() - t0
 

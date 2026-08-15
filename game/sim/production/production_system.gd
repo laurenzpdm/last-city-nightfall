@@ -354,6 +354,49 @@ func set_recipe(building_id: int, rid: StringName) -> bool:
 	return true
 
 
+## A recipe named on a cell that holds a CONSTRUCTION SITE rather than a
+## finished machine. Returns true when the order was taken.
+##
+## Both halves of this already existed and nothing joined them: `_pick_recipe()`
+## reads a recipe out of the building's `meta` the instant the machine
+## registers, and `_write_meta_recipe()` puts one there — but only ever for a
+## machine that was already standing. So naming a recipe was legal exactly and
+## only in the window between "the site finished" and "the player wanted it",
+## and the caller had to guess build time to hit that window.
+##
+## THE MEASUREMENT. tests/scenarios/first_night.json places a rubble_sorter at
+## t=3200 and names `salvaged_stores` on it at t=4650, with a comment explaining
+## that a site is not a machine yet. The site did not complete until t=9471 —
+## the guess was 4821 ticks short — so the order was refused with a Log.warn
+## nobody read, the sorter came up on its default recipe, the field kitchen sat
+## at `missing_input: grain` for the whole run, and the interlock ARCHITECTURE.md
+## §7 lists as LIVE ("scrap becomes grain becomes a meal") produced no rations in
+## the reference run of this game. The city ate its founders' larder and starved.
+##
+## A standing order removes the guess: name it whenever you like, and the machine
+## is born running it.
+func _standing_order(cmd: Dictionary, rid: StringName) -> bool:
+	if _build == null or not cmd.has("cell"):
+		return false
+	var site: Object = _build.call("building_at", _to_cell(cmd["cell"]))
+	if site == null:
+		return false
+	var kind: StringName = StringName(String(site.get("kind")))
+	var def: ProdMachineDef = _def_for(kind)
+	if def == null:
+		return false
+	if String(rid) != "":
+		var r: RecipeDef = book.get_recipe(rid)
+		if r == null or not r.runs_on(kind, def.tags):
+			Log.warn("production", "set_recipe: a %s cannot run '%s'" % [
+				String(kind), String(rid)])
+			return true
+	_write_meta_recipe(int(site.get("id")), rid)
+	Log.info("production", "standing order: the %s being built at %s will run '%s'" % [
+		String(kind), str(_to_cell(cmd["cell"])), String(rid)])
+	return true
+
+
 ## Recipes this machine is allowed to run, in menu order. [P18]'s browser.
 func recipes_for(building_id: int) -> Array[StringName]:
 	var m: ProdMachine = machines.get(building_id)
@@ -536,7 +579,8 @@ func handle_command(cmd: Dictionary) -> void:
 			var id: int = _target_id(cmd)
 			var rid: StringName = StringName(String(cmd.get("recipe", "")))
 			if id < 0:
-				Log.warn("production", "set_recipe: no machine at %s" % str(cmd.get("cell", cmd.get("id", "?"))))
+				if not _standing_order(cmd, rid):
+					Log.warn("production", "set_recipe: no machine at %s" % str(cmd.get("cell", cmd.get("id", "?"))))
 			elif not set_recipe(id, rid):
 				Log.warn("production", "set_recipe: #%d cannot run '%s'" % [id, String(rid)])
 		"clear_recipe":

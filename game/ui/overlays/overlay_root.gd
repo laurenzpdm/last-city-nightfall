@@ -276,12 +276,17 @@ func _claim_hotkeys() -> void:
 	var numbers: Array[int] = [0, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6]
 	_keys[0] = ""
 	for m: int in range(1, LcnOverlayDefs.MODE_COUNT):
-		var label: String = "F%d" % m
 		var code: int = numbers[m]
 		if not LcnLayers.RESERVED_TIME.has(code) and _key_is_free(code):
 			_plain_keys[code] = m
-			label = "%d" % m
-		_keys[m] = label
+		# The RAIL always prints the F-row, because the F-row always works —
+		# F1..F5 through [P16]'s action map, F6 through `_input` below — and a
+		# rail that printed whichever key happened to be free came out as
+		# "F1 F2 F3 4 5 6", six labels in two vocabularies, with the bottom-right
+		# hint summarising them as "F1-6". A plain number key, where 1/2/3 are
+		# not already the sim speeds, still toggles its lens; it is a shortcut,
+		# not a second name for the same control.
+		_keys[m] = "F%d" % m
 
 
 static func _key_is_free(code: int) -> bool:

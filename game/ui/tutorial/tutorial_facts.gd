@@ -450,7 +450,7 @@ func value_text(key: StringName, v: float) -> String:
 	if BOOL_KEYS.has(key):
 		return "yes" if v >= 0.5 else "no"
 	if TEMP_KEYS.has(key):
-		return "%d C" % int(roundf(v))
+		return "%d°C" % int(roundf(v))
 	if PERCENT_KEYS.has(key):
 		return "%d%%" % int(roundf(v))
 	if SECONDS_KEYS.has(key):
