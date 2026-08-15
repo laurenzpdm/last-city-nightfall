@@ -265,7 +265,7 @@ func _sample_heat() -> void:
 	if supply > 0.001:
 		loss_frac = clampf(loss / supply * 3.0, 0.0, 1.0)
 	_put(ResearchDefs.SIG_HEAT_LOSS, loss_frac,
-		"%.0f u/s lost in transmission" % loss, &"measured")
+		"%.0f heat/s lost in transmission" % loss, &"measured")
 
 	# Night memory. This is the signal that lets the tree offer accumulators the
 	# morning after the night they were needed, instead of two days later.
