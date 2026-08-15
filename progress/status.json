@@ -1,7 +1,7 @@
 {
  "round": 4,
  "phase": "D \u2014 Integrate, play, judge",
- "state": "The integrator found a shipping blocker no test could see: Godots exporter leaves a .tres.remap where the .tres was, so the Registrys directory scan refused all 226 content items. The exported build started, made a world, installed the view, and contained no buildings, no recipes, no enemies, no laws. Fixed and now guarded by an export that refuses to exit 0 until the count is real. Also closed: the camera hotkey seam, the test that asserted nothing, and a canvas layer two parts had both claimed \u2014 which took D7s layout audit from 12 failures to none.",
+ "state": "The integrator is closing threads nobody assigned it. Beyond the shipping blocker: the camera hotkey seam, the test that asserted nothing (fixed by putting the city into the state it is about, not by a cheap guard), D7s unfinished layout audit \u2014 where it proved D7s own last change would have made an honest and a lying implementation publish the same number \u2014 and the tautology on the first card a player ever reads, now: It is day 1. The column stopped here because there was nowhere further to stop.",
  "agents_live": 1,
  "critic_score": 4.2,
  "blind_wins": 0,
@@ -210,7 +210,7 @@
  },
  "gate": {
   "label": "Gate (macOS CI)",
-  "value": "RED \u2014 4",
-  "note": "shipping blocker fixed since; tutorial regressed on the layer move"
+  "value": "RED \u2014 2",
+  "note": "tutorial layer regression + perf 98 vs floor 100 at 1% spread"
  }
 }
