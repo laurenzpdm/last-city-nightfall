@@ -20,7 +20,8 @@
   "tests/boot/run_reachability.tscn --force-ui": "TESTS PASSED \u2014 92 checks, 0 failures",
   "tests/combat/stress_1000_night.json (new \u2014 the debt stress_1000.json declares in its own description)": "1000+ structure city under three composed assaults: combat.enemies_alive 477, 823 shots, 1 breach, 3 structures lost, 0 errors",
   "first_night 400/24000/60000 ticks": "0 Log.errors, 0 engine errors",
-  "night two's shape, measured tick by tick": "baseline: eight taps of four, something alive 71% of the night, peak 4. Now: three assaults of ten, something alive 40% of the night, peak 10. Fewer, bigger, punchier moments \u2014 and MORE silence between them, honestly reported, because the same 28 bodies now arrive in three groups and the wall deletes each group faster than the next one lands."
+  "night two's shape, measured tick by tick": "baseline: eight taps of four, something alive 71% of the night, peak 4. Now: three assaults of ten, something alive 40% of the night, peak 10. Fewer, bigger, punchier moments \u2014 and MORE silence between them, honestly reported, because the same 28 bodies now arrive in three groups and the wall deletes each group faster than the next one lands.",
+  "full in-process suite (95 suite files)": "1152 tests passed, 0 failed, 0 skipped"
  },
  "open": [
   "THE REFERENCE SCENARIO STILL DIES OF COLD, NOT OF COMBAT. In first_night the guns read '0 shot(s), 6 of 6 cold' from night four on and population still reaches 0 by tick 60000 \u2014 in the BASELINE too. The city runs out of heat around day three and the scripted build never recovers. That is [P02]/[P04]/[P00]'s scenario, not this part: with the hearth protected the turrets survive, they are simply never fed. Somebody must decide whether first_night is supposed to be a city that can hold six nights.",
