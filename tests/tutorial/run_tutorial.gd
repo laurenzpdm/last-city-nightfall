@@ -154,9 +154,17 @@ func _suite_the_guide_is_installed_and_on_screen() -> void:
 		_ok(bool(row["ok"]), "boot installed the tutorial (%s)" % String(row["why"]))
 	_ok(_tut != null and _tut.is_inside_tree(),
 		"the tutorial is a live node inside the scene tree")
-	_ok(_tut is CanvasLayer and int(_tut.get(&"layer")) == LcnLayers.MODAL,
-		"the tutorial sits on the MODAL layer %d (actual %d)" % [
-			LcnLayers.MODAL, int(_tut.get(&"layer"))])
+	# THE TABLE SAYS WHICH LAYER, NOT THIS FILE. It asserted `LcnLayers.MODAL`
+	# because that is where the table put the guide when this suite was written —
+	# on 80, shared with [P24]'s menus, which is a slot two parts had taken and
+	# nothing could police. The guide has 79 of its own now. Reading the row keeps
+	# this check pointed at the contract instead of at a number that has to be
+	# edited in two places whenever the allocation moves.
+	_ok(_tut is CanvasLayer and int(_tut.get(&"layer")) == LcnLayers.TUTORIAL,
+		"the tutorial sits on the layer the table gives it, %d (actual %d)" % [
+			LcnLayers.TUTORIAL, int(_tut.get(&"layer"))])
+	_ok(LcnLayers.TUTORIAL != LcnLayers.MODAL,
+		"the guide does not share a canvas layer with [P24]'s modal stack")
 	_ok(bool(_tut.get(&"active")), "the tutorial is running, not stood down")
 	_ok(bool(_tut.call(&"is_showing")), "a lesson is on screen on the first frames")
 	_ok(LcnLayers.violations(get_tree()).is_empty(),
