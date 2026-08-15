@@ -473,7 +473,7 @@ static func _need_of(site: Site) -> int:
 ## Fills up to `limit` vacancies with the nearest idle worker. Hiring is
 ## deliberately gradual: a city that loses a shift should visibly scramble.
 ##
-## Two passes, and the order between them is the whole point. `capacity` is how
+## Three passes, and the order between them is the whole point. `capacity` is how
 ## many people a building has ROOM for; `required` is how many it needs to run at
 ## all. A single greedy walk that fills each site to capacity in priority order
 ## hands the front of the queue the entire labour force — the Hearth hired eight

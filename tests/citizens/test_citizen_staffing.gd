@@ -224,6 +224,10 @@ func _employable() -> int:
 
 var _early_capacity: int = 0
 var _late_required: int = 0
+## Employable adults at the moment the early buildings were sized against them.
+## Measured then, not at the end: births during the run would quietly loosen the
+## precondition this suite depends on.
+var _workforce: int = 0
 
 
 ## The shape of the reference city, compressed: a hearth and a row of workshops
@@ -266,6 +270,7 @@ func _found_a_city() -> bool:
 		shops += 1
 	if shops < 2:
 		return false
+	_workforce = _employable()
 	world.run(1200)
 
 	_late_required = 0
@@ -292,10 +297,10 @@ func test_no_building_starves_while_another_is_overstaffed() -> void:
 	# staffs everything by accident.
 	assert_gt(float(board.job_ids.size()), 3.0, "the city built job sites to measure")
 	assert_gt(float(board.total_required), 8.0, "and enough of them need crews to fight over")
-	assert_ge(float(_early_capacity), float(_employable()),
+	assert_ge(float(_early_capacity), float(_workforce),
 		"the front of the hiring order has room for every last person in the city, "
 		+ "so filling it to capacity leaves the rest of the city nothing")
-	assert_ge(float(_employable()), float(board.total_required),
+	assert_ge(float(_workforce), float(board.total_required),
 		"and the city nevertheless has the hands to cover every requirement")
 
 	var short: Array[String] = []
@@ -329,7 +334,7 @@ func test_nothing_reports_no_crew_while_the_city_has_the_hands() -> void:
 		if pool.job[pool.alive[i]] >= 0:
 			employed += 1
 	assert_gt(float(board.total_required), 0.0, "the city has required slots to fill")
-	assert_ge(float(_early_capacity), float(_employable()),
+	assert_ge(float(_early_capacity), float(_workforce),
 		"the front of the hiring order has room for every last person in the city")
 	assert_ge(float(employed), float(board.total_required),
 		"precondition: this city employs enough people to cover every required slot "
