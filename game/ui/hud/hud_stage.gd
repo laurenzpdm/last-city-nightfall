@@ -10,16 +10,30 @@ extends Node
 ##      Where it sits is, because where it sits is a relationship with seven
 ##      other panels and [P22] cannot see any of them. The card used to be
 ##      centred on the WINDOW at `0.22 * height`, which put it over the hearth at
-##      launch, over the assault at midnight, and through whatever [P18]'s
-##      world-hover sheet was showing. It is now centred on the STAGE — the
-##      rectangle `LcnHudLayout` leaves free between the rails — and clamped
+##      launch and over the assault at midnight. It is now centred on the STAGE —
+##      the rectangle `LcnHudLayout` leaves free between the rails — and clamped
 ##      above the bottom rail.
 ##
 ##   2. It DIMS THE WORLD behind the card. A 660 px panel floating on a lit city
 ##      reads as clutter; the same panel over a scrimmed city reads as a
-##      question. The scrim is drawn on the HUD layer (65), which is under
-##      [P22]'s card (78) and over the world, so it lands exactly between them
-##      without either part needing to know about the other.
+##      question. The scrim is drawn on the HUD layer (`LcnLayers.HUD`), which is
+##      under [P22]'s card (`LcnLayers.NARRATIVE`) and over the world, so it
+##      lands exactly between them without either part needing to know about the
+##      other. Both numbers are read off the table rather than written here: the
+##      card moved from 78 to 66 in the wave that stopped it covering [P18]'s
+##      browsers, and a header carrying its own copy of a layer number is how
+##      that kind of move goes stale.
+##
+## ONE SENTENCE WAS DELETED FROM THIS HEADER, AND IT IS WORTH SAYING WHY.
+## It claimed the card also drove "the suppression of [P18]'s world-hover sheet".
+## Nothing in the build ever did that: `card_visible()` has exactly one caller —
+## [P17]'s scrim — and the string "hover sheet" appeared nowhere in the tree
+## except in that sentence. A comment describing behaviour that does not exist is
+## this project's oldest and most expensive failure mode, so the sentence is gone
+## rather than softened. The yielding that DOES happen now runs the other way and
+## is implemented, not described: [P22]'s card stands itself down while a work
+## surface is open (`narrative_card.gd::_work_surface_open`), and this file
+## republishes that as `card_deferred`.
 ##
 ## HOW IT REACHES THE CARD, AND WHY THAT IS NOT A FOLDER VIOLATION
 ##
@@ -58,6 +72,11 @@ var card_rect: Rect2 = Rect2()
 ## IN THE BUILD EVER PUBLISHED ONE, so all four were exemptions from a check that
 ## could not run.
 var ticker_rect: Rect2 = Rect2()
+## True while [P22] has a card it is holding back because the player has a work
+## surface open. Republished here so [P17] can put "a decision is waiting" in the
+## attention stack if it ever wants to; nothing reads it yet, and this comment
+## says so rather than claiming a consumer that does not exist.
+var card_deferred: bool = false
 
 var _presenter: CanvasLayer = null
 var _panel: Control = null
@@ -71,8 +90,7 @@ func _init() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
 
-## True while [P22] has a card on screen. Drives the HUD's scrim and the
-## suppression of [P18]'s world-hover sheet.
+## True while [P22] has a card on screen. One caller: [P17]'s scrim.
 func card_visible() -> bool:
 	return _panel != null and _panel.visible and _panel.size.x > 1.0
 
@@ -83,6 +101,7 @@ const TICKER_CLEARANCE: float = 10.0
 
 func _process(_delta: float) -> void:
 	_find()
+	card_deferred = _presenter != null and bool(_presenter.get(&"deferred"))
 	if _panel == null or not _panel.visible:
 		card_size = Vector2.ZERO
 		card_rect = Rect2()
@@ -115,21 +134,55 @@ func _process(_delta: float) -> void:
 ##
 ## So the decision is made here, every frame, against the rectangle the card
 ## really occupies — this node is the only thing in the build that can see both.
+## AND IT IS FITTED TO ITS OWN PROSE, NOT TO A CONSTANT.
+##
+## The slot the solver hands down is a fixed 96 px band. [P22]'s feed is four
+## sentences of variable length that now WRAP inside a plate, so its real height
+## is between one line and eight and is not knowable anywhere but here, after the
+## Control has measured itself. Writing `size = want.size` on it produced the
+## defect in `artifacts/CRIT/shots/dawn.png` from the other direction: prose
+## hanging out of the bottom of a box that had been told how tall to be.
+##
+## So the plate keeps the slot's WIDTH and its FLOOR, and grows upward into the
+## stage. Upward, because down is [P17]'s stores shelf and there is nothing to
+## negotiate with there — and because a feed pinned to the stage floor stays put
+## as lines arrive instead of jittering a line-height every few seconds.
 func _place_ticker(card: Rect2) -> void:
 	if _ticker == null:
 		ticker_rect = Rect2()
 		return
 	var want: Rect2 = ticker_slot
+	if want.size.x <= 1.0 or want.size.y <= 1.0:
+		_ticker.visible = false
+		ticker_rect = Rect2()
+		return
+	var grown: Rect2 = _grow_up(want)
+	# Measured against the GROWN rectangle, so a feed that got taller yields to
+	# the card instead of climbing into it. Flavour is the thing that gives way.
 	var blocked: bool = card.size.x > 1.0 \
-		and card.end.y + TICKER_CLEARANCE > want.position.y \
-		and card.end.x > want.position.x and card.position.x < want.end.x
-	_ticker.visible = want.size.x > 1.0 and want.size.y > 1.0 and not blocked
+		and card.end.y + TICKER_CLEARANCE > grown.position.y \
+		and card.end.x > grown.position.x and card.position.x < grown.end.x
+	_ticker.visible = not blocked
 	if not _ticker.visible:
 		ticker_rect = Rect2()
 		return
-	_ticker.position = want.position
-	_ticker.size = want.size
-	ticker_rect = want
+	_ticker.position = grown.position
+	_ticker.size = grown.size
+	ticker_rect = grown
+
+
+## The slot's width and floor, the plate's own height. Never taller than the slot
+## it was given plus the room the solver left above it — a feed is never allowed
+## to become the tallest thing on the stage.
+const TICKER_MAX_GROWTH: float = 2.0
+
+
+func _grow_up(want: Rect2) -> Rect2:
+	_ticker.custom_minimum_size = Vector2(want.size.x, 0.0)
+	_ticker.size = Vector2(want.size.x, 0.0)
+	var need: float = _ticker.get_combined_minimum_size().y
+	var h: float = clampf(need, want.size.y, want.size.y * TICKER_MAX_GROWTH)
+	return Rect2(Vector2(want.position.x, want.end.y - h), Vector2(want.size.x, h))
 
 
 ## Re-acquires the presenter whenever it is missing. Cheap: a group lookup and,
@@ -147,31 +200,40 @@ func _find() -> void:
 	_ticker = null
 	if _presenter == null:
 		return
-	_panel = _first_of_class(_presenter, "PanelContainer") as Control
-	_ticker = _named_label(_presenter)
+	_ticker = _named_control(_presenter)
+	_panel = _first_of_class(_presenter, "PanelContainer", _ticker) as Control
 	if _panel == null and not _warned:
 		_warned = true
 		Log.info("hud", "the narrative presenter has no panel to place — "
 			+ "[P22] draws its own card wherever it likes")
 
 
-func _first_of_class(from: Node, cls: String) -> Node:
+## `skip` is the ticker, and it exists because [P22]'s flavour feed became a
+## PanelContainer of its own when it got a plate. Tree order alone still gives
+## the right answer — the card is added first — but "the right answer as long as
+## nobody reorders two lines in another part's `_build()`" is the shape of a bug
+## that only shows up in a screenshot, and this file has already shipped one.
+func _first_of_class(from: Node, cls: String, skip: Node = null) -> Node:
 	for child: Node in from.get_children():
+		if child == skip:
+			continue
 		if child.is_class(cls):
 			return child
-		var found: Node = _first_of_class(child, cls)
+		var found: Node = _first_of_class(child, cls, skip)
 		if found != null:
 			return found
 	return null
 
 
-## [P22] names its flavour feed "Ticker". A name is a weaker handle than a class,
-## so this one is allowed to come back null and cost nothing.
-func _named_label(from: Node) -> Control:
+## [P22] names its flavour feed "Ticker" — the PLATE carries the name, not the
+## Label inside it, because the plate is the rectangle that has to be placed. A
+## name is a weaker handle than a class, so this is allowed to come back null and
+## cost nothing.
+func _named_control(from: Node) -> Control:
 	for child: Node in from.get_children():
-		if child is Label and String(child.name) == "Ticker":
+		if child is Control and String(child.name) == "Ticker":
 			return child as Control
-		var found: Control = _named_label(child)
+		var found: Control = _named_control(child)
 		if found != null:
 			return found
 	return null

@@ -52,13 +52,34 @@ func _run() -> void:
 			"yes" if bool(r["known"]) else "NO ROW", str(r["visible"])])
 
 	# Same layer + later in the tree = drawn on top. Name every such pair.
+	var bad: int = 0
 	for i: int in rows.size():
 		for j: int in range(i + 1, rows.size()):
 			if int(rows[i]["layer"]) == int(rows[j]["layer"]):
+				bad += 1
 				print("  COLLISION: %s and %s both on layer %d — %s is drawn over %s" % [
 					String(rows[i]["name"]), String(rows[j]["name"]),
 					int(rows[i]["layer"]), String(rows[j]["name"]), String(rows[i]["name"])])
-	get_tree().quit(0)
+
+	# RANK, not just collision. Two parts on two different numbers never collide
+	# and can still be in the wrong order: [P22]'s card sat alone on 78, agreed
+	# with the table, collided with nothing, and covered the cost column of every
+	# building in [P18]'s palette in six of six `artifacts/ui_tour` frames. The
+	# probe printed a clean table for that build. It does not any more.
+	for line: String in LcnLayers.table_violations():
+		bad += 1
+		print("  RANK: " + line)
+	for row: Dictionary in LcnLayers.violations(get_tree()):
+		if String(row.get("key", "")) == "table":
+			continue   # already printed above, from the table alone
+		bad += 1
+		print("  VIOLATION: %s (%s) at layer %d — %s" % [
+			String(row.get("key", "?")), String(row.get("owner", "?")),
+			int(row.get("actual", -1)), String(row.get("why", "violates the table"))])
+
+	print("LAYER PROBE — %s" % ("the stack is ordered" if bad == 0
+		else "%d problem(s) above" % bad))
+	get_tree().quit(1 if bad > 0 else 0)
 
 
 func _known(n: StringName) -> bool:

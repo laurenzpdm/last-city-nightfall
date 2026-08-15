@@ -16,17 +16,33 @@ extends CanvasLayer
 ## time and forever after. The API in narrative_api.gd is the same one they
 ## would use, so nothing about this card is load-bearing for the data.
 ##
-## LAYER 78. Between [P20]'s stats (76) and the modal slot (80): a card that
-## stops the winter has to cover a panel, and it must not cover a tutorial gate
-## or a pause menu. The node name is not in `LcnLayers.SLOTS`, so `enforce()`
-## leaves it alone rather than correcting it to somebody else's number.
+## LAYER: `LcnLayers.NARRATIVE`, and the number is READ FROM THE TABLE rather
+## than copied into this file. It used to say 78 here and 78 there, which is two
+## places to change and one of them will be missed.
+##
+## THIS CARD DOES NOT STOP THE WORLD, SO IT DOES NOT GET THE TOP OF THE STACK.
+## The old row put it at 78, above [P18]'s browsers (74) and [P20]'s stats (76),
+## on the argument that a card is answered so it is on top. It is not on top: the
+## clock keeps running behind it, the deadline expires whether it is read or not,
+## and the player can ignore it — which is exactly what non-modal means. In
+## `artifacts/ui_tour/shots/01_palette.png` that argument printed this card
+## across the entire cost column of [P18]'s build palette, so a player could not
+## read what a building cost while a story was on screen. Six of six tour frames.
+##
+## AND ORDER ALONE WAS NOT ENOUGH. [P18]'s palette is 982 px wide at 1920x1080
+## and this card is 661; simply moving the card underneath leaves it sticking out
+## from behind a panel, which is clutter rather than composition. So the card
+## also STANDS DOWN — see `_work_surface_open()`. When the player has opened a
+## surface deliberately, the story waits for them to close it. It is not
+## discarded and it is not answered: the sim's deadline is untouched, and the
+## card is on screen again the frame after Escape.
 ##
 ## INPUT. Mouse only, on real Buttons. Every key on the keyboard is claimed by
 ## somebody in `LcnLayers` and the number row is claimed twice, so a card that
 ## bound 1/2/3 to its options would silently fight the sim-speed keys.
 
 const GROUP: StringName = &"lcn_narrative_presenter"
-const LAYER: int = 78
+const LAYER: int = LcnLayers.NARRATIVE
 
 const CARD_W: float = 620.0
 const MARGIN: float = 28.0
@@ -48,11 +64,18 @@ var _because_head: Label = null
 var _because_rule: Control = null
 var _options: VBoxContainer = null
 var _clock: Label = null
-var _ticker: Label = null
+## The flavour feed's PLATE. `LcnHudStage` places whatever Control is named
+## "Ticker", so the plate carries the name and the prose inside it does not.
+var _ticker: PanelContainer = null
+var _ticker_text: Label = null
 
 var _showing: String = ""
 var _signature: String = ""
 var _accum: float = 0.0
+## True while a card exists but is standing down for a surface the player opened.
+## `LcnHudStage` republishes this so [P17] can say so somewhere if it wants to;
+## nothing else in the build depends on it.
+var deferred: bool = false
 
 
 func _ready() -> void:
@@ -130,16 +153,42 @@ func _build() -> void:
 	_options.add_theme_constant_override("separation", 8)
 	_column.add_child(_options)
 
-	_ticker = _label("", 12, Color(0.72, 0.75, 0.82))
+	# THE FLAVOUR FEED GETS A PLATE AND A WORD WRAP.
+	#
+	# It used to be a bare Label with a text shadow, 12 px, `AUTOWRAP_OFF`, laid
+	# straight on the caldera floor: four lines of unplated small type over a
+	# moving, lit, ember-strewn background, at the one type size in the build that
+	# has no plate under it. In `artifacts/CRIT/shots/dawn.png` it runs from the
+	# stage's left wall to x≈1100, over the city, through [P19]'s world badges,
+	# and the last line ends where the box does rather than where the sentence
+	# does — an unwrapped line has nowhere to go but out of its own rectangle.
+	#
+	# A shadow is not a substitute for a background: it raises the letters off the
+	# ground and does nothing for the twenty per cent of the glyph that is the
+	# ground. So: the same plate the card uses at a lower opacity, a real margin,
+	# 13 px, and WORD_SMART wrapping so a sentence ends on a word. The plate is
+	# what `LcnHudStage` positions, and `_grow_up()` there fits it to its own
+	# prose instead of to a constant.
+	_ticker = PanelContainer.new()
 	_ticker.name = "Ticker"
-	_ticker.autowrap_mode = TextServer.AUTOWRAP_OFF
-	# The ticker floats over the world, not over a plate, and the caldera floor
-	# goes from near-black at night to a bright warm grey at midday. A shadow is
-	# cheaper than a panel and keeps the line readable on both.
-	_ticker.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.85))
-	_ticker.add_theme_constant_override("shadow_offset_x", 1)
-	_ticker.add_theme_constant_override("shadow_offset_y", 1)
-	_ticker.add_theme_constant_override("shadow_outline_size", 3)
+	_ticker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ticker.add_theme_stylebox_override("panel", _plate(
+		Color(0.043, 0.055, 0.086, 0.72), Color(0.38, 0.42, 0.50, 0.55)))
+	var tpad := MarginContainer.new()
+	tpad.add_theme_constant_override("margin_left", 12)
+	tpad.add_theme_constant_override("margin_right", 12)
+	tpad.add_theme_constant_override("margin_top", 8)
+	tpad.add_theme_constant_override("margin_bottom", 8)
+	tpad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ticker.add_child(tpad)
+	_ticker_text = Label.new()
+	_ticker_text.name = "TickerText"
+	_ticker_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_ticker_text.add_theme_font_size_override("font_size", 13)
+	_ticker_text.add_theme_color_override("font_color", Color(0.74, 0.77, 0.83))
+	_ticker_text.add_theme_constant_override("line_spacing", 3)
+	_ticker_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tpad.add_child(_ticker_text)
 	_root.add_child(_ticker)
 
 
@@ -158,14 +207,24 @@ func _process(delta: float) -> void:
 func _refresh() -> void:
 	if not Sim.alive:
 		_panel.visible = false
+		deferred = false
 		return
 	_layout()
 	_refresh_ticker()
 	var card: Dictionary = Narrative.current()
 	if card.is_empty():
 		_panel.visible = false
+		deferred = false
 		_showing = ""
 		_signature = ""
+		return
+	# THE STORY WAITS FOR A SURFACE THE PLAYER OPENED. Not answered, not
+	# discarded, not shrunk to a stub that would need a rectangle of its own in
+	# [P17]'s solver and in the overlap audit — just held, with the deadline still
+	# running in the sim where it belongs.
+	deferred = _work_surface_open()
+	if deferred:
+		_panel.visible = false
 		return
 	_panel.visible = true
 	# The countdown moves; the card does not. Rebuilding the whole thing every
@@ -269,7 +328,32 @@ func _refresh_ticker() -> void:
 	var out: PackedStringArray = PackedStringArray()
 	for row: Dictionary in lines:
 		out.append(String(row.get("text", "")))
-	_ticker.text = "\n".join(out)
+	_ticker_text.text = "\n".join(out)
+
+
+## True when the player has a surface open that they opened on purpose: any of
+## [P18]'s browsers, [P20]'s statistics screen, or [P24]'s modal stack.
+##
+## Asked by GROUP and by public method, never by node path or private flag —
+## `game/narrative/` may not reach into `game/ui/`, and a state a part can only
+## reach by cheating is a state the game does not have. Every one of these
+## lookups is allowed to come back null: with none of those parts installed this
+## returns false and the card behaves exactly as it did before.
+func _work_surface_open() -> bool:
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		return false
+	var menu: Node = tree.get_first_node_in_group(&"lcn_build_menu")
+	if menu != null and menu.has_method(&"open_panels") \
+			and not (menu.call(&"open_panels") as Array).is_empty():
+		return true
+	for stats: Node in tree.get_nodes_in_group(&"lcn_stats"):
+		if bool(stats.get(&"is_open")):
+			return true
+	for meta: Node in tree.get_nodes_in_group(&"lcn_meta"):
+		if meta.has_method(&"is_open") and bool(meta.call(&"is_open")):
+			return true
+	return false
 
 
 ## Where the card goes is not a taste question, it is the layer table's rule in
@@ -299,8 +383,16 @@ func _layout() -> void:
 	var bottom_limit: float = size.y - MARGIN * 3.0 - _panel.size.y
 	_panel.position = Vector2(roundf((size.x - width) * 0.5),
 		roundf(clampf(top, MARGIN, maxf(MARGIN, bottom_limit))))
+	# Fallback placement only: whenever [P17]'s stage director is in the tree it
+	# overwrites both of these every frame from the solver, and it is the only
+	# thing that can see the rest of the chrome. Width is set as a MINIMUM so the
+	# plate wraps to it and then takes exactly the height its own prose needs —
+	# a fixed 90 px box was how four lines of flavour ended up half in and half
+	# out of their own rectangle.
+	var t_w: float = maxf(200.0, size.x * 0.36)
+	_ticker.custom_minimum_size = Vector2(t_w, 0.0)
+	_ticker.size = Vector2(t_w, _ticker.get_combined_minimum_size().y)
 	_ticker.position = Vector2(MARGIN, size.y * 0.55)
-	_ticker.size = Vector2(size.x * 0.36, 90.0)
 
 
 # =========================================================================
