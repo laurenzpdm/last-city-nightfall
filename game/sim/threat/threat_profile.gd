@@ -224,10 +224,44 @@ extends Resource
 ## followed by silence — so the window is measured against dusk-to-dawn, and the
 ## last packet still arrives with a quarter of the night left to fight it in.
 @export var spawn_window_share: float = 0.72
-## Largest packet that walks in at once. Anything bigger is split into pulses,
-## which is what turns "fourteen hounds" into three waves of five you can lose
-## the second of.
-@export var pulse_max_units: int = 4
+## SIMULTANEITY — the number that decided the whole build was a metronome.
+##
+## This used to be a flat `pulse_max_units = 4`, at every difficulty, for ever.
+## A packet bigger than four was split into pulses of four and the pulses were
+## spread evenly across the night, so `combat.enemies_alive` measured over 24000
+## ticks peaked at **4** on every night of the campaign. Night two announced "a
+## column out of the south-east, 28 units" and delivered four bodies, dead in
+## 120 ticks, four more 340 ticks later, eight times over. The doc comment two
+## lines below warned against producing "a drip rather than a wave" and the
+## constant above it produced exactly that.
+##
+## An arrival packet is now sized against the night it belongs to: a handful on
+## the teaching night, a shield wall on night seven. `pulse_units()` is the
+## whole rule, and `ThreatSystem._distribute` packs the night's groups into
+## ECHELONS of that size so several kinds land together instead of taking turns.
+##
+## Floor: what arrives at once on night one, when the budget is a rounding error.
+@export var pulse_units_min: int = 4
+## Ceiling: no single moment ever puts more than this on the map, whatever the
+## budget says. A hundred bodies on one tick is a frame spike, not a siege.
+@export var pulse_units_max: int = 40
+## Budget points that buy one more body in a simultaneous arrival. This IS the
+## peak-simultaneity curve, because the echelon count is derived from it: a
+## night is cut into as many arrival moments as it takes for each one to be
+## about this big. Measured against the shipped budget table it gives a peak of
+## roughly 3 bodies on night one, 7 on night two, 16 on the first set piece and
+## 33 on night seven — against a flat 4 for ever, which is what shipped.
+@export var pulse_budget_per_unit: float = 12.0
+## Arrival moments a night has AT LEAST, before size forces more. Two, so even
+## the teaching night has a second beat and the player learns that a night comes
+## in stages. Grows with the campaign so a big night keeps a rhythm instead of
+## being two blobs.
+@export var echelons_min: int = 2
+## One more guaranteed arrival moment every N nights...
+@export var echelons_every_nights: int = 4
+## ...up to this many. Past here, extra bodies make echelons bigger, not more
+## numerous — which is the difference between a longer night and a harder one.
+@export var echelons_max: int = 6
 ## ...but never more arrival moments than this in one night, or the player is
 ## fighting a drip rather than a wave.
 @export var pulses_max: int = 16
@@ -277,8 +311,31 @@ extends Resource
 #  HUD NORMALISATION
 # ==========================================================================
 
-## Budget that reads as threat_level() 1.0 on the meter.
-@export var level_reference_budget: float = 620.0
+# A night is FELT against the night it was supposed to be, not against a day-45
+# army. `level_reference_budget = 620.0` used to be the divisor for the number
+# that drives every screen shake, edge pulse and audio beat, so night one — 8.0
+# budget — landed on the player at 0.01. The log said so in as many words:
+# `[feel] wave 1 felt at strength 0.01`. Night two 0.069, night three 0.23. The
+# entire opening week of a game called Nightfall was calibrated against an army
+# it will not meet for a month and a half, and arrived as nothing.
+#
+# `strength_of(budget, wave)` reads instead:
+#     an ORDINARY night on the authored curve      -> level_ordinary
+#     a night the director made heavier than that  -> more, saturating
+#     the same relative night later in the campaign-> more again, up to the gain
+# so night one is a real nightfall, a set piece on a Great Frost is near the
+# top, and a lull is visibly a lull.
+
+## What a night that lands exactly on the authored curve feels like, 0..1.
+@export var level_ordinary: float = 0.55
+## How the reading answers a night heavier or lighter than the curve. Below 1 so
+## a 1.55x set piece reads well above an ordinary night without pinning the
+## meter, and a 0.62 lull is legibly softer without reading as nothing.
+@export var level_rel_exponent: float = 0.60
+## Extra reading a night carries purely for being late in the campaign...
+@export var level_campaign_gain: float = 0.30
+## ...approached over this many nights.
+@export var level_campaign_nights: int = 14
 ## Seconds out at which an incoming wave starts registering on the meter.
 @export var level_horizon_seconds: float = 260.0
 
@@ -384,8 +441,13 @@ func validate() -> bool:
 
 	spawn_window_ticks = maxi(1, spawn_window_ticks)
 	spawn_window_share = clampf(spawn_window_share, 0.0, 0.9)
-	pulse_max_units = maxi(1, pulse_max_units)
-	pulses_max = maxi(1, pulses_max)
+	pulse_units_min = maxi(1, pulse_units_min)
+	pulse_units_max = maxi(pulse_units_min, pulse_units_max)
+	pulse_budget_per_unit = maxf(0.01, pulse_budget_per_unit)
+	echelons_min = maxi(1, echelons_min)
+	echelons_every_nights = maxi(1, echelons_every_nights)
+	echelons_max = maxi(echelons_min, echelons_max)
+	pulses_max = maxi(echelons_max, pulses_max)
 	wave_hard_timeout_ticks = maxi(600, wave_hard_timeout_ticks)
 	poll_interval_ticks = maxi(1, poll_interval_ticks)
 	wave_settle_ticks = maxi(1, wave_settle_ticks)
@@ -394,7 +456,10 @@ func validate() -> bool:
 	breach_radius = maxi(1, breach_radius)
 	siege_damage_efficiency = clampf(siege_damage_efficiency, 0.0, 1.0)
 
-	level_reference_budget = maxf(1.0, level_reference_budget)
+	level_ordinary = clampf(level_ordinary, 0.05, 1.0)
+	level_rel_exponent = clampf(level_rel_exponent, 0.05, 3.0)
+	level_campaign_gain = clampf(level_campaign_gain, 0.0, 1.0 - level_ordinary)
+	level_campaign_nights = maxi(1, level_campaign_nights)
 	level_horizon_seconds = maxf(1.0, level_horizon_seconds)
 	fallback_day_ticks = maxi(120, fallback_day_ticks)
 	fallback_night_start = clampi(fallback_night_start, 1, fallback_day_ticks - 1)
@@ -463,6 +528,44 @@ func vector_count(wave: int, set_piece: bool) -> int:
 	if set_piece:
 		n += set_piece_extra_vectors
 	return clampi(n, 1, vectors_max + set_piece_extra_vectors)
+
+
+## Bodies that may walk in on one tick, given what the night is worth. THE fix
+## for `enemies_alive max 4 across every night`: an arrival is sized against the
+## wave it belongs to, so night eight cannot look like night one.
+func pulse_units(budget: float) -> int:
+	var n: float = float(pulse_units_min) + maxf(0.0, budget) / pulse_budget_per_unit
+	return clampi(int(round(n)), pulse_units_min, pulse_units_max)
+
+
+## Arrival moments a night is cut into. At least `echelons_min` (growing slowly
+## with the campaign) so a night always has a rhythm, and more than that only
+## when the wave is too big to land in that many pieces.
+func echelon_count(wave: int, units: int, budget: float) -> int:
+	if units <= 1:
+		return 1
+	var rhythm: int = clampi(
+		echelons_min + int((maxi(1, wave) - 1) / echelons_every_nights),
+		echelons_min, echelons_max)
+	return clampi(mini(units, maxi(rhythm, _echelons_for_size(units, budget))), 1, pulses_max)
+
+
+func _echelons_for_size(units: int, budget: float) -> int:
+	var per: int = maxi(1, pulse_units(budget))
+	return (units + per - 1) / per
+
+
+## How hard a night of `budget` on night `wave` should LAND, 0..1. Everything
+## the player feels — the shake, the edge pulse, the mix — is scaled by this, so
+## it is measured against what an ordinary night `wave` is worth and not against
+## a late-campaign constant. See the block comment above `level_ordinary`.
+func strength_of(budget: float, wave: int) -> float:
+	var w: int = maxi(1, wave)
+	var expected: float = maxf(0.001, base_budget(w))
+	var rel: float = maxf(0.0, budget) / expected
+	var shaped: float = pow(rel, level_rel_exponent) if rel > 0.0 else 0.0
+	var t: float = clampf(float(w - 1) / float(maxi(1, level_campaign_nights - 1)), 0.0, 1.0)
+	return clampf(level_ordinary * shaped + level_campaign_gain * t, 0.0, 1.0)
 
 
 ## Share of the budget aimed at the weakest side on a given night.

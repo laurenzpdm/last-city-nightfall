@@ -423,6 +423,21 @@ func _kill(slot: int, tick: int) -> void:
 		_queue_adds(slot, tick)
 
 
+## THIS ONE IS INSIDE. A body that has reached the hearth district is not
+## something the guns can still answer: it is past the line, it has taken
+## whatever it came for, and it is gone by morning. Counted as a leak rather
+## than a kill, so the night's post-mortem cannot mistake it for the wall
+## working. [CombatSystem] calls this instead of letting an attacker chew on the
+## fire — see _is_last_resort.
+func absorb(slot: int, tick: int) -> void:
+	if slot < 0 or slot >= count:
+		return
+	if e_state[slot] == CombatTypes.EnemyState.SPENT:
+		return
+	leaked += 1
+	_kill(slot, tick)
+
+
 ## Drains this tick's death record as flat (id, x, y) triples. [CombatSystem]
 ## turns them into Bus.enemy_killed so the view can put an ember where each one
 ## fell; the swarm itself never touches the signal bus.
