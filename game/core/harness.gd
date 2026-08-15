@@ -28,6 +28,23 @@ var _metric_keys: PackedStringArray = PackedStringArray()
 var _metric_rows: Array[PackedStringArray] = []
 var _checkpoints: Dictionary = {}
 var _errors: PackedStringArray = PackedStringArray()
+## Tick the run ended on, and why. -1 while the city is still somebody's.
+##
+## THE RUN CAN END LONG BEFORE THE TICK BUDGET DOES, AND THE ARTIFACTS DID NOT
+## SAY SO. `LcnPlayController` stops the clock on `Bus.game_over` for a human,
+## and deliberately not here — `SimClock` is manual in a harness run, so a
+## scenario replays to its last tick whatever happens, which is what keeps
+## determinism cheap. What was missing is the sentence saying it happened.
+##
+## Measured on `economy_60min`: the council was put out of its own gate at
+## t=31000, [P22] wrote the epilogue "The City Did Not Stand", and the harness
+## then simulated 41,000 further ticks — four more days, four more waves
+## (including one of 172 units), eight children dead of fever — and wrote a
+## `final` state of a city that had been over for two thirds of the run, with
+## `errors: []` and nothing anywhere in `state.json` to say which two thirds.
+## Every critic reading those artifacts is reading a corpse and grading a city.
+var _end_tick: int = -1
+var _end_reason: String = ""
 
 
 func _ready() -> void:
@@ -84,6 +101,7 @@ func _run() -> void:
 	SimClock.set_manual(true)
 	Sim.create_world(_seed)
 	Bus.alert_raised.connect(_on_alert)
+	Bus.game_over.connect(_on_game_over)
 
 	var checkpoint_every: int = maxi(1, _ticks / 8)
 	for t: int in range(1, _ticks + 1):
@@ -119,8 +137,12 @@ func _run() -> void:
 	var allowed: int = int((_scenario.get("expects", {}) as Dictionary).get("max_errors", 0))
 	var failed: bool = _errors.size() > allowed
 	_write_outputs(wall_ms)
-	Log.info("harness", "done in %d ms (%d ticks), %d error(s), allowed %d" % [
-		wall_ms, _ticks, _errors.size(), allowed])
+	var ending: String = ""
+	if _end_tick >= 0:
+		ending = " — THE RUN ENDED AT t%d (%s) and %d tick(s) were simulated after it" % [
+			_end_tick, _end_reason, _ticks - _end_tick]
+	Log.info("harness", "done in %d ms (%d ticks), %d error(s), allowed %d%s" % [
+		wall_ms, _ticks, _errors.size(), allowed, ending])
 	finished.emit()
 	if visual and stay_open:
 		Log.info("harness", "--stay-open: the window is yours")
@@ -209,6 +231,19 @@ func _on_alert(severity: int, key: StringName, text: String, _pos: Vector2) -> v
 		_errors.append("[t%d] %s: %s" % [SimClock.tick, key, text])
 
 
+## The city stopped being anybody's. Recorded once — a run can raise it twice
+## (the hearth falls and then the last citizen dies) and the moment that matters
+## is the first one.
+func _on_game_over(reason: String) -> void:
+	if _end_tick >= 0:
+		return
+	_end_tick = SimClock.tick
+	_end_reason = reason
+	Log.info("harness", ("THE RUN IS OVER at t%d (%s). The clock is manual in a "
+		+ "harness run, so the remaining ticks still replay — everything after "
+		+ "this line is a city with nobody running it.") % [_end_tick, reason])
+
+
 func _write_outputs(wall_ms: int) -> void:
 	var base: String = ProjectSettings.globalize_path(_out_dir)
 
@@ -218,6 +253,13 @@ func _write_outputs(wall_ms: int) -> void:
 			"scenario": _scenario.get("name", "adhoc"),
 			"seed": _seed, "ticks": _ticks,
 			"wall_ms": wall_ms,
+			# Top level, beside "errors", because it is the same kind of fact: a
+			# reader deciding whether to trust `final` has to see it without
+			# knowing that [P06] keeps a `verdict` block.
+			"ended": {} if _end_tick < 0 else {
+				"tick": _end_tick, "reason": _end_reason,
+				"ticks_simulated_after": _ticks - _end_tick,
+			},
 			"final": Sim.serialize(),
 			"checkpoints": _checkpoints,
 			"errors": _errors,

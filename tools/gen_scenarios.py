@@ -291,10 +291,66 @@ class Layout:
         return sorted(self.script, key=lambda e: e["tick"])
 
 
+def _cmd_cells(cmd):
+    """Every tile a place / place_line command would claim, in world cells."""
+    kind = cmd.get("kind")
+    if cmd.get("op") == "place":
+        w, h = DEFS[kind][0], DEFS[kind][1]
+        ox, oy = cmd["cell"]
+        return {(ox + x, oy + y) for y in range(h) for x in range(w)}
+    x0, y0 = cmd["from"]
+    x1, y1 = cmd["to"]
+    out = set()
+    cur = (x0, y0)
+    for _ in range(512):
+        out.add(cur)
+        if cur == (x1, y1):
+            break
+        if cur[0] != x1:
+            cur = (cur[0] + (1 if x1 > cur[0] else -1), cur[1])
+        elif cur[1] != y1:
+            cur = (cur[0], cur[1] + (1 if y1 > cur[1] else -1))
+        else:
+            break
+    return out
+
+
 def write(scenario):
     # Private keys the schema does not know about: consumed here, never written.
     layout = scenario.pop("_layout", None)
     allow_islands = scenario.pop("_allow_islands", 0)
+
+    # THE OCCUPANCY MODEL IS BUILT IN CALL ORDER AND THE RUN HAPPENS IN TICK
+    # ORDER, so the two have to be the same sequence or the model is checking a
+    # scenario nobody plays.
+    #
+    # careless_night had `L.place(3600, "housing_block", 5, 8)` written above
+    # `L.line(3500, "heat_pipe", (5, 3), (5, 8))`. `free()` was asked before the
+    # pipe existed and said yes; the sort below then put the pipe first, and at
+    # runtime build refused the block with "Heat Pipe is in the way at 133, 136".
+    # A scenario that claims to refuse to emit what the game would refuse, doing
+    # exactly that, silently, in the half of the A/B pair whose whole job is to
+    # be read against the other half.
+    # Only the commands that CLAIM GROUND matter, and only when an inverted pair
+    # actually shares a tile: a `set_priority` or a heat dump written out of
+    # sequence changes nothing the model tracks, and two placements that never
+    # touch cannot refuse each other however they are ordered.
+    claiming = [(i, e) for i, e in enumerate(scenario["script"])
+                if e["cmd"].get("op") in ("place", "place_line")]
+    for j, (cur_i, cur) in enumerate(claiming):
+        for prev_i, prev in claiming[:j]:
+            if cur["tick"] >= prev["tick"]:
+                continue
+            shared = _cmd_cells(cur["cmd"]) & _cmd_cells(prev["cmd"])
+            assert not shared, (
+                "%s: %s at tick %d (command %d) is WRITTEN after %s at tick %d "
+                "(command %d) and they share %s. The Layout claimed ground in "
+                "the order these were written and the harness runs them in tick "
+                "order, so the model said free and [P11] will say occupied. "
+                "Write the ones that claim ground in the order they happen."
+                % (scenario["name"], cur["cmd"].get("kind"), cur["tick"], cur_i,
+                   prev["cmd"].get("kind"), prev["tick"], prev_i,
+                   sorted(shared)[:3]))
     scenario["script"] = sorted(scenario["script"], key=lambda e: e["tick"])
     for e in scenario["script"]:
         assert 1 <= e["tick"] <= scenario["ticks"], (scenario["name"], e)
@@ -1233,10 +1289,19 @@ def careless():
     L.place(900, "workshop", 1, 14)
     L.place(1400, "housing_block", -9, 9)
     L.line(1500, "heat_pipe", (-1, 8), (-8, 8))
-    L.line(2800, "heat_pipe", (0, -3), (1, -18))
-    L.place(3000, "ore_drill", 2, -19)
-    L.place(3600, "housing_block", 5, 8)
-    L.line(3500, "heat_pipe", (5, 3), (5, 8))
+    # A LONG THIN ARM INTO THE DARK, and a radiator on the end of it. This used
+    # to be `L.line(2800, ...)` up the north spur and `L.place(3000,
+    # "ore_drill", 2, -19)`, and [P11] refused the drill every single run —
+    # "Ore Drill needs 2 tiles of a deposit under it" — because this generator
+    # models footprints and heat adjacency and has no idea where the seams are.
+    # So the careless player's third mistake was not happening at all: the run
+    # placed 93 things, two of them were rejected, and its own description
+    # claimed four heated buildings it never built. Draw with no supply is the
+    # mistake this run exists to make, and a radiator makes it on any terrain.
+    L.line(2800, "heat_pipe", (0, -3), (0, -16))
+    L.place(3000, "warmth_radiator", -1, -18)
+    L.line(3500, "heat_pipe", (5, 3), (5, 7))
+    L.place(3600, "housing_block", 4, 8)
 
     # 2. THE GENERATOR THAT TOUCHES NOTHING. Placed in open ground twenty tiles
     #    out, connected to no pipe. It is a network of one, it produces into
@@ -1271,11 +1336,16 @@ def careless():
                         "whether the interface said so at the time."),
         "tags": ["reference", "visual"],
         "seed": 7, "ticks": 11000, "sample_every": 20,
-        # A run this bad raises alerts by design; the gate must grade it on what
-        # it measures, not refuse to finish it.
         # THE ISLAND IS THE CLAIM. Two networks is what this player built, and
         # saying so out loud is what stops the fragmentation reading as quiet.
-        "expects": {"min_ticks_per_second": 600, "max_errors": 12,
+        #
+        # `max_errors` WAS 12 AND THE RUN RAISES NONE. The comment above it read
+        # "a run this bad raises alerts by design" — plausible, and measured
+        # wrong: `_errors` counts severity>=2 alerts and logged errors, and being
+        # played badly produces neither. A twelve-error licence on the one
+        # scenario built to be bad is twelve errors nobody would ever be shown,
+        # in the run most likely to acquire them.
+        "expects": {"min_ticks_per_second": 600, "max_errors": 0,
                     "balance_days": [1], "max_heat_networks": 2},
         "script": L.script,
         "_layout": L,

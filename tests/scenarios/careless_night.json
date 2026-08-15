@@ -10,7 +10,7 @@
   "sample_every": 20,
   "expects": {
     "min_ticks_per_second": 600,
-    "max_errors": 12,
+    "max_errors": 0,
     "balance_days": [
       1
     ],
@@ -259,8 +259,8 @@
           125
         ],
         "to": [
-          129,
-          110
+          128,
+          112
         ]
       }
     },
@@ -269,10 +269,10 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "ore_drill",
+        "kind": "warmth_radiator",
         "cell": [
-          130,
-          109
+          127,
+          110
         ]
       }
     },
@@ -288,7 +288,7 @@
         ],
         "to": [
           133,
-          136
+          135
         ]
       }
     },
@@ -299,7 +299,7 @@
         "op": "place",
         "kind": "housing_block",
         "cell": [
-          133,
+          132,
           136
         ]
       }
