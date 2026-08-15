@@ -14,7 +14,7 @@
   "night post-mortem now names the bill": "'night 6 took: Gone by morning: Heat Pipe x15, Loading Arm, Salvage Crate, Turret Mount x2.'",
   "new metrics.csv columns": "threat.strength and threat.peak_arrival \u2014 neither of the two numbers this part was failing on was in the artifact before",
   "tests/threat/test_threat_simultaneity.gd (new, 9 tests, 396 asserts)": "TESTS PASSED; 5 of the 9 go RED when the shipped constants (flat pulse cap of 4, level_reference_budget 620) are restored in a scratch copy",
-  "tests/combat/test_combat_toll.gd (new, 9 tests, 0 skipped)": "TESTS PASSED; 3 go RED when the last-resort rule and the toll are reverted in a scratch copy",
+  "tests/combat/test_combat_toll.gd (new, 9 tests, 0 skipped)": "TESTS PASSED; 4 of the 9 go RED when the last-resort rule and the toll are reverted in a scratch copy of game/sim/combat/ and the file restored after",
   "tests/threat + tests/combat": "88 and 77 tests, 0 failed, 0 skipped",
   "tools/determinism.sh": "IDENTICAL, sha256 eb53db65e48be6a9 and bdfa00c1bfca8ca9, run twice after the final edit",
   "tests/boot/run_reachability.tscn --force-ui": "TESTS PASSED \u2014 92 checks, 0 failures",
