@@ -56,6 +56,17 @@ const TAG: String = "d7-layout"
 const BOOT_SCENE: String = "res://game/boot.tscn"
 const SETTLE_FRAMES: int = 8
 
+## The height [P19]'s legend cannot go below however many rows it sheds: a title,
+## a blurb, a headline, a footer and one row of numbers. Measured at 143 px; the
+## 150 here is that plus a margin, so `_audit_slot_fidelity` never squeezes the
+## panel into a strip no part could honour. See the long note there.
+const CONTENT_FLOOR: float = 150.0
+## How much smaller than its natural height the test strip must be, so the panel
+## is genuinely forced to shed a row and the rectangle it publishes has to move.
+## Small on purpose: rows are ~20 px, so a strip 6 px under the natural height
+## costs the panel a whole row and the paint lands well clear of the strip.
+const SHED_MARGIN: float = 6.0
+
 ## Every screen this build claims to support, plus the accessibility scaling
 ## [D4] is adding. `ui` scales the whole HUD; `font` scales only type, which is
 ## what makes panels taller without making them wider — the case that breaks a
@@ -376,13 +387,43 @@ func _audit_slot_fidelity(label: String, st: String) -> void:
 		_unchecked.append("%s — no legend slot was reserved; nothing to be faithful to" % label)
 		return
 
-	# Half the height it was given, floored at 150 px. The floor is not a taste:
-	# [P19]'s panel is a title, a blurb, a headline, a footer and at least one row
-	# of numbers, and that is 143 px however hard it sheds. A slot below that is
-	# one no legend could honour, and a suite that asserts on it is testing
-	# itself. 150 is comfortably above the floor and comfortably below anything
-	# a live lens has ever wanted.
-	var tight: float = maxf(150.0, floorf(slot.size.y * 0.5))
+	# WHAT THIS CHECK IS FOR, AND WHY BOTH EARLIER THRESHOLDS WERE WRONG.
+	#
+	# The defect is a part that publishes the rectangle it WANTED instead of the
+	# one it DREW: both numbers then agree with each other, the audit compares
+	# two copies of the same wrong height, and [P18]'s hotkey strip goes on being
+	# printed through this panel's footer with every rectangle reporting
+	# agreement. Measured before the fix: reserved 154 px, drawn 185 px.
+	#
+	# [P19]'s panel sheds rows to fit its strip, but it has a floor — a title, a
+	# blurb, a headline, a footer and one row of numbers is 143 px however hard it
+	# sheds. That floor is what made the two earlier versions of this line wrong,
+	# in opposite directions:
+	#
+	#   tight = max(140, half)   the panel CANNOT fit and honestly says so, so
+	#                            this went red 12 times on correct code. A check
+	#                            no part can satisfy is not a check.
+	#   tight = max(150, half)   the panel fits with room to spare, so the
+	#                            published rectangle equals the slot whether the
+	#                            part is honest or not. MEASURED: publishing
+	#                            `legend_slot` instead of the painted rectangle —
+	#                            the exact defect above — passes 120/0.
+	#
+	# The threshold was never the problem. The question has to be asked where the
+	# answer can differ: a strip the panel CAN honour but only by shedding rows.
+	# Then an honest part publishes the SHORTER rectangle it actually painted, and
+	# a part reporting its want publishes the taller natural height. So `tight`
+	# is clamped between the content floor and the panel's own natural height,
+	# and both halves are asserted below.
+	var natural: float = (lens.call(&"chrome_rects") as Dictionary).get(
+		"legend", Rect2()) .size.y as float
+	if natural < CONTENT_FLOOR + SHED_MARGIN:
+		_unchecked.append(("%s — the legend drew %d px, which is inside its own "
+			+ "%d px content floor: there is nothing it could shed, so an honest "
+			+ "part and one reporting its want would publish the same number")
+			% [label, int(natural), int(CONTENT_FLOOR)])
+		return
+	var tight: float = maxf(CONTENT_FLOOR, natural - SHED_MARGIN)
 
 	# The lens root re-reads its slots from [P17] on EVERY `_process` frame, so a
 	# slot written from here is overwritten before the next redraw — the first
@@ -418,6 +459,20 @@ func _audit_slot_fidelity(label: String, st: String) -> void:
 			+ "than the size it DREW makes every rectangle under it wrong, and "
 			+ "every one of them still reports agreement.")
 			% [label, int(tight), int(published.size.y)])
+		return
+	# THE OTHER HALF, AND THE ONE THAT CATCHES THE ORIGINAL DEFECT. The strip was
+	# chosen so the panel has to shed to fit it, so the rectangle it publishes
+	# must have MOVED. A part that publishes `legend_slot` back also satisfies the
+	# clause above — it reports exactly the strip it was handed — and only this
+	# one separates it from a part that reports its paint.
+	_checks += 1
+	if is_equal_approx(published.size.y, tight):
+		_failures.append(("%s — [P19]'s legend drew %d px naturally, was handed a "
+			+ "%d px strip that costs it a whole row, and published exactly %d px "
+			+ "back. Rows are quantised; a panel that really measured its own "
+			+ "paint could not land on the strip to the pixel. It is echoing the "
+			+ "number it was given.")
+			% [label, int(natural), int(tight), int(published.size.y)])
 
 
 func _rect_rows(rects: Dictionary, named: Array) -> Array:
