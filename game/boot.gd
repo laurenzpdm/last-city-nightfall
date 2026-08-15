@@ -423,7 +423,13 @@ static func opening_defects() -> PackedStringArray:
 	var out: PackedStringArray = PackedStringArray()
 	var build: SimSystem = Sim.get_system(&"build")
 	var heat: SimSystem = Sim.get_system(&"heat")
+	# Never a quiet "nothing to report". A gate that cannot see the world says so,
+	# because "no defects found" and "no way to look" are the same green otherwise
+	# — and this whole function exists because something was invisible for a wave.
 	if build == null or heat == null:
+		out.append("the gate could not run: build=%s heat=%s" % [
+			"present" if build != null else "MISSING",
+			"present" if heat != null else "MISSING"])
 		return out
 
 	var buildings: Array = build.call("all_buildings")
