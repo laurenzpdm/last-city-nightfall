@@ -337,7 +337,7 @@ static func _heat_section(def: Resource, kind: StringName) -> Dictionary:
 			LcnUiStyle.Tone.DIM)
 	if LcnUiFormat.as_number(hd.get(&"capacity")) > 0.0:
 		_row(rows, "Carries", LcnUiFormat.rate(LcnUiFormat.as_number(hd.get(&"capacity"))), LcnUiStyle.Tone.ACCENT)
-		_row(rows, "Loss per tile", LcnUiFormat.rate(LcnUiFormat.as_number(hd.get(&"loss_per_tile")), "u/s"),
+		_row(rows, "Loss per tile", LcnUiFormat.rate(LcnUiFormat.as_number(hd.get(&"loss_per_tile"))),
 			LcnUiStyle.Tone.DIM)
 		if LcnUiFormat.as_flag(hd.get(&"repeater")):
 			_row(rows, "Repeater", "restores pressure downstream", LcnUiStyle.Tone.GOOD)

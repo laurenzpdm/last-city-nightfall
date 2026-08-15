@@ -605,19 +605,20 @@ func headline() -> String:
 	var frozen: int = frozen_count()
 	if frozen > 0:
 		return "%d building%s frozen%s" % [frozen, "" if frozen == 1 else "s",
-			", grid %.0f u/s short" % deficit if deficit > 0.5 else ""]
+			", grid %.0f heat/s short" % deficit if deficit > 0.5 else ""]
 	if deficit > 0.5:
 		var who: String = ""
 		if not bottlenecks.is_empty():
 			var b: Dictionary = bottlenecks[0]
 			var cell: Array = b.get("cell", [0, 0])
 			if String(b.get("reason", "")) == "capacity":
-				who = " — %s at (%d, %d) is the limit, %.0f/%.0f u/s" % [
-					String(b.get("kind", "line")), int(cell[0]), int(cell[1]),
+				who = " — %s at (%d, %d) is the limit, %.0f/%.0f heat/s" % [
+					LcnHudFormat.building_title(StringName(String(b.get("kind", "line")))),
+					int(cell[0]), int(cell[1]),
 					float(b.get("load", 0.0)), float(b.get("capacity", 0.0))]
 			else:
 				who = " — grid %d is generating everything it has" % int(b.get("net", 0))
-		return "%.0f u/s short%s" % [deficit, who]
+		return "%.0f heat/s short%s" % [deficit, who]
 	var starved: int = starved_count()
 	if starved > 0:
 		return "%d building%s below full heat" % [starved, "" if starved == 1 else "s"]
@@ -625,8 +626,9 @@ func headline() -> String:
 		var b2: Dictionary = bottlenecks[0]
 		var c2: Array = b2.get("cell", [0, 0])
 		if String(b2.get("reason", "")) == "capacity":
-			return "%s at (%d, %d) is at its limit — %.0f/%.0f u/s, nothing lost yet" % [
-				String(b2.get("kind", "line")), int(c2[0]), int(c2[1]),
+			return "%s at (%d, %d) is at its limit — %.0f/%.0f heat/s, nothing lost yet" % [
+				LcnHudFormat.building_title(StringName(String(b2.get("kind", "line")))),
+				int(c2[0]), int(c2[1]),
 				float(b2.get("load", 0.0)), float(b2.get("capacity", 0.0))]
 		return "grid %d is running at full output, nothing lost yet" % int(b2.get("net", 0))
 	if nets.size() > 1:

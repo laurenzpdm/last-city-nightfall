@@ -230,7 +230,7 @@ func _draw_badges() -> void:
 		var demand: float = float(stats.get("demand", 0.0))
 		var deficit: float = float(stats.get("deficit", 0.0))
 		var producers: int = int(stats.get("producers", 0))
-		var text: String = "%s GRID %d   %.0f/%.0f u/s" % [
+		var text: String = "%s GRID %d   %.0f/%.0f heat/s" % [
 			pal.network_mark(slot), nid2, float(stats.get("delivered", 0.0)), demand]
 		if producers == 0:
 			text += "   NO SOURCE"

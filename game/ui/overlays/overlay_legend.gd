@@ -317,10 +317,33 @@ func _row(text: String, c: Color = LcnOverlayPalette.INK, swatch: Variant = null
 	_rows.append({"text": text, "color": c, "swatch": swatch})
 
 
+## "1 building" / "4 buildings". THE LENS LEGEND WAS THE ONLY SURFACE IN THE GAME
+## THAT WROTE "(s)".
+##
+## Eleven rows of it — "89 node(s)", "8 turret(s)", "5 chokepoint(s)",
+## "23 damaged structure(s)" — against a HUD, a build sheet and a narrative layer
+## that all inflect properly and have helpers for it
+## (`LcnHudFormat.in_words`, `bottleneck_sentence`). It reads as a debug print
+## sitting inside the one panel whose entire job is to make a screenshot of this
+## game diagnosable, which is exactly where a form-feed voice does most damage.
+static func _n(count: int, word: String, plural: String = "") -> String:
+	if count == 1:
+		return "1 %s" % word
+	return "%d %s" % [count, plural if plural != "" else word + "s"]
+
+
+## Never an id. `String(kind)` put "turret_mount" and "coal_generator" into the
+## freeze and bottleneck rows — `LcnHudFormat` opens with "Never print an id" and
+## carries the registry lookup that makes it possible, and this panel simply was
+## not calling it.
+static func _title(kind: StringName) -> String:
+	return LcnHudFormat.building_title(kind)
+
+
 func _rows_summary() -> void:
 	var t: Dictionary = snap.totals
-	_row("%d building(s) on %d grid(s)" % [snap.node_count, snap.nets.size()])
-	_row("delivered %.0f of %.0f u/s, loss %.0f" % [
+	_row("%s on %s" % [_n(snap.node_count, "building"), _n(snap.nets.size(), "grid")])
+	_row("delivered %.0f of %.0f heat/s, loss %.0f" % [
 		float(t.get("delivered", 0.0)), float(t.get("demand", 0.0)), float(t.get("loss", 0.0))])
 
 
@@ -332,10 +355,10 @@ func _rows_networks() -> void:
 		var slot: int = int(n.get("slot", 0))
 		var deficit: float = float(n.get("deficit", 0.0))
 		var producers: int = int(n.get("producers", 0))
-		var text: String = "%s GRID %d   %.0f/%.0f u/s   %d node(s)" % [
+		var text: String = "%s GRID %d   %.0f/%.0f heat/s   %s" % [
 			pal.network_mark(slot), int(n.get("id", 0)),
 			float(n.get("delivered", 0.0)), float(n.get("demand", 0.0)),
-			int(n.get("nodes", 0))]
+			_n(int(n.get("nodes", 0)), "node")]
 		var c: Color = LcnOverlayPalette.INK
 		if producers == 0:
 			text += "   NO SOURCE"
@@ -353,19 +376,38 @@ func _rows_networks() -> void:
 func _rows_bottlenecks() -> void:
 	if snap.bottlenecks.is_empty():
 		_row("nothing is choking the grid right now", pal.good())
+	# A GRID THAT IS OUT OF HEAT IS ONE FACT, NOT THREE.
+	#
+	# [P02] attributes a `supply` bottleneck to every consumer cluster it choked,
+	# so a single starved grid arrives here as several rows — and they were worded
+	# identically, which is how `artifacts/play1/shots/dawn.png` came to print
+	#   grid 1 generating everything it has — 10 draw on it
+	#   grid 1 generating everything it has — 8 draw on it
+	#   grid 1 generating everything it has — 3 draw on it
+	# three lines that read as a stutter and cost the panel three of its twelve
+	# rows to say one thing. Capacity bottlenecks stay one row each: those really
+	# are different tiles and the tile is the whole point.
+	var starving: Dictionary[int, int] = {}
 	for b: Dictionary in snap.bottlenecks:
 		var cell: Array = b.get("cell", [0, 0])
 		if String(b.get("reason", "")) == "capacity":
-			_row("%s (%d, %d) at capacity %.0f/%.0f u/s — %d draw through it" % [
-				String(b.get("kind", "line")), int(cell[0]), int(cell[1]),
+			_row("%s (%d, %d) at capacity %.0f/%.0f heat/s — %d draw through it" % [
+				_title(StringName(String(b.get("kind", "line")))),
+				int(cell[0]), int(cell[1]),
 				float(b.get("load", 0.0)), float(b.get("capacity", 0.0)),
 				int(b.get("consumers", 0))], pal.bad())
 		else:
-			_row("grid %d generating everything it has — %d draw on it" % [
-				int(b.get("net", 0)), int(b.get("consumers", 0))], pal.bad())
+			var net: int = int(b.get("net", 0))
+			starving[net] = int(starving.get(net, 0)) + int(b.get("consumers", 0))
+	var nets: Array = starving.keys()
+	nets.sort()
+	for net2: int in nets:
+		_row("grid %d is generating everything it has — %s drawing on it" % [
+			net2, _n(int(starving[net2]), "building")], pal.bad())
 	var starved: int = snap.starved_count()
 	if starved > 0:
-		_row("%d building(s) below full heat; ring size is how short" % starved, pal.warn())
+		_row("%s below full heat; ring size is how short" % _n(starved, "building"),
+			pal.warn())
 
 
 func _rows_thermal() -> void:
@@ -382,7 +424,9 @@ func _rows_thermal() -> void:
 func _rows_freeze() -> void:
 	var frozen: int = snap.frozen_count()
 	if frozen > 0:
-		_row("%d building(s) frozen — they do nothing until they thaw" % frozen, pal.ice())
+		_row("%s frozen — %s nothing until %s thaw%s" % [_n(frozen, "building"),
+			"it does" if frozen == 1 else "they do",
+			"it" if frozen == 1 else "they", "s" if frozen == 1 else ""], pal.ice())
 	var soon: int = 0
 	var worst: float = 1.0e9
 	var worst_kind: StringName = &""
@@ -395,11 +439,14 @@ func _rows_freeze() -> void:
 			worst = eta
 			worst_kind = snap.node_kind[i]
 	if soon > 0:
-		var when: String = "already below the line"
+		var when: String = "already below it"
 		if worst >= 1.0:
 			when = "in %ds" % int(round(worst))
-		_row("%d cooling toward the line; soonest is the %s, %s" % [
-			soon, String(worst_kind), when], pal.bad())
+		# Short enough to survive the 508 px plate. The old sentence ran off the
+		# right edge and `_text`'s hard clip cut it mid-word — "already below t" —
+		# which is a clip working exactly as designed on a sentence nobody sized.
+		_row("%s cooling toward the line; %s %s" % [_n(soon, "building"),
+			_title(worst_kind).to_lower(), when], pal.bad())
 	elif frozen == 0:
 		_row("nothing is freezing", pal.good())
 	_row("gauge tick = that building's own freeze point", LcnOverlayPalette.INK_DIM)
@@ -408,7 +455,7 @@ func _rows_freeze() -> void:
 		if snap.bld_hp[j] < 0.999:
 			damaged += 1
 	if damaged > 0:
-		_row("%d damaged structure(s)" % damaged, pal.warn())
+		_row(_n(damaged, "damaged structure"), pal.warn())
 
 
 func _rows_logistics() -> void:
@@ -426,11 +473,11 @@ func _rows_logistics() -> void:
 			dry += 1
 		elif snap.node_fuel[i] < LcnLogisticsLens.BUNKER_LOW:
 			low += 1
-	_row("%d generator(s): %d out of fuel, %d running low" % [burners, dry, low],
+	_row("%s: %d out of fuel, %d running low" % [_n(burners, "generator"), dry, low],
 		pal.bad() if dry > 0 else (pal.warn() if low > 0 else pal.good()))
 	if probe.has_stalls():
 		var stalls: int = probe.stalls().size()
-		_row("%d machine(s) stalled" % stalls, pal.bad() if stalls > 0 else pal.good())
+		_row("%s stalled" % _n(stalls, "machine"), pal.bad() if stalls > 0 else pal.good())
 
 
 func _rows_coverage() -> void:
@@ -443,7 +490,7 @@ func _rows_coverage() -> void:
 	if turrets == 0:
 		_row("no turrets built", pal.warn())
 	else:
-		_row("%d turret(s), longest reach %.0f tiles" % [turrets, reach], pal.good())
+		_row("%s, longest reach %.0f tiles" % [_n(turrets, "turret"), reach], pal.good())
 	if not snap.probe.has_combat():
 		_row("no combat system yet — reach is the weapon definition, unverified",
 			LcnOverlayPalette.INK_DIM)
@@ -458,7 +505,7 @@ func _rows_coverage() -> void:
 		if (f & LcnOverlayDefs.F_NO_NETWORK) != 0 or (f & LcnOverlayDefs.F_UNREACHABLE) != 0:
 			unpowered += 1
 	if unpowered > 0:
-		_row("%d structure(s) on no grid at all (hatched)" % unpowered, pal.bad())
+		_row("%s on no grid at all (hatched)" % _n(unpowered, "structure"), pal.bad())
 	if snap.grid != null:
-		_row("%d chokepoint(s) marked on the approach lanes" % snap.grid.chokepoints().size(),
+		_row("%s marked on the approach lanes" % _n(snap.grid.chokepoints().size(), "chokepoint"),
 			LcnOverlayPalette.INK_DIM)

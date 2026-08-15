@@ -41,10 +41,33 @@ func signature() -> String:
 	]
 
 
+## What the city ASKED FOR and got, which is `demand - deficit` and not
+## `delivered`.
+##
+## THE PANEL USED TO CONTRADICT ITSELF ON ITS OWN TOP LINE. `delivered` is every
+## unit that left a pipe, including the surplus that goes into charging a
+## building's own thermal mass; `deficit` is [P02]'s OPERATIONAL hole — what a
+## consumer needed to run and did not get after that mass was spent. They are two
+## different measurements and the headline printed both side by side as if they
+## were one: `artifacts/play1/shots/deep_night.png` reads "164 / 218 heat/s"
+## and "−26 short" in the same row, and a player doing the subtraction gets 54.
+##
+## Worse, the ratio drove the COLOUR. In `assault.png` the grid met every demand
+## it had — the same row says "+1.4 spare" — and the panel still painted 167/179
+## amber and framed itself WARN, because charging accumulators reads as a
+## shortfall to `delivered / demand`. The one panel that decides whether a player
+## looks up was crying wolf on a healthy grid.
+##
+## So the numerator is the number the short line, the alerts, the lenses and
+## [P18]'s sheet all already agree on. 218 − 26 = 192, and the row now says so.
+func _met() -> float:
+	return maxf(0.0, probe.heat_demand - probe.heat_deficit)
+
+
 func layout() -> void:
 	_served = 1.0
 	if probe.heat_demand > 0.01:
-		_served = clampf(probe.heat_delivered / probe.heat_demand, 0.0, 1.0)
+		_served = clampf(_met() / probe.heat_demand, 0.0, 1.0)
 	_bar_max = maxf(1.0, maxf(probe.heat_demand, probe.heat_supply))
 	_deficit_focus = Vector2.ZERO
 	if not probe.short_networks.is_empty():
@@ -102,7 +125,7 @@ func _draw() -> void:
 	var x: float = 15.0
 	var col: Color = style.ink() if _served > 0.99 else style.sev_colour(
 		S.Sev.WARN if _served > 0.75 else S.Sev.DANGER)
-	x += style.draw_text(self, Vector2(x, _y_ratio), LcnHudFormat.rate(probe.heat_delivered),
+	x += style.draw_text(self, Vector2(x, _y_ratio), LcnHudFormat.rate(_met()),
 		style.fs(30), col) + 7.0
 	x += style.draw_text(self, Vector2(x, _y_ratio),
 		"/ %s" % LcnHudFormat.rate(probe.heat_demand), style.fs(17), style.ink_dim()) + 6.0
@@ -122,7 +145,7 @@ func _draw() -> void:
 		clampf(_served, 0.0, 1.0) * 0.6)
 	if _served < 0.75:
 		fill = style.sev_colour(S.Sev.DANGER)
-	style.draw_bar(self, bar, probe.heat_delivered / _bar_max, fill,
+	style.draw_bar(self, bar, _met() / _bar_max, fill,
 		probe.heat_demand / _bar_max)
 
 	# --- the tank ----------------------------------------------------------

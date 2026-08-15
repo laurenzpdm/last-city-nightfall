@@ -5,7 +5,7 @@ extends RefCounted
 ## Two reasons this is a file and not fifty inline `"%.1f" % x` calls:
 ##   * a player compares numbers across four panels, so 30 has to read as "30"
 ##     in all of them, not "30.0" in one and "30" in another;
-##   * unit strings ("u/s", "/min", "tiles") are the vocabulary of the game and
+##   * unit strings ("heat/s", "/min", "tiles") are the vocabulary of the game and
 ##     they belong in one place where they can be translated later.
 ##
 ## Pure static functions. No state, no engine dependencies, trivially testable.
@@ -47,7 +47,13 @@ static func signed(value: float) -> String:
 
 
 ## Heat and item flows are per second everywhere in this game.
-static func rate(value: float, unit: String = "u/s") -> String:
+##
+## THE DEFAULT UNIT IS THE ONE [P17] PRINTS, and it took three screenshots to
+## notice they were different words for the same measurement. The heat panel says
+## "58 / 67 heat/s"; this sheet, describing the same grid in the same frame, said
+## "57.5 u/s of 67.2 u/s" (`artifacts/play1/shots/opening.png`). A player has no
+## way to know those are one unit, and every call site here is a heat flow.
+static func rate(value: float, unit: String = "heat/s") -> String:
 	return "%s %s" % [num(value), unit]
 
 

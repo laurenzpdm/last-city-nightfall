@@ -8,7 +8,7 @@ extends RefCounted
 ##
 ##   1. WHAT does it open?        the buildings and abilities, by name
 ##   2. WHY NOW?                  measured against the city as it stands this
-##                                minute — "your grid is 34 u/s short and this
+##                                minute — "your grid is 34 heat/s short and this
 ##                                opens the Geothermal Tap" beats any tooltip
 ##                                that only quotes a research cost
 ##   3. WHAT IS IN THE WAY?       the exact prerequisites still missing
