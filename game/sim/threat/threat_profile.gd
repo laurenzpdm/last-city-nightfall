@@ -231,9 +231,9 @@ extends Resource
 ## spread evenly across the night, so `combat.enemies_alive` measured over 24000
 ## ticks peaked at **4** on every night of the campaign. Night two announced "a
 ## column out of the south-east, 28 units" and delivered four bodies, dead in
-## 120 ticks, four more 340 ticks later, eight times over. The doc comment two
-## lines below warned against producing "a drip rather than a wave" and the
-## constant above it produced exactly that.
+## 120 ticks, four more 340 ticks later, eight times over. `pulses_max` below
+## still carries the doc comment that warned against producing "a drip rather
+## than a wave"; the constant sitting above it produced exactly that.
 ##
 ## An arrival packet is now sized against the night it belongs to: a handful on
 ## the teaching night, a shield wall on night seven. `pulse_units()` is the
