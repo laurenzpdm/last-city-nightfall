@@ -1,7 +1,7 @@
 {
  "round": 4,
  "phase": "D \u2014 Integrate, play, judge",
- "state": "The integrator is closing threads nobody assigned it. Beyond the shipping blocker: the camera hotkey seam, the test that asserted nothing (fixed by putting the city into the state it is about, not by a cheap guard), D7s unfinished layout audit \u2014 where it proved D7s own last change would have made an honest and a lying implementation publish the same number \u2014 and the tautology on the first card a player ever reads, now: It is day 1. The column stopped here because there was nowhere further to stop.",
+ "state": "One red stage left in the whole gate, and it is the one the gate labels as noise: vfx_gpu, failed 2 of 3 identical reads. main stood at CHECK RED \u2014 10 with real defects before this wave. No reproducible code defect remains. The integrator is finishing; the playthrough agent and the two critics have never run, and they are what the wave was built for.",
  "agents_live": 1,
  "critic_score": 4.2,
  "blind_wins": 0,
@@ -210,7 +210,7 @@
  },
  "gate": {
   "label": "Gate (macOS CI)",
-  "value": "RED \u2014 2",
-  "note": "tutorial layer regression + perf 98 vs floor 100 at 1% spread"
+  "value": "RED \u2014 1",
+  "note": "and the gate itself calls it FLAPPING, not a regression"
  }
 }
