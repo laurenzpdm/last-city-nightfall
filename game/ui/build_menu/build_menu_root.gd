@@ -770,8 +770,30 @@ func _place_tooltip() -> void:
 	var floor_y: float = screen.y - 8.0
 	if stage.size.y > 1.0:
 		floor_y = stage.end.y
+	# AND IT STAYS OFF THE PANELS THE PLAYER OPENED ON PURPOSE. `left_block()` is
+	# the right edge of every open panel and was written for exactly this, but
+	# only the DOCKED branch above ever honoured it: the mouse-follow branch put
+	# the sheet at pointer + (18, 18) and clamped its left edge to 8.0, so a
+	# pointer resting over the palette drew a world inspection straight across
+	# [P18]'s own list.
+	#
+	# THE GATE COULD NOT SEE THIS, AND THAT IS THE INTERESTING HALF.
+	# `tests/d7/run_layout_audit.tscn` is green on 132 checks headless and red on
+	# four of those SAME 132 at a real 1920x1080 — same suite, same count, the
+	# checks simply flip. Headless there is no pointer over the palette, so the
+	# mouse-follow branch never runs and the precondition of the check is never
+	# met. Measured: palette x sheet overlap 5983 px² at 1920x1080, 6714 px² at
+	# font 1.4, pointer at (978, 558) against a palette running x 24..1013.
+	#
+	# Only applied when the sheet still fits on screen to the right of the block;
+	# otherwise the old clamp stands, because shoving a 380 px sheet off the
+	# right edge to save an overlap trades one unreadable panel for two.
+	var left_edge: float = 8.0
+	var block: float = left_block()
+	if block > 1.0 and block + 8.0 + tooltip.size.x <= screen.x - 8.0:
+		left_edge = block + 8.0
 	tooltip.position = Vector2(
-		clampf(pos.x, 8.0, maxf(8.0, screen.x - tooltip.size.x - 8.0)),
+		clampf(pos.x, left_edge, maxf(left_edge, screen.x - tooltip.size.x - 8.0)),
 		clampf(pos.y, 8.0, maxf(8.0, floor_y - tooltip.size.y)))
 
 
