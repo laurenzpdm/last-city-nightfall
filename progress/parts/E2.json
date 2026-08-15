@@ -1,0 +1,78 @@
+{
+  "ts": "2026-08-15T06:20:00Z",
+  "part": "E2",
+  "title": "The art grader was photographing the title screen. Here are the first honest numbers, and ten enemies instead of one blob.",
+  "the_grader_was_blind": {
+    "what it was": "tests/render/frame_lab.tscn wrote 24 PNGs across every hour and zoom. All 24 were the MAIN MENU. LcnMetaRoot._should_open_title() opens an opaque modal on layer 80 for any run that is not --harness, --ui-tour or --force-ui, and the frame lab is none of those. Reproduced before touching anything: every one of the 24 frames graded lum 0.043 / detail 0.0044 / chroma 0.045 / flat 0.89, identical to three decimal places across a 6.6x change of camera.",
+    "five layers were over the world, not one": "FeelScreen (61), OverlayWorld (62), OverlayUi (72), LcnBuildMenu (74), LcnStatsRoot (76), LcnNarrativeCard (78), LcnMetaRoot (80)",
+    "the fix that rots": "suppressing the menu. The next part to install a full-screen layer re-blinds the lab in silence.",
+    "the fix that does not": "two checks in front of the grade. CHROME asserts by name that nothing remains above [P13]'s own post layer when the shutter opens (hidden, not freed — freeing [P15]'s layer left [P14] and [P15] holding references and printed two script errors per frame). DIFF fingerprints every frame at 16x16 and fails when frames from different cells are the same picture, with a separate rule that zoom 1.60 and 0.24 must not match.",
+    "both go red on the old build": "reproduced"
+  },
+  "the_first_honest_numbers": {
+    "note": "Judged at zoom 0.60 because the overlay legend in a real run reads 'zoom 0.62 (normal)'. The lab's judged column moved from 0.85 to 0.60 for the same reason.",
+    "midday_play": "lum 0.485  detail 0.0155  chroma 0.186  p05 0.187  warm 0.0041  flat 0.00",
+    "afternoon_play": "lum 0.351  detail 0.0199  chroma 0.061  p05 0.130  warm 0.0157  flat 0.00",
+    "dusk_play": "lum 0.148  detail 0.0206  chroma 0.082  p05 0.043  warm 0.1360  flat 0.00",
+    "night_play": "lum 0.115  detail 0.0189  chroma 0.082  p05 0.024  warm 0.0439  flat 0.00",
+    "deep_night_play": "lum 0.099  detail 0.0183  chroma 0.110  p05 0.013  warm 0.0098  flat 0.00",
+    "dawn_play": "lum 0.171  detail 0.0187  chroma 0.144  p05 0.054  warm 0.0033  flat 0.00",
+    "30 frames, 435 pairs": "0 indistinguishable, 0 flat blocks anywhere",
+    "what this overturns": "the previously reported 0.428 / 0.167 / 0.0189 were the main menu. The world is NOT flat, NOT grey and NOT washed out: it runs 0.485 at noon to 0.099 at deep night at the zoom the game is played at, a 4.9x arc, with local structure 0.018-0.021 everywhere.",
+    "what it does NOT overturn": "the blind judge's '19/255 opening frame' is real and is a DIFFERENT thing. The harness opening beat sits at day_t 0.22, between the night and dawn keyframes, so it is graded night while the clock panel above it says 'Dawn - -27C'. That disagreement is between [P09]'s calendar and where a run starts, not between the palette and itself. Not mine to move."
+  },
+  "ten_enemies": {
+    "the bug": "world_renderer.gd:174 mapped every spawn with `&\"brute\" if String(kind).to_lower().contains(\"brute\") else &\"swarm\"`. Bus.enemy_spawned carries the REAL CombatEnemyDef.id, and not one of ash_spitter, cinder_leech, drift_hound, frost_shade, hoarfrost_breaker, keener, pale_stalker, permafrost_borer, rime_sapper, the_long_cold contains 'brute'. The expression was not crude, it was false for every input the simulation can produce.",
+    "also silently coarse": "CombatSystem.agents_for_view() hands over `kind` = render_arch AND `threat` = the real id. The streaming path read only the first. It now prefers the real id when [P13] has art for it.",
+    "the art": "ten silhouettes chosen so no two share footprint AND profile: hound wide+low, sapper round+cored, leech segmented arc, shade tall+hollow+legless, keener flared head on a stem, stalker the only wingspan, spitter a lopsided platform with a tube, borer a narrow cone in a spoil ring, breaker a broad plated slab, boss 52x48 with a spired crown.",
+    "facing": "model.agents() has published `facing` since the first pass and nothing read it — every enemy walked at the city sideways. One negative destination width, same batch.",
+    "death": "the creature's own outline thrown up and burned off over a stain that outlives it, drawn in the glow pass out of the same atlas, capped at 96, timed off SimClock.seconds() and never a frame delta."
+  },
+  "the_figure_floor": {
+    "the measurement that motivated it": "a building is 3-5 tiles and covers 60-160 screen px at zoom 0.60; a person is 14 world px and an enemy 13-48, i.e. 8-28 screen px. A blind judge found exactly ONE human figure in a real frame at 3x brightness.",
+    "what it is": "LcnEntityRenderer.agent_scale — an agent never draws under 17 screen px, growing by at most 2.4x, about its feet, with its contact shadow. True size whenever true size is legible; capped so a hound never becomes a building. Documented as a legibility convention, not as a claim about the world."
+  },
+  "verified": {
+    "tests/run_tests.gd (full in-process)": "78 suites, 1152 passed, 0 failed, 0 skipped, 87656 asserts (was 1125 at D5's report)",
+    "frame lab, full matrix + staged night": "TESTS PASSED, 30 frames, 435 pairs 0 indistinguishable",
+    "reachability --force-ui (xvfb)": "TESTS PASSED — 92 checks, 0 failures, 0 unchecked",
+    "tools/run_visual.sh first_night (xvfb)": "exit 0, no engine errors; [P13] preview settlement correctly REFUSED ('--harness: an automated run must never photograph a city that is not in the simulation'), world ready 0 structures (real), terrain=sim",
+    "DRAW CALLS, before vs after, same ticks and same scene contents (artifacts/CRIT/log.txt vs artifacts/E2_vis/log.txt)": "t1500 80bld/18ag 458 -> 458 | t3400 106/24 489 -> 489 | t5500 133/28 438 -> 438 | t7200 230/29 984 -> 981 | t8800 244/34 596 -> 598 | t9800 156/34 466 -> 472. Worst delta +6 calls (1.3%), and it is scene churn, not the enemies: all ten ride the one atlas.",
+    "FRAME COST, same rows": "5.53/7.36/6.19/6.80/6.36/5.73 ms -> 6.12/6.32/5.45/6.31/5.98/5.72 ms. Within noise on a shared four-core box; do not read a trend into it.",
+    "atlas": "78-82 sprites, 1024x1132-1165 px, still one texture for every entity pass",
+    "enemy visibility, deep night, zoom 0.60, differential capture (screen px each creature changes)": "hound 220, sapper 395, leech 181, shade 251, keener 143, stalker 271, spitter 296, borer 307, breaker 255, boss 657",
+    "tools/determinism.sh": "IDENTICAL twice — sha256 eb53db65e48be6a9 and bdfa00c1bfca8ca9. Everything I touched is in game/view/render/ and tests/render/; nothing reads or writes sim state."
+  },
+  "mutation_checks_proving_the_new_tests_can_fail": {
+    "restore the old mapping expression in agent_arch": "all ten report 'renders as itself ... got swarm' and '10 enemies produce 1 distinct render kinds'",
+    "set MIN_AGENT_PX to 0 (figure floor off)": "7 of 10 enemies go red as hairlines; drift_hound falls 220 -> 49 screen px, leech 186 -> 45, stalker 271 -> 66",
+    "run frame_lab --keep-chrome": "the CHROME check names LcnMetaRoot on layer 80 and refuses the whole report",
+    "revert preview_world.gd to HEAD": "3 of 4 preview tests fail with '39% of the settlement is its own mirror image', '10 houses occupy only 4 distinct y offsets', 'the west and east walls are not the same wall', 'the four sides use 2 distinct wall spacings'",
+    "a metric I had to throw away": "the first enemy-visibility check measured peak-vs-ring-median luminance. It reported ~0.60 whether the enemies were drawn full size, small, or with the figure floor switched OFF entirely — it moved by 0.02 across a 2.4x change in the thing it was grading, because on ground with drift structure 55% of any box departs from its own median. It was measuring the terrain. Replaced with a differential: the same frame photographed twice, once with entities.draw_agents off, and the creature's read is the difference. That one is zero when nothing is drawn."
+  },
+  "could_not_verify": [
+    "NO HARNESS SCREENSHOT SHOWS AN ENEMY. tools/run_visual.sh first_night does spawn and resolve wave 1 ('6 of 6 put down' at t8830), but the `assault` shot beat fires while the wave panel still reads 'still outside', so no frame in artifacts/E2_vis/shots contains a creature. The enemy art is verified through the unit suite (mapping, atlas, silhouette separation) and through the frame lab's staged night, which uses the real renderer, the real world model and the real atlas — but not yet through a photograph of live combat. INTEGRATOR or [P08]: moving the assault beat later, or adding a shot at contact, would close that.",
+    "PERF IS NOT MEASURED. Every millisecond above was taken on a four-core box shared with other agents. Draw CALL counts are deterministic and are the number to trust; frame cost is not.",
+    "tools/check.sh was not run end to end (40+ min). The pieces it runs were: parse (426 scripts, clean for everything I own), the full in-process suite, reachability, the frame lab and render_perf's sibling suites.",
+    "game/sim/combat/combat_system.gd does not currently parse — 'Could not find type NightToll'. That is another part's work in flight, it predates my first commit, and it is why parse_check reports one failing script. Nothing I own depends on it."
+  ],
+  "open": [
+    "INTEGRATOR / [P09]: the opening frame is graded NIGHT while the clock says 'Dawn'. tick 0 lands at day_t 0.22, which sits between the night (0.19) and dawn (0.27) keyframes, so a new game starts 93% black with a HUD that disagrees with it. The palette is right and the clock is right; where the run starts is the thing that is wrong. This is the whole of the '19/255 first frame' finding and no amount of art direction inside game/view/render/ can fix it.",
+    "[P07] combat: CombatSystem.agents_for_view() publishes `health` and [P13] draws nothing with it. A damaged 900 hp breaker looks exactly like a fresh one, which is most of why a night reads as unresolvable. I can draw a health read on an enemy the moment there is a decision about what it should look like — that is a legibility contract, not a private art choice.",
+    "[P14] vfx: the death mark is deliberately the SPRITE half only — a silhouette flash and a stain, no particles, no shards, no sound. It is drawn in [P13]'s glow pass so it costs no draw calls, and it is designed to sit UNDER whatever [P14] wants to add on top. Bus.enemy_killed carries the position; the render kind is now available from LcnWorldModel.agent_kind(id) before the agent is dropped.",
+    "[P24] meta: LcnMetaRoot._should_open_title() opens over ANY non-harness windowed run that does not pass --no-menu/--ui-tour/--force-ui. The frame lab now defends itself, but every future suite that photographs the world has the same trap waiting. A --no-menu-by-default for scenes under tests/ would remove the class.",
+    "The scattered props (ids 10000+) in the preview settlement are still placed from a plain RandomNumberGenerator seeded off the world seed. That is deterministic and correct, but it means the prop layer is noise where the settlement is now composed. If the placeholder city is ever judged on its own terms, that is the next thing to compose."
+  ],
+  "files": [
+    "game/view/render/sprite_factory.gd — ENEMY_KINDS, agent_arch(), ten bakers, the ten in the atlas",
+    "game/view/render/entity_renderer.gd — agent_scale() figure floor, facing, mark_death/_draw_deaths, deaths_drawn in stats()",
+    "game/view/render/world_renderer.gd — the mapping bug, the death hook, warming the ten sprites",
+    "game/view/render/world_model.gd — agent_kind(), prefer the real enemy id on the streaming path",
+    "game/view/render/preview_world.gd — the settlement off the lattice, four different walls",
+    "game/view/render/art_cache.gd — ART_VERSION v18",
+    "tests/render/frame_lab.gd — the CHROME and DIFF guards, the play zoom, the staged night, the differential visibility check, cache off",
+    "tests/render/test_sprites.gd — five enemy tests",
+    "tests/render/test_preview_world.gd — new",
+    "tests/render/bake_sheet.gd — the ten on the contact sheet, bottom-aligned"
+  ]
+}
