@@ -306,28 +306,42 @@ static func layer_of(key: StringName) -> int:
 ## "the part was not installed in this configuration".
 static func table_violations() -> PackedStringArray:
 	var out := PackedStringArray()
+	for row: Dictionary in table_rows():
+		out.append(String(row["why"]))
+	return out
+
+
+## The same rule as rows: {key, layer, why}. `violations()` folds these in so the
+## boot seam can name the offending PART and its layer in the log instead of
+## printing a sentence with no subject.
+static func table_rows() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
 	for key: StringName in NON_MODAL:
 		var mine: int = layer_of(key)
 		if mine < 0:
-			out.append("'%s' is named as non-modal but has no row in SLOTS" % String(key))
+			out.append({"key": key, "layer": -1,
+				"why": "is named as non-modal but has no row in SLOTS"})
 			continue
 		for other: StringName in WORK_SURFACES:
 			var theirs: int = layer_of(other)
 			if theirs < 0:
-				out.append("'%s' is named as a work surface but has no row in SLOTS"
-					% String(other))
+				out.append({"key": other, "layer": -1,
+					"why": "is named as a work surface but has no row in SLOTS"})
 				continue
 			if mine >= theirs:
-				out.append(("%s (%d) is not modal and must not sit above the work "
-					+ "surface %s (%d) — the player opened %s on purpose") % [
-					String(key), mine, String(other), theirs, String(other)])
+				out.append({"key": key, "layer": mine, "why":
+					("%s (%d) is not modal and must not sit above the work surface "
+					+ "%s (%d) — the player opened %s on purpose") % [
+					String(key), mine, String(other), theirs, String(other)]})
 		if mine <= HUD:
-			out.append("%s (%d) must sit above the HUD (%d): [P17]'s scrim is drawn "
-				% [String(key), mine, HUD]
-				+ "on the HUD layer and has to land between the world and the card")
+			out.append({"key": key, "layer": mine, "why":
+				("%s (%d) must sit above the HUD (%d): [P17]'s scrim is drawn on the "
+				+ "HUD layer and has to land between the world and the card") % [
+				String(key), mine, HUD]})
 		if mine >= MODAL:
-			out.append("%s (%d) must sit below MODAL (%d): only a surface that stops "
-				% [String(key), mine, MODAL] + "the world may be on top")
+			out.append({"key": key, "layer": mine, "why":
+				("%s (%d) must sit below MODAL (%d): only a surface that stops the "
+				+ "world may be on top") % [String(key), mine, MODAL]})
 	return out
 
 
@@ -412,9 +426,10 @@ static func violations(tree: SceneTree) -> Array[Dictionary]:
 				bad.append(_with_why(live[key],
 					"is not modal and is drawn at %d, over the work surface %s at %d"
 					% [mine, String(other), theirs]))
-	for line: String in table_violations():
-		bad.append({"key": &"table", "owner": "LcnLayers", "node": null, "path": "",
-			"expected": -1, "actual": -1, "ok": false, "known": true, "why": line})
+	for row2: Dictionary in table_rows():
+		bad.append({"key": row2["key"], "owner": "the LcnLayers table itself",
+			"node": null, "path": "", "expected": -1, "actual": int(row2["layer"]),
+			"ok": false, "known": true, "why": String(row2["why"])})
 	return bad
 
 

@@ -70,8 +70,8 @@ func _run() -> void:
 		bad += 1
 		print("  RANK: " + line)
 	for row: Dictionary in LcnLayers.violations(get_tree()):
-		if String(row.get("key", "")) == "table":
-			continue   # already printed above, from the table alone
+		if row.get("node") == null:
+			continue   # a table row — already printed above, from the table alone
 		bad += 1
 		print("  VIOLATION: %s (%s) at layer %d — %s" % [
 			String(row.get("key", "?")), String(row.get("owner", "?")),
