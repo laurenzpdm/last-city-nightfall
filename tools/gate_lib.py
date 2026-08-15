@@ -177,6 +177,7 @@ class AllowEntry:
     kinds: List[str] = field(default_factory=list)
     blame: Optional["re.Pattern[str]"] = None
     source: Optional["re.Pattern[str]"] = None
+    at: Optional["re.Pattern[str]"] = None
     max_per_run: int = -1
     problems: List[str] = field(default_factory=list)
 
@@ -186,6 +187,17 @@ class AllowEntry:
         if self.blame and not self.blame.search(rec.blame or ""):
             return False
         if self.source and not self.source.search(rec.source or ""):
+            return False
+        # `at:` narrows an entry to one ENGINE source location.  It exists
+        # because some of Godot's own messages carry no information at all —
+        # `Condition "status < 0" is true. Returning: ERR_CANT_OPEN` is emitted
+        # by the ALSA driver on a container with no sound card, and by a dozen
+        # unrelated subsystems for a dozen unrelated reasons.  Matching it on
+        # message alone would silence all of them, which is why it was left
+        # blocking and reddened `engine errors: boot` on every xvfb run.  With
+        # `at: drivers/alsa/` the entry says exactly which one it excuses, and
+        # the same message from anywhere else stays fatal.
+        if self.at and not self.at.search(rec.at or ""):
             return False
         return bool(self.match.search(rec.message))
 
@@ -264,11 +276,17 @@ def load_allowlist(path: str, today: Optional[_dt.date] = None) -> Tuple[List[Al
                 source = re.compile(b["source"].strip())
             except re.error as exc:
                 problems.append("source: is not a regex (%s)" % exc)
+        at = None
+        if b.get("at", "").strip():
+            try:
+                at = re.compile(b["at"].strip())
+            except re.error as exc:
+                problems.append("at: is not a regex (%s)" % exc)
         entry = AllowEntry(
             id=eid, match=pat, klass=klass or "tracked",
             owner=b.get("owner", "").strip(), why=why, expires=expires,
             kinds=[k.strip() for k in b.get("kinds", "").split(",") if k.strip()],
-            blame=blame, source=source,
+            blame=blame, source=source, at=at,
             max_per_run=int(b["max_per_run"]) if b.get("max_per_run", "").strip().isdigit() else -1,
             problems=problems,
         )

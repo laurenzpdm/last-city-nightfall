@@ -27,7 +27,18 @@
 # Optional:
 #   kinds:       comma list of ENGINE_ERROR, SCRIPT_ERROR, USER_ERROR, LOG_ERROR
 #   blame:       regex on the top GDScript frame, e.g. ^game/ui/hud/
+#   at:          regex on the ENGINE source location the error was raised from,
+#                e.g. drivers/alsa/.  Some of Godot's own messages carry no
+#                information at all and are emitted by unrelated subsystems for
+#                unrelated reasons; matching one on its message would silence all
+#                of them.  `at:` is how such an entry names the ONE it excuses.
 #   max_per_run: integer ratchet.  More occurrences than this fails anyway.
+#
+# A RATCHET CAN ALSO LIVE IN `match:`.  Two of the entries below suppress a leak
+# count with the NUMBER IN THE REGEX — two digits, or three — so the entry buys
+# silence for the residue that is there today and none at all for a regression.
+# `max_per_run` counts occurrences, which is the number of processes in a run;
+# when what must not grow is the number INSIDE the message, bound it in `match:`.
 #
 # There is no entry here for `add_child() failed`, for `String formatting error`
 # or for any SCRIPT ERROR, and there must never be one.  Those are bugs with an
@@ -36,25 +47,39 @@
 id: exit_resource_leak
 class: tracked
 kinds: ENGINE_ERROR
-match: ^\d+ resources still in use at exit
-owner: integrator — game/core/sim.gd teardown + whichever system holds a cycle
-why: Godot reports RefCounted cycles once, at process exit, after the run has
-     already produced its artifacts.  It cannot corrupt a replay or a metric, it
-     is identical in every scenario including an empty one, and the fix is a
-     teardown change in game/core/ which this part does not own.  It is tracked
-     rather than benign because a growing leak is a real regression: the count
-     is printed in every gate report so it cannot rot quietly.
+match: ^(?:[0-9]|[1-9][0-9]) resources still in use at exit
+owner: [P16] camera (statics in keybinds.gd, camera_services.gd, game_camera.gd)
+       and [P23] audio (statics in synth_recipes.gd, audio_bootstrap.gd)
+why: THE OLD JUSTIFICATION HERE WAS WRONG AND IS WORTH RECORDING AS WRONG.  It
+     said the leak "cannot corrupt a replay or a metric" because the engine only
+     reports it at process exit.  The report is at exit; the leak is not.
+     Sim.teardown() cleared two arrays while eleven systems went on holding each
+     other in a ring RefCounted cannot escape, so every world ever built stayed
+     resident — measured at 2287 -> 2471 -> 2655 objects across three teardowns
+     in ONE process, growing by ~184 per save load WHILE THE GAME RAN.  That was
+     a live memory regression an at-exit message was excusing.  It is fixed
+     (game/core/sim.gd _release_world + _exit_tree); what is left is 15-48
+     resources held by static vars in [P16] and [P23], which genuinely are
+     allocated once and never grow.  THE NUMBER IS NOW PART OF THE MATCH: this
+     entry suppresses two digits and no more, so 100+ is blocking and a
+     re-introduced cycle cannot hide behind the word "tracked" again.  Highest
+     reading across a full check.sh on 2026-08-14: 48 (tests/feel/feel_perf).
 expires: 2026-10-01
 
 id: exit_object_leak
 class: tracked
 kinds: ENGINE_ERROR
-match: ^\d+ ObjectDB instances were leaked at exit
-owner: integrator — game/core/sim.gd teardown
-why: Same event as exit_resource_leak seen from the object side, and reported by
-     the engine after the last artifact is written.  Kept visible with a count so
-     a jump from hundreds to thousands is readable in the report instead of being
-     filtered out of it, which is what the old check.sh did with grep -v ERROR.
+match: ^(?:[0-9]{1,2}|1[0-9]{2}) ObjectDB instances were leaked at exit
+owner: [P16] camera — 35 InputEventKey/InputEventMouseButton in static
+       _defaults/_overrides are the whole headless-to-windowed difference
+why: Same event as exit_resource_leak seen from the object side, and the same
+     correction applies: this was not harmless before exit, it was a world that
+     never went away.  After the teardown fix a headless run leaves 53 objects, a
+     windowed run 89, and the whole test suite in one process 32 — against
+     121967 for that last case before.  Like its sibling the CEILING IS IN THE
+     REGEX: 0-199 is tracked, 200+ is blocking, which would have caught the old
+     number on its first run.  Highest reading across a full check.sh on
+     2026-08-14: 129 (tests/feel/feel_perf).
 expires: 2026-10-01
 
 id: deliberate_log_error_in_a_test
@@ -86,3 +111,23 @@ why: The third face of the same at-exit report, and in the headless test process
      REAL texture type would be a genuine renderer regression and this keeps the
      type name in the report where someone will read it.
 expires: 2026-10-01
+
+id: no_sound_card_in_the_container
+class: benign
+kinds: ENGINE_ERROR
+at: drivers/alsa/audio_driver_alsa\.cpp
+match: ^Condition "status < 0" is true\. Returning: ERR_CANT_OPEN
+owner: nobody — this is the machine, not the build. Delete the entry the day CI
+       runs on a box with an audio device.
+why: Every xvfb boot in this container prints one of these from
+     init_output_device: there is no sound card, ALSA cannot open an output
+     device, and Godot falls back to the dummy driver and carries on. It reddened
+     `engine errors: boot` on every run of tools/check.sh here while the same
+     build is clean on macOS. The MESSAGE alone carries no information — Godot
+     emits that exact string from a dozen unrelated subsystems — which is
+     precisely why it was left blocking rather than allowlisted. `at:` is new and
+     is what makes this safe: the entry excuses the ALSA driver's own source
+     file and nothing else, so the identical message from anywhere else is still
+     fatal. benign rather than tracked because a missing sound card is not a
+     defect anyone can fix in this repository.
+expires: 2026-11-01
