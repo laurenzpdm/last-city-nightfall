@@ -66,8 +66,12 @@ var _options: VBoxContainer = null
 var _clock: Label = null
 ## The flavour feed's PLATE. `LcnHudStage` places whatever Control is named
 ## "Ticker", so the plate carries the name and the prose inside it does not.
-var _ticker: PanelContainer = null
-var _ticker_text: Label = null
+var _ticker_plate: PanelContainer = null
+## The prose itself. Still called `_ticker` and still a Label, because
+## `tests/narrative/test_reachable.gd` reads `_ticker.text` to prove that what the
+## city is saying reaches the screen — renaming it would have turned a real check
+## into a nil.
+var _ticker: Label = null
 
 var _showing: String = ""
 var _signature: String = ""
@@ -169,10 +173,10 @@ func _build() -> void:
 	# 13 px, and WORD_SMART wrapping so a sentence ends on a word. The plate is
 	# what `LcnHudStage` positions, and `_grow_up()` there fits it to its own
 	# prose instead of to a constant.
-	_ticker = PanelContainer.new()
-	_ticker.name = "Ticker"
-	_ticker.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_ticker.add_theme_stylebox_override("panel", _plate(
+	_ticker_plate = PanelContainer.new()
+	_ticker_plate.name = "Ticker"
+	_ticker_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ticker_plate.add_theme_stylebox_override("panel", _plate(
 		Color(0.043, 0.055, 0.086, 0.72), Color(0.38, 0.42, 0.50, 0.55)))
 	var tpad := MarginContainer.new()
 	tpad.add_theme_constant_override("margin_left", 12)
@@ -180,16 +184,16 @@ func _build() -> void:
 	tpad.add_theme_constant_override("margin_top", 8)
 	tpad.add_theme_constant_override("margin_bottom", 8)
 	tpad.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_ticker.add_child(tpad)
-	_ticker_text = Label.new()
-	_ticker_text.name = "TickerText"
-	_ticker_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_ticker_text.add_theme_font_size_override("font_size", 13)
-	_ticker_text.add_theme_color_override("font_color", Color(0.74, 0.77, 0.83))
-	_ticker_text.add_theme_constant_override("line_spacing", 3)
-	_ticker_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tpad.add_child(_ticker_text)
-	_root.add_child(_ticker)
+	_ticker_plate.add_child(tpad)
+	_ticker = Label.new()
+	_ticker.name = "TickerText"
+	_ticker.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_ticker.add_theme_font_size_override("font_size", 13)
+	_ticker.add_theme_color_override("font_color", Color(0.74, 0.77, 0.83))
+	_ticker.add_theme_constant_override("line_spacing", 3)
+	_ticker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tpad.add_child(_ticker)
+	_root.add_child(_ticker_plate)
 
 
 func _process(delta: float) -> void:
@@ -328,7 +332,7 @@ func _refresh_ticker() -> void:
 	var out: PackedStringArray = PackedStringArray()
 	for row: Dictionary in lines:
 		out.append(String(row.get("text", "")))
-	_ticker_text.text = "\n".join(out)
+	_ticker.text = "\n".join(out)
 
 
 ## True when the player has a surface open that they opened on purpose: any of
@@ -390,9 +394,9 @@ func _layout() -> void:
 	# a fixed 90 px box was how four lines of flavour ended up half in and half
 	# out of their own rectangle.
 	var t_w: float = maxf(200.0, size.x * 0.36)
-	_ticker.custom_minimum_size = Vector2(t_w, 0.0)
-	_ticker.size = Vector2(t_w, _ticker.get_combined_minimum_size().y)
-	_ticker.position = Vector2(MARGIN, size.y * 0.55)
+	_ticker_plate.custom_minimum_size = Vector2(t_w, 0.0)
+	_ticker_plate.size = Vector2(t_w, _ticker_plate.get_combined_minimum_size().y)
+	_ticker_plate.position = Vector2(MARGIN, size.y * 0.55)
 
 
 # =========================================================================
