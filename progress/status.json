@@ -1,11 +1,11 @@
 {
  "round": 4,
- "phase": "D \u2014 Integrate, play, judge",
- "state": "One red stage left in the whole gate, and it is the one the gate labels as noise: vfx_gpu, failed 2 of 3 identical reads. main stood at CHECK RED \u2014 10 with real defects before this wave. No reproducible code defect remains. The integrator is finishing; the playthrough agent and the two critics have never run, and they are what the wave was built for.",
- "agents_live": 1,
- "critic_score": 4.2,
- "blind_wins": 0,
- "blind_total": 0,
+ "phase": "D \u2014 judged. Round 5 next.",
+ "state": "Wave D is judged. Ten agents, zero errors, 19 hours. The critic scored it 4.1/10 across ten dimensions on the running build; the blind side-by-side gave it 1 win, 1 even, 8 losses against Factorio and Frostpunk.",
+ "agents_live": 0,
+ "critic_score": 4.1,
+ "blind_wins": 1,
+ "blind_total": 10,
  "parts": [
   {
    "id": "P01",
@@ -204,9 +204,50 @@
   "shots/opening.png"
  ],
  "verdict": {
-  "blind": [],
-  "summary": "Round 2 critic: 4.2/10 (up from 3.8). Perf 36 -> 122 ticks/s, 60fps at 1700 buildings, determinism holds. But the critic found the build menu is NEVER in the scene tree: add_child fails at boot, install() swallows it, boot logs success. 768 tests report green because Log.errors ignores engine-level errors.",
-  "biggest_gap": "Nothing you built is reachable, and the gate cannot see it. Until a human can open a menu, the eleven systems underneath are a simulation, not a game."
+  "summary": "Critic 4.1/10 on the running build. Strongest: heat and survival 7/10 \u2014 the causal chain fires end to end, cold -> a frozen sorter -> half rations -> an ultimatum -> exile -> an epilogue that names the dead. Legibility 6/10, and the overlay legends were called a real invention neither parent game has. Weakest: combat and the night 2/10, the automation pillar 3/10 (96% of all fuel in this city is carried on peoples backs), first impression 3/10, feel 3/10. The blind comparison: OURS 1 (information design), EVEN 1 (onboarding), THEIRS 8.",
+  "biggest_gap": "Two critics, two framings, one root. The critic: THE NIGHT DOES NOT HAPPEN \u2014 enemies_alive never exceeds 4 across three nights and 34 spawns, structures_lost and breaches are 0, and feel logs the first assault at strength 0.01. Three named constants each independently guarantee it. The blind judge: at the zoom the game is actually played at the frame is EMPTY, and everything worth looking at is stacked on top of it in the wrong order.",
+  "blind": [
+   {
+    "dimension": "Information design",
+    "winner": "ours"
+   },
+   {
+    "dimension": "Onboarding",
+    "winner": "even"
+   },
+   {
+    "dimension": "Opening frame and first minute",
+    "winner": "theirs"
+   },
+   {
+    "dimension": "The look of the world",
+    "winner": "theirs"
+   },
+   {
+    "dimension": "Core loop depth",
+    "winner": "theirs"
+   },
+   {
+    "dimension": "Automation: visibility and reward",
+    "winner": "theirs"
+   },
+   {
+    "dimension": "Pressure and consequence",
+    "winner": "theirs"
+   },
+   {
+    "dimension": "Feel, feedback and sound",
+    "winner": "theirs"
+   },
+   {
+    "dimension": "Long-session pacing",
+    "winner": "theirs"
+   },
+   {
+    "dimension": "Coherence and finish",
+    "winner": "theirs"
+   }
+  ]
  },
  "gate": {
   "label": "Gate (macOS CI)",
