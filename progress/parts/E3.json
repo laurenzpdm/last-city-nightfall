@@ -1,0 +1,93 @@
+{
+  "ts": "2026-08-15T00:00:00Z",
+  "part": "E3",
+  "title": "The story card was on top of everything the player opened. It is under it now, it stands down entirely, and the rank rule is a thing the gate can fail on.",
+  "owned": [
+    "game/core/ui_layers.gd",
+    "game/narrative/narrative_card.gd",
+    "game/ui/hud/hud_stage.gd",
+    "tools/layer_probe.gd (extended, as the task instructed)",
+    "tests/e3/run_layer_order.gd (new, my own suite)"
+  ],
+
+  "1_the_order": {
+    "what was wrong": "NARRATIVE 78 and TUTORIAL 79 sat ABOVE BUILD_MENU 74 and STATS 76. The card's own header argued 'it is answered, so it is on top'. It is not: the clock runs behind it, the deadline expires whether it is read or not, and the player can walk away — that is what non-modal means. MODAL (80) is the only layer that stops the world.",
+    "what changed": "NARRATIVE 66, TUTORIAL 67. Both above HUD 65 (so [P17]'s scrim still lands between the world and the card) and below OVERLAY_UI 72, BUILD_MENU 74, STATS 76, MODAL 80. narrative_card.gd's `const LAYER` now reads LcnLayers.NARRATIVE instead of carrying its own copy of 78.",
+    "one consequence, written down rather than discovered": "LcnHarness hides `layer >= LcnLayers.NARRATIVE` for the `.world` variant of every shot. That selector now means 'everything drawn over the city' (legend and panels included) rather than 'the card, the guide and the pause menu'. For a frame whose job is the city with the chrome off, that is the reading it should always have had."
+  },
+
+  "2_the_yield": {
+    "why order alone was not enough": "[P18]'s palette is 989 px wide at 1920x1080 and the card is 661. Underneath, it hangs 300 px out of the palette's right-hand side.",
+    "photographed before it was rejected": "artifacts/E3_probe/shots/01_palette.png — reorder without stand-down. The visible sliver reads 'still', 'at is the', 'miles that', 'when the', and the card's title bleeds through the palette's semi-transparent plate as a ghost across the building list. A torn fragment of a sentence is worse than no sentence.",
+    "what ships": "narrative_card.gd::_work_surface_open() — the card hides while any [P18] panel, [P20]'s stats screen or [P24]'s modal is open. Asked by GROUP and public method (open_panels / is_open), never by path or private flag; every lookup may come back null, so with none of those parts present the behaviour is exactly what it was. Not answered, not discarded: the sim's deadline is untouched and the card is back the frame after Escape. LcnHudStage republishes it as `card_deferred`."
+  },
+
+  "3_the_old_lie_was_half_true_and_that_was_worse": {
+    "the sentence": "LcnHudStage's header claimed the card drove 'the suppression of [P18]'s world-hover sheet' and pointed at card_visible(), which has exactly one caller — the scrim.",
+    "what I found instead of a lie": "the BEHAVIOUR is real and implemented, in [P18]'s _place_tooltip(): `if _hud_rect(&\"card\").size.x > 1.0: tooltip.visible = false`. What it reads is this file's `card_size`, through [P17]'s solver, arriving as solved_rect(\"card\") — not card_visible(). So I did NOT delete it as fiction (that would have been a new false comment). It now names card_size and says where the implementation lives.",
+    "why that matters here": "with the card standing down first, that rect goes empty and the sheet comes back — correctly, there is no decision left for an inspection to outrank."
+  },
+
+  "4_the_ticker": {
+    "what it was": "a bare Label, 12 px, AUTOWRAP_OFF, text shadow, laid straight on the caldera floor. In artifacts/CRIT/shots/dawn.png four lines run from the stage wall to x~1100 across the city and through [P19]'s world badges, and a line ends where the box does rather than where the sentence does.",
+    "what it is": "a PanelContainer plate at the card's own fill colour at 0.72 alpha, a 12/8 px margin, 13 px type, AUTOWRAP_WORD_SMART. LcnHudStage._grow_up() keeps the solver's WIDTH and FLOOR and fits the height to the prose, growing upward into the stage (down is [P17]'s stores shelf). The blocked-by-card test now measures the GROWN rect, so a longer feed yields to the card instead of climbing into it.",
+    "a trap I nearly walked into": "making `_ticker` the PanelContainer would have turned tests/narrative/test_reachable.gd's `card._ticker.text` into a nil against a property PanelContainer does not have — a real check silently asserting nothing. The plate is `_ticker_plate` and carries the node name; `_ticker` is still the Label.",
+    "before / after": "artifacts/CRIT/shots/dawn.png vs artifacts/E3_vis/shots/dawn.png"
+  },
+
+  "5_the_gate_can_now_fail_on_rank": {
+    "the rule": "LcnLayers.NON_MODAL x LcnLayers.WORK_SURFACES — a surface that does not stop the world may not sit at or above a surface the player opened on purpose. Plus: non-modal is strictly above HUD, strictly below MODAL.",
+    "why enforce() could never have caught it": "enforce() only corrects a layer that DISAGREES with the table. The card at 78 agreed with a table that said 78. Every check in the build was consistent with the defect.",
+    "four places it now fires": [
+      "LcnLayers.table_violations() / table_rows() — table only, no tree, no display",
+      "LcnLayers.violations() — the live tree, on the numbers the nodes REALLY have, so it also catches a part that ignores the table in _ready(). game/boot.gd already Log.errors every row, and tests/boot/run_reachability.tscn already asserts the list is empty",
+      "tests/e3/run_layer_order.gd — standalone, headless, picked up by tools/check.sh",
+      "tools/layer_probe.gd — prints RANK/VIOLATION lines and exits nonzero, against a real display"
+    ]
+  },
+
+  "verified_by_running": {
+    "tools/layer_probe.tscn --force-ui (xvfb, real display)": "10 canvas layers, 10 rows, no two on one number, 'LAYER PROBE — the stack is ordered', exit 0. Order read off the running build: 60 Post, 61 FeelScreen, 62 OverlayWorld, 65 LcnHud, 66 LcnNarrativeCard, 67 LcnTutorial, 72 OverlayUi, 74 LcnBuildMenu, 76 LcnStatsRoot, 80 LcnMetaRoot",
+    "--ui-tour (xvfb 1920x1080) — ALL SIX SCREENS OPENED AND LOOKED AT": "artifacts/E3_tour/, tour.json 0 failures, 17 steps. 01_palette: every cost column readable end to end ('60 iron · 40 steel · 140 stone' down to '8 iron · 25 timber') where the card used to cover the whole column. 02_recipes, 03_tech, 04_blueprints, 05_laws, 06_lcn_stats: no card anywhere.",
+    "NOTE ON THE DOCUMENTED COMMAND": "`$GODOT --path . --ui-tour --out=...` does nothing — boot.gd reads OS.get_cmdline_user_args(), so the `--` separator is required: `$GODOT --path . -- --ui-tour --out=...`. Without it the game launches normally and sits there until killed. The box's instructions are missing the `--`.",
+    "tests/boot/run_reachability.tscn --force-ui (xvfb)": "TESTS PASSED — 92 checks, 0 failures, 0 unchecked",
+    "tests/e3/run_layer_order.gd": "TESTS PASSED — 33 checks, 0 failures",
+    "tools/run_visual.sh first_night (xvfb)": "exit 0, 13 shots, engine errors 0 blocking. artifacts/E3_vis/shots/dawn.png is the plated ticker; dusk.png is the tall card with the ticker correctly yielding to zero height.",
+    "tests/d7/run_layout_audit.tscn headless (in tools/check.sh)": "132 checks, PASS",
+    "tools/check.sh --no-perf": "ran end to end; see 'the four reds and what each one is' below",
+    "in-process suite": "1152 passed, 0 failed, 0 skipped",
+    "determinism replay": "IDENTICAL (check.sh stage green). Nothing I touched runs headless at all: LcnLayers.view_wanted() is false, so neither the card nor the HUD is installed."
+  },
+
+  "mutation_checks_proving_the_new_tests_can_fail": {
+    "method": "the constants reverted to the shipped 78/79 in a scratch copy of the tree, everything else identical, every check re-run",
+    "tests/e3/run_layer_order.gd @ 78/79": "TESTS FAILED — 6 of 33. Names all four pairs (narrative x build_menu, narrative x stats, tutorial x build_menu, tutorial x stats), the table_violations() roll-up, and the live-tree half.",
+    "tests/e3/run_layer_order.gd @ NARRATIVE 65 (level with the HUD)": "TESTS FAILED — 3 of 33: above-the-HUD, table_violations(), and 'layer 65 is allocated once'",
+    "tests/e3/run_layer_order.gd @ NARRATIVE 80 (level with MODAL)": "TESTS FAILED — 6 of 33, including 'draws under MODAL' and the double allocation with meta",
+    "tools/layer_probe.tscn --force-ui @ 78/79 (xvfb, real display)": "prints 4 RANK lines and 4 VIOLATION lines naming P22 and P21 by owner, 'LAYER PROBE — 8 problem(s) above', EXIT 1. On the fixed tree the same command prints 'the stack is ordered' and exits 0.",
+    "tests/boot/run_reachability.tscn --force-ui @ 78/79": "FAIL 'no canvas layer violates the allocation table' and FAIL 'installing the view logged no errors (8 new)' — game/boot.gd Log.errors every row, so the harness fails the run as well as the suite",
+    "the live half is not a restatement of the table half": "run_layer_order builds its own CanvasLayers named LcnNarrativeCard and LcnBuildMenu at layers the table does NOT allocate, so violations() cannot be passing because it agrees with the constants. It also asserts the LEVEL case (card at BUILD_MENU's own number), which is the one enforce() can never see because both parties agree with the same row."
+  },
+
+  "the_four_reds_in_tools_check_sh_and_what_each_one_is": {
+    "visual run / engine errors: visual / reachability / engine errors: boot": "NOT MINE AND NOT REAL: I ran check.sh without xvfb, so those four stages hit 'Can't connect to a Wayland display' / 'X11 Display is not available'. Run under a display they are green: reachability TESTS PASSED 92/0/0 and run_visual.sh exit 0 with 13 shots, both above.",
+    "tests/feel/feel_gallery.tscn": "PRE-EXISTING. Reproduced byte-identical on a git worktree at e4b0cbd, the commit before my first: 'reduce motion: the same 33 anchors stay lit, they just stop moving (32)'. [P15]'s, untouched by anything here.",
+    "tests/feel/feel_perf.tscn": "perf on a four-core box shared with other agents; it passes when run on its own. Not chased, per the brief.",
+    "contract: first_night — production.crafts_total final 0": "NOT MINE. Two identical seeded runs of the current tree give crafts = 246 (floor is 10): `tools/run_sim.sh --scenario=first_night --ticks=24000` twice, artifacts/E3_rep1 and E3_rep2. The gate stage reads artifacts/gate/, which check.sh's own comment notes is shared by every agent, and E4 was rewriting tests/scenarios/first_night.json, tests/gate/expectations.json and tools/gen_scenarios.py in the working tree while my check.sh ran (their commit a4be5fe landed minutes later)."
+  },
+
+  "what_another_part_must_do": [
+    "[P18] — THE ONE THING MY CHANGE UNMASKED, AND IT IS A REAL DEFECT. With the card standing down, [P18]'s world-hover sheet is no longer suppressed, and its MOUSE-FOLLOW branch draws it on top of [P18]'s own open palette: with the pointer at the centre of a 1920x1080 screen the sheet lands at mouse+(18,18) = (978,558), which is 35 px inside a palette running x 24..1013. tests/d7/run_layout_audit.tscn --force-ui at a real 1920x1080 fails four cases on `palette x sheet` (7479, 7479, 8392, 5193 px²); the same suite is GREEN headless in tools/check.sh, because with no display the pointer is not over the palette. That pair was never measurable before: in the one audit state that opens the palette there was always a card up and the sheet was always hidden, which is why artifacts/d7/layout_audit.json has no 'sheet' rect in its build cases at all. The fix belongs in _place_tooltip(), which already computes left_block() for exactly this purpose and never applies it to the mouse-follow branch — one clamp, `pos.x = maxf(pos.x, left_block() + 10.0)` when left_block() > 0, or suppress the world-hover sheet outright while a browser is open.",
+    "[D2] / items_view — tests/items_view/item_frames.gd still works around the card by aiming the camera above the factory (its own comment says the card 'covered the whole factory in the first run of this suite and took the pixel comparison to zero'). The gallery opens no work surface, so the card does not stand down for it. LcnNarrativeCard.dismiss_current() is public for exactly this and goes through the same path a player's button does; one call at the top of the suite is cleaner than composing the shot around a dialogue box.",
+    "[P17] — LcnHudStage.card_deferred is published and nothing reads it. A one-line 'a decision is waiting' chip in the attention stack while a browser is open would close the only thing the stand-down costs the player. I did not invent a consumer for it and the comment says so.",
+    "[P21] / [P17] — the guide strip overlaps the stores shelf at the bottom of every tour frame (its 'food 5.3 days / grain 0 / rations 0' row sits over the STORES bar). Not a layer question and not mine; it is not in the d7 audit because the guide publishes no chrome_rects().",
+    "INTEGRATOR — the box's ui-tour command is missing its `--` separator (see above)."
+  ],
+
+  "could_not_verify": [
+    "tools/check.sh has not been run end to end UNDER A DISPLAY. The four display-dependent stages were each run individually under xvfb and are green; the composite run was not repeated, because it is 40+ minutes on a box four other agents are using.",
+    "PERF IS NOT MEASURED. Nothing here was timed and nothing should be read as a perf claim. _work_surface_open() costs two group lookups five times a second; _grow_up() costs one get_combined_minimum_size() per frame on one Control.",
+    "NO GAMEPAD / NO OTHER RESOLUTION FOR THE TOUR. The six screens were opened and looked at at 1920x1080 only. d7 covers eight configurations for overlap, but only headless in the gate.",
+    "The stand-down is verified against [P18]'s panels, [P20]'s stats and [P24]'s modal via their published API. I did not verify it against a part that lands after this wave; if a new full-screen surface appears it must join one of those three groups or the card will draw under it and stick out."
+  ]
+}
