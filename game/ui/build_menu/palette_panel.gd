@@ -421,21 +421,29 @@ class _PaletteRow extends PanelContainer:
 
 	func bind(entry: LcnBuildCatalog.Entry, pinned: bool, stock: Object) -> void:
 		kind = entry.id
+		# A capped entry reads exactly like a locked one, because to a player they
+		# are the same fact: the list is showing you something you cannot place,
+		# and it owes you the reason on the same line as the name. See
+		# `LcnBuildCatalog.refresh_caps` for what this was costing on row one.
+		var placeable: bool = entry.unlocked and not entry.capped
 		_glyph.def = entry.def
-		_glyph.dim = 1.0 if entry.unlocked else 0.45
+		_glyph.dim = 1.0 if placeable else 0.45
 		_glyph.queue_redraw()
 		_name.text = entry.display_name
 		_name.add_theme_color_override(&"font_color",
-			LcnUiStyle.TEXT if entry.unlocked else LcnUiStyle.TEXT_FAINT)
+			LcnUiStyle.TEXT if placeable else LcnUiStyle.TEXT_FAINT)
 		var bits: PackedStringArray = PackedStringArray()
 		bits.append(LcnUiFormat.category_name(entry.category))
 		if entry.tier > 1:
 			bits.append(LcnUiFormat.tier_mark(entry.tier))
 		if not entry.unlocked:
 			bits.append("locked — %s" % LcnUiFormat.item_name(entry.unlock_id))
+		elif entry.capped:
+			bits.append("the city has it already" if entry.max_count == 1
+				else "the city has all %d of them" % entry.max_count)
 		_sub.text = "  ·  ".join(bits)
 		_sub.add_theme_color_override(&"font_color",
-			LcnUiStyle.WARN if not entry.unlocked else LcnUiStyle.TEXT_FAINT)
+			LcnUiStyle.WARN if not placeable else LcnUiStyle.TEXT_FAINT)
 
 		var bill: Variant = entry.def.get(&"cost")
 		var text: String = ""

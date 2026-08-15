@@ -256,14 +256,15 @@ func _open_chapter(index: int, ch: NarrativeCampaign.Chapter) -> void:
 		"priority": 100,
 		"focus": [],
 	}
-	_push(card)
+	var showing: bool = _push(card)
 	Log.info(TAG, "chapter %d: %s" % [index, ch.title])
 	Bus.narrative_event.emit(NarrativeDefs.EV_CHAPTER, {
 		"chapter": index, "key": String(ch.key), "title": ch.title,
 		"subtitle": ch.subtitle, "text": body,
 	})
-	Bus.alert_raised.emit(NarrativeDefs.SEV_NOTE, NarrativeDefs.EV_CHAPTER,
-		ch.title, Vector2.ZERO)
+	if not showing:
+		Bus.alert_raised.emit(NarrativeDefs.SEV_NOTE, NarrativeDefs.EV_CHAPTER,
+			ch.title, Vector2.ZERO)
 
 
 # =========================================================================
@@ -436,13 +437,20 @@ func _raise(def: NarrativeEventDef) -> void:
 		def.title, body, causes)
 	var card: Dictionary = _build_card(def, causes, int(row["seq"]), _tick,
 		_linger_deadline(def))
-	_push(card)
+	var showing2: bool = _push(card)
 
 	Log.info(TAG, "%s: %s" % [String(def.category), def.title])
 	Bus.narrative_event.emit(NarrativeDefs.EV_RAISED, card.duplicate(true))
-	Bus.alert_raised.emit(
-		NarrativeDefs.SEV_WARN if def.is_dilemma() else NarrativeDefs.SEV_NOTE,
-		StringName("narrative_" + String(def.id)), def.title, _focus_of(def))
+	# A DILEMMA STILL ANNOUNCES ITSELF EVEN WHILE IT IS ON SCREEN. That alert is
+	# severity 1: it goes to the attention stack and stays there for as long as
+	# the question is unanswered, which is the point of it. Only the severity-0
+	# note — the toast — is suppressed for a card the player is already reading.
+	if def.is_dilemma():
+		Bus.alert_raised.emit(NarrativeDefs.SEV_WARN,
+			StringName("narrative_" + String(def.id)), def.title, _focus_of(def))
+	elif not showing2:
+		Bus.alert_raised.emit(NarrativeDefs.SEV_NOTE,
+			StringName("narrative_" + String(def.id)), def.title, _focus_of(def))
 
 
 ## The card, as plain data. Nothing in here is a class from this folder, so a
@@ -499,12 +507,24 @@ func _focus_of(def: NarrativeEventDef) -> Vector2:
 	return Vector2(def.focus_cell) * 32.0
 
 
-func _push(card: Dictionary) -> void:
+## Returns TRUE when this card went straight to the front — which is to say, it
+## is the one the player is looking at right now.
+##
+## THE CARD AND THE TOAST WERE THE SAME SENTENCE TWICE. A chapter raises the
+## 660 px card that dims the whole city AND a severity-0 alert carrying the same
+## title, which [P17] puts in the toast lane: `artifacts/play1/shots/opening.png`
+## has "The Column Stopped Here" as a card in the middle of the screen and as a
+## chip at the bottom of it, in the first frame of the first minute. The toast is
+## worth having for a card that is QUEUED — the player cannot see that one and
+## should know it arrived — and it is noise for one they are reading.
+func _push(card: Dictionary) -> bool:
 	pending.append(card)
 	pending.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		if int(a["priority"]) != int(b["priority"]):
 			return int(a["priority"]) > int(b["priority"])
 		return int(a["seq"]) < int(b["seq"]))
+	return not pending.is_empty() \
+		and String(pending[0]["id"]) == String(card["id"])
 
 
 func _is_pending(id: StringName) -> bool:

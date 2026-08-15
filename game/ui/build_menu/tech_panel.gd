@@ -17,6 +17,13 @@ signal building_requested(kind: StringName)
 const PANEL_W: float = 900.0
 const PANEL_H: float = 600.0
 
+
+## True for a node description written to a colleague rather than to a player.
+## The two markers are the ones every offending node in this build actually uses,
+## and they are cheap enough to test on the one selected node per refresh.
+static func is_authors_note(text: String) -> bool:
+	return text.begins_with("THE BEAT") or text.contains("the player")
+
 var model: LcnTechModel = null
 var build_system: Object = null
 var research_system: Object = null
@@ -152,7 +159,28 @@ func _rebuild_detail() -> void:
 	_detail.add_child(LcnUiStyle.label(badge, LcnUiStyle.FS_SMALL, _state_colour(n.state)))
 	if n.flavour != "":
 		_detail.add_child(_wrapped(n.flavour, LcnUiStyle.ACCENT_SOFT))
-	if n.description != "":
+	# `description` IS NOT SHOWN, AND THAT IS THE FIX RATHER THAN THE OMISSION.
+	#
+	# `ResearchNode` documents the field as "THE BEAT. Written for a player, read
+	# by a designer", and all 45 nodes in `game/content/research/` are written the
+	# other way round — as notes to whoever builds the tree next. What this panel
+	# printed to a player, in `artifacts/play_tour/shots/03_tech.png`, was:
+	#
+	#   "THE BEAT: the first night the player watches a turret connect and
+	#    nothing happens. Raw damage is the least interesting answer in the
+	#    branch and the correct first one, because at this point the player does
+	#    not yet know what kind of enemy they are failing against."
+	#
+	# A city-management game speaking about "the player" in the third person,
+	# inside the research screen, in a build where every building, law and event
+	# holds its voice. The beat is already on screen in the game's own words —
+	# `flavour` above and "Why now" below, which is `urgency_line` measured
+	# against the city this minute — so nothing a player needed is lost. The
+	# authored notes stay in the .tres for the next person to work the tree.
+	# `ResearchNode.validate()` now names any node written that way, so this is
+	# reported in the log rather than quietly hidden. Restore this line the day
+	# the content is rewritten for the reader it claims.
+	if n.description != "" and not LcnTechPanel.is_authors_note(n.description):
 		_detail.add_child(_wrapped(n.description, LcnUiStyle.TEXT_DIM))
 
 	var why_text: String = n.why_now()
