@@ -1,10 +1,10 @@
 {
- "round": 4,
- "phase": "D \u2014 judged. Round 5 next.",
- "state": "Wave D is judged. Ten agents, zero errors, 19 hours. The critic scored it 4.1/10 across ten dimensions on the running build; the blind side-by-side gave it 1 win, 1 even, 8 losses against Factorio and Frostpunk.",
+ "round": 5,
+ "phase": "E \u2014 judged. Round 6 next.",
+ "state": "Wave E is judged, and the honest reading is that it did not move the critics. Same mean as wave D (4.1), and the blind comparison went from 1 win to 0 \u2014 two evens instead of one win. Real work landed: the night now takes structures (29 lost over 60k ticks against 6), the art grader was photographing the main menu and now grades the world at play zoom, the reference run automates. The critics still score it 4.1 and still lose eight dimensions.",
  "agents_live": 0,
  "critic_score": 4.1,
- "blind_wins": 1,
+ "blind_wins": 0,
  "blind_total": 10,
  "parts": [
   {
@@ -204,12 +204,12 @@
   "shots/opening.png"
  ],
  "verdict": {
-  "summary": "Critic 4.1/10 on the running build. Strongest: heat and survival 7/10 \u2014 the causal chain fires end to end, cold -> a frozen sorter -> half rations -> an ultimatum -> exile -> an epilogue that names the dead. Legibility 6/10, and the overlay legends were called a real invention neither parent game has. Weakest: combat and the night 2/10, the automation pillar 3/10 (96% of all fuel in this city is carried on peoples backs), first impression 3/10, feel 3/10. The blind comparison: OURS 1 (information design), EVEN 1 (onboarding), THEIRS 8.",
-  "biggest_gap": "Two critics, two framings, one root. The critic: THE NIGHT DOES NOT HAPPEN \u2014 enemies_alive never exceeds 4 across three nights and 34 spawns, structures_lost and breaches are 0, and feel logs the first assault at strength 0.01. Three named constants each independently guarantee it. The blind judge: at the zoom the game is actually played at the frame is EMPTY, and everything worth looking at is stacked on top of it in the wrong order.",
+  "summary": "Critic 4.1/10 again \u2014 first impression 4, world 4, legibility 5, automation 2, heat 7, night 2, onboarding 5, feel 4, coherence 5, keep-playing 3. Blind: OURS 0, EVEN 2 (information design, onboarding), THEIRS 8. The composition moved \u2014 onboarding and feel up, legibility and world down \u2014 but the total did not.",
+  "biggest_gap": "THE CITY WILL NOT STAFF ITSELF, and one function is why. At tick 24000: 60 job capacity, 39 required slots, 41 employable workers \u2014 every required slot fillable twice over \u2014 yet twelve buildings are understaffed and eight have assigned:0, including five of seven coal generators and the only smelter. assign_jobs() at game/sim/citizens/citizen_job_board.gd:463 fills each site with while site.assigned < site.capacity and never reads site.required, a field it already has. The Hearth takes 8 against a requirement of 4 and everything built later starves. The blind judge names the same failure from the other end: a world-class anticipation layer bolted to nothing \u2014 make night 2 breach the wall, burn a housing block, kill four people the player can name.",
   "blind": [
    {
-    "dimension": "Information design",
-    "winner": "ours"
+    "dimension": "Information design and legibility",
+    "winner": "even"
    },
    {
     "dimension": "Onboarding",
