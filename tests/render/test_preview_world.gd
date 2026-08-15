@@ -71,6 +71,33 @@ func test_the_settlement_does_not_fold_in_half() -> void:
 			% (f * 100.0))
 
 
+## AND NEITHER DOES THE STREET PLAN. The buildings were unfolded a pass ago and
+## the roads were not: four avenues of identical length on the two screen axes
+## and two complete concentric rings are symmetric under reflection in BOTH
+## axes, so the paved half of the frame — which is most of the ground a player
+## looks at inside the walls — folded onto itself exactly. The old `_lay_roads`
+## scores 1.000 here.
+func test_the_street_plan_does_not_fold_in_half() -> void:
+	var paved: int = 0
+	var mirrored: int = 0
+	var flipped: int = 0
+	for dy: int in range(-30, 31):
+		for dx: int in range(-34, 35):
+			var c: Vector2i = _w.centre + Vector2i(dx, dy)
+			if _w.terrain_at(c) != LcnPalette.Terrain.PAVED:
+				continue
+			paved += 1
+			if _w.terrain_at(_w.centre + Vector2i(-dx, dy)) == LcnPalette.Terrain.PAVED:
+				mirrored += 1
+			if _w.terrain_at(_w.centre + Vector2i(dx, -dy)) == LcnPalette.Terrain.PAVED:
+				flipped += 1
+	assert_gt(float(paved), 400.0, "there is a street plan to judge (%d paved tiles)" % paved)
+	var lr: float = float(mirrored) / float(paved)
+	var ud: float = float(flipped) / float(paved)
+	assert_lt(lr, 0.72, "%.0f%% of the streets are their own left-right mirror" % (lr * 100.0))
+	assert_lt(ud, 0.72, "%.0f%% of the streets are their own up-down mirror" % (ud * 100.0))
+
+
 ## Houses on a lattice are the other half of the same read. Every habitat used to
 ## sit on a multiple of five in x and a multiple of two in y.
 func test_housing_is_not_laid_out_on_a_grid() -> void:

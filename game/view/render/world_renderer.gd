@@ -123,9 +123,12 @@ func _on_world_created(_seed_value: int) -> void:
 	if terrain != null:
 		terrain.clear_all()
 	if entities != null:
-		# A new world does not inherit the last one's dead or its footprints.
+		# A new world does not inherit the last one's dead, its footprints or the
+		# rocks that were standing on the last one's plain.
 		entities.clear_deaths()
 		entities.clear_tracks()
+		if entities.scenery != null:
+			entities.scenery.setup(Rng.seed_value)
 	_first_frame = true
 
 
@@ -136,6 +139,10 @@ func _on_world_ready() -> void:
 	terrain.clear_all()
 	terrain.bind_world()
 	entities.bind_field(terrain.field)
+	# The plain's furniture is read off the terrain, and the terrain has just
+	# been rebound to a different world.
+	if entities.scenery != null:
+		entities.scenery.setup(Rng.seed_value)
 	if terrain.field != null:
 		post.bind_heat_field(terrain.field.heat_tex,
 			Vector2(terrain.field.size) * float(TILE))

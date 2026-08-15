@@ -44,7 +44,6 @@ func _init(world_seed: int, world_size: Vector2i = Vector2i(500, 500), core: Vec
 func generate() -> void:
 	_lay_roads()
 	_place_settlement()
-	_scatter_props()
 	_spawn_agents()
 
 
@@ -243,33 +242,6 @@ func _place_settlement() -> void:
 		id += 1
 	for i4: int in range(-10, 6):
 		buildings.append({"id": id, "kind": &"pipe", "cell": centre + Vector2i(i4, 7)})
-		id += 1
-
-
-func _scatter_props() -> void:
-	var id: int = 10000
-	for i: int in 260:
-		var a: float = _rng.randf() * TAU
-		var r: float = 34.0 + _rng.randf() * 150.0
-		var cell := centre + Vector2i(int(cos(a) * r), int(sin(a) * r))
-		if cell.x < 2 or cell.y < 2 or cell.x >= size.x - 2 or cell.y >= size.y - 2:
-			continue
-		if _roads.has(_key(cell)):
-			continue
-		var t: int = terrain_at(cell)
-		if t == LcnPalette.Terrain.WATER_FROZEN or t == LcnPalette.Terrain.ICE:
-			continue
-		var roll: float = _rng.randf()
-		var kind: StringName = &"rock_outcrop"
-		if t == LcnPalette.Terrain.ROCK or t == LcnPalette.Terrain.GRAVEL:
-			kind = &"rock_outcrop"
-		elif roll < 0.45:
-			kind = &"dead_tree"
-		elif roll < 0.62:
-			kind = &"ruin_pile"
-		elif roll < 0.70:
-			kind = &"wreck_hulk"
-		buildings.append({"id": id, "kind": kind, "cell": cell})
 		id += 1
 
 

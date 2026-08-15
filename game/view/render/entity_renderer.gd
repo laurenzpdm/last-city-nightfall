@@ -69,6 +69,9 @@ const MAX_AGENT_SCALE: float = 2.4
 var model: LcnWorldModel = null
 var sprites: LcnSpriteFactory = null
 var field: LcnTerrainField = null
+## What stands on the plain that nobody built. See LcnScenery.
+var scenery: LcnScenery = null
+var draw_scenery: bool = true
 
 var grade: Dictionary = {}
 var view_rect: Rect2 = Rect2()
@@ -161,6 +164,9 @@ var _step_tick: int = -1
 ## visible structures that alone was 3 ms of allocation before a single pixel was
 ## drawn. `_vis_b` only holds references the model already owns.
 var _vis_b: Array[Dictionary] = []
+## Visible scenery, and six floats each: dest x, dest y, w, h, atlas x, atlas y.
+var _vis_s: Array[Dictionary] = []
+var _vis_s_src: PackedFloat32Array = PackedFloat32Array()
 var _vis_rect: PackedFloat32Array = PackedFloat32Array()
 var _vis_src: PackedFloat32Array = PackedFloat32Array()
 ## Atlas region of each visible structure's EMISSIVE mask, parallel to _vis_b.
@@ -206,6 +212,8 @@ class Pass extends Node2D:
 func setup(world_model: LcnWorldModel, sprite_factory: LcnSpriteFactory) -> void:
 	model = world_model
 	sprites = sprite_factory
+	scenery = LcnScenery.new()
+	scenery.setup(Rng.seed_value)
 	_rebuild_atlas()
 
 	_shadow = _make_pass("ShadowPass", 0, -40, false)
@@ -309,6 +317,7 @@ func _collect() -> void:
 		return
 	if model.building_stamp() != _atlas_stamp:
 		_rebuild_atlas()
+	_collect_scenery()
 
 	# The cull reads a flat float array the model keeps in step with its building
 	# list; no Dictionary is touched until a structure has actually survived it.
@@ -396,6 +405,33 @@ func _collect() -> void:
 
 
 ## Destination rect of the i-th visible structure, optionally nudged.
+## The plain's own furniture, resolved to atlas rects once a frame. Kept in its
+## own arrays and not merged into `_vis_b`, because scenery is not a structure:
+## it has no state, no heat, no emissive mask and nothing may select it.
+func _collect_scenery() -> void:
+	_vis_s.clear()
+	_vis_s_src.clear()
+	if not draw_scenery or scenery == null or zoom < LcnScenery.MIN_ZOOM:
+		return
+	var props: Array[Dictionary] = scenery.in_view(
+		model, field, view_rect.grow(96.0), model.building_stamp())
+	for p: Dictionary in props:
+		var arch: StringName = p["arch"]
+		var spec: Dictionary = LcnSpriteFactory.spec(arch)
+		var region: Rect2 = _regions.get(
+			LcnSpriteFactory.sprite_key(arch, spec["tiles"]), Rect2())
+		if region.size.x <= 0.0:
+			continue
+		var pos: Vector2 = p["pos"]
+		_vis_s.append(p)
+		_vis_s_src.append(pos.x - float(LcnSpriteFactory.PAD))
+		_vis_s_src.append(pos.y - float(LcnSpriteFactory.PAD) - float(spec["lift"]))
+		_vis_s_src.append(region.size.x)
+		_vis_s_src.append(region.size.y)
+		_vis_s_src.append(region.position.x)
+		_vis_s_src.append(region.position.y)
+
+
 func _rect_at(i: int, offset: Vector2) -> Rect2:
 	var o: int = i * 4
 	return Rect2(_vis_rect[o] + offset.x, _vis_rect[o + 1] + offset.y,
@@ -538,6 +574,7 @@ func stats() -> Dictionary:
 		"deaths_drawn": _deaths_drawn,
 		"tracks": _step_x.size(),
 		"tracks_drawn": _steps_drawn,
+		"scenery": _vis_s.size(),
 		"draw_us": _draw_us,
 		"collect_us": _collect_us,
 		"cull_us": _cull_us,
@@ -628,6 +665,16 @@ func _draw_shadows(ci: CanvasItem) -> void:
 					+ Vector2(dir.x * 3.0 - 3.0, 1.0),
 				Vector2(float(tiles.x), float(tiles.y)) * float(TILE) + Vector2(6.0, 6.0)),
 			_shadow_r, contact)
+
+	# Scenery gets a contact patch and nothing else. A rock that does not sit on
+	# the ground is a sticker, and a boulder casting a full architectural shadow
+	# is a building the player will try to click on.
+	for si: int in _vis_s.size():
+		var o: int = si * 6
+		ci.draw_texture_rect_region(_atlas,
+			Rect2(_vis_s_src[o] + dir.x * 2.0 + 3.0, _vis_s_src[o + 1] + _vis_s_src[o + 3] - 8.0,
+				_vis_s_src[o + 2] * 0.72, 9.0),
+			_shadow_r, Color(col.r, col.g, col.b, a * 0.85))
 
 	_draw_tracks(ci, col)
 
@@ -855,6 +902,18 @@ func _draw_main(ci: CanvasItem) -> void:
 			vis_ag.append(ag)
 	vis_ag.sort_custom(_agent_before)
 	_visible_agents = vis_ag.size()
+
+	# The plain first, under everything. Scenery is scattered where the city is
+	# not, so y-sorting it against the settlement buys nothing and costs a merge
+	# over a set that can be a thousand rocks at far zoom.
+	for si: int in _vis_s.size():
+		var o: int = si * 6
+		var spos := Vector2(_vis_s_src[o], _vis_s_src[o + 1])
+		var slit: Color = _light_for(spos, 0.0)
+		ci.draw_texture_rect_region(_atlas,
+			Rect2(spos, Vector2(_vis_s_src[o + 2], _vis_s_src[o + 3])),
+			Rect2(_vis_s_src[o + 4], _vis_s_src[o + 5], _vis_s_src[o + 2], _vis_s_src[o + 3]),
+			Color(slit.r, slit.g, slit.b, 1.0))
 
 	var frost: Color = LcnPalette.ICE_BLUE
 	var ai: int = 0

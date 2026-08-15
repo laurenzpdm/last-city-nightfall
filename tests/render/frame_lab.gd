@@ -353,8 +353,14 @@ const CROWD_TICKS: int = 64
 const CROWD_BLOCK: int = 24
 ## Changed pixels in a block before that block counts as "somebody is there".
 const CROWD_BLOCK_MIN: int = 7
-const CROWD_MIN_REACH: int = 6000
-const CROWD_MIN_PLACES: int = 45
+## MEASURED, both sides. This build: 46 agents, 400 boot marks, 14701 changed
+## pixels in 308 places. The build before this pass, photographed by this same
+## beat in a scratch worktree at HEAD~1: 46 agents, 0 boot marks, 10486 pixels
+## in 246 places. The floors sit between the two, so the check is red against
+## the code it was written for and has room for a frame that lands slightly
+## differently on another GPU.
+const CROWD_MIN_REACH: int = 12500
+const CROWD_MIN_PLACES: int = 275
 
 
 func _stage_the_crowd() -> void:
