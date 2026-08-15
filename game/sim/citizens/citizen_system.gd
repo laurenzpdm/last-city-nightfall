@@ -362,12 +362,15 @@ func _sync_city(tick: int) -> void:
 		var moved: int = board.assign_homes(pool, _homeless, MOVE_INS_PER_PASS)
 		if moved > 0:
 			Log.debug(TAG, "%d citizens moved into housing" % moved)
-	if not _jobless.is_empty():
-		var hired: int = board.assign_jobs(pool, _jobless, _child_labour, _elder_labour,
-			CitizenDefs.HIRES_PER_PASS)
-		if hired > 0:
-			_assign_shifts()
-			Log.debug(TAG, "%d citizens took a job" % hired)
+	# Called even when nobody is idle. On a settled map every pair of hands is
+	# already spoken for, so the only way a newly finished smelter ever gets a
+	# crew is for the board to take one back off a building that hired past what
+	# it needs — and that happens inside assign_jobs, not out here.
+	var hired: int = board.assign_jobs(pool, _jobless, _child_labour, _elder_labour,
+		CitizenDefs.HIRES_PER_PASS)
+	if hired > 0:
+		_assign_shifts()
+		Log.debug(TAG, "%d citizens took a job" % hired)
 
 
 ## Two slot lists the matcher needs, gathered in one pass.

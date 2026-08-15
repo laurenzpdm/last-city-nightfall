@@ -22,6 +22,12 @@ extends RefCounted
 ## Doors re-derived per refresh pass. Bounded on purpose — see _revalidate_doors.
 const DOOR_FIXES_PER_PASS: int = 8
 
+## How many crews may be re-cut in a single hiring pass. The surplus a building
+## took while it was the only building in town is the city's labour reserve, and
+## a city that has just finished a smelter should be SEEN to walk people over to
+## it across a shift — not to teleport its whole workforce in one tick.
+const TRANSFERS_PER_PASS: int = 2
+
 
 ## One building, as the population cares about it.
 class Site extends RefCounted:
@@ -458,32 +464,186 @@ func publish_workers() -> void:
 			b.set("workers", site.present)
 
 
+## The crew a site cannot run WITHOUT — never more than it has room for, because
+## a def is allowed to be wrong and a matcher is not.
+static func _need_of(site: Site) -> int:
+	return mini(site.required, site.capacity)
+
+
 ## Fills up to `limit` vacancies with the nearest idle worker. Hiring is
 ## deliberately gradual: a city that loses a shift should visibly scramble.
+##
+## Two passes, and the order between them is the whole point. `capacity` is how
+## many people a building has ROOM for; `required` is how many it needs to run at
+## all. A single greedy walk that fills each site to capacity in priority order
+## hands the front of the queue the entire labour force — the Hearth hired eight
+## against a need of four — and every building finished after that starves no
+## matter how much slack the city has. So:
+##
+##   1. every site's `required` crew, priority order, from the idle queue;
+##   2. anything still short is covered out of the SURPLUS of the sites that took
+##      more than they need, because on a settled map nobody is idle;
+##   3. and only then do spare hands deepen crews toward `capacity` — dealt out
+##      a layer at a time, because `required` is a crew ROSTER and a shift is
+##      what puts people in the room. A building carrying exactly its
+##      requirement has that many people in it only while none of them is
+##      asleep, eating or walking, so depth is what makes a crew reliable.
 func assign_jobs(pool: CitizenPool, jobless: PackedInt32Array, allow_child: bool,
 		allow_elder: bool, limit: int) -> int:
-	if jobless.is_empty():
+	if limit <= 0:
 		return 0
 	var taken: Dictionary[int, bool] = {}
+	var hires: int = 0
+	hires += _required_pass(pool, jobless, taken, allow_child, allow_elder, limit - hires)
+	hires += _reassign_surplus(pool, limit - hires)
+	hires += _deepen_pass(pool, jobless, taken, allow_child, allow_elder, limit - hires)
+	return hires
+
+
+## One walk down the hiring order, filling each site to the crew it cannot run
+## without and not one person further.
+func _required_pass(pool: CitizenPool, jobless: PackedInt32Array,
+		taken: Dictionary[int, bool], allow_child: bool, allow_elder: bool,
+		limit: int) -> int:
+	if limit <= 0 or jobless.is_empty():
+		return 0
 	var hires: int = 0
 	for i: int in job_ids.size():
 		if hires >= limit:
 			break
 		var site: Site = sites[job_ids[i]]
-		if not site.operational or site.assigned >= site.capacity:
+		if not site.operational:
 			continue
-		while site.assigned < site.capacity and hires < limit:
+		while site.assigned < _need_of(site) and hires < limit:
+			var pick: int = _nearest_worker(pool, jobless, taken, site,
+				allow_child, allow_elder)
+			# The queue rejects candidates on age and health, never on which site
+			# is asking, so an empty answer here is an empty answer for every site
+			# still to come. Walking the rest of the order would re-scan the whole
+			# sample once per vacancy to learn the same thing.
+			if pick < 0:
+				return hires
+			taken[pick] = true
+			_place(pool, pick, site)
+			hires += 1
+	return hires
+
+
+## Spare hands, spread before deep. Walking the order once and filling each site
+## to `capacity` is the same mistake as the loop this file replaced, one level
+## down: the Hearth would take every spare pair of hands for its fifth through
+## eighth body while the kitchen ran on the bare two that let it call itself
+## staffed. So the surplus is dealt out in layers — everybody gets a second body
+## before anybody gets a third — and priority only decides who gets each layer
+## first.
+func _deepen_pass(pool: CitizenPool, jobless: PackedInt32Array,
+		taken: Dictionary[int, bool], allow_child: bool, allow_elder: bool,
+		limit: int) -> int:
+	if limit <= 0 or jobless.is_empty():
+		return 0
+	var deepest: int = 0
+	for i: int in job_ids.size():
+		var s: Site = sites[job_ids[i]]
+		if s.operational:
+			deepest = maxi(deepest, s.capacity - _need_of(s))
+	var hires: int = 0
+	for depth: int in range(1, deepest + 1):
+		if hires >= limit:
+			break
+		for i: int in job_ids.size():
+			if hires >= limit:
+				break
+			var site: Site = sites[job_ids[i]]
+			if not site.operational:
+				continue
+			if site.assigned >= mini(_need_of(site) + depth, site.capacity):
+				continue
 			var pick: int = _nearest_worker(pool, jobless, taken, site,
 				allow_child, allow_elder)
 			if pick < 0:
-				break
+				return hires
 			taken[pick] = true
-			pool.job[pick] = site.id
-			pool.trade[pick] = site.trade
-			pool.hazard[pick] = 1 if site.hazard else 0
-			site.assigned += 1
+			_place(pool, pick, site)
 			hires += 1
 	return hires
+
+
+func _place(pool: CitizenPool, slot: int, site: Site) -> void:
+	pool.job[slot] = site.id
+	pool.trade[slot] = site.trade
+	pool.hazard[slot] = 1 if site.hazard else 0
+	site.assigned += 1
+
+
+## Moves people off crews that are deeper than they need to be and onto the
+## required slots nobody is standing in. Without this the two passes above only
+## help a city that still has idle hands; the one in the reference run had none,
+## because the first four buildings had hired everybody.
+##
+## Bounded per pass on purpose, and the whole re-cut is skipped in the ordinary
+## case where nothing is short.
+func _reassign_surplus(pool: CitizenPool, limit: int) -> int:
+	var budget: int = mini(limit, TRANSFERS_PER_PASS)
+	if budget <= 0:
+		return 0
+	var moved: int = 0
+	for i: int in job_ids.size():
+		if moved >= budget:
+			break
+		var site: Site = sites[job_ids[i]]
+		if not site.operational or site.assigned >= _need_of(site):
+			continue
+		while site.assigned < _need_of(site) and moved < budget:
+			# A donor is a donor regardless of who is asking, so once the city has
+			# no surplus left it has none for anybody.
+			if not _poach_one(pool, site):
+				return moved
+			moved += 1
+	return moved
+
+
+## Takes one worker off the least important overstaffed crew in the city and
+## puts them on `site`. Returns false when no building anywhere is carrying more
+## people than it needs — at which point the city is simply short of hands, and
+## the understaffed badge is telling the truth.
+func _poach_one(pool: CitizenPool, site: Site) -> bool:
+	# Reverse hiring order: lowest build_priority first, and among equals the
+	# highest id — the crew a city can most afford to thin is the last thing it
+	# decided it wanted.
+	for i: int in range(job_ids.size() - 1, -1, -1):
+		var donor: Site = sites[job_ids[i]]
+		if donor.id == site.id or donor.assigned <= _need_of(donor):
+			continue
+		var pick: int = _pick_from_crew(pool, donor, site)
+		if pick < 0:
+			continue
+		donor.assigned = maxi(0, donor.assigned - 1)
+		_place(pool, pick, site)
+		return true
+	return false
+
+
+## Whoever on the donor's roster stands closest to the door that needs them.
+## `pool.alive` is sorted, so equal distances always resolve to the same person
+## and a replay re-cuts the same crews.
+func _pick_from_crew(pool: CitizenPool, donor: Site, site: Site) -> int:
+	var best: int = -1
+	var best_d: int = 0x7FFFFFFF
+	var n: int = pool.alive.size()
+	for i: int in n:
+		var s: int = pool.alive[i]
+		if pool.job[s] != donor.id:
+			continue
+		# Reassigning someone who is in bed with fever fills the roster and not
+		# the building, which is the exact lie this whole change exists to stop.
+		if pool.illness[s] >= CitizenDefs.SICK_ONSET or pool.injury[s] >= CitizenDefs.INJURY_CLEAR:
+			continue
+		var from: Vector2i = pool.cell_of(s)
+		var d: int = absi(from.x - site.door.x) + absi(from.y - site.door.y)
+		if d < best_d:
+			best_d = d
+			best = s
+	return best
 
 
 func _nearest_worker(pool: CitizenPool, jobless: PackedInt32Array,
