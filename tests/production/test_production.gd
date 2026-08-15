@@ -874,12 +874,22 @@ func test_nothing_is_created_or_destroyed_across_a_craft() -> void:
 	var id: int = _place("smelter", _at("smelter"))
 	world.run(20)
 	var ore_before: int = _stock("iron_ore") + _machine(id).held(&"iron_ore")
-	var plate_before: int = _stock("iron_plate")
+	# COUNT THE PLATES AT THE MACHINE, NOT IN THE CITY'S STOCK. The city's stock
+	# is not a closed system and this assertion is about one craft: measured
+	# against `_stock("iron_plate")` it went red the moment [P18]'s research
+	# ledger started a node that costs iron_plate (ballistics, 40) inside this
+	# window, and it reported "36 ore for -2 plates" about a smelter that had in
+	# fact turned 36 ore into exactly 18 plates. `m.produced` is what this
+	# machine made, which is the only quantity the ratio is a claim about.
+	var plates_before: int = int(_machine(id).produced.get(&"iron_plate", 0))
 	world.run(900)
 	var m: ProdMachine = _machine(id)
 	var ore_after: int = _stock("iron_ore") + m.held(&"iron_ore")
-	var plates: int = _stock("iron_plate") - plate_before
+	var plates: int = int(m.produced.get(&"iron_plate", 0)) - plates_before
 	var ore_used: int = ore_before - ore_after
+	# And a smelter that smelted NOTHING satisfies 0 == 0. Say so out loud, or
+	# the conservation law below is green in exactly the case it cannot see.
+	assert_gt(float(plates), 0.0, "the smelter actually smelted in this window")
 	# Two ore per plate, plus the charge committed to the craft in flight.
 	assert_between(float(ore_used), float(plates * 2), float(plates * 2 + 2),
 		"every plate cost exactly two ore, no more and no less")

@@ -353,10 +353,24 @@ func test_the_death_spiral_actually_spirals() -> void:
 		pool.hunger[s] = 70.0
 		pool.warmth[s] = 25.0
 	var start_pop: int = int(cit.call("population"))
-	world.run(4000)
+
+	# HUNGER IS AN AVERAGE OVER THE LIVING, so it is only a measurement while
+	# there is somebody left to average. This assertion used to be taken at
+	# t=4000 and it stopped meaning anything the moment a run began mid-morning
+	# (ClimateProfile.opening_tick): t=4000 now lands after the cold has emptied
+	# the city, `avg_hunger` reads 0.0, and "nobody is starving" and "nobody is
+	# left" became the same number. Sampled at t=2000 instead, WITH the
+	# population asserted at the same instant, so the average can never be taken
+	# over an empty city and quietly pass or quietly fail.
+	world.run(2000)
+	var early: Dictionary = _report()
+	assert_eq(int(early["population"]), start_pop,
+		"everybody is still alive at t=2000 — otherwise the average below is over a remnant")
+	assert_gt(float(early["avg_hunger"]), 80.0, "everybody is starving")
+
+	world.run(2000)
 	var mid: Dictionary = _report()
 	assert_lt(float(mid["avg_warmth"]), 45.0, "nobody is warm")
-	assert_gt(float(mid["avg_hunger"]), 80.0, "everybody is starving")
 	assert_gt(float(cit.call("sick_count")) + float(mid["dead_total"]), 0.0,
 		"the cold has started taking people")
 	world.run(6000)
