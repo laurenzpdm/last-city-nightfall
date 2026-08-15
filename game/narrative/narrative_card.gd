@@ -42,6 +42,10 @@ var _title: Label = null
 var _lede: Label = null
 var _body: RichTextLabel = null
 var _because: VBoxContainer = null
+## The "BECAUSE" heading and the rule above it, kept so both can be hidden when
+## there is nothing under them. A heading with no rows is worse than no heading.
+var _because_head: Label = null
+var _because_rule: Control = null
 var _options: VBoxContainer = null
 var _clock: Label = null
 var _ticker: Label = null
@@ -110,10 +114,11 @@ func _build() -> void:
 	_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_column.add_child(_body)
 
-	_column.add_child(_rule())
+	_because_rule = _rule()
+	_column.add_child(_because_rule)
 
-	var because_head := _label("BECAUSE", 11, Color(0.55, 0.60, 0.68))
-	_column.add_child(because_head)
+	_because_head = _label("BECAUSE", 11, Color(0.55, 0.60, 0.68))
+	_column.add_child(_because_head)
 	_because = VBoxContainer.new()
 	_because.add_theme_constant_override("separation", 2)
 	_column.add_child(_because)
@@ -199,6 +204,15 @@ func _draw_card(card: Dictionary) -> void:
 		_because.add_child(_label(prose, 12, Color(0.70, 0.66, 0.58)))
 	for line: Variant in card.get("causes", []):
 		_because.add_child(_label("- " + String(line), 12, Color(0.62, 0.68, 0.76)))
+	# A CARD WITH NOTHING TO EXPLAIN SAYS NOTHING, rather than printing a heading
+	# over empty space. The opening beat is the case: it is the first card in the
+	# game and it has no cause, because nothing caused it.
+	var has_cause: bool = _because.get_child_count() > 0
+	if _because_head != null:
+		_because_head.visible = has_cause
+	if _because_rule != null:
+		_because_rule.visible = has_cause
+	_because.visible = has_cause
 
 	var opts: Array = card.get("options", [])
 	for child: Node in _options.get_children():

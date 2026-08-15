@@ -47,6 +47,15 @@ static func _chapter(key: StringName, title: String, subtitle: String, prose: St
 	return c
 
 
+## The opening beat's clause. It is `day >= 1` — always true, because the opening
+## is the opening — and it is worded, because the card prints it to the player.
+static func _opening_condition() -> NarrativeCondition:
+	var c := NarrativeCondition.make(&"day", NarrativeDefs.Cmp.GE, 1.0)
+	c.phrasing = ("It is day {value}. The column stopped here because there was "
+		+ "nowhere further to stop.")
+	return c
+
+
 ## Index 0 is the opening and always holds. Everything after it needs the world
 ## to have got there.
 static func chapters() -> Array[Chapter]:
@@ -63,7 +72,18 @@ static func chapters() -> Array[Chapter]:
 		+ "yet whether this is a camp or a city, and it will not be decided by "
 		+ "anyone saying it out loud. It will be decided by what is standing "
 		+ "when the light comes back.",
-		[NarrativeCondition.make(&"day", NarrativeDefs.Cmp.GE, 1.0)]))
+		# `day >= 1` is the gate, and the gate is right: index 0 always holds.
+		# What was wrong was letting the card SAY it. Every condition is printed
+		# under BECAUSE, so the first card in the game explained itself with
+		# "The day (1) is at or above 1." — a tautology, on the opening beat,
+		# under an otherwise excellent piece of prose, making a good feature look
+		# foolish on its most trivial case.
+		#
+		# `phrasing` is [P22]'s own override for exactly this, and the rule it
+		# protects still holds: the sentence carries the live number, and
+		# tests/narrative asserts that a beat without a stated cause is a
+		# cutscene. So the clause keeps its number and stops being a truism.
+		[_opening_condition()]))
 
 	out.append(_chapter(&"the_first_night", "The First Night",
 		"The dark comes up the caldera wall",
