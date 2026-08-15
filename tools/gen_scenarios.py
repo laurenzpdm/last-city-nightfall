@@ -56,6 +56,8 @@ DEFS = {
     "splitter_mk1": (1, 2, False, False, False),
     "underground_mk1": (1, 1, False, False, False),
     # --------------------------------------------------------------------------
+    "assembly_hall": (4, 4, False, False, True),
+    "bunker_chest": (1, 1, False, False, False),
     "coal_generator": (3, 2, False, False, True),
     "field_kitchen": (3, 2, False, False, True),
     "geothermal_tap": (3, 3, False, False, True),
@@ -724,6 +726,57 @@ def first_night():
     L.place(4500, "turret_mount", -9, -27)
     L.place(4560, "turret_mount", -5, -27)
     L.place(4620, "watchtower", -9, -30)                    # x119-120
+    # THE OUTPOST CARRIES ITS OWN FIRE, AND IT IS THE ONLY THING THAT MADE THIS
+    # DRILL WORK. Measured on the layout without it: `power 0.0000, reason
+    # no_heat` at every single checkpoint, 35 coal in three days against a band
+    # of 60. The drill is heat priority 55 — the second tier [P02] sheds — and it
+    # hangs off nineteen tiles of pipe at the far end of a grid that spends the
+    # third night 236 units short. The city was spending heat to dig the fuel
+    # that makes the heat, and losing on the trade.
+    #
+    # A burner standing ON the seam inverts that: 30 units of supply appear at
+    # the cold end of the pipe instead of being pushed down it, heat_radius 3.0
+    # covers the drill's own footprint so the two radiators stop being the only
+    # thing between it and a permanent freeze, and it burns 0.35 coal/s of the
+    # 0.80/s the drill lifts. The outpost is net positive in both currencies.
+    # The stub is a trunk main and not a pipe because it is also this burner's
+    # only route onto the grid.
+    L.line(4660, "heat_trunk_main", (-5, -28), (-5, -33))   # x123, y95-100
+    L.place(4700, "coal_generator", -4, -33)                # x124-126, y95-96
+
+    # THE HEAT-RECOVERY LOOP, RUN FOR THE FIRST TIME. game/sim/production/
+    # waste_heat.gd has shipped since the first wave and `waste.links` was `{}`
+    # and `waste_recovered` 0.000 in EVERY reference run to date, because no
+    # scenario had ever placed a recuperator. The smelter on the south rung
+    # throws off 2.4 units/s of recoverable waste; this stands one tile off the
+    # y135 main and exactly four tiles off the smelter's east face, which is the
+    # edge of `capture_radius`, and turns 3.0 of that into 15 units of grid
+    # supply for 2 of draw. It is the only heat source in this city that burns
+    # no coal — and it is the reason a player packs machines together instead of
+    # spreading them out.
+    #
+    # AND IT STANDS INSIDE THE HEARTH'S FIELD, WHICH TOOK TWO RUNS TO LEARN. The
+    # first version of this hung a recuperator straight off the y135 main at
+    # (141,136), one tile of pipe and no new trunk — and it FROZE. A recuperator
+    # is insulation 0.80, so it feels ambient + 24 and this map bottoms out at
+    # -34.88; at eleven tiles past the Hearth's radius that is -10.9 against a
+    # freezing point of -10. It spent the run as its own one-node heat network
+    # (`heat.networks` 2, `id: 7`, one consumer, one producer, delivering
+    # nothing) because a frozen node is not a node. Thirteen tiles of trunk buy
+    # a spot 10.8 tiles from the Hearth, which is inside its 14, and the rung
+    # itself radiates its 4 C minimum along the row the smelter's south face is
+    # on. Warmth is a placement problem in this game and this is what it costs.
+    L.line(4740, "heat_trunk_main", (13, 7), (13, 12))      # x141, y135-140
+    L.line(4760, "heat_trunk_main", (12, 12), (4, 12))      # y140, x140-132
+    L.place(4780, "recuperator", 4, 10)                     # x132-133, y138-139
+    # AND A GUN ON THE RUNG, FOR THE SAME REASON THE HEARTH'S BELT HAS ONE. The
+    # version before this one had none: at t16465 a cinder leech came up the
+    # south-east lane and ate SEVEN trunk mains in three hundred ticks, the
+    # recuperator spent the rest of the run as heat network `id: 7` with one
+    # consumer and one producer and no route to anything, and `heat.networks`
+    # ended at 2. Every metre of grid this city adds south of the founding rows
+    # is twenty metres of 220-hp trunk in the lane [P08] actually uses.
+    L.place(4820, "turret_mount", 2, 11)                    # x130-131, y139-140
 
     # The wall goes up before dusk. Forty-five sites at build priority 85 jump
     # the whole queue, which is why it waits until the yard, the belt and the

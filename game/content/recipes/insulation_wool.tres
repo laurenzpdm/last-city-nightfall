@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/production/recipe_def.gd" id="1_wool0"]
+
+[resource]
+resource_name = "Slag Wool"
+script = ExtResource("1_wool0")
+id = &"insulation_wool"
+display_name = "Slag Wool"
+description = "Molten slag poured onto a spinning wheel and thrown out as fibre. It is the same heap the furnace was going to build anyway, only now it is worth something."
+category = &"parts"
+tier = 2
+sort_order = 25
+inputs = Dictionary[StringName, int]({
+&"slag": 3
+})
+outputs = Dictionary[StringName, int]({
+&"insulation_wool": 2
+})
+time_ticks = 150
+machine_tags = Array[StringName]([&"crafter"])
+machines = Array[StringName]([&"workshop", &"assembly_hall"])
+heat_cost = 45.0
+waste_heat = 5.0
+min_temperature_c = -22.0
+tint = Color(0.7, 0.68, 0.6, 1)

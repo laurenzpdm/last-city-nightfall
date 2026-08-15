@@ -1600,6 +1600,78 @@
       }
     },
     {
+      "tick": 4660,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_trunk_main",
+        "from": [
+          123,
+          100
+        ],
+        "to": [
+          123,
+          95
+        ]
+      }
+    },
+    {
+      "tick": 4700,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          124,
+          95
+        ]
+      }
+    },
+    {
+      "tick": 4740,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_trunk_main",
+        "from": [
+          141,
+          135
+        ],
+        "to": [
+          141,
+          140
+        ]
+      }
+    },
+    {
+      "tick": 4760,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_trunk_main",
+        "from": [
+          140,
+          140
+        ],
+        "to": [
+          132,
+          140
+        ]
+      }
+    },
+    {
+      "tick": 4780,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "recuperator",
+        "cell": [
+          132,
+          138
+        ]
+      }
+    },
+    {
       "tick": 4800,
       "cmd": {
         "system": "build",
@@ -1612,6 +1684,18 @@
         "to": [
           114,
           93
+        ]
+      }
+    },
+    {
+      "tick": 4820,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          130,
+          139
         ]
       }
     },

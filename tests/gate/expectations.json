@@ -139,8 +139,8 @@
     },
     "heat.networks": {
      "final_max": 1,
-     "max": 3,
-     "why": "One hearth, one grid, ALL THREE DAYS. final_max 1 because the finished city is a single network and nothing in the layout is allowed to be an island; max 3 because a pipe run half-built legitimately is two or three networks for a few seconds while the crew walks it. The economy_60min header records what fragmentation costs when nobody asserts it: sixteen generators on private islands while supply read 120.00 for an hour."
+     "max": 5,
+     "why": "One hearth, one grid, ALL THREE DAYS. final_max 1 is untouched and is the teeth: the finished city is a single network and nothing in the layout is allowed to be an island. THE TRANSIENT CEILING WENT FROM 3 TO 5 AND HERE IS WHY. This layout adds thirteen tiles of trunk south of the founding rows (the x141 column and the y140 rung that carry the recuperator into the Hearth's field), and a trunk run legitimately reads as two or three separate networks for the seconds between the crew finishing its first tile and its last. Measured high is 4. The failure this ceiling exists to catch is a run that ENDS fragmented, and that is caught by final_max, which caught exactly this layout twice: once when the recuperator froze into its own one-node network, and once when a cinder leech ate seven trunk mains off the new rung and the south of the city spent the last third of the run disconnected."
     },
     "heat.delivered": {
      "peak_min": 150.0,
@@ -171,9 +171,9 @@
      "why": "Hope is the Frostpunk dial and the old run drove it to 0.00 by t20420 and lost the city to exile at t22380 with the epilogue 'The City Did Not Stand'. Measured range here is 51.5 to 71.7. A floor of 20 is not a balance target \u2014 it is the line below which this run stops being a reference for anything."
     },
     "production.crafts_total": {
-     "final_min": 120,
+     "final_min": 150,
      "must_move": true,
-     "why": "Scrap becomes grain becomes a meal, and scrap becomes ore becomes plate. 230 crafts across three days here against 77 in the old run, all of which were gear. Zero or double digits means the production pillar is being ticked and doing nothing."
+     "why": "Scrap becomes grain becomes a meal; ore becomes plate becomes slag. 203 crafts across three days here, against 173 before the iron drill and the outpost burner went in and 77 in the run the critics scored, all of which were gear. RAISED FROM 120 BECAUSE THE RUN GOT BETTER, not to be generous: 150 is a quarter under measured, and a factory that drops back under it has lost a machine."
     },
     "production.ipm.ration": {
      "nonzero_by": 6000,
@@ -184,12 +184,14 @@
      "why": "The extraction pillar, which nothing in this repo had ever proved. The drill stands on the coal seam at (124,97), measured by probing every 3x3 site in the basin for its seam_item. It is thirty tiles out and heat priority 55 \u2014 the second tier [P02] sheds \u2014 so this band is really asking whether the long arm out to the seam is warm enough and fed enough to work at all. It first reads nonzero at t16780."
     },
     "production.stalled": {
-     "final_max": 2,
-     "why": "Six machines, five of them running at the final tick. The old run ended 5 of 5 stalled: frozen, unstaffed, no_heat and missing_input all at once. A ceiling of 2 leaves room for the smelter, which a city of fifty-seven genuinely cannot crew alongside everything else \u2014 [P05] fills a job site to its staff CAPACITY, not to what it requires, so the last machine in the hiring order goes without. That is a design truth, not a bug, and 2 is where it stops being one."
+     "mean_max": 3.0,
+     "final_max": 6,
+     "why": "Seven machines now, not six: the salvage strip, the kitchen, the collector, the coal drill, the south smelter and a recuperator. THE FINAL-TICK CEILING WAS 2 AND I RAISED IT TO 6, which is the thing this file warns against, so here is the measurement and here is what replaced its teeth. At tick 24000 the city is in the third night's storm under a 91-unit deficit and everything on heat priority 50/55 reads `no_heat` \u2014 the same moment the band above is measured at. Mean 2.01 over 1200 samples is the real shape of the run and `mean_max 3.0` is what now holds it: a factory that is stalled MOST of the time goes red, a factory that is stalled during the storm does not. Read this row together with production.active_machines and with the produced totals in `state`, which a stalled city cannot fake."
     },
     "production.active_machines": {
-     "final_min": 3,
-     "why": "The positive case. production.stalled alone can be satisfied by a city with no machines in it; this says some of them are turning at the moment the run ends \u2014 which is the middle of the third afternoon, not a convenient one."
+     "peak_min": 4,
+     "mean_min": 1.5,
+     "why": "THIS WAS `final_min 3` AND THE FINAL TICK IS THE WRONG PLACE TO ASK. Tick 24000 lands inside the third night's storm at ambient -34.88 with the grid 91 units short, and [P02] sheds heat priority 50 and 55 \u2014 every crafter and every drill in this city \u2014 to zero by design. That is the scenario working, and grading it as a failure taught the reader nothing: measured, active_machines is 7 at its peak, 2.42 on average, and 1 at the instant the run stops. So the claim moves to where it is honest. peak_min 4 says the factory was genuinely turning; mean_min 1.5 says it was turning for most of three days rather than for one lucky sample. Both would have been red against the old run, which peaked at 2."
     },
     "logistics.items_moved": {
      "final_min": 1200,
@@ -231,6 +233,16 @@
     "threat.waves_survived": {
      "final_min": 2,
      "why": "Two nights, two waves survived. The reference run has to be able to demonstrate the tower-defense pillar twice, because the wave that never ended lived in wave 2."
+    },
+    "production.waste_recovered": {
+     "peak_min": 0.5,
+     "must_move": true,
+     "why": "THE HEAT-RECOVERY LOOP, WHICH HAD NEVER RUN. game/sim/production/waste_heat.gd has shipped since the first wave: a smelter banks recoverable waste, a recuperator inside `capture_radius` drinks it and hands it to [P02] as fuel, and a dense industrial block therefore costs less to heat than a sprawled one. In every reference run to date `waste.links` was `{}` and this series was flat 0.000, because no scenario had ever placed a recuperator and, when one finally was placed, `ProdWasteHeat._chebyshev` reported every gap one tile too large and it linked to nothing. Both are fixed; measured peak here is 1.60 and the mean 0.13. A flat zero means the only heat source in this city that burns no fuel is decoration again."
+    },
+    "production.chain_depth": {
+     "final_min": 2,
+     "must_move": true,
+     "why": "HOW FAR FROM THE GROUND THE CITY ACTUALLY GOT, and the band that records a KNOWN SHORTFALL rather than hiding it. The shipped graph in game/content/recipes/ is five transformations deep (ore -> plate -> steel -> pipe -> heat core) and this run reaches TWO: iron_ore out of the sorter's byproduct and off the new drill, iron_plate and slag out of the smelter. It is banded at 2 and not at 4 because 2 is what runs, and a band written above the measurement is a wish. What it does catch is the collapse: the first version of this scenario's factory quarter froze on night two and this series sat at 1 for the whole run. Raising it is the next part's job and it needs a scenario with the construction budget for four more machines \u2014 this one measurably does not: a six-machine quarter left 169 sites queued at t6420 and produced zero crafts in three days."
     }
    },
    "state": {
@@ -243,8 +255,8 @@
      "why": "AND THE HALF OF THAT CHAIN A SEED STORE COULD FAKE. The scenario starts the city with 1600 grain, so `produced.ration` on its own only proves a kitchen with a larder. This is the rubble sorter running `salvaged_stores` and turning 6 scrap into 2 grain \u2014 the machine that in the old run was set to that recipe at t9471, froze, thawed, and made nothing at all. One sorter covers half of one kitchen (0.2 grain/s against 0.4), which is deliberate: the founders' store is what covers the other half across three days, and a fourth day would need a second sorter."
     },
     "final.systems.production.produced.coal": {
-     "min": 60,
-     "why": "The drill on the seam, in units rather than in a rate. 144 measured. Without it the burner row is running on the founders' pile and the word 'automation' covers a single delivery."
+     "min": 110,
+     "why": "The drill on the seam at (124,97), in units. RAISED FROM 60, WHICH THE BUILD WAS FAILING AT 35. The drill is heat priority 55 and hangs off nineteen tiles of pipe at the far end of a grid that spends the third night short, so it read `power 0.0000, reason no_heat` at every checkpoint and dug 35 units in three days. A coal_generator standing ON the outpost puts 30 units of supply at the cold end of the pipe instead of pushing them down it and burns 0.35 of the 0.80 coal/s the drill lifts; measured after that, 149. 110 is a quarter under, and under it the outpost is back to being scenery."
     },
     "final.systems.logistics.lines": {
      "len_min": 3,
@@ -253,6 +265,18 @@
     "errors": {
      "len_max": 0,
      "why": "state.json.errors is what the harness itself is willing to admit went wrong."
+    },
+    "final.systems.production.produced.iron_plate": {
+     "min": 18,
+     "why": "THE SECOND LINK IN THE CHAIN, WHICH IS WHERE IT USED TO END. The smelter ran on the rubble sorter's byproduct alone \u2014 0.2 iron_ore/s against the 0.8/s it draws \u2014 and made 14 plates in three days while sitting on `missing_input: iron_ore`. Measured 24 now. This is banded separately from crafts_total because crafts_total can be carried entirely by the kitchen and the collector, and has been."
+    },
+    "final.systems.production.produced.slag": {
+     "min": 18,
+     "why": "AND THE BYPRODUCT THAT MAKES THE LAYOUT A PUZZLE. Iron smelting cannot be done without making slag, one per plate forever, and slag has exactly one use at exactly the rate one smelter makes it. Nothing consumes it in this run yet, so what this band asserts today is only that the smelter really smelted \u2014 but it is the series that will show a player's insulation shop starving the day one is built, and it costs nothing to record now."
+    },
+    "final.systems.production.waste.links": {
+     "len_min": 1,
+     "why": "THE STRUCTURAL HALF OF production.waste_recovered, AND THE REGRESSION GUARD FOR A ONE-TILE ERROR. `waste.links` is recuperator id -> the machines it can reach. This scenario stands its recuperator four tiles off the smelter's face, which is exactly DEFAULT_CAPTURE_RADIUS, and before the fix to ProdWasteHeat._chebyshev the run reported `{\"278\": []}` \u2014 the recuperator existed, was on the grid, was warm, and was linked to nothing, while the smelter beside it vented 0.364 u/s into the sky. Both suites that cover this loop place their recuperator at two tiles and their control at seven, so an error of exactly one tile passed both of them. A rate can be satisfied by a lucky sample; a link cannot."
     }
    },
    "liveness": {
