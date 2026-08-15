@@ -138,13 +138,20 @@ func _test_phase_arc_exact() -> void:
 			seen.append(p)
 			first_tick[String(p)] = c.clock_tick() % dt
 
-	# The arc is the same six beats in the same order; the run simply joins it at
-	# `morning`, so the sequence read from the opening tick is rotated by one.
+	# The arc is the same six beats in the same order; the run simply joins it
+	# part-way through `morning`, so the sequence read from the opening tick is
+	# rotated — and because the opening tick is not a phase boundary, the walk
+	# comes back round into that same phase before the day is out. Six beats then
+	# the first one again is the correct shape; anything else is not.
 	var expected: Array[StringName] = []
 	var first_idx: int = ClimateDefs.PHASE_NAMES.find(seen[0])
 	_ok(first_idx >= 0, "the opening phase is one of the six, got %s" % seen[0])
 	for i: int in ClimateDefs.PHASE_COUNT:
 		expected.append(ClimateDefs.PHASE_NAMES[(maxi(0, first_idx) + i) % ClimateDefs.PHASE_COUNT])
+	if seen.size() == ClimateDefs.PHASE_COUNT + 1:
+		_ok(seen[ClimateDefs.PHASE_COUNT] == seen[0],
+				"the day wraps back into the phase it opened in, got %s" % seen[ClimateDefs.PHASE_COUNT])
+		seen.resize(ClimateDefs.PHASE_COUNT)
 	_ok(seen.size() == expected.size(), "six phases in one day, got %d (%s)" % [seen.size(), str(seen)])
 	for i: int in mini(seen.size(), expected.size()):
 		_ok(seen[i] == expected[i], "phase %d is %s, got %s" % [i, expected[i], seen[i]])
