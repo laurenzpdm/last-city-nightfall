@@ -109,6 +109,18 @@ var _last_alert_tick: Dictionary[StringName, int] = {}
 var _defended: bool = false
 var _defended_tick: int = -100000
 var _index_tick: int = -100000
+## False until the turret battery has been filled from [P11]'s building list at
+## least once. THE OPENING SCREEN OF THE GAME DEPENDED ON THIS. The sync ran on
+## `tick % TURRET_SYNC_TICKS == 0`, `game/boot.gd` seeds the settlement and then
+## advances exactly ONE tick before the first frame is drawn, and 1 % 10 != 0 —
+## so the battery was still empty when the HUD read it. [P17]'s alert stack asks
+## `turret_count()` and printed "Nothing in this city can shoot back" over a city
+## that had a turret mount in it, while [P19]'s coverage legend, which counts the
+## same guns straight off the building list, printed the turret on the same
+## screen. Two panels contradicting each other before the player has touched
+## anything. Syncing on the first step costs one extra scan per world and makes
+## the two agree from frame one.
+var _turrets_synced: bool = false
 var _step_us: int = 0
 var _prof_total: int = 0
 var _prof_max: int = 0
@@ -234,7 +246,8 @@ func post_setup() -> void:
 
 func step(tick: int) -> void:
 	var t0: int = Time.get_ticks_usec()   # lint:allow log + metrics-free profiling only
-	if tick % TURRET_SYNC_TICKS == 0:
+	if tick % TURRET_SYNC_TICKS == 0 or not _turrets_synced:
+		_turrets_synced = true
 		_sync_turrets()
 		_read_tech()
 	# Nothing on the field means nothing is seeking, and the index is rebuilt on

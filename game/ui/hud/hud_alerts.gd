@@ -202,7 +202,12 @@ func _derive_heat(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 			"heat_capacity" if reason == "capacity" else "heat_supply",
 			sev, head,
 			("Because " + sentence + ".") if sentence != "" else
-				"%d building%s are running cold." % [starved, "" if starved == 1 else "s"],
+				# The verb belongs IN the suffix, not hardcoded beside it: with
+				# "are" pinned outside, the first screen of a new game read
+				# "1 building are running cold." Every other count line in this
+				# file already folds the verb in ("s are", "s have"); this was
+				# the one that did not.
+				"%d building%s running cold." % [starved, "" if starved == 1 else "s are"],
 			fix, probe.network_focus(stats), 1))
 	if probe.heat_frozen > 0:
 		out.append(_entry(&"frozen", "frozen",
