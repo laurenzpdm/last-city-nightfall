@@ -27,6 +27,9 @@ var _clusters: Dictionary[Vector2i, int] = {}
 var _cluster_worst: Dictionary[Vector2i, int] = {}
 var _stall_reason: Dictionary[int, String] = {}
 var _stall_tick: int = -1
+## World-space rectangles of the badge labels already drawn THIS frame.
+## See `_label_if_clear`.
+var _label_rects: Array[Rect2] = []
 
 
 func _init() -> void:
@@ -124,8 +127,40 @@ func problem_color(p: int) -> Color:
 # drawing
 # =========================================================================
 
+## A badge label, unless another one is already standing there.
+##
+## THE BADGES SURVIVE A CROWD AND THE WORDS BESIDE THEM DO NOT. One badge per
+## building is the rule this whole file is built on, and it holds — but with ALT
+## down every badge also prints its problem in words, and a row of construction
+## sites is a row of overlapping words. `artifacts/play1/shots/assault.png`, the
+## reference frame the art and UI parts grade against, has a strip across the top
+## of the city reading "building building buildinginginging": eleven true labels
+## rendered into one false one. The ALT reading is exactly the moment a player is
+## leaning in to find out what is wrong, and it is the moment the layer stops
+## being able to tell them.
+##
+## The badge itself still draws — the circle, the ring and the glyph survive a
+## crowd, and their colour is the severity. Only the WORD is dropped, and only
+## when the pixels it wants are already spoken for. Deterministic: the loop walks
+## buildings in index order, so the same frame always keeps the same labels.
+func _label_if_clear(at: Vector2, text: String, size_px: float, c: Color) -> void:
+	if font == null or text == "":
+		return
+	var s: int = maxi(8, int(round(size_px)))
+	var size: Vector2 = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, s)
+	# `label()` puts the BASELINE at `at`, so the box hangs above it.
+	var box := Rect2(at - Vector2(0.0, size.y * 0.8 * wpp),
+		Vector2(size.x * wpp, size.y * wpp))
+	for taken: Rect2 in _label_rects:
+		if taken.intersects(box):
+			return
+	_label_rects.append(box)
+	label(at, text, size_px, c)
+
+
 func _draw_badges() -> void:
 	var beat: float = LcnOverlayGeometry.pulse(time_s, 1.1, pal.reduce_motion)
+	_label_rects.clear()
 	var shown: int = 0
 	for i: int in snap.bld_count:
 		if shown >= BADGE_LIMIT:
@@ -151,7 +186,7 @@ func _draw_badges() -> void:
 			_glyph_cols.append(rim)
 		_glyph(p, at, radius * 0.62, c)
 		if alt or p == LcnOverlayDefs.Problem.FROZEN:
-			label(at + Vector2(radius + px(4.0), px(4.0)),
+			_label_if_clear(at + Vector2(radius + px(4.0), px(4.0)),
 				LcnOverlayDefs.problem_label(p), 12.0, c)
 		if p == LcnOverlayDefs.Problem.BUILDING:
 			_progress_arc(at, radius * 0.8, snap.bld_progress[i], c)
