@@ -2201,112 +2201,112 @@
       "cmd": {
         "system": "threat",
         "op": "force_wave",
-        "strength": 22.0
+        "strength": 60.0
       }
     },
     {
-      "tick": 1200,
+      "tick": 1400,
       "cmd": {
         "system": "combat",
         "op": "spawn",
         "kind": "drift_hound",
-        "count": 60,
+        "count": 40,
         "lane": 0
       }
     },
     {
-      "tick": 1202,
+      "tick": 1402,
       "cmd": {
         "system": "combat",
         "op": "spawn",
         "kind": "frost_shade",
-        "count": 24,
+        "count": 16,
         "lane": 1
       }
     },
     {
-      "tick": 1204,
+      "tick": 1404,
       "cmd": {
         "system": "combat",
         "op": "spawn",
         "kind": "hoarfrost_breaker",
-        "count": 6,
+        "count": 4,
         "lane": 2
       }
     },
     {
-      "tick": 2600,
+      "tick": 2800,
       "cmd": {
         "system": "threat",
         "op": "force_wave",
-        "strength": 34.0
+        "strength": 1.5
       }
     },
     {
-      "tick": 3400,
+      "tick": 3600,
       "cmd": {
         "system": "combat",
         "op": "spawn",
         "kind": "drift_hound",
-        "count": 60,
+        "count": 40,
         "lane": 1
       }
     },
     {
-      "tick": 3402,
+      "tick": 3602,
       "cmd": {
         "system": "combat",
         "op": "spawn",
         "kind": "frost_shade",
-        "count": 24,
+        "count": 16,
         "lane": 2
       }
     },
     {
-      "tick": 3404,
+      "tick": 3604,
       "cmd": {
         "system": "combat",
         "op": "spawn",
         "kind": "hoarfrost_breaker",
-        "count": 6,
+        "count": 4,
         "lane": 3
       }
     },
     {
-      "tick": 4800,
+      "tick": 5000,
       "cmd": {
         "system": "threat",
         "op": "force_wave",
-        "strength": 48.0
+        "strength": 1.5
       }
     },
     {
-      "tick": 5600,
+      "tick": 5800,
       "cmd": {
         "system": "combat",
         "op": "spawn",
         "kind": "drift_hound",
-        "count": 60,
+        "count": 40,
         "lane": 2
       }
     },
     {
-      "tick": 5602,
+      "tick": 5802,
       "cmd": {
         "system": "combat",
         "op": "spawn",
         "kind": "frost_shade",
-        "count": 24,
+        "count": 16,
         "lane": 3
       }
     },
     {
-      "tick": 5604,
+      "tick": 5804,
       "cmd": {
         "system": "combat",
         "op": "spawn",
         "kind": "hoarfrost_breaker",
-        "count": 6,
+        "count": 4,
         "lane": 4
       }
     }

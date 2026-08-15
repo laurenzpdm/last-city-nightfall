@@ -824,14 +824,20 @@ func enemy_attack(slot: int, building_id: int, at: Vector2) -> float:
 		# They tear the city apart to get at the warmth: whatever is standing
 		# nearest the fire becomes the target instead. _nearest_structure skips
 		# landmarks, so this can never point back at what it just refused.
-		var instead: Dictionary = _nearest_structure(at, SEEK_RING_MAX)
+		var instead: Dictionary = _nearest_structure(at, SEEK_RING_MAX, false)
 		if not instead.is_empty():
 			swarm.e_target[slot] = int(instead["id"])
 			var p2: Vector2 = instead["pos"]
 			swarm.e_tx[slot] = p2.x
 			swarm.e_ty[slot] = p2.y
 			_alert(&"inside", 1, "They are in the hearth district.", at)
-			return -1.0
+			# ZERO, not -1. A negative return means "whatever you were chewing is
+			# gone, pick something else", and the swarm answers it by clearing
+			# e_target — which would throw away the target this line just set and
+			# leave the body orbiting the fire doing nothing until dawn. That is
+			# not a hypothetical: it is what the first cut of this rule did, and
+			# it read as `0 structural damage` on a 48-unit set piece.
+			return 0.0
 		# Nothing else within two dozen tiles of the fire. It is inside, it has
 		# taken what it came for, and it is gone by morning — counted as a leak
 		# rather than as the wall working. Absorbing it here rather than at the
@@ -1463,7 +1469,7 @@ func _softness(b: Object) -> float:
 # world queries
 # =========================================================================
 
-func _nearest_structure(from: Vector2, max_r: int) -> Dictionary:
+func _nearest_structure(from: Vector2, max_r: int, allow_last_resort: bool = true) -> Dictionary:
 	if _build == null or max_r <= 0:
 		return {}
 	var centre := Vector2i(int(from.x / TILE), int(from.y / TILE))
@@ -1488,7 +1494,12 @@ func _nearest_structure(from: Vector2, max_r: int) -> Dictionary:
 			break
 		if found != 0:
 			return {"id": found, "pos": Grid.cell_to_world(best)}
-	return fallback
+	# A caller that is redirecting something OFF the hearth must not be handed
+	# the hearth back as the nearest thing to it. Not a hypothetical: the first
+	# cut of this returned the fallback unconditionally, the attacker was
+	# "redirected" onto what it was already standing on, and a 48-unit set piece
+	# did 0 structural damage all night.
+	return fallback if allow_last_resort else {}
 
 
 ## Nearest cell an attacker can actually stand on. Spawning inside a ridge would

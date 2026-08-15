@@ -72,6 +72,43 @@ func _open_cell(offset: Vector2i) -> Vector2i:
 	return grid.world().nearest_walkable(c, 30)
 
 
+## Ground a 2x2 watchtower will take.
+func _tower_seat(offset: Vector2i) -> Vector2i:
+	var want: Vector2i = core + offset
+	for r: int in range(0, 14):
+		for c: Vector2i in ([want] if r == 0 else Grid.ring(want, r)):
+			var ok: bool = true
+			for dx: int in range(0, 2):
+				for dy: int in range(0, 2):
+					if not grid.is_walkable(c + Vector2i(dx, dy)) \
+							or build.building_at(c + Vector2i(dx, dy)) != null:
+						ok = false
+			if ok:
+				return c
+	return want
+
+
+## Ground a 5x5 hearth will actually take, walking outward from `offset`. The
+## generated map is not obliged to be flat where a test would like it to be, and
+## a suite that skips itself when it is not has asserted nothing.
+func _hearth_seat(offset: Vector2i) -> Vector2i:
+	var want: Vector2i = core + offset
+	for r: int in range(0, 22):
+		for c: Vector2i in ([want] if r == 0 else Grid.ring(want, r)):
+			var ok: bool = true
+			for dx: int in range(-1, 6):
+				for dy: int in range(-1, 6):
+					if not grid.is_walkable(c + Vector2i(dx, dy)) \
+							or build.building_at(c + Vector2i(dx, dy)) != null:
+						ok = false
+						break
+				if not ok:
+					break
+			if ok:
+				return c
+	return want
+
+
 # --- the ledger --------------------------------------------------------------
 
 func test_a_night_that_cost_nothing_says_nothing() -> void:
@@ -172,7 +209,7 @@ func test_nothing_chooses_the_hearth_while_anything_else_stands() -> void:
 	# t027725: `The Hearth #1 destroyed by frost_shade`, `the hearth has gone
 	# out` — on night three of the reference run, with a wall, six turret mounts
 	# and forty citizens still on the map. Everything after it was a dead city.
-	var seat: Vector2i = _open_cell(Vector2i(-16, -16))
+	var seat: Vector2i = _hearth_seat(Vector2i(-16, -16))
 	var hearth: BuildingInstance = _place(&"the_hearth", seat)
 	if hearth == null:
 		return
@@ -194,7 +231,7 @@ func test_the_hearth_does_burn_when_it_is_genuinely_the_last_thing_left() -> voi
 	# The rule is "last resort", not "invulnerable". A city with nothing else
 	# standing has already lost; the fire going out is the sentence, not the
 	# accident.
-	var seat: Vector2i = _open_cell(Vector2i(-16, -16))
+	var seat: Vector2i = _hearth_seat(Vector2i(-16, -16))
 	var hearth: BuildingInstance = _place(&"the_hearth", seat)
 	if hearth == null:
 		return
@@ -222,25 +259,62 @@ func test_a_body_that_reaches_the_fire_is_absorbed_not_left_chewing_on_it() -> v
 	# reference run: frost_shade has seek_radius 0, so it never CHOOSES a target
 	# at all — it walks the flow field into whatever blocks it, and what blocks
 	# it at the end of the road is the hearth.
-	var seat: Vector2i = _open_cell(Vector2i(-16, -16))
+	var seat: Vector2i = _hearth_seat(Vector2i(-16, -16))
 	var hearth: BuildingInstance = _place(&"the_hearth", seat)
 	if hearth == null:
 		return
-	if _place(&"watchtower", seat + Vector2i(7, 0)) == null:
+	var tower: BuildingInstance = _place(&"watchtower", seat + Vector2i(7, 0))
+	if tower == null:
 		return
+	combat.spawn(HOUND, hearth.cell, 1)
+	world.run(1)
+	var hp_before: float = hearth.hp
+	combat.swarm.e_target[0] = hearth.id
+	var landed: float = combat.enemy_attack(0, hearth.id, hearth.world_center())
+	assert_near(landed, 0.0, 0.001, "nothing lands on the fire")
+	assert_near(hearth.hp, hp_before, 0.001, "and the hearth is untouched")
+	# ZERO and not -1, and the difference is the whole test: a negative return
+	# makes the swarm clear e_target, which would discard the redirection below
+	# and leave the body orbiting the fire all night. Measured, that read as
+	# `0 structural damage` on a 48-unit set piece.
+	assert_eq(combat.swarm.e_target[0], tower.id,
+		"it is pointed at the watchtower instead — they tear the city apart to "
+		+ "get at the warmth, they do not stand on the fire demolishing the win "
+		+ "condition at four damage a second")
+
+
+func test_a_body_at_a_fire_with_nothing_else_near_it_is_absorbed() -> void:
+	# The far end of the same rule. Nothing else within two dozen tiles means
+	# there is nothing to redirect it onto, so it is INSIDE: it has taken what
+	# it came for and it is gone by morning, counted as a leak rather than as
+	# the wall working.
+	var seat: Vector2i = _hearth_seat(Vector2i(-20, -20))
+	var hearth: BuildingInstance = _place(&"the_hearth", seat)
+	if hearth == null:
+		return
+	var far: Vector2i = _tower_seat(Vector2i(34, 34))
+	var tower: BuildingInstance = _place(&"watchtower", far)
+	if tower == null:
+		return
+	# Measured from the hearth's CENTRE, because that is where the redirection
+	# search starts — not from the corner of its footprint.
+	var mid := Vector2i(int(hearth.world_center().x / 32.0), int(hearth.world_center().y / 32.0))
+	var gap: int = maxi(absi(far.x - mid.x), absi(far.y - mid.y))
+	assert_gt(float(gap), float(CombatSystem.SEEK_RING_MAX),
+		"the only other building must be out of redirection range (%d tiles)" % gap)
+
 	combat.spawn(HOUND, hearth.cell, 1)
 	world.run(1)
 	var hp_before: float = hearth.hp
 	var alive_before: int = combat.enemies_alive()
 	var leaked_before: int = combat.swarm.leaked
-	var landed: float = combat.enemy_attack(0, hearth.id, hearth.world_center())
-	assert_lt(landed, 0.0, "nothing lands on the fire")
-	assert_near(hearth.hp, hp_before, 0.001, "and the hearth is untouched")
+	combat.swarm.e_target[0] = hearth.id
+	combat.enemy_attack(0, hearth.id, hearth.world_center())
+	assert_near(hearth.hp, hp_before, 0.001, "the hearth is still untouched")
 	assert_eq(combat.swarm.leaked, leaked_before + 1,
 		"the body is counted as having got INSIDE, which is the honest word for it")
 	assert_lt(float(combat.enemies_alive()), float(alive_before),
-		"and it is off the map rather than standing there demolishing the win "
-		+ "condition at four damage a second for the rest of the campaign")
+		"and it is off the map rather than eating the win condition")
 
 
 # --- helpers --------------------------------------------------------------------
