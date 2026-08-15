@@ -549,7 +549,6 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 	var acost: PackedByteArray = assault.cost if has_assault else PackedByteArray()
 	var afield: FlowField = assault.field if has_assault else null
 	var adir: PackedByteArray = afield.direction if afield != null else PackedByteArray()
-	var think_gate: int = tick % THINK_PERIOD
 
 	for i: int in range(count):
 		if e_state[i] == CombatTypes.EnemyState.SPENT:
@@ -599,7 +598,19 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 
 		# --- the think tick: everything that costs a cross-object call ----
 		var behav: int = d_behaviour[d]
-		if (i + tick) % THINK_PERIOD == think_gate:
+		# ONE BODY IN TEN THINKS EACH TICK, STAGGERED BY SLOT — not "only the
+		# slots divisible by ten, every tick", which is what
+		# `(i + tick) % THINK_PERIOD == tick % THINK_PERIOD` reduces to: that
+		# condition is true exactly when i is a multiple of THINK_PERIOD and
+		# does not depend on the tick at all. Nine bodies in ten therefore never
+		# ran the stall watchdog, never re-read their ground speed, never
+		# regenerated, never aged out, and — the reason it was finally caught —
+		# NEVER LOOKED FOR A TARGET. Ten snow widows stood one tile from a
+		# housing block for the last twelve hundred ticks of a night with
+		# `target -1`, because seeking only happens on a think tick and their
+		# slots were not multiples of ten. The cost is identical either way:
+		# count/THINK_PERIOD bodies think per tick before and after.
+		if (i + tick) % THINK_PERIOD == 0:
 			# The watchdog runs first, so a body it prods gets to act this tick
 			# rather than standing still for another half-second.
 			var wx: float = px - cx
@@ -706,8 +717,12 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 				# building" for free. Without it — the seconds between a spawn and
 				# the surface landing — ask [P11] directly rather than letting a
 				# pack mill about in front of a wall it is allowed to eat.
+				# blocker_at, not structure_at: the fire is impassable but it is
+				# not something to chew on while the city still stands, and a
+				# body told otherwise spends the rest of the night pressed
+				# against it doing nothing. See CombatSystem.blocker_at.
 				if not has_assault or acost[aidx] != Grid.IMPASSABLE:
-					blocker = int(sys.call("structure_at", Vector2i(acx, acy)))
+					blocker = int(sys.call("blocker_at", Vector2i(acx, acy)))
 				if blocker == 0:
 					# Slide along the obstacle rather than grinding into it.
 					var sx: float = px + mvx

@@ -47,9 +47,14 @@ var _can_find: bool = false
 var fatal_share: float = 0.34
 ## Injury severity handed to [P05] for the survivors.
 var injury_severity: float = 45.0
-## People who can be caught by one building coming down, whatever the crowd.
-## A collapse is not a massacre; it is a building.
-var max_caught: int = 6
+## People one TILE of a building coming down can take with it, plus [member
+## caught_floor]. A collapse is not a massacre; it is a building — but a building
+## has a size, and a flat cap of six made a housing block cost exactly as much as
+## a length of pipe. A heat pipe is one tile and can take three; a four-by-four
+## housing block is sixteen and can take everyone who was in it.
+var caught_per_cell: float = 0.65
+var caught_floor: int = 3
+var caught_ceiling: int = 12
 
 
 func bind(citizens: Object) -> void:
@@ -166,9 +171,16 @@ func _caught_in(cells: Array[Vector2i]) -> PackedInt32Array:
 	var rect := Rect2i(lo - Vector2i(APRON, APRON),
 		hi - lo + Vector2i(APRON * 2 + 1, APRON * 2 + 1))
 	var found: PackedInt32Array = _citizens.call("citizens_in_cell_rect", rect)
-	if found.size() <= max_caught:
+	var cap: int = cap_for(cells)
+	if found.size() <= cap:
 		return found
-	return found.slice(0, max_caught)
+	return found.slice(0, cap)
+
+
+## How many people one building of this footprint can take with it.
+func cap_for(cells: Array[Vector2i]) -> int:
+	return clampi(caught_floor + int(float(cells.size()) * caught_per_cell),
+		caught_floor, caught_ceiling)
 
 
 func _name_of(id: int) -> String:

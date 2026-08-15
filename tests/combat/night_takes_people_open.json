@@ -1,0 +1,751 @@
+{
+ "name": "night_takes_people_open",
+ "description": "[P07]'s A/B on what a morning costs. Identical city, identical seed, identical assault out of the south at the same tick; the wall is not there. Read combat.citizens_killed and the night_toll ledger in state.json against the other half of the pair \u2014 the whole claim of this part is that those two numbers are different, and that the difference has names in it. Run with --scenario=res://tests/combat/night_takes_people_open.json.",
+ "tags": [
+  "combat",
+  "reference"
+ ],
+ "seed": 7,
+ "ticks": 9000,
+ "sample_every": 20,
+ "expects": {
+  "max_errors": 0,
+  "min_ticks_per_second": 15
+ },
+ "script": [
+  {
+   "tick": 1,
+   "cmd": {
+    "system": "build",
+    "op": "add_stock",
+    "items": {
+     "iron_plate": 3000,
+     "steel_plate": 2000,
+     "stone": 6000,
+     "timber": 3000,
+     "scrap": 2000,
+     "gear": 1200,
+     "copper_coil": 1000,
+     "coal": 6000,
+     "ammo_shell": 600
+    }
+   }
+  },
+  {
+   "tick": 2,
+   "cmd": {
+    "system": "build",
+    "op": "grant_unlock",
+    "unlock": "thermal_storage"
+   }
+  },
+  {
+   "tick": 2,
+   "cmd": {
+    "system": "build",
+    "op": "grant_unlock",
+    "unlock": "pressurised_mains"
+   }
+  },
+  {
+   "tick": 3,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "the_hearth",
+    "cell": [
+     126,
+     126
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 4,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     131,
+     128
+    ],
+    "to": [
+     139,
+     128
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 5,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     125,
+     128
+    ],
+    "to": [
+     117,
+     128
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 6,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     128,
+     131
+    ],
+    "to": [
+     128,
+     139
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 7,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     128,
+     125
+    ],
+    "to": [
+     128,
+     117
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 8,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "coal_generator",
+    "cell": [
+     132,
+     129
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 9,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "coal_generator",
+    "cell": [
+     118,
+     129
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 10,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "coal_generator",
+    "cell": [
+     132,
+     123
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 11,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "coal_generator",
+    "cell": [
+     118,
+     123
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 12,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "heat_accumulator",
+    "cell": [
+     131,
+     129
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 13,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "heat_accumulator",
+    "cell": [
+     123,
+     129
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 14,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "housing_block",
+    "cell": [
+     131,
+     132
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 15,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "housing_block",
+    "cell": [
+     120,
+     132
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 16,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "housing_block",
+    "cell": [
+     131,
+     118
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 17,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "housing_block",
+    "cell": [
+     120,
+     118
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 18,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "warmth_radiator",
+    "cell": [
+     129,
+     136
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 19,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "warmth_radiator",
+    "cell": [
+     126,
+     120
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 21,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "turret_mount",
+    "cell": [
+     140,
+     127
+    ],
+    "free": true,
+    "instant": true,
+    "meta": {
+     "weapon": "burner_cannon"
+    }
+   }
+  },
+  {
+   "tick": 22,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "turret_mount",
+    "cell": [
+     115,
+     127
+    ],
+    "free": true,
+    "instant": true,
+    "meta": {
+     "weapon": "scatter_gun"
+    }
+   }
+  },
+  {
+   "tick": 23,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "turret_mount",
+    "cell": [
+     127,
+     140
+    ],
+    "free": true,
+    "instant": true,
+    "meta": {
+     "weapon": "burner_cannon"
+    }
+   }
+  },
+  {
+   "tick": 24,
+   "cmd": {
+    "system": "build",
+    "op": "place",
+    "kind": "turret_mount",
+    "cell": [
+     124,
+     140
+    ],
+    "free": true,
+    "instant": true,
+    "meta": {
+     "weapon": "scatter_gun"
+    }
+   }
+  },
+  {
+   "tick": 25,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     128,
+     139
+    ],
+    "to": [
+     139,
+     139
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 26,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     139,
+     139
+    ],
+    "to": [
+     139,
+     128
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 27,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     128,
+     139
+    ],
+    "to": [
+     117,
+     139
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 28,
+   "cmd": {
+    "system": "build",
+    "op": "place_line",
+    "kind": "heat_pipe",
+    "from": [
+     117,
+     139
+    ],
+    "to": [
+     117,
+     128
+    ],
+    "free": true,
+    "instant": true
+   }
+  },
+  {
+   "tick": 45,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 50,
+   "cmd": {
+    "system": "citizens",
+    "op": "add",
+    "count": 44
+   }
+  },
+  {
+   "tick": 51,
+   "cmd": {
+    "system": "citizens",
+    "op": "feed",
+    "amount": 9000.0
+   }
+  },
+  {
+   "tick": 445,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 845,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 1245,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 1645,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 2045,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 2445,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 2845,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 3245,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 3645,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 4000,
+   "cmd": {
+    "system": "citizens",
+    "op": "feed",
+    "amount": 9000.0
+   }
+  },
+  {
+   "tick": 4045,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 4445,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 4845,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 5245,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 5645,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 6045,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 6445,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 6600,
+   "cmd": {
+    "system": "combat",
+    "op": "spawn",
+    "kind": "hoarfrost_breaker",
+    "count": 4,
+    "at": [
+     128,
+     170
+    ]
+   }
+  },
+  {
+   "tick": 6640,
+   "cmd": {
+    "system": "combat",
+    "op": "spawn",
+    "kind": "drift_hound",
+    "count": 24,
+    "at": [
+     128,
+     170
+    ]
+   }
+  },
+  {
+   "tick": 6845,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 6900,
+   "cmd": {
+    "system": "combat",
+    "op": "spawn",
+    "kind": "snow_widow",
+    "count": 6,
+    "at": [
+     128,
+     170
+    ]
+   }
+  },
+  {
+   "tick": 7245,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 7300,
+   "cmd": {
+    "system": "combat",
+    "op": "spawn",
+    "kind": "snow_widow",
+    "count": 6,
+    "at": [
+     122,
+     170
+    ]
+   }
+  },
+  {
+   "tick": 7300,
+   "cmd": {
+    "system": "combat",
+    "op": "spawn",
+    "kind": "drift_hound",
+    "count": 18,
+    "at": [
+     134,
+     170
+    ]
+   }
+  },
+  {
+   "tick": 7645,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 8045,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 8445,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  },
+  {
+   "tick": 8845,
+   "cmd": {
+    "system": "heat",
+    "op": "fuel_all",
+    "item": "coal",
+    "amount": 9999.0
+   }
+  }
+ ],
+ "shots": [
+  {
+   "tick": 6900,
+   "name": "contact"
+  },
+  {
+   "tick": 7600,
+   "name": "inside"
+  }
+ ]
+}

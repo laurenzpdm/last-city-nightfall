@@ -55,8 +55,19 @@ func test_a_withdrawal_empties_the_field() -> void:
 	var before: int = combat.enemies_alive()
 	assert_gt(float(before), 0.0, "and they are counted as fighting")
 
+	# THE ORDER AND THE COUNT ARE TWO DIFFERENT THINGS, and this assertion used
+	# to conflate them: it read `sent == before`, i.e. "the return value is every
+	# body on the map". That is precisely the reading that let a night report
+	# `288 spawned, 0 killed, 319 walked away` — [P08] closes a night with
+	# killed = spawned - withdrew, so a `withdrew` that counts bodies no plan
+	# ever bought drives `killed` to zero on a night that was fought. What the
+	# field does is unchanged and is still asserted below; what is COUNTED is
+	# now only what a director handed over, and these five came off a scenario's
+	# own hand.
 	var sent: int = combat.withdraw_wave(-1)
-	assert_eq(sent, before, "everything on the field was told to break off")
+	assert_eq(sent, 0,
+		"nothing here was composed by a director, so no wave has survivors to "
+		+ "report — but everything still turns around, which is the next line")
 	assert_eq(combat.enemies_alive(), 0,
 		"a body that is walking away is not part of the fight any more")
 	assert_gt(float(combat.bodies_on_map()), 0.0,
