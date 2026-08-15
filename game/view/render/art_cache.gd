@@ -9,7 +9,12 @@ extends RefCounted
 ## will happily serve you yesterday's silhouettes.
 
 ## Bump me when any procedural draw routine changes.
-const ART_VERSION: String = "v17"
+## v18: the ten enemy silhouettes. Bumping this is not optional bookkeeping —
+## the keener was redrawn twice while the frame lab measured 117 screen pixels
+## both times, because `user://art_cache/v17/agent_keener.png` had been written
+## on the first run and `get_image` never asks the baker again. The cache is
+## correct for shipping and lethal for iteration.
+const ART_VERSION: String = "v18"
 
 const DIR: String = "user://art_cache/%s" % ART_VERSION
 

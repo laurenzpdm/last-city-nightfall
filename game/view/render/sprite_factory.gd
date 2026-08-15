@@ -2454,24 +2454,32 @@ func _bake_keener() -> Image:
 	var t := Color(0.72, 0.42, 0.85)
 	var c := LcnVectorCanvas.new(18, 24, SS)
 	c.fill_ellipse(Vector2(9.0, 22.0), 5.0, 1.6, Color(0.043, 0.020, 0.031, 0.5))
-	# Thin body: a stalk.
+	# The stalk. Narrow relative to the bell, but SOLID: the first draft drew it
+	# two pixels wide with a hollow funnel over it and the whole creature put
+	# 116 screen pixels on the plate at play zoom — a hairline, and the frame
+	# lab said so. Silhouette identity is the flare-over-a-stem, not thinness.
 	c.fill_polygon_gradient(PackedVector2Array([
-		Vector2(7.4, 8.0), Vector2(10.6, 8.0), Vector2(11.4, 21.0), Vector2(6.6, 21.0),
-	]), _hide(t, 0.58), _hide(t, 0.95), Vector2(0.0, 8.0), Vector2(0.0, 21.0))
-	for lx: float in [7.4, 10.6]:
+		Vector2(6.4, 8.0), Vector2(11.6, 8.0), Vector2(12.6, 21.4), Vector2(5.4, 21.4),
+	]), _hide(t, 0.58), _hide(t, 0.95), Vector2(0.0, 8.0), Vector2(0.0, 21.4))
+	for lx: float in [6.6, 11.4]:
 		c.stroke_polyline(PackedVector2Array([
-			Vector2(lx, 18.0), Vector2(lx + (lx - 9.0) * 0.5, 21.6)]), _hide(t, 0.94), 1.2)
-	# The bell, opening upward and forward.
+			Vector2(lx, 18.0), Vector2(lx + (lx - 9.0) * 0.5, 22.4)]), _hide(t, 0.94), 1.8)
+	# The bell, opening upward and forward. Filled, not outlined.
 	var bell := PackedVector2Array([
-		Vector2(8.4, 9.0), Vector2(1.2, 3.0), Vector2(2.4, 0.8),
-		Vector2(16.0, 2.2), Vector2(15.2, 5.4), Vector2(9.8, 9.0),
+		Vector2(7.4, 9.4), Vector2(0.6, 2.4), Vector2(1.8, 0.4),
+		Vector2(17.2, 1.8), Vector2(16.4, 5.6), Vector2(10.8, 9.4),
 	])
 	c.fill_polygon_gradient(bell, Color(t.r * 0.55, t.g * 0.40, t.b * 0.62, 1.0),
 		_hide(t, 0.80), Vector2(0.0, 0.8), Vector2(0.0, 9.0))
 	c.stroke_polyline(PackedVector2Array([
-		Vector2(1.2, 3.0), Vector2(2.4, 0.8), Vector2(16.0, 2.2),
-	]), Color(t.r, t.g, t.b, 0.85), 1.1)
-	c.fill_glow(Vector2(8.6, 3.0), 12.0, Color(t.r, t.g, t.b, 0.36), Color(t.r, t.g, t.b, 0.0))
+		Vector2(0.6, 2.4), Vector2(1.8, 0.4), Vector2(17.2, 1.8),
+	]), Color(t.r, t.g, t.b, 0.85), 1.4)
+	# The throat: the one bright thing on it, so a player can find the support
+	# unit in a pack without counting legs.
+	c.fill_polygon(PackedVector2Array([
+		Vector2(5.4, 4.4), Vector2(12.6, 5.0), Vector2(10.4, 8.2), Vector2(7.4, 8.0),
+	]), Color(t.r, t.g * 0.75, t.b, 0.72))
+	c.fill_glow(Vector2(8.6, 4.4), 13.0, Color(t.r, t.g, t.b, 0.42), Color(t.r, t.g, t.b, 0.0))
 	c.stroke_polygon(bell, Color(0.014, 0.010, 0.018, 0.85), 1.0)
 	return c.to_image()
 

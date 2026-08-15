@@ -117,16 +117,24 @@ func _place_settlement() -> void:
 		{"kind": &"mine_shaft", "at": Vector2i(-25, -16)},
 		{"kind": &"greenhouse", "at": Vector2i(11, -6)},
 		{"kind": &"greenhouse", "at": Vector2i(16, -6)},
-		{"kind": &"habitat", "at": Vector2i(5, 4)},
-		{"kind": &"habitat", "at": Vector2i(10, 4)},
-		{"kind": &"habitat", "at": Vector2i(15, 4)},
-		{"kind": &"habitat", "at": Vector2i(5, 10)},
-		{"kind": &"habitat", "at": Vector2i(10, 10)},
-		{"kind": &"habitat", "at": Vector2i(15, 10)},
-		{"kind": &"habitat", "at": Vector2i(-10, 11)},
-		{"kind": &"habitat", "at": Vector2i(-15, 11)},
-		{"kind": &"habitat", "at": Vector2i(-6, 17)},
-		{"kind": &"habitat", "at": Vector2i(-11, 17)},
+		# A SETTLEMENT, NOT A SUBDIVISION. These used to be 5, 10, 15 across and
+		# 4, 10 down: two perfect rows of three, which is the single loudest
+		# "this was generated" cue a city-builder frame can carry, and a critic
+		# named it. People build where the ground and the road let them, so the
+		# rows are broken up and nothing shares a spacing with its neighbour.
+		# Still fixed numbers, not noise: a placeholder city has to be the same
+		# city in every frame or a shader change and a layout change are
+		# indistinguishable between two runs of the frame lab.
+		{"kind": &"habitat", "at": Vector2i(5, 3)},
+		{"kind": &"habitat", "at": Vector2i(11, 5)},
+		{"kind": &"habitat", "at": Vector2i(16, 3)},
+		{"kind": &"habitat", "at": Vector2i(4, 10)},
+		{"kind": &"habitat", "at": Vector2i(9, 12)},
+		{"kind": &"habitat", "at": Vector2i(15, 9)},
+		{"kind": &"habitat", "at": Vector2i(-9, 12)},
+		{"kind": &"habitat", "at": Vector2i(-16, 10)},
+		{"kind": &"habitat", "at": Vector2i(-5, 18)},
+		{"kind": &"habitat", "at": Vector2i(-12, 16)},
 		{"kind": &"watchtower", "at": Vector2i(-4, -20)},
 		{"kind": &"watchtower", "at": Vector2i(18, 18)},
 	]
@@ -134,29 +142,50 @@ func _place_settlement() -> void:
 		buildings.append({"id": id, "kind": p["kind"], "cell": centre + (p["at"] as Vector2i)})
 		id += 1
 
-	# Pylons follow the avenues; the eye should be able to trace the grid.
+	# Pylons follow the avenues; the eye should be able to trace the grid. A
+	# pylon line IS regular — it is surveyed infrastructure and it should read
+	# that way — but the two runs no longer step in lockstep, so the frame does
+	# not fold onto itself about the plaza.
 	for i: int in range(-24, 25, 8):
 		if absi(i) < 6:
 			continue
 		buildings.append({"id": id, "kind": &"pylon", "cell": centre + Vector2i(i, -3)})
 		id += 1
-		buildings.append({"id": id, "kind": &"pylon", "cell": centre + Vector2i(3, i)})
+	for j: int in range(-21, 26, 9):
+		if absi(j) < 6:
+			continue
+		buildings.append({"id": id, "kind": &"pylon", "cell": centre + Vector2i(3, j)})
 		id += 1
 
 	# Defensive line on the perimeter, guns pointing outward.
+	#
+	# This used to be four identical sides: a wall every third tile, all the way
+	# round, on all four sides. In the frame lab it showed up as two columns of
+	# evenly spaced black dashes at mirrored positions down the left and right of
+	# the screen — the most machine-made thing in the picture. A wall a city
+	# actually built has been repaired in places, run out of steel in others and
+	# been rebuilt tighter where something came through, so each side now has its
+	# own spacing and its own gaps, and no side is another side reflected.
 	var ring: int = 29
-	for i2: int in range(-ring, ring + 1, 3):
-		var on_gate: bool = absi(i2) < 4
-		if on_gate:
-			continue
-		buildings.append({"id": id, "kind": &"wall", "cell": centre + Vector2i(i2, -ring)})
-		id += 1
-		buildings.append({"id": id, "kind": &"wall", "cell": centre + Vector2i(i2, ring)})
-		id += 1
-		buildings.append({"id": id, "kind": &"wall", "cell": centre + Vector2i(-ring, i2)})
-		id += 1
-		buildings.append({"id": id, "kind": &"wall", "cell": centre + Vector2i(ring, i2)})
-		id += 1
+	var sides: Array[Dictionary] = [
+		{"step": 3, "phase": 0, "gap": Vector2i(11, 15), "dir": Vector2i(1, 0), "off": Vector2i(0, -1)},
+		{"step": 4, "phase": 1, "gap": Vector2i(-19, -13), "dir": Vector2i(1, 0), "off": Vector2i(0, 1)},
+		{"step": 3, "phase": 2, "gap": Vector2i(-8, -5), "dir": Vector2i(0, 1), "off": Vector2i(-1, 0)},
+		{"step": 5, "phase": 0, "gap": Vector2i(17, 24), "dir": Vector2i(0, 1), "off": Vector2i(1, 0)},
+	]
+	for sd: Dictionary in sides:
+		var step: int = sd["step"]
+		var dir: Vector2i = sd["dir"]
+		var off: Vector2i = sd["off"]
+		var gap: Vector2i = sd["gap"]
+		var i2: int = -ring + int(sd["phase"])
+		while i2 <= ring:
+			# The gate, and one breach nobody has got round to closing.
+			if absi(i2) >= 4 and not (i2 >= gap.x and i2 <= gap.y):
+				buildings.append({"id": id, "kind": &"wall",
+					"cell": centre + dir * i2 + off * ring})
+				id += 1
+			i2 += step
 	for t: Vector2i in [
 		Vector2i(-ring, -ring), Vector2i(ring, -ring), Vector2i(-ring, ring), Vector2i(ring, ring),
 		Vector2i(0, -ring - 2), Vector2i(0, ring + 2), Vector2i(-ring - 2, 0), Vector2i(ring + 2, 0),

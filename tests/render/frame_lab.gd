@@ -99,6 +99,11 @@ var _chrome_left: PackedStringArray = PackedStringArray()
 var _seen_chrome: Dictionary[String, bool] = {}
 ## shot stem -> 16x16 luma fingerprint, for the DIFF check.
 var _prints: Dictionary[String, PackedFloat32Array] = {}
+var _foes_done: bool = false
+var _foe_wait: int = 0
+var _foe_report: Array[Dictionary] = []
+## The control plate: the staged night with `draw_agents` off.
+var _bare: Image = null
 
 
 func _ready() -> void:
@@ -109,6 +114,15 @@ func _ready() -> void:
 			_no_vfx = true
 		elif a == "--keep-chrome":
 			_keep_chrome = true
+	# THE LAB GRADES THE BAKER, NOT THE DISK. `LcnArtCache` keys baked sprites by
+	# name under an ART_VERSION that a human has to remember to bump, and a
+	# forgotten bump makes this whole suite certify the art of an earlier run.
+	# That is not a hypothetical: the keener was redrawn and re-measured at an
+	# identical 117 screen pixels because v17/agent_keener.png already existed.
+	# tests/render/test_sprites.gd learned the same thing about silhouettes and
+	# turns the cache off in `before_all`; a suite that photographs the art has
+	# even less business reading yesterday's.
+	LcnArtCache.set_enabled(false)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT))
 	for h: Dictionary in HOURS:
 		if _only_hour != "" and String(h["name"]) != _only_hour:
@@ -145,6 +159,9 @@ func _process(_delta: float) -> void:
 		_finish(1)
 		return
 	if _cursor >= _shots.size():
+		if not _foes_done:
+			_stage_the_night()
+			return
 		_summarise()
 		return
 	var shot: Dictionary = _shots[_cursor]
@@ -155,6 +172,139 @@ func _process(_delta: float) -> void:
 	_capture(shot)
 	_wait = 0
 	_cursor += 1
+
+
+# ------------------------------------------------------- the night, staged --
+
+## THE ONE QUESTION A TOWER DEFENSE FRAME HAS TO ANSWER: at the hour and the
+## zoom the game is played at, CAN YOU SEE THE THING THAT IS COMING.
+##
+## The hour matrix above photographs a settlement with nobody in it — the
+## preview world has no crowd and the frame lab has no simulation, which is
+## honest but says nothing about combat. So the last beat stands the ten
+## designed enemies in a row on open ground at deep night, at zoom 0.60, and
+## grades each one INDIVIDUALLY: the strongest pixel inside its footprint,
+## against the median of the ground immediately around it.
+##
+## This is the check that ten enemies sharing one 18 px sprite would have
+## passed and ten enemies nobody can see would fail. It is deliberately not a
+## whole-frame statistic: a boss lighting up the corner of the screen must not
+## be allowed to certify that a drift hound is visible.
+## HOW THIS IS MEASURED, AND WHY IT IS MEASURED THIS WAY. The frame is
+## photographed TWICE from the identical camera at the identical hour: once with
+## `entities.draw_agents` off and once with it on. The creature's read is the
+## DIFFERENCE — the pixels it and only it changed.
+##
+## The first version of this check did not do that. It measured "how far the
+## brightest pixel near the enemy sits from the median of a ring around it",
+## which sounded like a legibility metric and was not: on ground with drift
+## structure in it, 55% of any box departs from its own median, so the number
+## came out at 0.60 whether the enemies were drawn at full size, at a fifth of
+## it, or (as the control run proved) with the size floor switched off entirely.
+## It moved by 0.02 across a 2.4x change in the thing it was supposedly grading.
+## A check that cannot go red is not a check, and this project has already paid
+## for that lesson twice — once for a suite whose precondition never fired and
+## once for a grader that photographed a menu.
+##
+## The differential cannot make that mistake: with nothing drawn the difference
+## is exactly zero.
+const FOE_SPACING: float = 74.0
+## Peak luminance change the creature makes to the ground it stands on.
+const FOE_MIN_CONTRAST: float = 0.035
+## Screen pixels it changes at all. This is the number the figure floor in
+## LcnEntityRenderer.agent_scale exists to hold up: at zoom 0.60 an unscaled
+## 22x13 drift hound covers about 50 of them, which is a hairline.
+const FOE_MIN_PIXELS: int = 130
+
+func _stage_the_night() -> void:
+	if _renderer == null:
+		_foes_done = true
+		return
+	var model: LcnWorldModel = _renderer.world_model()
+	if _foe_wait == 0:
+		# Out on the plain, well clear of the settlement, so what lights an
+		# enemy is the enemy — not a hearth thirty tiles away doing its job.
+		var row: Vector2 = _centre + Vector2(-FOE_SPACING * 5.0, -520.0)
+		var kinds: Array[StringName] = LcnSpriteFactory.ENEMY_KINDS
+		for i: int in kinds.size():
+			var p: Vector2 = row + Vector2(float(i) * FOE_SPACING, 0.0)
+			# Twice, so `prev` and `cur` differ and the facing flip is exercised:
+			# half the row walks left, half walks right.
+			var d: float = 6.0 if i % 2 == 0 else -6.0
+			model.set_agent(9000 + i, kinds[i], p - Vector2(d, 0.0))
+			model.set_agent(9000 + i, kinds[i], p)
+		# ...and one of them has just died, so the death mark is in the picture
+		# too rather than being a code path nothing ever photographs.
+		_renderer.entities.mark_death(row + Vector2(FOE_SPACING * 2.0, 48.0),
+			&"hoarfrost_breaker")
+		SimClock.tick = int(fposmod(0.0 - 0.22, 1.0) * 40.0 * 20.0)
+		if _cam != null:
+			_cam.position = row + Vector2(FOE_SPACING * 4.5, 0.0)
+			_cam.zoom = Vector2(0.60, 0.60)
+			_cam.force_update_scroll()
+	_foe_wait += 1
+	if _foe_wait <= SETTLE_FRAMES:
+		# The control plate: the same night, the same camera, nobody in it.
+		if _foe_wait == SETTLE_FRAMES:
+			_renderer.entities.draw_agents = false
+		return
+	if _bare == null:
+		_strip_chrome()
+		var btex: ViewportTexture = get_viewport().get_texture()
+		_bare = btex.get_image() if btex != null else null
+		if _bare != null:
+			_bare.save_png(ProjectSettings.globalize_path("%s/night_foes_bare.png" % OUT))
+		_renderer.entities.draw_agents = true
+		return
+	_foes_done = true
+	_strip_chrome()
+	var tex: ViewportTexture = get_viewport().get_texture()
+	var img: Image = tex.get_image() if tex != null else null
+	if img == null:
+		print("  UNCHECKED night_foes — the viewport handed back no image")
+		return
+	img.save_png(ProjectSettings.globalize_path("%s/night_foes.png" % OUT))
+	var xf: Transform2D = get_viewport().get_canvas_transform()
+	var kinds2: Array[StringName] = LcnSpriteFactory.ENEMY_KINDS
+	var row2: Vector2 = _centre + Vector2(-FOE_SPACING * 5.0, -520.0)
+	for i2: int in kinds2.size():
+		var scr: Vector2 = xf * (row2 + Vector2(float(i2) * FOE_SPACING, 0.0))
+		var r: Dictionary = _contrast_at(img, _bare, scr)
+		r["kind"] = String(kinds2[i2])
+		_foe_report.append(r)
+		print("  foe %-20s changes %4d px, peak %.4f, %.1f%% of its box" % [
+			r["kind"], int(r["pixels"]), float(r["contrast"]), float(r["fill"]) * 100.0])
+
+
+## What this creature and only this creature does to the picture. `lit` is the
+## frame with the agents drawn, `bare` the identical frame without them; the
+## return is the size and the strength of the difference inside its box.
+static func _contrast_at(lit: Image, bare: Image, scr: Vector2) -> Dictionary:
+	var cx: int = int(scr.x)
+	var cy: int = int(scr.y)
+	var w: int = mini(lit.get_width(), bare.get_width())
+	var h: int = mini(lit.get_height(), bare.get_height())
+	var pixels: int = 0
+	var total: int = 0
+	var peak: float = 0.0
+	for dy: int in range(-46, 14):
+		for dx: int in range(-34, 35):
+			var x: int = cx + dx
+			var y: int = cy + dy
+			if x < 0 or y < 0 or x >= w or y >= h:
+				continue
+			total += 1
+			var a: Color = lit.get_pixel(x, y)
+			var b: Color = bare.get_pixel(x, y)
+			var d: float = absf(
+				(a.r - b.r) * 0.2126 + (a.g - b.g) * 0.7152 + (a.b - b.b) * 0.0722)
+			peak = maxf(peak, d)
+			if d > 0.012:
+				pixels += 1
+	return {
+		"pixels": pixels, "contrast": peak,
+		"fill": float(pixels) / float(maxi(total, 1)),
+	}
 
 
 func _finish(code: int) -> void:
@@ -460,6 +610,20 @@ func _summarise() -> void:
 		if d < 0.010:
 			fails.append("%s looks the same at zoom 1.60 and 0.24 (thumbnail delta %.4f) — the camera is not framing the world"
 				% [hn, d])
+
+	# 0b. THE NIGHT HAS SOMETHING IN IT THAT YOU CAN SEE. Ten designed enemies
+	#     drew one 18 px sprite before this pass; ten enemies nobody can pick
+	#     out of the dark would be the same failure with better art.
+	for fr: Dictionary in _foe_report:
+		if float(fr["contrast"]) < FOE_MIN_CONTRAST:
+			fails.append("%s does not change the picture at deep night, zoom 0.60 (peak %.4f < %.3f) — it is invisible"
+				% [String(fr["kind"]), float(fr["contrast"]), FOE_MIN_CONTRAST])
+		elif int(fr["pixels"]) < FOE_MIN_PIXELS:
+			fails.append("%s is a hairline at deep night, zoom 0.60 — it covers %d screen pixels (want %d)"
+				% [String(fr["kind"]), int(fr["pixels"]), FOE_MIN_PIXELS])
+	if _foe_report.size() < LcnSpriteFactory.ENEMY_KINDS.size():
+		fails.append("only %d of %d enemies were staged and graded — the night beat did not run"
+			% [_foe_report.size(), LcnSpriteFactory.ENEMY_KINDS.size()])
 
 	# 0. THE GROUND SHADER ACTUALLY COMPILED. A canvas shader that fails to
 	#    compile does not throw and does not stop the frame: Godot falls back to
