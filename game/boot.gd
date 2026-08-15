@@ -330,9 +330,35 @@ func _seed_opening_settlement() -> void:
 	SimClock.advance(1)
 	Log.info("boot", "opening settlement seeded around %s" % str(c))
 
+	# THE GATE. A settlement is not seeded until it is whole — see
+	# opening_defects(). This is the last moment anyone can notice, and a
+	# Log.error here fails the harness run rather than shipping a save that
+	# freezes itself.
+	for defect: String in opening_defects():
+		Log.error("boot", "opening settlement is broken on arrival: %s" % defect)
+
 
 ## The opening layout, as commands. Shared with tests so the scene a player sees
 ## on launch is the scene a test can assert against.
+##
+## HOW A CONSUMER GETS PLACED HERE. Anything that draws heat goes down through
+## `fed`, which lays the pipe run AND derives the building's origin from the last
+## tile of that run. A consumer's coordinate is therefore not something anyone
+## types; it is what the pipe decides.
+##
+## That rule exists because the old version of this function was fifteen typed
+## coordinates with no relationship between them. Thirteen happened to land on
+## the trunk. Two did not: a watchtower nine tiles north of the nearest pipe and
+## a turret mount nine tiles south of it, each alone on its own heat network with
+## supply 0.0, permanently `unreachable`, both `frozen: true` by t=600 of every
+## single run. That is where the opening HUD's "3 grids", "Turret Mount run is
+## 7.4 heat short" and "2 frozen" came from — a settlement that failed on its own
+## before the player touched it.
+##
+## `warmth_radiator` was saved from the same fate only by its `must_connect` tag.
+## The defensive buildings consume heat and declare no such tag, so nothing in
+## placement, in the layout or in a test related them to a pipe. `fed` relates
+## them structurally; `opening_defects()` checks the result on every launch.
 static func opening_commands(c: Vector2i) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var place := func(kind: String, cell: Vector2i, rot: int) -> void:
@@ -341,6 +367,23 @@ static func opening_commands(c: Vector2i) -> Array[Dictionary]:
 	var line := func(kind: String, a: Vector2i, b: Vector2i) -> void:
 		out.append({"system": &"build", "op": "place_line", "kind": kind,
 			"from": [a.x, a.y], "to": [b.x, b.y], "free": true, "instant": true})
+
+	## A heat consumer and the pipe that reaches it, as one indivisible act.
+	## `from` is the first spur tile (orthogonally touching the trunk), `dir` the
+	## direction it runs, `length` how many tiles of pipe it lays. The building's
+	## origin is derived from the last pipe tile and its own footprint, so the two
+	## cannot drift apart no matter who edits this next.
+	var fed := func(kind: String, size: Vector2i, from: Vector2i, dir: Vector2i, length: int) -> void:
+		var last: Vector2i = from + dir * maxi(0, length - 1)
+		line.call("heat_pipe", from, last)
+		var origin: Vector2i = last + dir
+		# Footprints grow +x/+y from their origin, so a spur running north or west
+		# has to step back by the building's own size or it lands ON its own pipe.
+		if dir.x < 0:
+			origin.x -= size.x - 1
+		if dir.y < 0:
+			origin.y -= size.y - 1
+		place.call(kind, origin, 0)
 
 	place.call("the_hearth", c + Vector2i(-2, -2), 0)
 	line.call("heat_pipe", c + Vector2i(3, 0), c + Vector2i(12, 0))
@@ -355,8 +398,58 @@ static func opening_commands(c: Vector2i) -> Array[Dictionary]:
 	place.call("coal_generator", c + Vector2i(-3, 11), 0)
 	place.call("workshop", c + Vector2i(1, 11), 0)
 	place.call("storage_yard", c + Vector2i(10, 4), 0)
-	place.call("watchtower", c + Vector2i(14, -9), 0)
-	place.call("turret_mount", c + Vector2i(14, 9), 0)
+	# The watch on the northern approach, on a spur off the east trunk's last
+	# tile. The lower trunk feeds the turret the same way to the south, one column
+	# further out so the spur clears the storage yard.
+	fed.call("watchtower", Vector2i(2, 2), c + Vector2i(12, -1), Vector2i(0, -1), 8)
+	fed.call("turret_mount", Vector2i(2, 2), c + Vector2i(13, 2), Vector2i(0, 1), 8)
+	return out
+
+
+## Every heat consumer the opening settlement placed that the grid does not
+## reach, as a line naming the building, its cell and why. Empty means whole.
+##
+## Read straight off the built world, not off the command list, so it is the
+## SETTLEMENT that is graded and not the author's intent: a placement the build
+## system refused, a spur that landed one tile short, a consumer stranded on its
+## own island — all three come out here as the same kind of sentence.
+##
+## Called by boot on every launch (a Log.error fails the harness run) and by
+## tests/f3/test_opening_settlement.gd against the same layout a player gets.
+## The criterion is "is there a source of heat on this building's network",
+## not "is heat flowing", because at the tick the settlement is seeded the
+## hearth has not burned anything yet and every honest network reads supply 0.0.
+static func opening_defects() -> PackedStringArray:
+	var out: PackedStringArray = PackedStringArray()
+	var build: SimSystem = Sim.get_system(&"build")
+	var heat: SimSystem = Sim.get_system(&"heat")
+	if build == null or heat == null:
+		return out
+
+	var buildings: Array = build.call("all_buildings")
+	# Which networks have something that makes heat on them.
+	var producers: Dictionary[int, bool] = {}
+	for b: BuildingInstance in buildings:
+		if b.def == null or b.def.heat_produced <= 0.0:
+			continue
+		var pn: int = int(heat.call("network_of", b.id))
+		if pn >= 0:
+			producers[pn] = true
+
+	var consumers: int = 0
+	for b2: BuildingInstance in buildings:
+		if b2.def == null or b2.def.heat_consumed <= 0.0:
+			continue
+		consumers += 1
+		var nid: int = int(heat.call("network_of", b2.id))
+		if nid < 0:
+			out.append("%s at %d,%d draws %.1f heat and is on no network at all — nothing was laid next to it" % [
+				b2.def.display_name, b2.cell.x, b2.cell.y, b2.def.heat_consumed])
+		elif not producers.has(nid):
+			out.append("%s at %d,%d draws %.1f heat on network %d, which has no source of heat on it — the spur that should feed it does not reach the trunk" % [
+				b2.def.display_name, b2.cell.x, b2.cell.y, b2.def.heat_consumed, nid])
+	if consumers == 0:
+		out.append("the opening settlement placed no heat consumers at all — the layout did not land")
 	return out
 
 
