@@ -1256,6 +1256,19 @@ func _night_toll_line() -> String:
 	return String(_combat.call("night_toll_line", _night_start_tick))
 
 
+## Bodies the current plan puts on the map at its busiest single moment.
+func _peak_arrival() -> int:
+	if _plan == null:
+		return 0
+	var by_tick: Dictionary[int, int] = {}
+	for g: WaveGroup in _plan.groups:
+		by_tick[g.delay_ticks] = int(by_tick.get(g.delay_ticks, 0)) + g.count
+	var peak: int = 0
+	for k: int in by_tick.keys():
+		peak = maxi(peak, by_tick[k])
+	return peak
+
+
 func _building_count() -> int:
 	if _build != null and _build.has_method("building_count"):
 		return int(_build.call("building_count"))
@@ -1501,6 +1514,17 @@ func serialize() -> Dictionary:
 		"state": String(ThreatDefs.wave_state_name(_state)),
 		"threat_level": snappedf(threat_level(), 0.001),
 		"budget": snappedf(_plan.budget if _plan != null else 0.0, 0.01),
+		# THE TWO NUMBERS THIS PART WAS FAILING, IN THE ARTIFACT A CRITIC READS.
+		# `strength` is what the shake, the edge pulse and the mix multiply by —
+		# it used to read 0.01 on night one because it was divided by a day-45
+		# army. `peak_arrival` is the largest number of bodies that walk in on one
+		# tick of the current plan — it used to be 4 on every night of the
+		# campaign, for ever. Neither was in metrics.csv, which is why both
+		# survived a whole phase.
+		"strength": snappedf(_strength_norm(
+			_plan.budget if _plan != null else 0.0,
+			_plan.wave if _plan != null else 1), 0.001),
+		"peak_arrival": _peak_arrival(),
 		"waves_cleared": waves_cleared(),
 		"waves_wiped": _waves_wiped,
 		"waves_survived": _waves_survived,
@@ -1576,6 +1600,17 @@ func metrics() -> Dictionary:
 		"wave": _wave,
 		"threat_level": snappedf(threat_level(), 0.001),
 		"budget": snappedf(_plan.budget if _plan != null else 0.0, 0.01),
+		# THE TWO NUMBERS THIS PART WAS FAILING, IN THE ARTIFACT A CRITIC READS.
+		# `strength` is what the shake, the edge pulse and the mix multiply by —
+		# it used to read 0.01 on night one because it was divided by a day-45
+		# army. `peak_arrival` is the largest number of bodies that walk in on one
+		# tick of the current plan — it used to be 4 on every night of the
+		# campaign, for ever. Neither was in metrics.csv, which is why both
+		# survived a whole phase.
+		"strength": snappedf(_strength_norm(
+			_plan.budget if _plan != null else 0.0,
+			_plan.wave if _plan != null else 1), 0.001),
+		"peak_arrival": _peak_arrival(),
 		"waves_cleared": waves_cleared(),
 		"waves_wiped": _waves_wiped,
 		"waves_survived": _waves_survived,

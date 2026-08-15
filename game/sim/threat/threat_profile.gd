@@ -240,8 +240,10 @@ extends Resource
 ## whole rule, and `ThreatSystem._distribute` packs the night's groups into
 ## ECHELONS of that size so several kinds land together instead of taking turns.
 ##
-## Floor: what arrives at once on night one, when the budget is a rounding error.
-@export var pulse_units_min: int = 4
+## Floor: the smallest arrival there is, for a night whose budget is a rounding
+## error. Seven rather than four because four was measurably a metronome and
+## `echelons_min` keeps the teaching night small on its own.
+@export var pulse_units_min: int = 7
 ## Ceiling: no single moment ever puts more than this on the map, whatever the
 ## budget says. A hundred bodies on one tick is a frame spike, not a siege.
 @export var pulse_units_max: int = 40
@@ -249,9 +251,12 @@ extends Resource
 ## peak-simultaneity curve, because the echelon count is derived from it: a
 ## night is cut into as many arrival moments as it takes for each one to be
 ## about this big. Measured against the shipped budget table it gives a peak of
-## roughly 3 bodies on night one, 7 on night two, 16 on the first set piece and
+## roughly 3 bodies on night one, 10 on night two, 16 on the first set piece and
 ## 33 on night seven — against a flat 4 for ever, which is what shipped.
-@export var pulse_budget_per_unit: float = 12.0
+##
+## Night one stays a handful because `echelons_min` cuts its six bodies in two
+## whatever this says. The teaching night is the one place a drip is correct.
+@export var pulse_budget_per_unit: float = 15.0
 ## Arrival moments a night has AT LEAST, before size forces more. Two, so even
 ## the teaching night has a second beat and the player learns that a night comes
 ## in stages. Grows with the campaign so a big night keeps a rhythm instead of

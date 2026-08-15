@@ -1,6 +1,6 @@
 {
   "name": "stress_1000_night",
-  "description": "THE COMBAT HALF OF THE STRESS TEST, PAID. tests/scenarios/stress_1000.json says in its own description that 'there are no hostiles in it because [P07]/[P08] have not landed ... so the combat half of the stress test is owed, not forgotten'. Both parts have landed. This is the same city \u2014 the same 1000+ structures on the same single heat network, built by the same script, on the same seed \u2014 with the night it was always supposed to be measured under. Three forced nights composed by the real director on top of the real curve, plus three hand-placed shocks in the far corners so the measurement includes bodies walking the whole width of the map rather than only the lanes the planner picked. Read combat.enemies_alive against threat.threat_level and combat.structures_lost: the point of the run is that a night on a big city is a WAVE, not four bodies at a time, and that it costs the city something you can name in the morning. A part-owned fixture in tests/combat/ rather than an edit to [P00]'s shared library \u2014 run it with --scenario=res://tests/combat/stress_1000_night.json. The perf floor here is deliberately slack: only the integrator measures perf, on an idle machine, and a threshold set by the part being measured is not a gate.",
+  "description": "THE COMBAT HALF OF THE STRESS TEST, PAID. tests/scenarios/stress_1000.json says in its own description that 'there are no hostiles in it because [P07]/[P08] have not landed ... so the combat half of the stress test is owed, not forgotten'. Both parts have landed. This is the same city \u2014 the same 1000+ structures on the same single heat network, built by the same script, on the same seed \u2014 with the night it was always supposed to be measured under. Three forced assaults composed by the real director on top of the real curve (the first two on night one's plan, compounding to 480 and 720 budget; the third on night two's, at 660), plus three hand-placed shocks in the far corners so the measurement includes bodies walking the whole width of the map rather than only the lanes the planner picked. Read combat.enemies_alive against threat.threat_level and combat.structures_lost: the point of the run is that a night on a big city is a WAVE, not four bodies at a time, and that it costs the city something you can name in the morning. A part-owned fixture in tests/combat/ rather than an edit to [P00]'s shared library \u2014 run it with --scenario=res://tests/combat/stress_1000_night.json. The perf floor here is deliberately slack: only the integrator measures perf, on an idle machine, and a threshold set by the part being measured is not a gate.",
   "tags": [
     "combat",
     "reference",
@@ -2277,7 +2277,7 @@
       "cmd": {
         "system": "threat",
         "op": "force_wave",
-        "strength": 1.5
+        "strength": 12.0
       }
     },
     {
