@@ -287,6 +287,14 @@ func _layout() -> void:
 		size = Vector2(get_viewport().get_visible_rect().size)
 	var width: float = CARD_W + PAD * 2.0
 	_panel.custom_minimum_size = Vector2(width, 0.0)
+	# The card's parent is a plain Control, so nothing shrinks the panel when the
+	# content gets shorter: a two-option dilemma sets the height, the next beat
+	# has four fewer paragraphs and one button, and the plate keeps the taller
+	# rectangle. Measured in artifacts/play3/shots/deep_night.png — 230 px of
+	# empty card under the Read button of "The First Night", directly after "The
+	# Clerk Wants an Answer". Re-fitting here rather than in `_draw_card` because
+	# the outgoing rows are queue_free()d and are still in the tree this frame.
+	_panel.size = Vector2(width, _panel.get_combined_minimum_size().y)
 	var top: float = size.y * 0.22
 	var bottom_limit: float = size.y - MARGIN * 3.0 - _panel.size.y
 	_panel.position = Vector2(roundf((size.x - width) * 0.5),
