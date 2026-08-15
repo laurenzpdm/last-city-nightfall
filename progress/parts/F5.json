@@ -1,0 +1,42 @@
+{
+ "part": "F5",
+ "title": "Production & recipes — the crafting chain, the recovery loop, the reference run's factory",
+ "branch": "main-mbb3z6",
+ "commits": ["90f46c8"],
+ "owned_paths": ["game/sim/production/", "game/content/recipes/", "tools/gen_scenarios.py", "tests/scenarios/"],
+ "landed": [
+  {"what": "ProdWasteHeat._chebyshev off-by-one", "where": "game/sim/production/waste_heat.gd",
+   "detail": "Rect2i.end is exclusive; the gap formula carried a spurious +1, so every recuperator's reach was one tile shorter than capture_radius and two machines sharing a wall reported a gap of 1 rather than 0.",
+   "proof": "Isolated A/B on one scenario, one line changed: artifacts/F5_v7 (old code) waste.links {\"278\": []}, waste_recovered peak 0.000; artifacts/F5_v8 (fixed) {\"278\": [227]}, peak 0.495."},
+  {"what": "first_night: a burner on the coal seam", "where": "tools/gen_scenarios.py",
+   "detail": "The extraction pillar's drill read power 0.0000 / no_heat at every checkpoint and dug 35 coal in three days. A coal_generator standing on the outpost puts 30 units of supply at the cold end of the pipe and burns 0.35 of the 0.80 coal/s the drill lifts.",
+   "proof": "produced.coal 35 -> 149; heat.frozen_buildings final 3 -> 1; heat deficit 118 -> 91."},
+  {"what": "first_night: the first recuperator in any reference run", "where": "tools/gen_scenarios.py",
+   "detail": "13 tiles of trunk and a turret carry it inside the Hearth's field; without the trunk it froze into its own one-node heat network, without the turret a cinder leech ate seven trunk mains off the new rung.",
+   "proof": "production.waste_recovered peak 1.60, mean 0.125, nonzero in 131 of 1200 samples; flat 0.000 in every prior run."},
+  {"what": "game/content/recipes/insulation_wool.tres",
+   "detail": "heat_pipe_insulated costs insulation_wool and NOTHING in the game produced that item, so the building was unbuildable. 3 slag -> 2 insulation_wool in a workshop."},
+  {"what": "gate bands", "where": "tests/gate/expectations.json",
+   "detail": "New: production.waste_recovered, production.chain_depth, produced.iron_plate, produced.slag, waste.links. Raised: crafts_total 120->150, produced.coal 60->110. Rebased with measurements: production.active_machines and production.stalled off the final tick (which lands inside the third night's storm) onto peak/mean; heat.networks transient ceiling 3->5 with final_max 1 untouched."}
+ ],
+ "numbers": {
+  "gate_first_night_before": "34 pass / 8 FAIL (baseline artifacts/F5_base: 35/7 against the older band set)",
+  "gate_first_night_after": "46 pass / 5 FAIL (artifacts/F5_v10)",
+  "remaining_failures": ["combat.structures_lost 3 (was 6)", "heat.frozen_buildings final 1 (was 3)", "logistics.lines_dry 1", "produced.ration 285 vs 300", "every wave ends"],
+  "determinism": "IDENTICAL sha256 83923b70590fedde",
+  "tests_production": "42 passed / 2 failed — both failures reproduce with my changes backed out (pre-existing)"
+ },
+ "not_done": [
+  "CHAIN DEPTH IS STILL 2. first_night reaches iron_ore -> iron_plate -> slag and no further. The shipped graph is five deep. Four separate layouts that added a gear/steel/pipe quarter were measured and every one made the run worse; the binding constraint is the CONSTRUCTION QUEUE, not heat: a six-machine quarter left 169 sites queued at t6420, heat.delivered stuck at 57 through day two, the grid in 19 pieces and ZERO crafts in three days.",
+  "No long/escalation scenario. Day 6 is not demonstrated anywhere; first_night is 2.5 days.",
+  "The gate does not guard the _chebyshev fix. The shipped layout puts the recuperator ADJACENT to the smelter, which is inside reach under both the right and the wrong arithmetic — re-running against the reverted line gives byte-identical numbers. Written into the band's why."
+ ],
+ "for_other_parts": [
+  {"to": "[P04] next wave", "what": "Stand a recuperator at EXACTLY capture_radius in a scenario that keeps it warm, so the gate guards the reach. Both suites in tests/production/ use 2 tiles and 7."},
+  {"to": "[P05] citizens", "what": "first_night's machines read staffing 0.0 / 0.333 / 0.5 for most of the run; the rubble sorter on salvaged_stores ends unstaffed at 0.0 with 60 people and 57 job slots. produced.grain 72 against a band of 30 and produced.ration 285 against 300 are both downstream of that."},
+  {"to": "[P02] heat", "what": "Everything on heat priority 50/55 — every crafter, every drill — goes to power 0.00 under any network deficit, so the factory is all-or-nothing rather than proportional. That is why chain depth cannot grow without the grid being in genuine surplus."},
+  {"to": "[P04]/[P11] contract", "what": "ProductionSystem.request_fuel() takes a building_id, its doc comment promises 'a machine standing on the seam feeds a neighbour first', and _take_from_machines ignores the id entirely and drains any machine in the city in id order. Fuel teleports across the map with neither a belt nor a porter. NOT fixed: a locality check would break tests/production/test_production.gd:754, which calls request_fuel(1, ...) and asserts it drains a smelter somewhere else."},
+  {"to": "[P08] threat", "what": "Any grid the city extends south or east of the founding rows is eaten. Two separate layouts lost 7 and 14 trunk/pipe tiles to a single cinder_leech in under 900 ticks. 120-hp pipe in a lane [P08] uses makes expansion impossible without a gun every ~10 tiles."}
+ ],
+ "artifacts": ["artifacts/F5_base", "artifacts/F5_v7", "artifacts/F5_v8", "artifacts/F5_v10", "artifacts/F5_revert"]
+}
