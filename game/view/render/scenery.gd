@@ -41,7 +41,12 @@ const PER_CHUNK: int = 44
 const MIN_ZOOM: float = 0.30
 ## City presence above which the ground belongs to the settlement and the plain
 ## stops. Blurred over 8 tiles per texel, so this reaches well past the walls.
-const CITY_CLEAR: float = 0.16
+## Measured, not guessed: at 0.16 a 76-building opening settlement cleared so
+## much ground that a real run carried NINE pieces of scenery on screen while
+## the frame lab's placeholder city carried a hundred and twenty. The field is
+## blurred over sixteen tiles, so a third of full presence is still comfortably
+## outside anything anybody built — the rocks come up to the wall and stop.
+const CITY_CLEAR: float = 0.34
 
 ## chunk key -> Array[Dictionary] of {arch, cell, pos, seed}
 var _chunks: Dictionary[int, Array] = {}
