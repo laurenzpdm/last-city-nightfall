@@ -485,6 +485,42 @@ func _build_menu_block() -> float:
 	return float(menu.call(&"left_block"))
 
 
+## The left edge of [P17]'s right-hand column, in SCREEN pixels, or the viewport
+## width when nothing is standing there. The mirror of the `left_block()` this
+## file already asks [P18] for, and it exists for the same reason in the other
+## direction.
+##
+## `solved_rect(&"stage")` cannot answer this. The stage is deliberately allowed
+## to be WIDENED PAST the rails — see `LcnHudLayout`, "the world is drawn
+## underneath the chrome and does not mind" — so with a 900 px browser open it
+## runs clean under the attention stack. Correct for the world; useless as a
+## keep-out line, and reading it as one is why [P18]'s sheet still landed on the
+## alerts after being told to stay inside the stage.
+func right_block() -> float:
+	var view: float = float(get_viewport().get_visible_rect().size.x)
+	var edge: float = view
+	for name_key: String in _panel_map():
+		var w: LcnHudWidget = _panel_map()[name_key]
+		if w == null or not w.visible or w.size.x <= 1.0:
+			continue
+		var r := Rect2(w.position * style.ui_scale, w.size * style.ui_scale)
+		# Right-hand column only: a panel on the left flank is [P18]'s problem
+		# and `left_block()` already answers for it.
+		if r.position.x + r.size.x * 0.5 > view * 0.5:
+			edge = minf(edge, r.position.x)
+	return edge
+
+
+## True the moment [P22] has a card on screen — this frame, not this solve.
+##
+## [P18] stands its world-inspection sheet down while a decision is up, and it
+## was asking `solved_rect(&"card")`, which cannot answer until the 10 Hz
+## composition poll has run. Ten frames of a mouse-follow sheet across the
+## question is exactly what every opening screenshot in `artifacts/` shows.
+func card_on_screen() -> bool:
+	return stage != null and stage.card_visible()
+
+
 ## The screen rectangle the composition reserved for `key`, or an empty Rect2
 ## when this solve did not place one. `hint`, `lens_hint`, `legend`, `rail`,
 ## `stage` and `card` are the keys other parts ask for.

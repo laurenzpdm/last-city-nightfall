@@ -89,6 +89,11 @@ func _init() -> void:
 func _ready() -> void:
 	add_to_group(GROUP)
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# AFTER [P22] SHOWS ITS CARD AND AFTER [P17]'s STAGE MEASURES IT.
+	# `LcnNarrativeCard` and `LcnHudStage` run at 0 and 100; this part decides
+	# whether its sheet may be on screen from what both of them did THIS frame,
+	# and at the default 0 it was deciding from what they did last frame.
+	process_priority = 120
 	store.load_from_disk()
 	catalog.from_dict(store.palette)
 
@@ -269,6 +274,42 @@ func _hud_rect(key: StringName) -> Rect2:
 		if node.has_method(&"solved_rect"):
 			return node.call(&"solved_rect", key) as Rect2
 	return Rect2()
+
+
+## True while [P22] has a card on screen, asked of [P17] DIRECTLY rather than of
+## its solved layout.
+##
+## `solved_rect(&"card")` is three hops from the truth: [P22] shows the card,
+## `LcnHudStage` measures it at `process_priority = 100`, and [P17] re-solves the
+## composition on a 10 Hz poll. So the rect could be empty for up to a tenth of a
+## second after a card went up — and that is precisely when the harness
+## photographs, because a card and a shot beat both land on a tick boundary.
+## Every opening frame this build has ever produced shows the sheet on the card:
+## `artifacts/play1/shots/opening.png`, `second_night.png`,
+## `artifacts/play_tour/shots/01_palette.png`. The behaviour was written and
+## commented and correct; it was reading a number that had not caught up yet.
+##
+## `card_on_screen()` is [P17]'s own answer with no solver in it. The rect stays
+## as the fallback for a build where [P17] is older than this line.
+## The left edge of [P17]'s right-hand column, or +inf when there is no HUD in
+## this build to ask. `left_block()` is what this part publishes going the other
+## way; this is the answer coming back.
+func _hud_right_block() -> float:
+	var tree: SceneTree = get_tree()
+	if tree != null:
+		for node: Node in tree.get_nodes_in_group(&"lcn_hud_chrome"):
+			if node.has_method(&"right_block"):
+				return float(node.call(&"right_block"))
+	return INF
+
+
+func _card_up() -> bool:
+	var tree: SceneTree = get_tree()
+	if tree != null:
+		for node: Node in tree.get_nodes_in_group(&"lcn_hud_chrome"):
+			if node.has_method(&"card_on_screen"):
+				return bool(node.call(&"card_on_screen"))
+	return _hud_rect(&"card").size.x > 1.0
 
 
 func panel(id: StringName) -> LcnUiPanel:
@@ -624,7 +665,7 @@ func _process(delta: float) -> void:
 	# at the opening beat of `first_night`: [P22]'s "The Column Stopped Here" and
 	# a 380 px inspection of the hearth, both drawn, in the frame a critic sees
 	# first. One group lookup per frame is the right price for that.
-	if tooltip != null and tooltip.visible and _hud_rect(&"card").size.x > 1.0:
+	if tooltip != null and tooltip.visible and _card_up():
 		tooltip.visible = false
 	if _accum < 1.0 / REFRESH_HZ:
 		return
@@ -673,6 +714,7 @@ func _refresh_open_panels(force: bool) -> void:
 		return
 	if palette != null and palette.is_open():
 		palette.stock = _build.get(&"stock") if _build != null else null
+		catalog.refresh_caps(_build)
 		palette.refresh()
 	if recipes != null and recipes.is_open() and force:
 		recipes.refresh()
@@ -760,7 +802,7 @@ func _place_tooltip() -> void:
 	# top of [P19]'s lens legend — the sheet had stopped covering one thing by
 	# covering another. There is no arrangement in which a mouse-follow panel and
 	# a modal question both belong on screen.
-	if _hud_rect(&"card").size.x > 1.0:
+	if _card_up():
 		tooltip.visible = false
 		return
 	# It also stays out of the bottom rail. The stage is where the world is and
@@ -792,8 +834,37 @@ func _place_tooltip() -> void:
 	var block: float = left_block()
 	if block > 1.0 and block + 8.0 + tooltip.size.x <= screen.x - 8.0:
 		left_edge = block + 8.0
+	# AND IT STAYS OFF THE PANELS THAT SAY WHETHER THE CITY IS STILL ALIVE.
+	#
+	# `left_block()` only knows about [P18]'s own browsers. [P17] moves its status
+	# column — heat grid, attention, the people, the wave — to whichever flank the
+	# browsers left free, so with a panel open on the left the whole attention
+	# stack is on the RIGHT, and the mouse-follow branch put a 380 px sheet
+	# straight through it: `artifacts/play_tour/shots/03_tech.png` reads
+	# "The Turret Mount run is 7.5 heat short / ...g running cold /
+	# ...eneration, or switch off what you can live without" with the middle of
+	# every line behind an inspection of the hearth. Three of eleven tour frames.
+	#
+	# The rectangle that already answers this is `stage` — what [P17] leaves free
+	# after placing every rail — and this function was already reading it for the
+	# floor and ignoring its two sides. Only applied when the sheet fits between
+	# them: shoving it off the screen edge to save an overlap trades one
+	# unreadable panel for two, which is the same trade the left clamp refuses.
+	var right_edge: float = minf(screen.x - 8.0, _hud_right_block() - 8.0)
+	# WHEN THE TWO CLAMPS CANNOT BOTH BE HONOURED, THE RIGHT ONE WINS.
+	#
+	# With a 900 px browser open the stage is about 330 px wide and this sheet is
+	# 380, so "right of the browser" and "left of the status column" are asking
+	# for room that does not exist. Keeping the LEFT constraint is what produced
+	# `03_tech.png`: the sheet parked itself neatly clear of the tech tree and
+	# printed straight through the attention stack, so the three lines telling
+	# the player their turret run was 7.5 heat short were the ones sacrificed. A
+	# browser is a list the player can close; the attention stack is the city
+	# saying it is in trouble, and it is never the thing that gives way.
+	var lo: float = left_edge
+	var hi: float = right_edge - tooltip.size.x
 	tooltip.position = Vector2(
-		clampf(pos.x, left_edge, maxf(left_edge, screen.x - tooltip.size.x - 8.0)),
+		clampf(pos.x, lo, hi) if hi >= lo else maxf(8.0, hi),
 		clampf(pos.y, 8.0, maxf(8.0, floor_y - tooltip.size.y)))
 
 
