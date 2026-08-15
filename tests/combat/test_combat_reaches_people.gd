@@ -75,24 +75,37 @@ func _step(n: int) -> void:
 #  1. THE THINK GATE
 # ==========================================================================
 
-## Every body must reach a think tick, not one slot in ten.
+## EVERY body must reach a think tick inside one THINK_PERIOD, not one slot in
+## ten. This is deliberately measured through the swarm rather than by
+## re-deriving the condition here: an arithmetic restatement of the gate would
+## be green against any implementation, including the broken one.
 ##
-## RED against the old gate: with `(i + tick) % THINK_PERIOD ==
-## tick % THINK_PERIOD`, slots 1..9 and 11..19 are never true for any tick, so
-## `seen` ends up holding only the multiples of ten and this fails on the very
-## first missing slot.
+## Twenty seekers are put ten tiles from a housing block — far enough that none
+## of them can walk into it and pick it up off the blocker probe inside the
+## window — and every one of them must have acquired it by seeking.
+##
+## RED against the old gate: `(i + tick) % THINK_PERIOD == tick % THINK_PERIOD`
+## is true exactly when i is a multiple of ten, whatever the tick, so two of the
+## twenty acquire anything and eighteen walk on blind.
 func test_every_body_gets_a_think_tick() -> void:
-	var n: int = EnemySwarm.THINK_PERIOD * 3
-	var seen: Dictionary[int, bool] = {}
-	for tick: int in range(0, EnemySwarm.THINK_PERIOD * 4):
-		for i: int in range(n):
-			if (i + tick) % EnemySwarm.THINK_PERIOD == 0:
-				seen[i] = true
-	for i: int in range(n):
-		assert_true(seen.has(i),
-			"slot %d never reaches a think tick in %d ticks — it will never seek a "
-			% [i, EnemySwarm.THINK_PERIOD * 4] + "target, never age out and never "
-			+ "run the stall watchdog")
+	var seat: Vector2i = _housing_seat(Vector2i(9, 0))
+	var house: BuildingInstance = _place(&"housing_block", seat)
+	if house == null:
+		return
+	var n: int = 20
+	var from: Vector2i = seat + Vector2i(0, 10)
+	assert_eq(combat.spawn(WIDOW, from, n), n, "twenty seekers are on the field")
+	_step(EnemySwarm.THINK_PERIOD + 2)
+
+	var acquired: int = 0
+	for i: int in range(combat.swarm.count):
+		if combat.swarm.e_target[i] == house.id:
+			acquired += 1
+	assert_eq(acquired, n,
+		"%d of %d seekers have found a housing block ten tiles away after one "
+		% [acquired, n] + "full think period; the rest will never seek at all, "
+		+ "never run the stall watchdog, never re-read their ground speed and "
+		+ "never age out")
 
 
 # ==========================================================================
