@@ -1,0 +1,71 @@
+{
+  "ts": "2026-08-15T22:10:00Z",
+  "part": "F2",
+  "title": "The night could never reach the people, and it was four bugs deep. The morning after now has names in it.",
+  "owned": [
+    "game/sim/combat/combat_system.gd",
+    "game/sim/combat/enemy_swarm.gd",
+    "game/sim/combat/night_toll.gd",
+    "game/content/enemies/snow_widow.tres (new)",
+    "game/content/enemies/drift_hound.tres",
+    "game/content/enemies/frost_shade.tres",
+    "tests/combat/test_combat_reaches_people.gd (new)",
+    "tests/combat/test_combat_watchdog.gd",
+    "tests/combat/night_takes_people_walled.json (new)",
+    "tests/combat/night_takes_people_open.json (new)"
+  ],
+
+  "what_was_actually_wrong": {
+    "1_the_seek_index_was_always_empty": "`(bucket[\"id\"] as PackedInt32Array).append(x)` in _rebuild_target_index appends to a COPY — Packed*Array is a value type in GDScript. Every tagged target preference resolves through that index, and find_enemy_target is deliberately forbidden from falling through to the untagged search, so it returned {} for every tag on every tick since the index was written. The pale stalker never looked for a turret, the cinder leech never for a heat main, the hoarfrost breaker never for a wall, the permafrost borer never for a generator. FOUR OF THE TEN ANSWERS IN THIS ROSTER WERE SILENTLY ABSENT FROM THE GAME — all four behaving as generic biters that chew whatever blocks the next step, which is the exact behaviour the comment above find_enemy_target says must never happen.",
+    "2_nine_bodies_in_ten_never_thought": "`(i + tick) % THINK_PERIOD == tick % THINK_PERIOD` is true exactly when i is a multiple of ten, FOR EVERY TICK — it does not depend on the tick at all. Target seeking, the stall watchdog, snow drag, regeneration and ageing out all live behind that gate. Measured: twenty seekers ten tiles from a housing block, one full THINK_PERIOD later, 2 of 20 had found it. Cost is identical either way (count/THINK_PERIOD bodies think per tick before and after).",
+    "3_the_hearth_was_a_deadlock_not_a_last_resort": "enemy_attack refuses to let anything demolish the fire and redirects it onto the nearest real building; the next step's blocker probe asks 'what is in front of me', is told 'the hearth', and puts the target straight back. Attack, refuse, redirect, retarget, at zero damage a second, until dawn. Measured before the fix on a 46-body assault with the wall deliberately left out: every body that reached the fire ended the night pressed against it in state ATTACKING, the hearth at 3000/3000, four housing blocks untouched four tiles away, 252 points of structural damage in a hundred seconds, not one citizen hurt. combat.blocker_at() is the fix — the fire is impassable but it is not something to chew on while the city is more than the fire.",
+    "4_a_collapse_cost_the_same_whatever_came_down": "NightToll.max_caught was a flat 6, so a sixteen-tile housing block full of sleepers took no more people with it than one length of heat pipe. Now cap_for(cells) = 3 + 0.65/tile, capped at 12.",
+    "5_the_roster_had_nothing_that_wanted_the_people": "Ten kinds went for walls, guns, pipes, generators and 'whatever is nearest'. snow_widow (min_day 2, pack 3, target_pref housing, seek 26, preferred_multiplier 3.0) walks past everything worth money and goes where the city sleeps. A wall stops it; a hole does not."
+  },
+
+  "the_measurement_the_brief_asked_for": {
+    "fixture": "tests/combat/night_takes_people_{walled,open}.json — identical city, identical seed, [P08] in peace mode, the same 32-body assault out of the south at the same tick from the same cell. The ONLY difference is a wall three tiles in front of the southern guns.",
+    "walled morning": "6 panels of wall. 3750 structural damage, all of it masonry. 44 of 44 attackers put down over 218 shots. 0 housing lost, 0 citizens killed, 0 hurt, homeless 14.",
+    "open morning": "2 housing blocks. 1904 structural damage. 43 killed over 413 shots. 4 citizens dead BY NAME (Radek Novak 22 labourer, Rurik Sandvik 30, Tomas Berg 31, Erik Grim 38), 18 hurt, homeless 14 -> 34.",
+    "the third result, which is a design finding": "The first cut put the same wall at y=146, six tiles out — inside burner_cannon range (11) but past the scatter gun (7). That wall made the night WORSE than no wall at all: 4 housing blocks and 7 dead against the open run's 2 and 4. A pack bunched on a wall the guns cannot properly cover breaks through in one place, together, at full health, instead of trickling across open ground under fire. A wall is not a defence on its own and this build can now demonstrate that in two runs."
+  },
+
+  "the_reference_run_before_and_after": {
+    "method": "first_night at 60000 ticks, twice on the CURRENT tree. The 'before' is a full copy of the repo with only this part's five production/content files reverted to 5bc00ed~1 — so the climate commit 7591703 that landed mid-session is present in both and cannot be credited or blamed here.",
+    "before (artifacts ISO60)": "40 structures lost across six nights; 3 citizens killed; 14 hurt; nights 1 and 2 free; the first named dead on night FIVE. What the nights took: heat pipes, loading arms, salvage crates and slat belts — perimeter machinery with nobody standing in it.",
+    "after (artifacts/F2_final60)": "24 structures lost; 12 citizens killed BY NAME; 42 hurt; four of six nights have names in the morning line. FEWER buildings and FOUR TIMES the people, because the losses moved from belts on the perimeter to housing blocks and turret mounts.",
+    "night 3 after": "'Gone by morning: Heat Pipe, Housing Block x2, Turret Mount. Emrik Novak, Ruth Frost, Tomas Ostrom did not come out. 14 hurt.'",
+    "night 4 after": "'Gone by morning: Trunk Main, Turret Mount x6.' — six turret mounts to pale stalkers, which is the tag-index fix visible in the reference run: that enemy's whole description is 'crosses the wall as if it were a chalk line and goes straight for the guns' and it had never once done it.",
+    "night 6 after": "'Gone by morning: Granary, Heat Pipe, Housing Block x3, Warmth Radiator. Kasimir Torvik, Lukas Holm, Malin Halvorsen, Nils Marek and 2 more did not come out. 23 hurt.'",
+    "night 2 at 24000 ticks": "0 structural damage / 0 lost -> 1326 damage / 6 lost, 'Gone by morning: Heat Pipe x5, Trunk Main.' Three cinder leeches finally finding conduits."
+  },
+
+  "verified": {
+    "tests/combat/test_combat_reaches_people.gd (new, 8 tests)": "TESTS PASSED, 53 asserts",
+    "REVERT PROOF": "with this part's three .gd files and snow_widow.tres restored from 5bc00ed~1, the same suite prints TESTS FAILED with 13 named assertion failures across 5 of the 8 tests, plus 3 SCRIPT ERRORs for blocker_at/cap_for not existing. The think-gate test reads '2 of 20 seekers have found a housing block ten tiles away' — it measures the swarm rather than restating the condition, because an arithmetic restatement is green against any implementation including the broken one. Proved separately by putting ONLY the old gate expression back into enemy_swarm.gd: same test, same '2 of 20'.",
+    "tests/combat (7 suites)": "85 passed, 0 failed, 0 skipped, 489 asserts",
+    "tests/threat (6 suites)": "85 passed, 0 failed, 2498 asserts",
+    "tests/p00 (5 suites)": "87 passed, 0 failed, 7987 asserts",
+    "full in-process suite (81 suites)": "1170 passed, 4 failed, 0 skipped, 88776 asserts. ONE of the four is mine — see must_do_next. The other three (citizens::test_the_death_spiral_actually_spirals, production::test_a_great_frost_slows_the_factory_down, production::test_nothing_is_created_or_destroyed_across_a_craft) fail IDENTICALLY in the isolated copy with this part reverted, so they are pre-existing on this tree.",
+    "tools/determinism.sh": "IDENTICAL, sha256 3dc6059808336a59 and 83923b70590fedde, DETERMINISM OK",
+    "tests/boot/run_reachability.tscn --force-ui (xvfb)": "TESTS PASSED — 92 checks, 0 failures, 0 unchecked",
+    "tools/assert_run.py first_night @24000": "36 pass / 6 FAIL. With this part reverted on the same tree: 35 pass / 7 FAIL. Five of the six reds and the 'every wave ends' red are pre-existing (the climate commit shifted every night ~1300 ticks earlier, so night three is now in progress at t24000). EXACTLY ONE band is newly red because of this part — see must_do_next.",
+    "tests/combat/stress_1000_night.json": "0 errors, 7000 ticks, 477-body assaults on a 1000-structure city, unchanged behaviour"
+  },
+
+  "must_do_next": [
+    "[P13]/E2 — snow_widow HAS NO SPRITE, AND YOUR TEST CAUGHT IT. tests/render/test_sprites.gd::test_every_shipped_enemy_maps_to_its_own_sprite is red: 'snow_widow renders as itself, not as a generic archetype (got swarm)'. It is not invisible — LcnSpriteFactory.agent_arch falls back to the swarm archetype and it draws with its own tint (0.83, 0.29, 0.45) — but it does not have a silhouette of its own. The change is one entry in LcnSpriteFactory.ENEMY_KINDS and one _bake_snow_widow() beside the other ten. It is the eleventh enemy and it should read as a runner that is not a hound: leaner than the drift hound, longer-legged, no pack tint. game/view/render/ is not mine and I did not touch it. THIS IS THE ONLY TEST FAILURE IN THE BUILD THAT THIS PART CAUSED.",
+    "[P00]/E4 — the gate band `combat.structures_lost final_max 2` on first_night now reads 6 and is the one band this part turns red. Its own stated why is 'Zero measured. The reference run is supposed to hold' — it was written when a night cost nothing and it now encodes exactly the thing three critics across two waves asked to be removed. Night two's six losses are five heat pipes and a trunk main taken by three cinder leeches, whose authored description is 'bites through a heat main in two seconds' and whose preferred_multiplier of 6.0 has never been applied to anything until this wave. Somebody who owns tests/gate/ has to decide what a reference night is allowed to cost; I did not move it, because moving another part's threshold to make my red go green is the failure mode this project has already paid for twice.",
+    "[P08] — THE WITHDRAWAL LEDGER IS HALF FIXED AND THE OTHER HALF IS YOURS, ONE LINE. combat.withdraw_wave(-1) now turns EVERY body around (unchanged, that is what dawn means) but RETURNS only the bodies a director actually handed over through spawn_group()/spawn_enemy(); the dawn line names the rest ('484 body/bodies broke off and are walking back out (60 of them belonged to no wave the director sent)'). threat_system.gd:1009 then throws that answer away: `return maxi(n, live)` with `live` from `_derived_live()`, which is built on combat's GLOBAL enemies_alive(). stress_1000_night still logs '288 spawned, 0 killed, 335 walked away' for that reason — combat answered 276. Trust withdraw_wave's return and wave_status(w)['live'] instead of maxi()-ing them against a count of every body on the map.",
+    "[P02]/[P11] — A CITY THAT LOSES SIX HEAT PIPES ON NIGHT TWO NEVER GETS THEM BACK. In the reference run the six losses cascade into heat.frozen_buildings 3, production.stalled 3 and rations 285 at t24000. Nothing rebuilds a destroyed pipe. Now that nights actually take structures this is the difference between a setback and a spiral, and it is the single largest reason the reference city is dead of cold by night five.",
+    "[P22]/[P17] — the toll ledger is now in state.json as combat.toll_ledger: one row per structure lost, with tick, kind, label, tags, cell, the names of the dead and the count of the hurt. NightToll.summary() already writes the morning sentence ('Gone by morning: Granary, Heat Pipe, Housing Block x3, Warmth Radiator. Kasimir Torvik, Lukas Holm, Malin Halvorsen, Nils Marek and 2 more did not come out. 23 hurt.') and it currently only reaches the log. That sentence is the best thing this part produces and no player can see it."
+  ],
+
+  "could_not_verify": [
+    "tools/check.sh did not finish inside this session — it was backgrounded and had reached the tests stage (import, parse and sim lint green) when I had to report. Every stage it covers that I could run alone is reported above: parse is implied by 431 scripts compiling in every run, the in-process suite is 1170/4, determinism is IDENTICAL, reachability is 92/0. The 19 standalone suites other than reachability were NOT run by me.",
+    "PERF NOT MEASURED and not chased. Four agents share four cores and tools/check.sh was running against the same box as two of my sim runs. The one thing worth an integrator's eye: _rebuild_target_index now actually produces lists, so find_enemy_target does real work for the first time — a linear scan of the tag's list per seeking body per THINK_PERIOD. The lists are per-tag, not per-building (housing, wall, turret, conduit, heat_source, defense), and the untagged 'any' path is a ring scan that only ash_spitter, keener and the_long_cold use. I deliberately did NOT give the drift hound a seek radius after measuring what it costs — see below.",
+    "Whether the snow widow lands on night two specifically. It is min_day 2 and wave_weight 1.8, but [P08] composes by shape and dice; on the reference seed it first arrives on night three. I raised the weight to 2.6 at one point to force it onto night two, measured that this only reshuffled which OTHER kind was displaced, and put it back to 1.8 rather than tune the roster to one seed."
+  ],
+
+  "a_thing_i_measured_and_then_undid": "I gave drift_hound seek_radius 3.0 and frost_shade 4.0 so that a body with nothing blocking it would still bite. It is wrong and the reference run says so in one line: SIX drift hounds ate EIGHTEEN buildings on night one, the teaching night, for 2358 structural damage, because a hound with a seek radius stops at the first belt on the perimeter instead of walking to the warmth. Both are back to 0.0. What reaches the people is the four specialists the index fix finally armed plus the snow widow — not the swarm stopping for scenery."
+}
