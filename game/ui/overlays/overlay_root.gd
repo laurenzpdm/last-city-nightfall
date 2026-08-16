@@ -38,6 +38,8 @@ extends Node
 const GROUP: StringName = &"lcn_overlay_root"
 const SETTINGS_REFRESH: float = 0.5
 const LOG_EVERY: int = 600
+## Frames of quiet owed between two density lines. See the density block in `_process`.
+const DENSITY_LOG_GAP: int = 120
 
 ## Which lens a --harness --visual run shows at which tick, so the reference
 ## scenario's own screenshots walk through the whole system instead of
@@ -92,6 +94,7 @@ var _harness_mode: int = -1
 ## was actually filled for. See the density block in `_process`.
 var _logged_mode: int = -1
 var _drawn_mode: int = -1
+var _log_after: int = 3
 
 
 static func instance() -> LcnOverlayRoot:
@@ -444,8 +447,12 @@ func _process(delta: float) -> void:
 	# is exactly the shape of a number that looks like a pass and measures air.
 	# And once per lens rather than every N frames, because "every 600 frames"
 	# printed nothing at all: a visual run does not last 600 frames.
-	if _drawn_mode == mode and mode != _logged_mode and _frames > 3:
+	# Throttled as well as change-driven: `tests/d7/run_layout_audit.tscn` cycles
+	# every lens at every resolution and turned one line per lens into forty
+	# identical ones, which is how a useful log line becomes noise a reader skips.
+	if _drawn_mode == mode and mode != _logged_mode and _frames > _log_after:
 		_logged_mode = mode
+		_log_after = _frames + DENSITY_LOG_GAP
 		Log.info("overlay", "density · %s @ zoom %.2f — %s" % [
 			LcnOverlayDefs.mode_id(mode), _zoom(), field.summary()])
 	_drawn_mode = mode
