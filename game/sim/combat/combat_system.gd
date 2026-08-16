@@ -985,6 +985,33 @@ func note_hit(_turret_id: int, _pos: Vector2, _amount: float) -> void:
 	pass
 
 
+## What a body that has walked into the hearth district turns on when it has run
+## out of things it is allowed to attack. Empty only when the city really is
+## nothing but its fire, in which case the swarm absorbs the body instead.
+##
+## HOUSING FIRST, and that is a design statement, not a heuristic. They come for
+## the warmth; inside the wall the warmest thing with a door in it is a house
+## with people asleep behind it. It is also the only rule in this part that makes
+## a BREACH cost what a breach should cost: before it, every night in this build
+## billed the player in wall panels, pipe and turret mounts — things that were in
+## the way — and `combat.citizens_killed` read 0 across 60000 ticks. A hole in
+## the line now costs names, and the wall is the thing that decides whether it
+## does. See tests/combat/night_takes_people_{walled,open}.json for the pair.
+##
+## Never the fire itself: _nearest_structure skips landmarks, so this can never
+## hand back the target enemy_attack would refuse.
+func inside_target(at: Vector2) -> Dictionary:
+	var home: Dictionary = find_enemy_target(at, CombatTypes.PREF_HOUSING,
+		float(SEEK_RING_MAX) * TILE)
+	if not home.is_empty():
+		_alert(&"inside", 1, "They are in the hearth district.", at)
+		return home
+	var any: Dictionary = _nearest_structure(at, SEEK_RING_MAX, false)
+	if not any.is_empty():
+		_alert(&"inside", 1, "They are in the hearth district.", at)
+	return any
+
+
 ## Nearest structure worth diverting to. Tagged preferences use the maintained
 ## index; "any" walks rings outward off [P11]'s occupancy, which finds the
 ## nearest hit on the first ring that contains one.

@@ -310,6 +310,141 @@ func test_a_bigger_building_can_take_more_people_with_it() -> void:
 
 
 # ==========================================================================
+#  4b. GETTING INSIDE HAS TO COST THE CITY SOMETHING
+# ==========================================================================
+
+## A body that walks all the way to the fire takes the hearth district apart.
+##
+## The whole roster is not housing seekers, and it should not be: the drift hound
+## is the commonest thing in the game, it has `seek_radius 0` and `target_pref
+## any` on purpose, and it can only ever attack what physically blocks its next
+## step. The flow field routes it AROUND buildings, so once it is through the
+## wall there is nothing in its way at all — it walks past the houses, past the
+## generators, to the hearth, and there the old code did one of two things:
+##
+##   * within one tile of the core, `leaked += 1; _kill(i, tick)` — it evaporated
+##     and the player paid nothing whatever for the hole it came through; or
+##   * anywhere else — and the hearth's own footprint parks it THREE tiles out,
+##     which is where the reference run actually put it — it stood there with
+##     `target -1` until dawn. Three hounds did exactly that from t4400 to t7600
+##     of night one, doing nothing, while `combat.structures_lost` counted pipes.
+##
+## Either way a breach was free, which is why every structure this build has ever
+## lost was a wall panel, a pipe or a turret mount with nobody in it, and why
+## `combat.citizens_killed` read 0 across 60000 ticks.
+##
+## No turrets in this test on purpose: it isolates what a body does when it gets
+## in from whether the guns can hit it (that is test_combat_gunnery.gd).
+##
+## RED against both old branches: the housing block is untouched at 900 hit
+## points after two minutes with six hounds standing next to the fire.
+func test_a_body_that_reaches_the_fire_takes_the_district_apart() -> void:
+	if citizens == null or not citizens.has_method("kill_citizen"):
+		skip("[P05] is not in this build; the toll has nobody to bill")
+		return
+	var hearth: BuildingInstance = _place(&"the_hearth", core - Vector2i(2, 2))
+	if hearth == null:
+		return
+	var seat: Vector2i = _housing_seat(Vector2i(6, 0))
+	var house: BuildingInstance = _place(&"housing_block", seat)
+	if house == null:
+		return
+	var inside: PackedInt32Array = _stand_people_in(house, 8)
+	if inside.size() < 4:
+		fail("only %d of 8 citizens ended up on the footprint (%s); this suite "
+			% [inside.size(), str(house.rect())] + "cannot say what a breach costs "
+			+ "until they are in there")
+		return
+
+	# Three tiles off the fire: inside the hearth district, and OUTSIDE the one
+	# tile the old absorb radius covered. This is the reference run's geometry.
+	var from: Vector2i = core + Vector2i(0, 3)
+	assert_eq(combat.spawn(HOUND, from, 6), 6, "six hounds are standing at the fire")
+	var full: float = house.hp
+
+	var guard: int = 0
+	while build.get_building(house.id) != null and guard < 2400:
+		world.run(1)
+		guard += 1
+
+	assert_true(combat.swarm.leaked > 0,
+		"six bodies stood three tiles from the hearth and none of them was ever "
+		+ "counted as having got inside")
+	assert_null(build.get_building(house.id),
+		"six hounds stood at the fire for %.0f seconds with a housing block six "
+		% (float(guard) * SimClock.DT) + "tiles away and it is still standing at "
+		+ "%.0f of %.0f hit points — getting into the city cost the player nothing"
+		% [(build.get_building(house.id).hp if build.get_building(house.id) != null else 0.0), full])
+	assert_true(combat.toll.dead_total + combat.toll.hurt_total > 0,
+		"the block came down on %d people and the toll billed nobody" % inside.size())
+
+	var named: Array = []
+	for row: Dictionary in combat.night_toll(0):
+		if String(row.get("kind", "")) == "housing_block":
+			named = row.get("dead", [])
+	if combat.toll.dead_total > 0:
+		assert_true(named.size() > 0,
+			"the ledger row for the housing block carries no names, so the morning "
+			+ "after cannot say who is missing")
+		for n: Variant in named:
+			assert_ne(String(n), "someone",
+				"the toll wrote a placeholder instead of a citizen's name")
+
+
+## The fire itself is still not the thing they eat, and a body that gets in where
+## there is nothing within reach to take is still absorbed rather than left
+## orbiting the hearth until dawn.
+##
+## This is the guard on the rule above: "go for the district" must not become
+## "go for the hearth", or one body ends a run on the win condition. The other
+## building is put THIRTY tiles out — past SEEK_RING_MAX — so the district is
+## genuinely empty while the city as a whole is not, which is the only state in
+## which the absorb still has to fire.
+func test_a_body_inside_an_empty_district_is_absorbed_not_left_standing() -> void:
+	var hearth: BuildingInstance = _place(&"the_hearth", core - Vector2i(2, 2))
+	if hearth == null:
+		return
+	# Far enough that inside_target finds nothing, close enough that the city is
+	# still more than its fire — so the hearth stays a refused target.
+	if _place(&"housing_block", _housing_seat(Vector2i(30, 0))) == null:
+		return
+	var full: float = hearth.hp
+	var before: int = combat.swarm.leaked
+	assert_eq(combat.spawn(HOUND, core + Vector2i(0, 3), 3), 3, "three at the fire")
+	world.run(400)
+
+	assert_true(combat.swarm.leaked > before,
+		"three bodies stood at the fire and none was counted as having got inside")
+	assert_not_null(build.get_building(hearth.id),
+		"the hearth was torn down while the rest of the city still stood — the "
+		+ "last-resort rule has been spent to buy the district rule")
+	assert_near(build.get_building(hearth.id).hp, full, 0.01,
+		"the fire took damage from bodies that are supposed to be refused it")
+	assert_eq(combat.bodies_on_map(), 0,
+		"a body inside an empty district must be absorbed, or it stands at the "
+		+ "hearth doing nothing until dawn — which is what three drift hounds did "
+		+ "for 2600 ticks of night one in the reference run")
+
+
+## One body crossing into the district is one leak, however long it stays.
+## RED against counting the leak on every tick the body has nothing to chew on.
+func test_a_body_inside_is_counted_once() -> void:
+	var hearth: BuildingInstance = _place(&"the_hearth", core - Vector2i(2, 2))
+	if hearth == null:
+		return
+	var seat: Vector2i = _housing_seat(Vector2i(6, 0))
+	if _place(&"housing_block", seat) == null:
+		return
+	var before: int = combat.swarm.leaked
+	assert_eq(combat.spawn(HOUND, core + Vector2i(0, 3), 2), 2, "two at the fire")
+	world.run(600)
+	assert_le(float(combat.swarm.leaked - before), 2.0,
+		"two bodies got inside and the leak counter moved by %d — it is counting "
+		% (combat.swarm.leaked - before) + "ticks, not bodies, and every metric "
+		+ "band built on it is reading noise")
+
+
+# ==========================================================================
 #  5. THE LEDGER CANNOT REPORT MORE SURVIVORS THAN IT SENT
 # ==========================================================================
 
