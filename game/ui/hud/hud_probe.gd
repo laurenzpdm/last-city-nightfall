@@ -165,6 +165,8 @@ var _scanned_tick: int = -1000
 var _item_ids: Array[StringName] = []
 var _items_scanned: bool = false
 var _bus_wave: Array = []                          ## [wave, seconds, tick] from Bus
+## Highest wave number `Bus.wave_cleared` has announced. See `_read_threat()`.
+var _wave_finished: int = 0
 ## instance id -> metrics(), valid for one refresh only.
 var _metrics_cache: Dictionary[int, Dictionary] = {}
 
@@ -232,6 +234,10 @@ func bind() -> void:
 	if world_seed != _bound_seed:
 		_bound_seed = world_seed
 		trend.reset()
+		# A different world has not survived any night yet, and carrying the
+		# last one's count over would leave its first wave suppressed.
+		_wave_finished = 0
+		_bus_wave = []
 	_bound_tick = _tick()
 
 
@@ -609,9 +615,10 @@ func _on_wave_started(wave: int, _strength: float) -> void:
 	wave_active = true
 
 
-func _on_wave_cleared(_wave: int) -> void:
+func _on_wave_cleared(wave: int) -> void:
 	wave_active = false
 	_bus_wave = []
+	_wave_finished = maxi(_wave_finished, wave)
 
 
 ## [P08]'s preview if it has one, the Bus countdown if it does not, nothing if
@@ -663,6 +670,25 @@ func _read_threat(tick: int) -> void:
 			["seconds_to_wave", "next_wave_seconds"], -1.0)
 		wave_strength = _ask(_threat, [&"wave_strength", &"pressure"],
 			["strength", "pressure"], wave_strength)
+
+	# A NIGHT THE PLAYER HAS ALREADY WON MUST STOP COUNTING DOWN.
+	#
+	# [P08] keeps the resolved plan on its books until the next night is
+	# composed at the day roll-over, and every clock it offers is measured to
+	# NIGHTFALL — which, in the hour between "wave 1 resolved" and dawn, is now.
+	# So `next_wave_preview()` and `seconds_until_wave()` both answer 0 for a
+	# wave that is over, and read literally that painted, in
+	# `artifacts/play1/shots/assault.png`, a wave panel reading "NEXT WAVE 0:00 —
+	# wave 1 from the south-east · A HANDFUL" and an alert reading "Attack now"
+	# over the quiet minutes AFTER the six drift hounds were all dead. Both
+	# widgets were honest about what they were told; nobody had told them.
+	#
+	# `Bus.wave_cleared` is the announcement, this probe already listens to it,
+	# and `wave_seconds < 0` is the documented "there is nothing to show" value
+	# that `LcnHudWave.should_show()` and `LcnHudAlerts` both already respect.
+	# The three existed; the wire between them did not.
+	if not wave_active and wave_number <= _wave_finished:
+		wave_seconds = -1.0
 
 
 ## The heaviest approach lane, and where it comes in. [P08] hands out a

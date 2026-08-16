@@ -115,7 +115,14 @@ func _draw() -> void:
 	style.draw_text_right(self, right_x, _y_where, _where_line(), style.fs(12),
 		style.ink_faint())
 
-	if probe.wave_band != "":
+	# `wave_known` GATES THIS TOO. The strength bar below already honours the
+	# redaction and this caption did not, so the panel spent the whole first day
+	# printing "wave 1 · no word yet" and "A HANDFUL" one line apart
+	# (`artifacts/play_tour/shots/03_tech.png`) — telling the player the size of
+	# a thing it had just told them nothing is known about. [P08] hands the band
+	# out unconditionally; deciding how much of the preview a player has earned
+	# is this panel's stated job, and it has to apply to every line of it.
+	if probe.wave_band != "" and probe.wave_known:
 		style.draw_caps(self, Vector2(_dial.x + DIAL_RADIUS + 12.0, _y_force),
 			probe.wave_band, style.fs(9), style.sev_colour(S.Sev.WARN), 1.6)
 	if probe.wave_strength > 0.0 and probe.wave_known:
