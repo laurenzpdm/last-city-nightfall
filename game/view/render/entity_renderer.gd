@@ -549,11 +549,21 @@ func _lay_tracks() -> void:
 		# mark fades in 26 seconds and says where the city went in the last
 		# minute; the wear field keeps it for hours and is why the plaza at hour
 		# 3 is not the plaza at hour 1. See LcnTerrainField's WEAR block.
+		#
+		# THE WEIGHTS ARE WHAT ONE FOOTFALL IS WORTH, and they were measured up
+		# twice. At 12 and then at 16, 260 ticks of 46 people walking a
+		# settlement moved the photograph by 0.37% and then 1.13% of the screen —
+		# both invisible with the two plates held side by side. The mistake was
+		# treating a footprint as an increment: a boot in fresh snow is not a
+		# faint hint that someone might have passed, it is a hole, which is
+		# exactly what the 26-second boot marks already draw. One crossing now
+		# lands most of the way up the response curve in terrain.gdshader and
+		# repeated use takes the route down to the grit.
 		if field != null:
 			if is_foe:
-				field.add_wear(p, 0.85, 22)
+				field.add_wear(p, 0.95, 64)
 			else:
-				field.add_wear(p, 0.45, 12)
+				field.add_wear(p, 0.55, 40)
 	# Whatever died, went home or was culled stops being tracked. Without this
 	# the two side dictionaries are a slow leak across a long night.
 	if _step_last.size() > live.size():
@@ -770,8 +780,12 @@ func _draw_shadows(ci: CanvasItem) -> void:
 ##
 ## Drawn under everything and never on the ghost pass, so a track is always
 ## something that HAPPENED. The figure floor scales them with the figures: at
-## play zoom a person is enlarged to 17 px and its footprints are enlarged with
-## it, or the trail would vanish exactly where it is needed most.
+## play zoom a person is enlarged to MIN_AGENT_PX and its footprints are
+## enlarged with it, or the trail would vanish exactly where it is needed most.
+##
+## These are the last MINUTE of the city's movement. The last few HOURS of it
+## are in LcnTerrainField's wear field, written from the same footfalls and
+## costing nothing to draw.
 func _draw_tracks(ci: CanvasItem, col: Color) -> void:
 	_steps_drawn = 0
 	if not draw_agents or _step_x.is_empty() or _shadow_r.size.x <= 0.0:

@@ -568,8 +568,14 @@ const STORM_MIN_DELTA: float = 0.006
 ##
 ## This plate is that run's own numbers. It is the honest question: does an
 ## ORDINARY SNOWING AFTERNOON look different from a still one.
-const SNOW_MIN_REACH: float = 0.10
-const SNOW_MIN_DELTA: float = 0.0020
+## MEASURED BOTH SIDES. This build, with the stub reporting exactly what
+## artifacts/F4b_probe reports (snowfall, intensity 0.55, wind 0.28, storm
+## envelope 0.000): 9.4% of the frame, mean |delta| 0.0058, ground told 0.30.
+## The build before this pass, same beat, same plates: 0.0% and 0.0000 — not
+## approximately zero, EXACTLY zero, because `storm` reached nothing on an
+## ordinary day. The floors sit between the two with room for another GPU.
+const SNOW_MIN_REACH: float = 0.045
+const SNOW_MIN_DELTA: float = 0.0025
 
 
 class StubClimate extends SimSystem:
@@ -695,8 +701,18 @@ const WEAR_TICKS: int = 260
 ## Fraction of the frame the city's own history is allowed to occupy, and the
 ## mean step it makes. Deliberately below the storm's floors: this is the ground
 ## going quietly darker along the routes people use, not weather.
-const WEAR_MIN_REACH: float = 0.020
-const WEAR_MIN_DELTA: float = 0.0010
+## MEASURED BOTH SIDES, and the floors are what the beat is worth rather than
+## what the code happens to produce. This build: 260 ticks of 46 people, 1707
+## footfalls, 8.42% of the frame at mean |delta| 0.0088. A build with no wear
+## field: 0.00% and 0.0000, because the old "tracks" were contour lines of a
+## static noise field and no amount of walking moved them.
+##
+## The first two attempts at the response curve scored 0.37% and 1.13% and BOTH
+## looked identical to the fresh plate with the two crops held side by side —
+## which is why these floors are set where a human can see the difference and
+## not merely where the number is non-zero.
+const WEAR_MIN_REACH: float = 0.040
+const WEAR_MIN_DELTA: float = 0.0035
 
 
 func _stage_the_wear() -> void:
@@ -791,7 +807,7 @@ func _stage_the_wear() -> void:
 		% [WEAR_TICKS, walked_agents, walked_tracks, int(_wear_report["stamps"])]
 		+ "the same frame differs by %.2f%% of the screen, mean |delta| %.4f "
 		% [float(_wear_report["reach"]) * 100.0, float(_wear_report["delta"])]
-		+ "(field mean %.4f) — the ground remembers" % float(_wear_report["mean"]))
+		+ "(field mean %.5f) — the ground remembers" % float(_wear_report["mean"]))
 
 
 func _hide_vfx() -> void:
@@ -857,6 +873,13 @@ func _build_world() -> void:
 			Vector2(_renderer.terrain.field.size) * 32.0)
 	_centre = Vector2(model.preview.centre) * 32.0 if model.preview != null \
 		else Vector2(model.world_size()) * 16.0
+	# The camera is found HERE and not lazily inside `_aim`. Run this lab with
+	# `--hour=` naming an hour that does not exist and the shot list is empty, so
+	# `_aim` never runs, `_cam` stays null, no beat ever points the camera at the
+	# settlement — and the night beat dutifully reports that all eleven creatures
+	# change zero pixels. It fails loudly rather than passing, but the number it
+	# prints is about an unaimed camera and not about the art.
+	_cam = _find_camera(get_tree().root)
 	if _no_vfx:
 		for n: Node in get_tree().get_nodes_in_group(&"lcn_vfx"):
 			n.queue_free()

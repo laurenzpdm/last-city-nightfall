@@ -154,10 +154,14 @@ func render(view: Rect2, grade: Dictionary, zoom: float, full: bool = false) -> 
 	# THE GROUND'S MEMORY. Written by the entity pass wherever a figure actually
 	# put a foot down, aged here on the sim clock (never on frame delta, so a
 	# slow machine wears the same paths at the same moment), and buried faster
-	# the harder it is snowing. One upload a frame at most.
+	# the harder it is snowing.
 	var weather: float = model.ground_weather()
 	field.decay_wear(SimClock.seconds(), weather)
-	field.upload_wear()
+	# Throttled: the field changes on every footfall and a full-map upload is a
+	# quarter of a megabyte. Fifteen times a second is far more than an eye can use
+	# for a surface that takes minutes to darken.
+	if _frames % 4 == 0 or full:
+		field.upload_wear()
 
 	ground_material.set_shader_parameter("detail", _detail)
 	ground_material.set_shader_parameter("time_s", SimClock.seconds())

@@ -63,7 +63,7 @@ const WEAR_ROWS_PER_SWEEP: int = 24
 ## Game seconds between two decay steps of the same row. One step is -1 of 255,
 ## so an unused path at full black fades over ~255 * this, and a path walked
 ## every shift never gets there.
-const WEAR_DECAY_PERIOD_S: float = 1.6
+const WEAR_DECAY_PERIOD_S: float = 2.4
 ## City presence blur radius, in city texels (so 2 -> 16 tiles).
 const CITY_BLUR: int = 2
 const NOISE_SIZE: int = 256

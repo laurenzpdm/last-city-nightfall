@@ -393,7 +393,12 @@ func _drive_tour_camera() -> void:
 func _log_frame_cost() -> void:
 	var ts: Dictionary = terrain.stats()
 	var es: Dictionary = entities.stats()
-	Log.info("render", "frame %.2f ms | ground %.2f (field %d KB, detail %.2f) | collect %.2f | draw %.2f | lights %.2f | %d bld %d scenery %d agents %d tracks %d lights | %d draw calls" % [
+	# `wear` is on this line because it is the one number in the renderer that is
+	# supposed to CLIMB across a session — the ground's memory of where the
+	# population went. A run whose wear stays at 0.0000 while agents walk is a
+	# run where the city is not writing on the world, and that is invisible in a
+	# single screenshot and obvious in the log.
+	Log.info("render", "frame %.2f ms | ground %.2f (field %d KB, detail %.2f) | collect %.2f | draw %.2f | lights %.2f | %d bld %d scenery %d agents %d tracks %d lights | wear %.5f over %d footfalls | %d draw calls" % [
 		_frame_us_avg / 1000.0,
 		float(_ground_us) / 1000.0, int(ts["field_kb"]), float(ts["detail"]),
 		float(es["collect_us"]) / 1000.0,
@@ -401,6 +406,7 @@ func _log_frame_cost() -> void:
 		float(_light_us) / 1000.0,
 		int(es["visible_buildings"]), int(es["scenery"]), int(es["visible_agents"]),
 		int(es["tracks_drawn"]), lights.active_lights(),
+		float(ts.get("wear_mean", 0.0)), int(ts.get("wear_stamps", 0)),
 		int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
 	])
 

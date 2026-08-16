@@ -212,8 +212,16 @@ void fragment() {
 	float wear = texture(wear_tex, (w + wwarp) / map_px).r;
 	// Width and depth wobble along the route: a track people wear is not a
 	// drafted line, and this is the ONE thing the old contour version had right.
+	//
+	// THE RESPONSE CURVE, MEASURED. The first version mapped smoothstep(0.045,
+	// 0.42) onto the field, and 260 ticks of 46 people walking a settlement
+	// moved the photograph by 0.37% of the screen at a mean of 0.0002 — the two
+	// plates were indistinguishable held side by side, which is a wear field
+	// that exists in the data and not in the picture. One person crossing fresh
+	// snow leaves a line you can see, so the curve starts where a single
+	// crossing lands and saturates a couple of crossings later.
 	float wob = 0.62 + 0.38 * n1(t * 0.31 + vec2(163.0, 29.0));
-	float worn = clamp(smoothstep(0.045, 0.42, wear) * wob, 0.0, 1.0);
+	float worn = clamp(smoothstep(0.050, 0.35, wear) * wob, 0.0, 1.0);
 
 	// ---- the crust -----------------------------------------------------------
 	// Coverage is a NARROW threshold against the drift field, so a snow edge is
@@ -301,7 +309,7 @@ void fragment() {
 	// grit under it. A player watching their own city for three hours can see
 	// which of the two the road to the hearth has become.
 	vec3 packed_snow = mix(snow_shadow * 0.86, snow_mid * 0.80, 0.5);
-	albedo = mix(albedo, packed_snow, worn * 0.52);
+	albedo = mix(albedo, packed_snow, worn * 0.58);
 	float core = smoothstep(0.52, 0.94, wear);
 	albedo = mix(albedo, mix(scoured, ash_col, 0.30), core * 0.34);
 
