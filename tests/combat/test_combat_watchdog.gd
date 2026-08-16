@@ -165,10 +165,19 @@ func test_nothing_outlives_the_hard_lifetime() -> void:
 	# The last line of defence: whatever a body is doing, however much damage it
 	# is dealing, it does not live past MAX_LIFE_TICKS.
 	assert_gt(float(EnemySwarm.MAX_LIFE_TICKS), 0.0, "there is a ceiling at all")
-	_spawn_out(HOUND, Vector2i(3, 0), 1)
+	# WELL OUTSIDE THE HEARTH DISTRICT. Three tiles used to be fine because the
+	# only thing that happened at the core was an absorb inside one tile; now
+	# EnemySwarm.INSIDE_PX is four tiles and a body spawned at three is inside on
+	# its first tick, gets nothing to attack in an empty fixture, and is absorbed
+	# before this test can age it. That turned the whole assertion below into a
+	# skip — a suite reporting green while measuring nothing, which is the exact
+	# failure this project has paid for twice. The skip stays as a net; the spawn
+	# no longer walks into it.
+	_spawn_out(HOUND, Vector2i(16, 0), 1)
 	world.run(4)
 	if combat.bodies_on_map() == 0:
-		skip("the body reached the core and leaked before it could be aged")
+		fail("the body did not survive four ticks sixteen tiles out, so the "
+			+ "lifetime ceiling is not being tested at all")
 		return
 	# Age it by hand rather than running six real minutes of simulation.
 	combat.swarm.e_born[0] = world.tick() - EnemySwarm.MAX_LIFE_TICKS - 1
