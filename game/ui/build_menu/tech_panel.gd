@@ -98,8 +98,22 @@ func refresh() -> void:
 	_graph.selected = selected
 	_graph.rebuild_layout()
 	_rebuild_detail()
-	_footer.text = "%d of %d complete   ·   tree read from %s" % [
-		done, model.nodes.size(), String(model.source())]
+	# WHERE THE TREE CAME FROM IS NOT NEWS TO A PLAYER. This footer read
+	# "0 of 45 complete · tree read from research" — half a sentence for the
+	# reader and half for whoever wired the model, in the one screen where the
+	# game is trying to sound like engineers talking to a governor. The
+	# provenance still matters when it is NOT the real tree: `content` and
+	# `buildings` are the degraded fallbacks [P10] leaves behind when the
+	# research system is missing, and a player looking at a tree of building
+	# unlocks deserves to be told that is all it is.
+	_footer.text = "%d of %d complete" % [done, model.nodes.size()]
+	match model.source():
+		&"content":
+			_footer.text += "   ·   read from the content files — no research system in this build"
+		&"buildings":
+			_footer.text += "   ·   what each building opens — no research system in this build"
+		&"none":
+			_footer.text = "nothing to research in this build"
 
 
 func select(id: StringName) -> void:
