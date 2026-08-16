@@ -2035,13 +2035,17 @@ func atlas(extra_buildings: Array = []) -> Dictionary:
 			entries.append({"key": emissive_key(arch2, t), "img": em2})
 	for kind: StringName in AGENT_KINDS:
 		var a: Dictionary = agent(kind)
-		entries.append({"key": agent_key(kind), "img": (a["texture"] as ImageTexture).get_image()})
+		var ai: Image = (a["texture"] as ImageTexture).get_image()
+		entries.append({"key": agent_key(kind), "img": ai})
+		_append_masks(entries, kind, ai)
 	# The ten designed enemies ride the SAME atlas as everything else, so ten
 	# silhouettes cost the same number of draw calls as the one blob they
 	# replace. That is the whole reason they could be added at all.
 	for ek: StringName in ENEMY_KINDS:
 		var ae: Dictionary = agent(ek)
-		entries.append({"key": agent_key(ek), "img": (ae["texture"] as ImageTexture).get_image()})
+		var aei: Image = (ae["texture"] as ImageTexture).get_image()
+		entries.append({"key": agent_key(ek), "img": aei})
+		_append_masks(entries, ek, aei)
 	entries.append({"key": &"barrel", "img": (turret_barrel()["texture"] as ImageTexture).get_image()})
 	entries.append({"key": &"glow", "img": glow_texture(256).get_image()})
 	entries.append({"key": &"shadow", "img": shadow_texture(96).get_image()})
@@ -2052,6 +2056,16 @@ func atlas(extra_buildings: Array = []) -> Dictionary:
 	for e2: Dictionary in entries:
 		_atlas_keys[e2["key"]] = true
 	return _atlas
+
+
+## The two legibility masks for one walking thing, cached like the emissive is:
+## extracting them is a per-pixel walk and the atlas is repacked every time a
+## footprint the packer has never seen is placed.
+func _append_masks(entries: Array[Dictionary], kind: StringName, src: Image) -> void:
+	entries.append({"key": fill_key(kind), "img": LcnArtCache.get_image(
+		"fill_%s" % kind, func() -> Image: return _extract_fill(src))})
+	entries.append({"key": rim_key(kind), "img": LcnArtCache.get_image(
+		"rim_%s" % kind, func() -> Image: return _extract_rim(src))})
 
 
 ## Cached because extracting a mask is a per-pixel walk over a sprite and the
@@ -2532,15 +2546,176 @@ func _bake_enemy(kind: StringName) -> Image:
 	return _bake_swarm()
 
 
-## Shared chassis tone. Every enemy is built out of the same near-black so the
+## Shared chassis tone. Every enemy is built out of the same low value so the
 ## whole faction reads as one thing at a glance, and its own `tint` only ever
-## appears as the light coming OUT of it — which is what makes an enemy legible
-## on a black plain without lighting it like a lamp.
+## appears as the light coming OUT of it.
+##
+## THE PLAIN IS NOT BLACK, AND THAT IS WHY THESE NUMBERS CHANGED. The comment
+## that used to sit here said a near-black chassis is "what makes an enemy
+## legible on a black plain without lighting it like a lamp", and the constants
+## under it — `lerpf(tint * 0.32, 0.055, 0.86)` — put every one of the eleven at
+## about (14, 11, 16), roughly 5% luminance. `artifacts/P13/frames/night_foes
+## .png` says what the plain under them actually is: 0.086–0.115 luminance after
+## the grade, and the enemies came back at a MEASURED median delta of 0.092 with
+## zero of eleven clearing 0.25. A silhouette that is 0.09 away from its own
+## background on a frame that also carries film grain at ±0.03 is not a
+## silhouette, it is a texture.
+##
+## Raising these alone does NOT fix that — at deep night `_light_for` multiplies
+## the whole sprite down by ~0.12 before the player sees it, so the chassis
+## arrives at 0.008 whatever it was baked at. The fix that carries the read is
+## LcnEntityRenderer's ground-keyed rim and body lift, which needs a mask
+## (`rim_key`/`fill_key`, below) and needs the baked art to still have a value of
+## its own underneath. So this floor exists to keep the chassis a MATERIAL by day
+## — a dark shape on 0.6–0.8 snow — rather than a hole, and the night read is
+## bought where the night is actually assembled.
 static func _hide(tint: Color, dark: float = 0.86) -> Color:
 	return Color(
-		lerpf(tint.r * 0.32, 0.055, dark),
-		lerpf(tint.g * 0.32, 0.043, dark),
-		lerpf(tint.b * 0.32, 0.063, dark), 1.0)
+		lerpf(tint.r * 0.40, 0.105, dark),
+		lerpf(tint.g * 0.40, 0.088, dark),
+		lerpf(tint.b * 0.40, 0.120, dark), 1.0)
+
+
+## Luminance of the shared chassis at its darkest, i.e. what `_hide` bottoms out
+## at. Public because tests/render/test_sprites.gd holds it against the ground
+## the game actually renders, and because a future edit to `_hide` that does not
+## move this number has not moved the picture either.
+static func chassis_luma() -> float:
+	var c: Color = _hide(Color.BLACK, 1.0)
+	return c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722
+
+
+# ======================================================= THE LEGIBILITY MASKS ==
+#
+# Two extra atlas entries per walking thing, both derived from the sprite it
+# already has, both pure white with the shape carried in ALPHA:
+#
+#   fill_<kind>  the whole silhouette. Drawn over the figure at partial alpha,
+#                it LERPS the figure toward a chosen colour — which is the only
+#                way to place a near-black sprite at a chosen luminance, because
+#                `draw_texture_rect_region`'s modulate MULTIPLIES and a multiply
+#                cannot lift a black pixel.
+#   rim_<kind>   the inner edge band of that silhouette, two pixels of art wide
+#                with a falloff. Drawn last, at full strength, it is the contour.
+#
+# They are masks and not art: the renderer decides their colour per figure, from
+# the ground that figure is standing on. See LcnEntityRenderer._draw_agent_edge.
+
+## Atlas region key for an agent's SOLID silhouette mask.
+static func fill_key(kind: StringName) -> StringName:
+	return StringName("fill_%s" % kind)
+
+
+## Atlas region key for an agent's inner EDGE band.
+static func rim_key(kind: StringName) -> StringName:
+	return StringName("rim_%s" % kind)
+
+
+## Alpha threshold at which a pixel counts as part of the body.
+const MASK_SOLID: float = 0.45
+
+
+## Luminance at which a pixel starts buying its way out of the body lift, and
+## the luminance at which it is out entirely.
+##
+## THESE ARE A PLATEAU AND NOT A SLOPE, and the first version of this was a
+## slope — `1 - luma * 2.4` — which sounded like the same idea and was not. The
+## chassis is a GRADIENT: `_hide(t, 0.50)` at the lit top of a body reaches about
+## 0.20 luminance, so a slope was already halving the mask over the upper half of
+## every creature, and the frame came back with bodies lifted to roughly half of
+## what the renderer asked for. Only the hot parts — a core, an eye, a crucible,
+## all of them well over 0.5 — are meant to be spared.
+const FILL_FULL_BELOW: float = 0.32
+const FILL_NONE_ABOVE: float = 0.56
+
+
+## White, with the sprite's alpha WEIGHTED BY HOW DARK THE PIXEL ALREADY IS.
+##
+## A flat silhouette mask would work and would be wrong. The renderer draws this
+## over the figure to lerp it toward a chosen value, and a flat mask lerps the
+## hot core of a rime sapper, the eye of a drift hound and the crucible glow of
+## an ash spitter along with the chassis — which flattens the one part of each
+## creature that was already carrying a read, and turns eleven drawings into
+## eleven pale shapes. That was visible in the first pass of
+## `artifacts/P13/frames/wave.png` and it is why this weight exists.
+##
+## So the mask fades out where the art is already bright: a chassis pixel at 0.09
+## luminance is lifted at nearly full weight, a core at 0.42 or above is not
+## touched at all, and everything between crosses over smoothly.
+static func _extract_fill(src: Image) -> Image:
+	var w: int = src.get_width()
+	var h: int = src.get_height()
+	var out: Image = Image.create(w, h, false, Image.FORMAT_RGBA8)
+	out.fill(Color(0, 0, 0, 0))
+	for y: int in h:
+		for x: int in w:
+			var c: Color = src.get_pixel(x, y)
+			if c.a <= 0.02:
+				continue
+			var l: float = c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722
+			var keep: float = clampf(
+				(FILL_NONE_ABOVE - l) / (FILL_NONE_ABOVE - FILL_FULL_BELOW), 0.0, 1.0)
+			if keep <= 0.01:
+				continue
+			out.set_pixel(x, y, Color(1.0, 1.0, 1.0, c.a * keep))
+	return out
+
+
+## The INNER edge band of the silhouette. Inner rather than outer on purpose: an
+## outer halo needs its own geometry and gets painted over by whatever draws
+## next, while an inner band shares the figure's destination rect exactly — same
+## quad, same facing flip, one extra draw and no new bookkeeping.
+##
+## Ring 0 is any solid pixel touching a hole or the edge of the sheet; ring 1 is
+## any solid pixel touching ring 0. The second ring is carried at 0.62 so the
+## contour has a falloff instead of a staircase, which matters because the figure
+## floor enlarges these by up to 3.1x.
+static func _extract_rim(src: Image) -> Image:
+	var w: int = src.get_width()
+	var h: int = src.get_height()
+	var out: Image = Image.create(w, h, false, Image.FORMAT_RGBA8)
+	out.fill(Color(0, 0, 0, 0))
+	var solid: PackedByteArray = PackedByteArray()
+	solid.resize(w * h)
+	for y: int in h:
+		for x: int in w:
+			solid[y * w + x] = 1 if src.get_pixel(x, y).a >= MASK_SOLID else 0
+	var ring0: PackedByteArray = PackedByteArray()
+	ring0.resize(w * h)
+	for y2: int in h:
+		for x2: int in w:
+			if solid[y2 * w + x2] == 0:
+				continue
+			var edge: bool = false
+			for dy: int in [-1, 0, 1]:
+				for dx: int in [-1, 0, 1]:
+					if edge or (dx == 0 and dy == 0):
+						continue
+					var nx: int = x2 + dx
+					var ny: int = y2 + dy
+					if nx < 0 or ny < 0 or nx >= w or ny >= h or solid[ny * w + nx] == 0:
+						edge = true
+			ring0[y2 * w + x2] = 1 if edge else 0
+	for y3: int in h:
+		for x3: int in w:
+			if solid[y3 * w + x3] == 0:
+				continue
+			var a: float = 0.0
+			if ring0[y3 * w + x3] == 1:
+				a = 1.0
+			else:
+				for dy2: int in [-1, 0, 1]:
+					for dx2: int in [-1, 0, 1]:
+						var nx2: int = x3 + dx2
+						var ny2: int = y3 + dy2
+						if nx2 < 0 or ny2 < 0 or nx2 >= w or ny2 >= h:
+							continue
+						if ring0[ny2 * w + nx2] == 1:
+							a = 0.62
+			if a <= 0.0:
+				continue
+			out.set_pixel(x3, y3, Color(1.0, 1.0, 1.0, a * src.get_pixel(x3, y3).a))
+	return out
 
 
 ## Six legs' worth of quadruped: long, low, head dropped, tail out behind. The

@@ -998,12 +998,13 @@ static func _agent_before(x: Dictionary, y: Dictionary) -> bool:
 
 func _draw_agent(ci: CanvasItem, ag: Dictionary) -> void:
 	var kind: StringName = ag["kind"]
+	var art: StringName = kind
 	var region: Rect2 = _regions.get(LcnSpriteFactory.agent_key(kind), Rect2())
 	if region.size.x <= 0.0:
 		# An unknown kind used to draw NOTHING, so a mis-mapped enemy was an
 		# invisible enemy. Fall back to the archetype rather than to silence.
-		region = _regions.get(
-			LcnSpriteFactory.agent_key(LcnSpriteFactory.agent_arch(kind)), Rect2())
+		art = LcnSpriteFactory.agent_arch(kind)
+		region = _regions.get(LcnSpriteFactory.agent_key(art), Rect2())
 		if region.size.x <= 0.0:
 			return
 	var foot: Vector2 = ag["pos"]
@@ -1023,8 +1024,157 @@ func _draw_agent(ci: CanvasItem, ag: Dictionary) -> void:
 	if float(ag.get("facing", 0.0)) > 0.0:
 		pos.x += w
 		w = -w
-	ci.draw_texture_rect_region(_atlas, Rect2(pos, Vector2(w, size.y)), region,
-		Color(lit.r, lit.g, lit.b, 1.0))
+	var dest := Rect2(pos, Vector2(w, size.y))
+	ci.draw_texture_rect_region(_atlas, dest, region, Color(lit.r, lit.g, lit.b, 1.0))
+	_draw_agent_edge(ci, dest, art, foot, LcnSpriteFactory.is_enemy_kind(kind))
+
+
+# ======================== THE FIGURE IS SEPARATED FROM THE GROUND IT STANDS ON ==
+#
+# THE MEASUREMENT THAT FORCED THIS, from `artifacts/P13/frames/night_foes.png`
+# and its control plate, at deep night and zoom 0.60 — the hour and the camera a
+# session is actually played at:
+#
+#   kind                ground    peak     min   deltaL
+#   drift_hound         0.0861  0.1997  0.0079   0.1136
+#   rime_sapper         0.0881  0.1276  0.0079   0.0802
+#   ...
+#   the_long_cold       0.0833  0.1139  0.0082   0.0751
+#   median deltaL 0.0922   >= 0.25: 0 of 11
+#
+# Eleven hand-drawn creatures, ten of them silhouette-distinct, all arriving
+# within a tenth of a stop of the ground they walk on, on a frame that also
+# carries film grain at ±0.03 and a fog mix that pulls both toward one colour.
+# The interface said "10 in the city"; a gamma lift of the whole frame found
+# none of them. That is the gap, and it is a CONTRAST gap.
+#
+# THE PREVIOUS PASS ANSWERED THE SAME FINDING BY RAISING MIN_AGENT_PX FROM 17 TO
+# 24 — size, not contrast — which is why the creatures got bigger and the frame
+# got no better. Do not do that again. Note the `min` column above: the darkest
+# pixel of every creature is already at 0.008 against a ground at 0.09. There is
+# no room left downward. A dark silhouette is a DAY technique; it needs a bright
+# ground to be dark against, and after dusk this game does not have one.
+#
+# So the treatment is keyed off the LOCAL GROUND, not off a fixed constant:
+#
+#   `ground_luma(at)` reads the same light rig the ground shader reads, at the
+#   figure's own feet. On the open plain at deep night it is near zero; inside a
+#   hearth's pool, or at midday, it is high — and it moves with `city`, `heat`,
+#   `wild` and the hour exactly as the ground under the figure does.
+#
+#   BELOW the pivot the figure is LIT: its body is lerped toward a value
+#   `BODY_DELTA` above the ground and its contour is drawn at `RIM_DELTA` above
+#   it. The city's people catch the city's firelight and go warm; the things out
+#   of the dark catch the moon and go cold, so friend and foe separate by HUE at
+#   the same moment they separate from the ground by VALUE.
+#
+#   ABOVE the pivot nothing is lifted — on snow at noon the baked chassis is
+#   already the darkest thing in the frame — and only the contour is drawn, dark,
+#   to keep the edge crisp. Standing an enemy in a fire's light therefore flips
+#   it back to a silhouette, which is correct and is the point of sampling.
+#
+# Both deltas are expressed in CANVAS luminance and divided by POST_KEEP, because
+# what a critic measures is the graded frame and the grade keeps only part of a
+# canvas-space delta. That constant is calibrated against the photograph, not
+# guessed: see tests/render/run_night_contrast.gd, which re-measures it every run
+# and fails if the delta a player actually receives falls back under the bar.
+
+## Ground luminance above which a figure goes DARK against its background rather
+## than light. Canvas-space, i.e. before the post grade.
+const GROUND_PIVOT: float = 0.34
+## What the plain reflects. The light rig returns illumination; a surface returns
+## illumination times albedo, and the snow/rock ramp averages near this.
+const GROUND_ALBEDO: float = 0.62
+## Fraction of a canvas-space luminance delta that survives lift, gain, fog,
+## vignette and grain to reach the frame a critic photographs. Measured, not
+## assumed — the suite prints the value it observes next to this one.
+const POST_KEEP: float = 0.55
+## How far the contour must sit from the ground, in GRADED luminance. The brief
+## is 0.25–0.30; the constant is set above it so grain and vignette cannot eat
+## the margin at the corners of the frame.
+const RIM_DELTA: float = 0.38
+## ...and the BODY, which has to carry the mass. THE FIRST TUNING OF THIS PASS
+## PUT IT AT 0.115 AND THE RESULT IS WORTH KEEPING IN THE FILE: every creature
+## cleared the contrast bar, the suite went green, and the frame
+## (`artifacts/P13/frames/wave.png`, first version) was a row of glowing blue
+## WIREFRAMES — a bright contour around a body still sitting at ground value.
+## It read as a debug overlay, not as a pack of animals. A contour is an edge;
+## something has to be inside it.
+const BODY_DELTA: float = 0.26
+## How hard the body is pulled toward that value. The mask itself protects the
+## bright parts of the art (see LcnSpriteFactory._extract_fill), so this can be
+## high without flattening the hot cores the creatures were drawn with.
+const BODY_MIX: float = 0.78
+## Under this many screen pixels a two-pixel contour is aliasing, and the body
+## lift alone carries the read.
+const MIN_RIM_PX: float = 9.0
+
+## Cold, for the things that come out of the dark. DESATURATED on purpose: at
+## full chroma an eighteen-strong wave reads as neon, and this game's night is
+## meant to be moonlight, not a light show.
+const FOE_BODY: Color = Color(0.50, 0.57, 0.70)
+const FOE_RIM: Color = Color(0.80, 0.87, 0.98)
+## Warm, for the people who live under the lamps. The city's own firelight, so
+## friend and foe separate by HUE at the same moment they separate from the
+## ground by VALUE.
+const KIN_BODY: Color = Color(0.74, 0.65, 0.55)
+const KIN_RIM: Color = Color(1.00, 0.88, 0.72)
+## What a figure is reduced to when the ground behind it is brighter than it is.
+const DARK_RIM: Color = Color(0.055, 0.065, 0.110)
+
+
+## Estimated luminance of the GROUND at a world point, in canvas space (i.e.
+## before the post grade), 0..1.
+##
+## Public because it is a statement about the picture that a suite must be able
+## to check against a photograph without standing the whole renderer up twice —
+## `tests/render/run_night_contrast.gd` prints this beside the luminance it
+## actually measures at the same point.
+func ground_luma(at: Vector2) -> float:
+	var l: Color = _light_for(at, 0.0)
+	return clampf(
+		(l.r * 0.2126 + l.g * 0.7152 + l.b * 0.0722) * GROUND_ALBEDO, 0.0, 1.0)
+
+
+## `hue` re-valued to land at `target` luminance. Darkening scales the channels;
+## brightening walks toward white, so a colour never clips one channel and turns
+## into a different hue on the way up.
+static func at_luma(hue: Color, target: float) -> Color:
+	var l: float = maxf(hue.r * 0.2126 + hue.g * 0.7152 + hue.b * 0.0722, 0.0015)
+	if target <= l:
+		var k: float = maxf(target, 0.0) / l
+		return Color(hue.r * k, hue.g * k, hue.b * k, 1.0)
+	var t: float = clampf((target - l) / maxf(1.0 - l, 0.001), 0.0, 1.0)
+	return Color(lerpf(hue.r, 1.0, t), lerpf(hue.g, 1.0, t), lerpf(hue.b, 1.0, t), 1.0)
+
+
+## The body lift and the contour, both out of the same atlas and the same
+## destination rect as the figure — two more quads inside the batch that was
+## already running, and no new state change at any zoom.
+func _draw_agent_edge(ci: CanvasItem, dest: Rect2, art: StringName, foot: Vector2,
+		hostile: bool) -> void:
+	var rim_r: Rect2 = _regions.get(LcnSpriteFactory.rim_key(art), Rect2())
+	var fill_r: Rect2 = _regions.get(LcnSpriteFactory.fill_key(art), Rect2())
+	if rim_r.size.x <= 0.0 and fill_r.size.x <= 0.0:
+		return
+	var gl: float = ground_luma(foot)
+	var on_screen: float = absf(dest.size.y) * maxf(zoom, 0.01)
+	if gl >= GROUND_PIVOT:
+		# Bright ground. The chassis is already the darkest thing here; all the
+		# contour has to do is stop it dissolving into the shadow beside it.
+		if rim_r.size.x > 0.0 and on_screen >= MIN_RIM_PX:
+			ci.draw_texture_rect_region(_atlas, dest, rim_r, at_luma(
+				DARK_RIM, maxf(gl - RIM_DELTA / POST_KEEP, 0.012)))
+		return
+	if fill_r.size.x > 0.0 and BODY_MIX > 0.0 and BODY_DELTA > 0.0:
+		# out = (1 - MIX) * figure + MIX * body, so the colour is asked for at
+		# target / MIX and the figure's own drawing survives at (1 - MIX).
+		var body: float = (gl + BODY_DELTA / POST_KEEP) / BODY_MIX
+		ci.draw_texture_rect_region(_atlas, dest, fill_r, Color(
+			at_luma(FOE_BODY if hostile else KIN_BODY, minf(body, 1.0)), BODY_MIX))
+	if rim_r.size.x > 0.0 and on_screen >= MIN_RIM_PX and RIM_DELTA > 0.0:
+		ci.draw_texture_rect_region(_atlas, dest, rim_r, at_luma(
+			FOE_RIM if hostile else KIN_RIM, minf(gl + RIM_DELTA / POST_KEEP, 1.0)))
 
 
 ## How much a figure of `sprite_h` world pixels is enlarged at camera `z`, so it
