@@ -39,6 +39,9 @@ extends Node
 ##   --force-ui   build the whole view even without one (the reachability suite)
 ##   --seed=N     override the world seed
 ##   --ui-tour    open every screen in turn and photograph it, then quit
+##
+## Written with the `--` separator by convention (`godot --path . -- --ui-tour`),
+## but `cli_args()` finds them without it too — see the note there.
 
 const OPENING_SEED: int = 7
 
@@ -81,12 +84,31 @@ func _ready() -> void:
 	Sim.create_world(_seed_from_cli())
 	_seed_opening_settlement()
 	SimClock.start()
-	if OS.get_cmdline_user_args().has("--ui-tour"):
+	if cli_args().has("--ui-tour"):
 		_start_ui_tour()
 
 
+## Boot's flags, found whether or not the caller remembered the `--` separator.
+##
+## `OS.get_cmdline_user_args()` is EMPTY unless the command line contains a bare
+## `--`, and every doc line in this repo that quotes a boot flag quotes it with
+## one. The failure when it is left out is the worst shape a failure can have:
+## `godot --path . --ui-tour --out=artifacts/x` boots a perfectly normal playable
+## session, ignores the flag, photographs nothing, and — because nothing is
+## driving it — sits there holding a window open until somebody notices. That is
+## fifteen minutes of a critic's afternoon and a tour report nobody wrote.
+## Godot's own switches are long-form and prefixed the same way, so a union of
+## the two lists cannot collide with anything this function looks for.
+static func cli_args() -> PackedStringArray:
+	var out: PackedStringArray = OS.get_cmdline_user_args()
+	for a: String in OS.get_cmdline_args():
+		if not out.has(a):
+			out.append(a)
+	return out
+
+
 func _seed_from_cli() -> int:
-	for a: String in OS.get_cmdline_user_args():
+	for a: String in cli_args():
 		if a.begins_with("--seed="):
 			return int(a.substr(7))
 	return OPENING_SEED
@@ -628,7 +650,7 @@ func _start_ui_tour() -> void:
 	tour.build_menu = build_menu
 	tour.overlays = overlays
 	tour.router = router
-	for a: String in OS.get_cmdline_user_args():
+	for a: String in cli_args():
 		if a.begins_with("--out="):
 			tour.out_dir = a.substr(6)
 	add_child(tour)
