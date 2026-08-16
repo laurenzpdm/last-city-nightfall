@@ -1062,32 +1062,41 @@ func _draw_agent(ci: CanvasItem, ag: Dictionary) -> void:
 #   hearth's pool, or at midday, it is high — and it moves with `city`, `heat`,
 #   `wild` and the hour exactly as the ground under the figure does.
 #
-#   BELOW the pivot the figure is LIT: its body is lerped toward a value
+#   On a DARK ground the figure is LIT: its body is lerped toward a value
 #   `BODY_DELTA` above the ground and its contour is drawn at `RIM_DELTA` above
 #   it. The city's people catch the city's firelight and go warm; the things out
 #   of the dark catch the moon and go cold, so friend and foe separate by HUE at
 #   the same moment they separate from the ground by VALUE.
 #
-#   ABOVE the pivot nothing is lifted — on snow at noon the baked chassis is
-#   already the darkest thing in the frame — and only the contour is drawn, dark,
-#   to keep the edge crisp. Standing an enemy in a fire's light therefore flips
-#   it back to a silhouette, which is correct and is the point of sampling.
+#   On a BRIGHT ground nothing is lifted — on snow at noon the baked chassis is
+#   already the darkest thing in the frame — and the contour simply changes
+#   sides and goes dark, to keep the edge crisp. Standing an enemy in a fire's
+#   light therefore flips it back to a silhouette, which is correct and is the
+#   whole point of sampling rather than switching on a clock.
+#
+#   Between the two, `lit_share` fades. Read its docstring before touching any
+#   of these numbers: the crossover is where this treatment goes wrong, and it
+#   has gone wrong there once already.
 #
 # Both deltas are expressed in CANVAS luminance and divided by POST_KEEP, because
 # what a critic measures is the graded frame and the grade keeps only part of a
-# canvas-space delta. That constant is calibrated against the photograph, not
-# guessed: see tests/render/run_night_contrast.gd, which re-measures it every run
-# and fails if the delta a player actually receives falls back under the bar.
+# canvas-space delta.
 
-## Ground luminance above which a figure goes DARK against its background rather
-## than light. Canvas-space, i.e. before the post grade.
+## Ground luminance at which a figure gets no lift at all and is a silhouette on
+## its own. Canvas-space, i.e. before the post grade.
 const GROUND_PIVOT: float = 0.34
 ## What the plain reflects. The light rig returns illumination; a surface returns
 ## illumination times albedo, and the snow/rock ramp averages near this.
 const GROUND_ALBEDO: float = 0.62
 ## Fraction of a canvas-space luminance delta that survives lift, gain, fog,
-## vignette and grain to reach the frame a critic photographs. Measured, not
-## assumed — the suite prints the value it observes next to this one.
+## vignette and grain to reach the frame a critic photographs.
+##
+## IT IS NOT ONE NUMBER, and that is why the fade matters more than this does.
+## Measured off `tests/render/night_contrast.tscn`'s own plates: a canvas rim
+## delta of 0.69 arrives as 0.41 at deep night (keep ~0.60) and as 0.60 at dusk
+## (keep ~0.87) — the grade crushes far more of it at midnight. This constant is
+## set for the DARKEST case, where the read is hardest to buy, and `lit_share`
+## takes the over-drive back out again as the ground brightens.
 const POST_KEEP: float = 0.55
 ## How far the contour must sit from the ground, in GRADED luminance. The brief
 ## is 0.25–0.30; the constant is set above it so grain and vignette cannot eat
@@ -1096,10 +1105,10 @@ const RIM_DELTA: float = 0.38
 ## ...and the BODY, which has to carry the mass. THE FIRST TUNING OF THIS PASS
 ## PUT IT AT 0.115 AND THE RESULT IS WORTH KEEPING IN THE FILE: every creature
 ## cleared the contrast bar, the suite went green, and the frame
-## (`artifacts/P13/frames/wave.png`, first version) was a row of glowing blue
-## WIREFRAMES — a bright contour around a body still sitting at ground value.
-## It read as a debug overlay, not as a pack of animals. A contour is an edge;
-## something has to be inside it.
+## (`artifacts/P13/frames/wave_deep_night.png`, first version) was a row of
+## glowing blue WIREFRAMES — a bright contour around a body still sitting at
+## ground value. It read as a debug overlay, not as a pack of animals. A contour
+## is an edge; something has to be inside it, and no number said so.
 const BODY_DELTA: float = 0.26
 ## How hard the body is pulled toward that value. The mask itself protects the
 ## bright parts of the art (see LcnSpriteFactory._extract_fill), so this can be
@@ -1129,7 +1138,11 @@ const DARK_RIM: Color = Color(0.055, 0.065, 0.110)
 ## Public because it is a statement about the picture that a suite must be able
 ## to check against a photograph without standing the whole renderer up twice —
 ## `tests/render/night_contrast.tscn` prints this beside the luminance it
-## actually measures at the same point, at both of the hours it grades.
+## actually photographs at the same point, at every hour it grades — so the
+## calibration this whole treatment rests on is a number in a log rather than a
+## claim in a comment. At deep night it tracks the measured ground one for one
+## with a constant floor of about 0.04; at midday it under-reads by 0.25, which
+## does not matter because `lit_share` is already zero long before there.
 func ground_luma(at: Vector2) -> float:
 	var l: Color = _light_for(at, 0.0)
 	return clampf(
@@ -1185,9 +1198,9 @@ func _draw_agent_edge(ci: CanvasItem, dest: Rect2, art: StringName, foot: Vector
 	var on_screen: float = absf(dest.size.y) * maxf(zoom, 0.01)
 
 	# THE BODY, lifted only while the ground is too dark to carry a silhouette.
-	# `lit` fades the WEIGHT rather than the colour: fading the colour instead
-	# walks the paint toward white as the mix drops, which is how a snowy
-	# afternoon came back full of white citizens.
+	# `lit` fades the WEIGHT and not the colour, on purpose: solving for the
+	# paint colour against a fading mix walks it toward white as the mix drops,
+	# so the figure gets paler exactly as it is supposed to be disappearing.
 	var mix: float = BODY_MIX * lit
 	if fill_r.size.x > 0.0 and mix > 0.02 and BODY_DELTA > 0.0:
 		# out = (1 - mix) * figure + mix * body, so the colour is asked for at
