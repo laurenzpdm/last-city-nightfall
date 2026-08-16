@@ -2577,9 +2577,9 @@ static func _hide(tint: Color, dark: float = 0.86) -> Color:
 
 
 ## Luminance of the shared chassis at its darkest, i.e. what `_hide` bottoms out
-## at. Public because tests/render/test_sprites.gd holds it against the ground
-## the game actually renders, and because a future edit to `_hide` that does not
-## move this number has not moved the picture either.
+## at. Public because tests/render/test_agent_masks.gd holds it against the
+## ground this build's own frames actually render, and because a future edit to
+## `_hide` that does not move this number has not moved the picture either.
 static func chassis_luma() -> float:
 	var c: Color = _hide(Color.BLACK, 1.0)
 	return c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722
