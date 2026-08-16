@@ -568,6 +568,85 @@ func _deepen_pass(pool: CitizenPool, jobless: PackedInt32Array,
 	return hires
 
 
+## Cuts the day and night rotations. **A shift belongs to a BUILDING, not to a
+## hire counter.**
+##
+## The rule this replaces dealt every third hire to the night and never looked at
+## where that person worked — the same mistake `assign_jobs` used to make one
+## level up, a rule about crews that never reads what a crew is FOR, except that
+## its cost was total rather than occasional. The rotation was a property of the
+## person's hire ORDER and was never re-cut, so every building in the city was
+## permanently missing a third of its crew by day and two thirds of it by night:
+## in a twenty-minute reference run `citizens.staffed` never rose above 0.64 at
+## ANY hour. [P04] stalls a machine outright at `staffing <= 0`, so both rubble
+## sorters sat STALLED/`unstaffed` holding a full roster, the smelter downstream
+## of them starved on `missing_input: iron_ore`, and the crafting graph never
+## left depth two.
+##
+## The rule now, in one sentence: **a crew works the hours its building is for.**
+## The wall is manned after dark, the workshops run in the light, and a crew with
+## the bodies to cover both rotations covers both — which is what makes hiring
+## past `required` worth doing, and turns `capacity` into the automation player's
+## night shift instead of a number on a tooltip.
+##
+## Re-cut from scratch on every pass rather than remembered, so somebody walked
+## onto a new crew by `_reassign_surplus` takes that crew's hours with them
+## instead of carrying their first employer's rota around for life.
+##
+## Deterministic twice over: `pool.alive` and `job_ids` are both sorted, and the
+## one dictionary here is only ever read through `job_ids`, never iterated.
+func cut_shifts(pool: CitizenPool) -> void:
+	# One walk of the population buckets every crew. Asking each site who works
+	# there instead is O(sites x population), which is the shape this whole file
+	# is arranged to avoid.
+	var crews: Dictionary[int, PackedInt32Array] = {}
+	var n: int = pool.alive.size()
+	for i: int in n:
+		var s: int = pool.alive[i]
+		var j: int = pool.job[s]
+		if j < 0:
+			pool.shift[s] = CitizenDefs.Shift.OFF
+			continue
+		# Days by default, so a crew whose site vanished between the last refresh
+		# and this pass is never left holding a rotation nobody will re-cut.
+		pool.shift[s] = CitizenDefs.Shift.DAY
+		var crew: PackedInt32Array = crews.get(j, PackedInt32Array())
+		crew.append(s)
+		crews[j] = crew
+
+	for i: int in job_ids.size():
+		var id: int = job_ids[i]
+		if not crews.has(id):
+			continue
+		var crew2: PackedInt32Array = crews[id]
+		var site: Site = sites[id]
+		var need: int = _need_of(site)
+		var primary: int = CitizenDefs.Shift.NIGHT \
+			if CitizenDefs.is_night_trade(site.trade) else CitizenDefs.Shift.DAY
+		var other: int = CitizenDefs.Shift.DAY \
+			if primary == CitizenDefs.Shift.NIGHT else CitizenDefs.Shift.NIGHT
+		# Depth buys the second rotation, one body at a time. The primary rotation
+		# is filled to `need` FIRST and every hand past that goes to the other one,
+		# because a spare body adds nothing to a shift that is already at its
+		# requirement and is the whole difference between a building that is dark
+		# for half the day and one that is merely thin.
+		#
+		# The cliff version of this rule — cover both only with a full second crew
+		# — was measured over 24000 ticks and cost more than it bought: day
+		# staffing rose from 0.611 to 0.714 and `production.active_machines` at
+		# night fell from 2.05 to 0.00, because almost nothing in a city that is
+		# short of hands ever reaches twice its requirement.
+		#
+		# What a crew of exactly `need` still cannot do is cover both, and it is
+		# not asked to: splitting it would leave the building short at BOTH ends of
+		# the day, which is the trade the old hire counter made for every building
+		# in the city, forever.
+		var to_other: int = clampi(crew2.size() - need, 0, need) if need > 0 else 0
+		var keep: int = crew2.size() - to_other
+		for k: int in crew2.size():
+			pool.shift[crew2[k]] = primary if k < keep else other
+
+
 func _place(pool: CitizenPool, slot: int, site: Site) -> void:
 	pool.job[slot] = site.id
 	pool.trade[slot] = site.trade

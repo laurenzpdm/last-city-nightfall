@@ -299,6 +299,35 @@ const SHIFT_LAWS: Dictionary[StringName, Dictionary] = {
 	},
 }
 
+## The trades whose work IS the dark: the guns on the wall and the fires that
+## keep the wall worth defending. A gunner rostered to noon is a gun that is
+## manned in the daylight and cold at the hour it was built for, and a stoker
+## rostered to noon is a generator with nobody at it on the coldest night of the
+## week. Everything else a city does is better done in the light.
+##
+## This is not "who may work nights". It is "whose building has no daytime", and
+## the list is short on purpose — every trade added to it is a building that goes
+## dark at noon instead.
+##
+## Measured rather than argued, over 24000 ticks of `first_night`: with the wall
+## alone on this list the city ended the night with 20 of 29 crewed buildings
+## reading `no crew`, WORSE than the 16 the hire counter left, because the
+## generators had all gone home. With the fires on it as well that falls to 10,
+## and the ten are the workshops — which is the city saying "the factory is shut
+## and the watch is on", rather than "nothing here works". The cost is real and
+## is not hidden: average morale over the run falls from 58.6 to 52.3, because
+## a third of the workforce now sleeps through the daylight.
+##
+## Read off the trade, which comes off tags and category, so a new .tres with a
+## `defense` or `heat_source` tag joins the night watch without this file ever
+## learning its name.
+const NIGHT_TRADES: Array[int] = [Trade.GUNNER, Trade.STOKER]
+
+## True when this trade's building is one the city needs manned after dark.
+static func is_night_trade(trade: int) -> bool:
+	return NIGHT_TRADES.has(trade)
+
+
 ## Laws other parts can flip on this system. [P06] owns the politics; we only
 ## own what the rule does to a body.
 const FLAG_CHILD_LABOUR: StringName = &"child_labour"

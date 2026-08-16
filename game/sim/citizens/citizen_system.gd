@@ -41,8 +41,6 @@ const TAG: String = "citizens"
 const RNG_STREAM: String = "citizens"
 const TILE: float = 32.0
 
-## Fraction of the workforce put on the night rotation.
-const NIGHT_EVERY: int = 3
 ## Ticks between presence recounts. Staffing has to react inside a second.
 const PRESENCE_TICKS: int = 5
 const PRESENCE_PHASE: int = 2
@@ -368,8 +366,14 @@ func _sync_city(tick: int) -> void:
 	# it needs — and that happens inside assign_jobs, not out here.
 	var hired: int = board.assign_jobs(pool, _jobless, _child_labour, _elder_labour,
 		CitizenDefs.HIRES_PER_PASS)
+	_hire_counter += hired
+	# Every pass, not only the passes that hired somebody. A rotation is cut from
+	# the crews as they stand, and crews change without anybody being hired: a
+	# building finishes, a worker dies, `_reassign_surplus` walks somebody across
+	# town. Re-cutting only on a hire is how a night shift ends up belonging to
+	# whoever happened to be third in the queue eleven minutes ago.
+	_assign_shifts()
 	if hired > 0:
-		_assign_shifts()
 		Log.debug(TAG, "%d citizens took a job" % hired)
 
 
@@ -414,21 +418,10 @@ func _collect_free_hands() -> void:
 	_idle_builders = builders
 
 
-## Splits the workforce across the rotations. Deterministic by hire order, so a
-## replay staffs the night shift with the same people.
+## The rotations are cut by the board, which is where the crews live. See
+## `CitizenJobBoard.cut_shifts` for the rule and for what the old one cost.
 func _assign_shifts() -> void:
-	var n: int = pool.alive.size()
-	for i: int in n:
-		var s: int = pool.alive[i]
-		if pool.job[s] < 0:
-			if pool.shift[s] != CitizenDefs.Shift.OFF:
-				pool.shift[s] = CitizenDefs.Shift.OFF
-			continue
-		if pool.shift[s] != CitizenDefs.Shift.OFF:
-			continue
-		_hire_counter += 1
-		pool.shift[s] = CitizenDefs.Shift.NIGHT if _hire_counter % NIGHT_EVERY == 0 \
-			else CitizenDefs.Shift.DAY
+	board.cut_shifts(pool)
 
 
 # =========================================================================
