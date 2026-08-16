@@ -114,8 +114,40 @@ func refresh(probe: LcnHudProbe, now: float) -> void:
 	_derive_council(probe, out)
 	_carry_bus(probe, out)
 	out.sort_custom(_rank)
-	entries = _cap_families(out)
+	entries = _cap_families(_fold_identical(out))
 	_expire_toasts()
+
+
+## Two rows that read the same become one row with a count.
+##
+## `_cap_families()` below stops one FAMILY owning the panel; nothing stopped
+## one SENTENCE appearing twice. The rows are keyed by what produced them —
+## `heat_2`, `heat_3` — and their headlines are built from the grid's name, so
+## two networks whose biggest producer happens to be the same kind of building
+## both render "The Turret Mount run is 3.0 heat short". The panel printed that
+## line twice, identically, one under the other, in the middle of the assault
+## (`artifacts/play_steady/shots/assault.world.png`), two rows below a row
+## reading "2 of 6 guns have no heat and cannot fire  ×3".
+##
+## That `×3` is the point: the counter, the drawing code for it and the `count`
+## field it reads all already existed, and had done since the widget was
+## written. Nothing was routing duplicates into it. Ranked order is kept — the
+## survivor is the first, which after `_rank` is the most severe — and its
+## `focus` with it, so clicking still lands on the worst of them.
+func _fold_identical(rows: Array[Dictionary]) -> Array[Dictionary]:
+	var seen: Dictionary[String, int] = {}
+	var kept: Array[Dictionary] = []
+	for e: Dictionary in rows:
+		var text: String = "%s|%s|%s" % [e.get("head", ""), e.get("body", ""), e.get("fix", "")]
+		if seen.has(text):
+			var at: int = seen[text]
+			var row: Dictionary = kept[at]
+			row["count"] = maxi(1, int(row.get("count", 1))) + maxi(1, int(e.get("count", 1)))
+			kept[at] = row
+			continue
+		seen[text] = kept.size()
+		kept.append(e)
+	return kept
 
 
 ## No family may own the panel. Two heat grids short is news; six is one story
@@ -543,11 +575,23 @@ func _on_alert(severity: int, key: StringName, text: String, pos: Vector2) -> vo
 	var family: String = _family_of(key)
 	var existing: Dictionary = _bus.get(key, {})
 	var count: int = int(existing.get("count", 0)) + 1
+	# `_headline()` returns the first sentence, and most parts raise alerts that
+	# ARE one sentence — so head and body came out byte-identical and the panel
+	# printed the line twice, once bright and once dim, one under the other:
+	#
+	#   ! 1 burner running dry — the city is out of coal
+	#     1 burner running dry — the city is out of coal
+	#
+	# (`artifacts/play_tour/shots/03_tech.png`). The rows the HUD derives itself
+	# already ship an empty body when the headline says everything, and the
+	# widget already draws that correctly; only the bus lane was echoing.
+	var head: String = _headline(text)
 	_bus[key] = {
 		"key": key, "family": family,
 		"sev": clampi(severity + 1, S.Sev.INFO, S.Sev.CRITICAL),
-		"head": _headline(text), "body": text, "fix": "",
-		"focus": pos, "count": count, "at": _now,
+		"head": head,
+		"body": "" if head == _capitalise(text.strip_edges().trim_suffix(".")) else text,
+		"fix": "", "focus": pos, "count": count, "at": _now,
 	}
 
 

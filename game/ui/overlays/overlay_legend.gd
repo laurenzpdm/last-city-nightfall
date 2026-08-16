@@ -473,8 +473,26 @@ func _rows_logistics() -> void:
 			dry += 1
 		elif snap.node_fuel[i] < LcnLogisticsLens.BUNKER_LOW:
 			low += 1
-	_row("%s: %d out of fuel, %d running low" % [_n(burners, "generator"), dry, low],
-		pal.bad() if dry > 0 else (pal.warn() if low > 0 else pal.good()))
+	# ZERO PROBLEMS IS NOT TWO PROBLEMS OF SIZE ZERO. This row read
+	# "2 generators: 0 out of fuel, 0 running low" on a city whose fuel chain was
+	# working perfectly (`artifacts/play_steady2/shots/dawn.png`) — a lens whose
+	# whole job is to point at what is wrong, printing the names of two things
+	# that are not wrong. The clauses now appear only when they have a number to
+	# carry, and a clean chain gets the one word a player needs.
+	var fuel_note: String = ""
+	if burners == 0:
+		fuel_note = "nothing in this city burns anything yet"
+	elif dry == 0 and low == 0:
+		fuel_note = "%s, every bunker fed" % _n(burners, "generator")
+	else:
+		fuel_note = "%s: " % _n(burners, "generator")
+		var parts: PackedStringArray = PackedStringArray()
+		if dry > 0:
+			parts.append("%d out of fuel" % dry)
+		if low > 0:
+			parts.append("%d running low" % low)
+		fuel_note += ", ".join(parts)
+	_row(fuel_note, pal.bad() if dry > 0 else (pal.warn() if low > 0 else pal.good()))
 	if probe.has_stalls():
 		var stalls: int = probe.stalls().size()
 		_row("%s stalled" % _n(stalls, "machine"), pal.bad() if stalls > 0 else pal.good())
