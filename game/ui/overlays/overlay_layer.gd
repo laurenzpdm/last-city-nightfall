@@ -128,15 +128,20 @@ func flush_lines(width: float) -> void:
 ##          "building ×22" and "building ×3" name the same thing.
 ## `plated` a solid plate behind it, for a verdict that has to survive any
 ##          background. Plain words carry a halo instead.
+## `anchors` are further places the SAME word would be just as true — the second
+## and third tile of a heat grid, when the northernmost one is behind the clock.
+## They are tried in order after the first, before the word is given up on.
 func word(at: Vector2, text: String, size_px: float, c: Color, rank: int,
 		copies: int = 1, key: String = "", plated: bool = false,
-		centered: bool = false) -> void:
+		centered: bool = false, anchors: PackedVector2Array = PackedVector2Array()) -> void:
 	if font == null or text == "":
 		return
+	var all := PackedVector2Array([at])
+	all.append_array(anchors)
 	_words.append({
-		"at": at, "text": text, "size": size_px, "color": c, "rank": rank,
-		"copies": copies, "key": key, "plated": plated, "centered": centered,
-		"seq": _word_seq,
+		"at": at, "anchors": all, "text": text, "size": size_px, "color": c,
+		"rank": rank, "copies": copies, "key": key, "plated": plated,
+		"centered": centered, "seq": _word_seq,
 	})
 	_word_seq += 1
 
@@ -172,9 +177,12 @@ func flush_labels() -> void:
 	_words.sort_custom(_by_rank)
 	for w: Dictionary in _words:
 		var plated: bool = bool(w["plated"])
-		var box: Rect2 = _plate_box(w["at"], w["text"], w["size"], bool(w["centered"])) \
-			if plated else _label_box(w["at"], w["text"], w["size"], bool(w["centered"]))
-		var tries: Array[Rect2] = _candidates(box, int(w["rank"]))
+		var centered: bool = bool(w["centered"])
+		var tries: Array[Rect2] = []
+		for a: Vector2 in (w["anchors"] as PackedVector2Array):
+			var box: Rect2 = _plate_box(a, w["text"], w["size"], centered) if plated \
+				else _label_box(a, w["text"], w["size"], centered)
+			tries.append_array(_candidates(box, int(w["rank"])))
 		var took: int = field.place(tries, String(w["text"]), int(w["rank"]),
 			int(w["copies"]), String(w["key"]))
 		if took < 0:

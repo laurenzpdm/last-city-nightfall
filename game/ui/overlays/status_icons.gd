@@ -199,10 +199,13 @@ func problem_color(p: int) -> Color:
 ## on the marker — and the pass is deterministic, walking buildings in index
 ## order over a fixed-order cell grid, so the same frame always merges the same
 ## way and a drifting camera does not make the marks flicker.
+
 ## How far a merged marker may reach from where it started, as a multiple of
-## `BADGE_MERGE_PX`. Single linkage with no leash chains across a contiguous city
-## and answers a screenful of trouble with one dot; four badge-widths keeps a
-## marker to something a player can point at.
+## `BADGE_MERGE_PX`. Merging is SINGLE LINKAGE — a badge joins if it is close to
+## any member, not only to the first one — which is what collapses an evenly
+## spaced ladder instead of halving it. Unleashed, single linkage chains right
+## across a contiguous city and answers a screenful of trouble with one dot; four
+## badge-widths keeps a marker to something a player can point at.
 const MARK_EXTENT: float = 4.0
 
 

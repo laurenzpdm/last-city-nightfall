@@ -29,6 +29,23 @@ var _y_sub: float = 180.0
 var _height: float = 196.0
 
 
+## THE CLOCK IS NOT A WINDOW. Every other panel here is deliberately translucent
+## — a calm base should be chrome you can almost see past — and for every other
+## panel that is right. For this one it was the second half of the defect that
+## took legibility from 5 to 3: in `artifacts/CRIT/shots/build.png` the lens
+## badge `= GRID 3 0/0 heat/s NO SOURCE` reads clean across the top of this
+## panel and `| GRID 1 47/47 heat/s` crosses the "2:21", and in
+## `deep_night.world.png` a `FROZEN -24°C` plate sits on the same rectangle.
+##
+## [P19] keeps its words off this rectangle now, which is the real fix and the
+## one ARCHITECTURE.md §3 asks for. This is the rest of it: the world is still
+## behind the glass, the number here is the one thing a player reads in half a
+## glance, and it should not be read against moving snow.
+func _init() -> void:
+	super()
+	plate_floor = 0.94
+
+
 func should_show() -> bool:
 	return probe != null and probe.has_climate
 

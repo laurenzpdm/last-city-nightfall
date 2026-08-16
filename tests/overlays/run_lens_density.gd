@@ -433,11 +433,22 @@ func _suite_the_named_defects_are_gone() -> void:
 	_check(int(grids["chrome_hits"]) == 0, "a grid badge is on the clock panel")
 	_check(int(grids["culled_chrome"]) >= 1,
 		"no grid badge even TRIED for the clock's pixels, so this frame is not the one that broke")
-	var named: int = 0
-	for t4: String in _field.chip_texts:
-		if t4.contains("GRID"):
-			named += 1
-	_check(named >= 1, "and the grids are still named somewhere on the world")
+	# EVERY grid, at EVERY played zoom. The first cut of this fix kept the badges
+	# off the clock by dropping them: `artifacts/G2_vis/shots/build.png` came back
+	# with a clean "2:21" and not one grid named anywhere on the world, which
+	# trades the build's most-praised sentence — "one hue per grid, if two halves
+	# differ they are not connected" — for a tidy clock. A rule that makes the
+	# frame quieter by deleting the answer is not a fix.
+	for zoom: float in ZOOMS:
+		var g: Dictionary = await _frame(LcnOverlayDefs.Mode.HEAT_NETWORK, zoom, true)
+		_rows.append(g)
+		for want: String in ["GRID 1", "GRID 5"]:
+			var found: bool = false
+			for t4: String in _field.chip_texts:
+				if t4.contains(want):
+					found = true
+			_check(found, "%s is not named anywhere on the world at zoom %.2f — the badge was dropped rather than moved: %s" % [
+				want, zoom, ", ".join(_field.chip_texts)])
 
 
 # =========================================================================

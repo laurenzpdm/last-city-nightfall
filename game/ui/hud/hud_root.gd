@@ -546,11 +546,14 @@ func request_relayout() -> void:
 
 
 ## Every rectangle the HUD is drawing, in SCREEN pixels, by name. The audit suite
-## reads this; so does anything that wants to know where it may not draw.
+## reads this; so does anything that wants to know where it may not draw — [P19]
+## now asks EVERY FRAME and turns the answer into keep-out for its world-space
+## badges, which is why the map is built once here instead of once per panel.
 func chrome_rects() -> Dictionary:
 	var out: Dictionary = {}
-	for name_key: String in _panel_map():
-		var w: LcnHudWidget = _panel_map()[name_key]
+	var panels: Dictionary = _panel_map()
+	for name_key: String in panels:
+		var w: LcnHudWidget = panels[name_key]
 		if w != null and w.visible and w.size.x > 1.0:
 			out[name_key] = Rect2(w.position * style.ui_scale, w.size * style.ui_scale)
 	if stage != null and stage.card_rect.size.x > 1.0:

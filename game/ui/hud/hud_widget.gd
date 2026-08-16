@@ -49,6 +49,10 @@ var hover_index: int = -1
 var key_index: int = -1
 var _signature: String = ""
 var _dirty: bool = true
+## Lowest alpha this panel's plate may fall to, whatever the composition says.
+## Zero for every panel but one: see `LcnHudStyle.draw_plate`. A panel the world
+## reads through is a panel a player has to read twice.
+var plate_floor: float = 0.0
 var _panel_seed: int = 1
 
 
@@ -271,7 +275,7 @@ func draw_frame(title: String, sev: int = S.Sev.CALM, lit: float = 0.35) -> floa
 	# lights itself for a reason of its own still gets to; it just does it louder
 	# when the composition wants it read first.
 	style.draw_plate(self, rect, clampf(lit * (0.55 + 0.75 * emphasis), 0.0, 1.0),
-		sev, _panel_seed)
+		sev, _panel_seed, plate_floor)
 	if title == "":
 		return content_top()
 	var y: float = title_baseline()

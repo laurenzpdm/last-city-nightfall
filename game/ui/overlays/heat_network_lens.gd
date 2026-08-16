@@ -19,6 +19,8 @@ extends LcnOverlayLayer
 const FLOW_SPEED: float = 46.0        ## world px per second the dashes travel
 const WIDTH_BUCKETS: Array[float] = [2.6, 3.8, 5.2, 7.0]
 const BADGE_LIMIT: int = 10
+## Places a grid badge may try before it is given up on. See `_anchors_for`.
+const ANCHOR_TRIES: int = 6
 
 var _bucket_pts: Array[PackedVector2Array] = []
 var _bucket_cols: Array[PackedColorArray] = []
@@ -205,25 +207,37 @@ func _draw_flow() -> void:
 func _draw_badges() -> void:
 	if snap.nets.is_empty():
 		return
-	var top: Dictionary[int, int] = {}
+	# A GRID'S BADGE BELONGS TO THE GRID, NOT TO ONE TILE OF IT. It anchors over
+	# the northernmost visible member because that is usually clear sky — and in
+	# `artifacts/CRIT/shots/build.png` "usually" meant BOTH grids anchoring inside
+	# the clock panel, where the badges read straight through the "2:21". With
+	# that panel now keep-out, anchoring only there would mean the badges simply
+	# vanish — and "one hue per grid, and if two halves differ they are not
+	# connected" is the single most valuable sentence this lens says. So each
+	# grid offers a LIST of members it would be equally true to sit on, north to
+	# south, and the field takes the first one standing on clear pixels.
+	var members: Dictionary[int, PackedInt32Array] = {}
 	for i: int in snap.node_count:
 		var nid: int = snap.node_net[i]
 		if nid < 0:
 			continue
-		var r: Rect2 = snap.node_rect(i)
-		if not visible_rect(r):
+		if not visible_rect(snap.node_rect(i)):
 			continue
-		var best: int = top.get(nid, -1)
-		if best < 0 or snap.node_y[i] < snap.node_y[best]:
-			top[nid] = i
-	var keys: Array = top.keys()
+		var rows: PackedInt32Array = members.get(nid, PackedInt32Array())
+		rows.append(i)
+		members[nid] = rows
+	var keys: Array = members.keys()
 	keys.sort()
 	var drawn: int = 0
 	for nid2: int in keys:
 		if drawn >= BADGE_LIMIT:
 			break
 		drawn += 1
-		var row: int = top[nid2]
+		var rows2: PackedInt32Array = members[nid2]
+		var anchors: PackedVector2Array = _anchors_for(rows2)
+		if anchors.is_empty():
+			continue
+		var row: int = rows2[0]
 		var stats: Dictionary = snap.stats_of_network(nid2)
 		var slot: int = snap.node_slot[row]
 		var c: Color = pal.network_color(slot)
@@ -239,15 +253,41 @@ func _draw_badges() -> void:
 			text += "   short %.0f" % deficit
 		elif supply > demand + 0.5:
 			text += "   spare %.0f" % (supply - demand)
-		var anchor: Vector2 = Vector2(
-			snap.node_center(row).x,
-			snap.node_rect(row).position.y - px(24.0))
 		var tint: Color = pal.bad() if (producers == 0 or deficit > 0.5) else c
-		# `= GRID 3 0/0 heat/s NO SOURCE` printed straight through the clock
-		# panel in artifacts/CRIT/shots/build.png, and `| GRID 1 47/47 heat/s`
-		# landed on the "2:21" numeral. The lens IS under the HUD in the layer
-		# table, and that was never the point: the clock panel is translucent, so
-		# under it is still through it. The field holds [P17]'s rectangles and
-		# this badge simply does not get those pixels. ARCHITECTURE.md §3.
-		word(anchor, text, 15.0, tint, LcnLabelField.Rank.IDENTITY, 1,
-			"grid %d" % nid2, true, true)
+		word(anchors[0], text, 15.0, tint, LcnLabelField.Rank.IDENTITY, 1,
+			"grid %d" % nid2, true, true, anchors.slice(1))
+
+
+## Up to `ANCHOR_TRIES` places this grid's badge could sit, north first and then
+## spread down the grid so the alternatives are genuinely elsewhere rather than
+## three tiles that share a skyline. Deterministic: rows arrive in snapshot
+## order and are sorted on (y, x).
+func _anchors_for(rows: PackedInt32Array) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	if rows.is_empty():
+		return out
+	var sorted: Array[int] = []
+	for r: int in rows:
+		sorted.append(r)
+	sorted.sort_custom(func(a: int, b: int) -> bool:
+		if snap.node_y[a] != snap.node_y[b]:
+			return snap.node_y[a] < snap.node_y[b]
+		return snap.node_x[a] < snap.node_x[b])
+	var stride: int = maxi(1, sorted.size() / ANCHOR_TRIES)
+	var i: int = 0
+	while i < sorted.size() and out.size() < ANCHOR_TRIES:
+		var row: int = sorted[i]
+		out.append(Vector2(snap.node_center(row).x,
+			snap.node_rect(row).position.y - px(28.0)))
+		i += stride
+	# And UNDER the southernmost members, last. A grid whose whole northern edge
+	# is behind the clock panel — `build.png` has one, three tiles wide, entirely
+	# inside it — has clear sky below it and nowhere above it, and a grid that
+	# goes unnamed on the map is the one thing this lens must not allow.
+	var j: int = sorted.size() - 1
+	while j >= 0 and out.size() < ANCHOR_TRIES * 2:
+		var row2: int = sorted[j]
+		var r: Rect2 = snap.node_rect(row2)
+		out.append(Vector2(snap.node_center(row2).x, r.position.y + r.size.y + px(10.0)))
+		j -= stride
+	return out

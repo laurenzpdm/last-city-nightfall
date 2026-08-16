@@ -88,6 +88,10 @@ var _draw_us: float = 0.0
 var _keys: PackedStringArray = PackedStringArray()
 var _plain_keys: Dictionary[int, int] = {}   ## keycode -> mode
 var _harness_mode: int = -1
+## Last lens whose density read reached the log, and the lens the field in hand
+## was actually filled for. See the density block in `_process`.
+var _logged_mode: int = -1
+var _drawn_mode: int = -1
 
 
 static func instance() -> LcnOverlayRoot:
@@ -430,6 +434,22 @@ func _process(delta: float) -> void:
 		snap.sample_warmth(_view)
 
 	var detail: int = _camera.detail_level() if _camera != null else 1
+	# THE DENSITY READ, IN THE LOG, ONCE PER LENS PER RUN. A critic counted the
+	# chips in one frame by hand and was right about every one of them; a build
+	# that cannot count its own will let it happen again.
+	#
+	# Read HERE, before the budget is reopened, because the field at this instant
+	# holds the frame that finished — `_process` runs before the draw, so logging
+	# after `begin()` reported a census of nothing on every lens in the run, which
+	# is exactly the shape of a number that looks like a pass and measures air.
+	# And once per lens rather than every N frames, because "every 600 frames"
+	# printed nothing at all: a visual run does not last 600 frames.
+	if _drawn_mode == mode and mode != _logged_mode and _frames > 3:
+		_logged_mode = mode
+		Log.info("overlay", "density · %s @ zoom %.2f — %s" % [
+			LcnOverlayDefs.mode_id(mode), _zoom(), field.summary()])
+	_drawn_mode = mode
+
 	# The frame's word budget is opened HERE, before either layer draws, because
 	# the budget belongs to the frame and not to a layer. `_zoom()` is the same
 	# number the rail prints, so the density a critic counts on screen and the
@@ -451,10 +471,7 @@ func _process(delta: float) -> void:
 		Log.info("overlay", "%s | sample %.2f ms (4 Hz) | draw %.2f ms | %d heat nodes, %d structures, %d grids" % [
 			LcnOverlayDefs.mode_id(mode), _sample_us / 1000.0, _draw_us / 1000.0,
 			snap.node_count, snap.bld_count, snap.nets.size()])
-		# The density read, in the log, on every run. A critic counted the chips
-		# in a frame by hand and was right; a build that cannot count its own is
-		# a build that will let it happen again.
-		Log.info("overlay", "density @ zoom %.2f — %s" % [_zoom(), field.summary()])
+
 
 
 ## Polled rather than signalled: [P24] owns Settings and has no change signal for
