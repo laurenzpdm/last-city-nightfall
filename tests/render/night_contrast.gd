@@ -77,21 +77,28 @@ const SETTLE_FRAMES: int = 6
 ## here; a night that only works at 1.6 is a night nobody sees.
 const JUDGE_ZOOM: float = 0.60
 
-## TWO HOURS, AND THE SECOND ONE EXISTS BECAUSE THE FIRST ONE WENT GREEN OVER A
-## DEFECT. The night treatment is keyed off the ground, so it has a crossover:
-## somewhere between a black plain and daylight it has to hand the read back to
-## the plain silhouette. The first version of this pass got the crossover wrong —
-## the body colour saturated to white as the ground brightened — and half the
-## citizens in `artifacts/P13/frames/crowd.png` came back as WHITE CUT-OUTS on a
-## snowy afternoon while every number in the deep-night beat stayed green.
+## THREE HOURS, AND THE OTHER TWO EXIST BECAUSE THE FIRST ONE CANNOT SEE PAST
+## ITSELF. The treatment is keyed off the ground, so it has a CROSSOVER: on a
+## black plain the figure is lit, on snow at noon it is a silhouette, and
+## somewhere between it has to hand the read from one to the other. A gate that
+## only photographs the hour a fix was aimed at will certify the other
+## twenty-three, and the crossover is where the arithmetic goes wrong:
 ##
-## A gate that only photographs the hour the fix was aimed at will keep passing
-## that. So the same wave is graded twice, and the second beat asks the OPPOSITE
-## question: on ground bright enough to carry a silhouette, is every figure back
-## to being darker than what is behind it.
+##   deep_night  can the wave be SEEN. The brief, and the failing measurement.
+##               ITS PLATE IS ALSO THE ONE THAT SHOWS. `wave_dusk.png` caught the
+##               first fade curve over-driving: 45–79% of every figure reading as
+##               lit and a delta of 0.60 where the design asks for 0.38, because
+##               the grade keeps far more of a canvas-space delta at dusk than at
+##               midnight and the fade had barely engaged. Eighteen figures as
+##               pale cut-outs at the assault hour, with deep_night green.
+##   midday      is the treatment OFF. Every figure back to a dark silhouette.
+##
+## Graded on the same staged wave, from the same camera, so the only difference
+## between the three plates is the hour.
 const HOURS: Array[Dictionary] = [
-	{"name": "deep_night", "t": 0.00, "lit": true},
-	{"name": "midday", "t": 0.50, "lit": false},
+	{"name": "deep_night", "t": 0.00, "gate": "lit"},
+	{"name": "dusk", "t": 0.74, "gate": "mid"},
+	{"name": "midday", "t": 0.50, "gate": "dark"},
 ]
 
 ## Eighteen, out of eleven designed kinds, so the frame is a WAVE and not a
@@ -138,6 +145,28 @@ const DAY_MAX_LIFT: float = 0.13
 const DAY_MAX_LIT_FRAC: float = 0.30
 ## How many of the wave have to be silhouettes for the day beat to pass.
 const DAY_MIN_DARK_COUNT: int = 15
+
+## At the crossover hour a figure may read either way, but it must read. This is
+## a lower bar than the night one on purpose: at dusk the plain still carries
+## some structure of its own and the treatment is deliberately half off.
+const MID_MIN_DELTA: float = 0.15
+const MID_MIN_COUNT: int = 15
+
+# ── AND A CEILING, WHICH IS THE HALF THIS SUITE KEPT LEARNING IT NEEDED ──────
+#
+# Every bar above is a floor, and a treatment that over-drives clears all of
+# them. `wave_dusk.png` is the case: median deltaL 0.60 where the design asks
+# for 0.38, because the grade keeps far more of a canvas-space delta at dusk
+# than at midnight and the fade had barely engaged at that ground. Eighteen
+# figures as pale cut-outs, every floor green.
+#
+# The first attempt to gate that was an "is this figure lit" fraction, and it
+# was wrong: at dusk the treatment is DELIBERATELY half on, so the figures are
+# legitimately lit and the fraction fires on the intended picture. Looking at
+# the plate settled it. What is actually wrong at 0.60 is the SIZE of the
+# separation, so that is what is measured.
+const MAX_MEDIAN_DELTA: float = 0.55
+const MID_MAX_MEDIAN: float = 0.48
 
 var _renderer: WorldRenderer = null
 var _cam: Camera2D = null
@@ -279,7 +308,8 @@ func _judge(hour: Dictionary, lit: Image, bare: Image) -> void:
 	var lamps: Array[String] = []
 	var offscreen: int = 0
 	var rows: Array[Dictionary] = []
-	var want_lit: bool = bool(hour["lit"])
+	var gate: String = hour["gate"]
+	var reads: int = 0
 	for spot: Dictionary in _spots:
 		var s: Vector2 = xf * (spot["pos"] as Vector2)
 		var x0: int = int(s.x) - BOX_W / 2
@@ -304,6 +334,8 @@ func _judge(hour: Dictionary, lit: Image, bare: Image) -> void:
 			found += 1
 		if float(r["down"]) >= DAY_MIN_DARK:
 			dark_enough += 1
+		if float(r["delta"]) >= MID_MIN_DELTA:
+			reads += 1
 		if float(r["up"]) > DAY_MAX_LIT_FRAC:
 			lamps.append("%s %.0f%% lit" % [r["kind"], float(r["up"]) * 100.0])
 	print("────────────────────────────────────────────────────────────────")
@@ -334,7 +366,7 @@ func _judge(hour: Dictionary, lit: Image, bare: Image) -> void:
 		_fails.append(("%s: only %d of the wave landed inside the frame — the "
 			+ "camera is not looking at what this suite staged, so nothing here "
 			+ "was measured") % [hour["name"], rows.size()])
-	elif want_lit:
+	elif gate == "lit":
 		if median < MIN_MEDIAN_DELTA:
 			_fails.append(("%s: the wave is not separated from the ground it walks "
 				+ "on: median deltaL %.4f against a bar of %.2f. Half the night is "
@@ -343,8 +375,27 @@ func _judge(hour: Dictionary, lit: Image, bare: Image) -> void:
 			_fails.append(("%s: %d of %d figures resolve as a distinct "
 				+ "high-contrast blob, and the bar is %d. The agent counter is not "
 				+ "the picture.") % [hour["name"], found, rows.size(), MIN_FOUND])
+		if median > MAX_MEDIAN_DELTA:
+			_fails.append(("%s: median deltaL %.4f is ABOVE the ceiling of %.2f. "
+				+ "The night is meant to be lit, not blown out.")
+				% [hour["name"], median, MAX_MEDIAN_DELTA])
+	elif gate == "mid":
+		# THE CROSSOVER. Either direction is allowed here — the ground is neither
+		# black nor snow — but every figure must still read, and none of them may
+		# be driven past what this hour needs.
+		if reads < MID_MIN_COUNT:
+			_fails.append(("%s: only %d of %d figures are separated from their "
+				+ "ground by %.2f in ANY direction. This is the assault hour and "
+				+ "the middle of the crossover: it is where a treatment that fades "
+				+ "badly leaves figures sitting at exactly ground value.")
+				% [hour["name"], reads, rows.size(), MID_MIN_DELTA])
+		if median > MID_MAX_MEDIAN:
+			_fails.append(("%s: median deltaL %.4f is ABOVE the ceiling of %.2f — "
+				+ "the lift is over-driving on ground that already carries some "
+				+ "light of its own, and the wave arrives as pale cut-outs.")
+				% [hour["name"], median, MID_MAX_MEDIAN])
 	else:
-		# THE OTHER DIRECTION. On ground bright enough to carry a silhouette the
+		# THE OTHER END. On ground bright enough to carry a silhouette the
 		# treatment must be OFF, and every figure back to being darker than what
 		# is behind it.
 		if dark_enough < DAY_MIN_DARK_COUNT:
@@ -354,9 +405,8 @@ func _judge(hour: Dictionary, lit: Image, bare: Image) -> void:
 				% [hour["name"], dark_enough, rows.size(), DAY_MIN_DARK])
 		if not lamps.is_empty():
 			_fails.append(("%s: %d figure(s) are lit over more than %.0f%% of "
-				+ "themselves — %s. The ground-keyed lift is supposed to be off at "
-				+ "this hour; a lit figure on lit snow is the white-cut-out defect "
-				+ "this beat exists for.")
+				+ "themselves — %s. At this hour the lift is supposed to be OFF "
+				+ "entirely; a lit figure on lit snow is a white cut-out.")
 				% [hour["name"], lamps.size(), DAY_MAX_LIT_FRAC * 100.0,
 					", ".join(lamps)])
 	# LAST STATEMENT IN THE FUNCTION, ON PURPOSE. See `_verdict`.
@@ -390,8 +440,9 @@ func _verdict() -> void:
 			_fails.append("%s graded only %d figures of a staged %d"
 				% [HOURS[i]["name"], _graded[i], WAVE])
 	if _fails.is_empty():
-		print("  %d hours, %d figures each — the night is on screen, and the day "
-			% [_graded.size(), _graded[0]] + "is still a silhouette")
+		print(("  %d hours, %d figures each — the night is on screen, the "
+			+ "crossover holds, and the day is still a silhouette")
+			% [_graded.size(), _graded[0]])
 		print("TESTS PASSED")
 		_finish(0)
 		return

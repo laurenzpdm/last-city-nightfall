@@ -1139,19 +1139,24 @@ func ground_luma(at: Vector2) -> float:
 ## How much of the lit treatment this ground gets: 1 on a black plain, 0 by the
 ## time the ground can carry a silhouette on its own.
 ##
-## THIS CURVE IS THE FIX FOR A DEFECT A PHOTOGRAPH FOUND AND THE NIGHT SUITE
-## COULD NOT. With a hard pivot the body was asked for `(ground + 0.47) / 0.78`,
-## which passes 1.0 as soon as the ground reaches about 0.27 — so every figure
-## standing on ground anywhere between a lamp-lit street and full daylight was
-## painted at 78% WHITE. `artifacts/P13/frames/crowd.png` showed it plainly:
-## half the citizens in a snowy afternoon were white cut-outs. The night beat was
-## green throughout, because deep night is nowhere near that band.
+## THIS CURVE IS A FIX FOR A DEFECT ONLY THE CROSSOVER HOUR COULD SHOW, and the
+## measurement is `tests/render/night_contrast.tscn`'s dusk beat. With a hard
+## pivot the body was asked for `(ground + 0.47) / 0.78`, which passes 1.0 as
+## soon as the ground reaches about 0.27 — and even short of that the grade keeps
+## far more of a canvas-space delta at dusk than it does at deep night, so the
+## same over-drive that lands a creature 0.42 above the plain at midnight landed
+## it 0.60 above at dusk, with 45–79% OF EVERY FIGURE reading as lit. Eighteen
+## hostiles and citizens crossing the plain at the assault hour as pale cut-outs.
+## The deep-night beat was green throughout, because midnight is nowhere near
+## that band, and the frame lab never photographs a wave at all.
 ##
-## Smoothstep rather than a step for the same reason: a hard pivot pops a figure
-## from white to black as it walks out of a hearth's pool, and that boundary is
-## crossed constantly in a city built around fires.
+## The fade now begins the moment the ground has any light in it and reaches zero
+## at the pivot — "how much help does this ground need" is "how far below the
+## pivot is it", not "is it below the pivot". Smoothstep rather than a step
+## because a hard boundary pops a figure from lit to black as it walks out of a
+## hearth's pool, and a city built around fires crosses that boundary constantly.
 static func lit_share(gl: float) -> float:
-	return smoothstep(GROUND_PIVOT, GROUND_PIVOT * 0.35, gl)
+	return smoothstep(GROUND_PIVOT, 0.0, gl)
 
 
 ## `hue` re-valued to land at `target` luminance. Darkening scales the channels;
