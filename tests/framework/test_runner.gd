@@ -157,7 +157,12 @@ func run() -> int:
 
 	_reset_world()
 	_report(elapsed_ms)
-	return 1 if (tests_failed > 0 or (suites_broken > 0 and not lenient)) else 0
+	if tests_failed > 0 or (suites_broken > 0 and not lenient):
+		return 1
+	# 2, not 1: nothing here is RED — the runner was simply handed a selection it
+	# cannot execute, which is the documented meaning of 2. What it must never be
+	# is 0, because 0 is what a builder quotes as proof. See nothing_ran().
+	return 2 if nothing_ran() else 0
 
 
 ## "suites" for a TestCase file, "standalone" for anything else — a part that
@@ -383,8 +388,24 @@ func _report(elapsed_ms: float) -> void:
 	print(RULE)
 	if tests_failed > 0 or (suites_broken > 0 and not lenient):
 		print("TESTS FAILED")
+	elif nothing_ran():
+		print("TESTS NOT RUN — this selection executed 0 tests, so it proved nothing")
 	else:
 		print("TESTS PASSED")
+
+
+## A selection that executed nothing must not read as a pass. `--part=tutorial`,
+## `--part=build` and `--part=climate` hold ONLY standalone suites, which this
+## runner cannot execute in-process (a SceneTree script IS the main loop), so all
+## three printed a bare `TESTS PASSED` over `tests 0 passed, 0 failed` and exited
+## 0. A builder reported a part green off exactly that, in good faith.
+##
+## This is the in-process half of the rule tools/check.sh already enforces on the
+## other side of the fence — "a suite that prints a passing verdict over 0 checks
+## has told you nothing at all". The standalone suites themselves are unaffected:
+## check.sh still runs each in its own Godot and gates on its exit code.
+func nothing_ran() -> bool:
+	return suites_run == 0 and tests_passed == 0 and tests_failed == 0
 
 
 func _rel(path: String) -> String:
