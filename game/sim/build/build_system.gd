@@ -976,7 +976,7 @@ func can_place(kind: StringName, cell: Vector2i, rot: int = 0, check_cost: bool 
 
 	for c: Vector2i in cells:
 		if not world.is_buildable(c):
-			return _fail(BuildTypes.CODE_TERRAIN, "The ground at %d, %d will not take a foundation." % [c.x, c.y], base)
+			return _fail(BuildTypes.CODE_TERRAIN, "The ground at (%d, %d) will not take a foundation." % [c.x, c.y], base)
 
 	if def.allowed_terrain.size() > 0 or def.forbidden_terrain.size() > 0:
 		for c: Vector2i in cells:
@@ -999,7 +999,7 @@ func can_place(kind: StringName, cell: Vector2i, rot: int = 0, check_cost: bool 
 		if occ != 0 and occ != ignore_id:
 			var other: BuildingInstance = _buildings.get(occ)
 			var other_name: String = other.def.display_name if other != null else "something"
-			return _fail(BuildTypes.CODE_OCCUPIED, "%s is in the way at %d, %d." % [other_name, c.x, c.y], base)
+			return _fail(BuildTypes.CODE_OCCUPIED, "%s is in the way at (%d, %d)." % [other_name, c.x, c.y], base)
 
 	if String(def.needs_ore) != "":
 		var want: int = clampi(def.ore_coverage, 1, cells.size())

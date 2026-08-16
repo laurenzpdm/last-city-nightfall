@@ -374,8 +374,17 @@ func _serve_fuel() -> void:
 			Bus.alert_raised.emit(1, &"fuel_short",
 				"%d burner%s running dry — the city is out of %s" % [
 					short, "" if short == 1 else "s", what], Vector2.ZERO)
-			Log.info("logistics", "%d burners short of %s (%d of them on a dead line)" % [
-				short, String(missing), dry_lines])
+			# The same sentence the alert two lines up says, in the same words.
+			# It used to read `1 burners short of waste_heat (0 of them on a
+			# dead line)` — a plural on a count of one, a content id where the
+			# alert beside it said "waste heat", and a parenthesis whose whole
+			# job is to name a subset that is empty. It printed 21 times in one
+			# 24000-tick run, which is 21 chances to read the log as noise.
+			var tail: String = ""
+			if dry_lines > 0:
+				tail = ", %d of them on a dead line" % dry_lines
+			Log.info("logistics", "%d burner%s short of %s%s" % [
+				short, "" if short == 1 else "s", what, tail])
 
 
 ## Which burners have an arm loading them, refreshed on a slow timer. Walks the
@@ -1081,10 +1090,10 @@ func can_place(kind: StringName, cell: Vector2i, rot: int = 0) -> Dictionary:
 	var cells: Array[Vector2i] = _cells_for(def, cell, rot)
 	for c: Vector2i in cells:
 		if world.occ.has(c):
-			return {"ok": false, "reason": "Something of yours is already at %d, %d." % [c.x, c.y],
+			return {"ok": false, "reason": "Something of yours is already at (%d, %d)." % [c.x, c.y],
 				"cells": cells}
 		if not _ground_free(c):
-			return {"ok": false, "reason": "The ground at %d, %d will not take it." % [c.x, c.y],
+			return {"ok": false, "reason": "The ground at (%d, %d) will not take it." % [c.x, c.y],
 				"cells": cells}
 	return {"ok": true, "reason": "", "cells": cells}
 

@@ -848,7 +848,7 @@ static func _bottleneck_sentence(why: Dictionary) -> String:
 	var cell_raw: Variant = why.get("cell", null)
 	var where: String = ""
 	if typeof(cell_raw) == TYPE_ARRAY and (cell_raw as Array).size() >= 2:
-		where = " at %d, %d" % [int((cell_raw as Array)[0]), int((cell_raw as Array)[1])]
+		where = " at (%d, %d)" % [int((cell_raw as Array)[0]), int((cell_raw as Array)[1])]
 	var what: String = String(why.get("building", ""))
 	var who: String = "" if what == "" else " (%s)" % LcnUiFormat.item_name(StringName(what))
 	# The vocabulary is [P02]'s: HeatFlow attributes every browned-out consumer to

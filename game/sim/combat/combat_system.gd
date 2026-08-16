@@ -1277,7 +1277,7 @@ func _publish_watchdog() -> void:
 		var reason: String = String(r.get("reason", "stall"))
 		if _watchdog_seen <= WATCHDOG_LOUD:
 			var cell: Array = r.get("cell", [0, 0])
-			Log.warn(TAG, "watchdog: %s #%d (%s) at %d,%d made no progress for %d tick(s) — %s" % [
+			Log.warn(TAG, "watchdog: %s #%d (%s) at (%d, %d) made no progress for %d tick(s) — %s" % [
 				reason, int(r.get("id", 0)), String(r.get("kind", "?")),
 				int(cell[0]), int(cell[1]), int(r.get("age", 0)),
 				"pulled off its target (strike %d)" % int(r.get("strike", 0))
