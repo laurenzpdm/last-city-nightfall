@@ -397,7 +397,7 @@ def smoke():
     L.place(12, "coal_generator", -3, 11, free=True, instant=True)
     L.place(13, "workshop", 1, 11, free=True, instant=True)
     L.place(14, "storage_yard", 9, 4, free=True, instant=True)
-    # The perimeter is on the city's grid, not beside it. A watchtower draws 1
+    # The perimeter is on the city's grid, not beside it. A watchtower draws 5
     # heat and a turret draws 6; off the network they are one-node islands that
     # freeze by deep night, which is the opposite of what these shots are for.
     L.line(15, "heat_pipe", (12, -1), (12, -9), free=True, instant=True)
@@ -484,9 +484,13 @@ def smoke():
 #
 # WARMTH IS THE PLACEMENT RULE HERE, not proximity to a pipe. A building's
 # internal temperature is (ambient + radiated warmth + 1.6 C per unit of heat it
-# is actually served) and it freezes at -10 C. That means a 1-unit watchtower
-# needs +20 C of radiated cover to survive a -32 C night while a 9-unit housing
-# block needs none. Every position below was checked against the smoothstep
+# is actually served) and it freezes at -10 C. That means a thin consumer needs
+# somebody else's warmth to survive a -32 C night while a 9-unit housing block
+# needs none. The watchtower USED to be the worked example here at 1 unit and
+# +20 C of cover; it is 5 units and insulation 0.6 since c690b03, which lifts it
+# ~15 C on its own, so re-derive from the .tres rather than from this paragraph
+# — the numbers below were placed under the old figure and still hold only
+# because they are generous. Every position was checked against the smoothstep
 # falloff in game/sim/heat/warmth_field.gd at the coldest ambient the run
 # reaches, and anything thin is standing next to a radiator on purpose.
 def first_night():
@@ -704,8 +708,11 @@ def first_night():
     # each one. Coal is the field thirty tiles due north, behind the wall line;
     # iron is thirty-six tiles east, which is why the smelter here runs on the
     # sorter's byproduct instead. The two radiators are not decoration — a drill
-    # is 8 units and a watchtower is 1, so out here the tower needs twenty
-    # degrees of somebody else's warmth and gets it from one tile of clearance.
+    # is 8 units and the drill is what they are really for. They were sized when
+    # a watchtower was 1 unit and needed twenty degrees of somebody else's
+    # warmth; the tower is 5 units and insulation 0.6 since c690b03 and now
+    # largely carries itself, so the cover here is surplus for the tower and
+    # load-bearing for the drill.
     # heat_pipe, not a main: a pipe is insulation 0.8 and loses 0.6% a tile, a
     # trunk main is 0.6 and loses 1.2%. Over nineteen tiles that is 11% against
     # 20%, and this arm never carries more than 41 of a pipe's 60.
