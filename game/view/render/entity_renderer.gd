@@ -1128,12 +1128,30 @@ const DARK_RIM: Color = Color(0.055, 0.065, 0.110)
 ##
 ## Public because it is a statement about the picture that a suite must be able
 ## to check against a photograph without standing the whole renderer up twice —
-## `tests/render/run_night_contrast.gd` prints this beside the luminance it
-## actually measures at the same point.
+## `tests/render/night_contrast.tscn` prints this beside the luminance it
+## actually measures at the same point, at both of the hours it grades.
 func ground_luma(at: Vector2) -> float:
 	var l: Color = _light_for(at, 0.0)
 	return clampf(
 		(l.r * 0.2126 + l.g * 0.7152 + l.b * 0.0722) * GROUND_ALBEDO, 0.0, 1.0)
+
+
+## How much of the lit treatment this ground gets: 1 on a black plain, 0 by the
+## time the ground can carry a silhouette on its own.
+##
+## THIS CURVE IS THE FIX FOR A DEFECT A PHOTOGRAPH FOUND AND THE NIGHT SUITE
+## COULD NOT. With a hard pivot the body was asked for `(ground + 0.47) / 0.78`,
+## which passes 1.0 as soon as the ground reaches about 0.27 — so every figure
+## standing on ground anywhere between a lamp-lit street and full daylight was
+## painted at 78% WHITE. `artifacts/P13/frames/crowd.png` showed it plainly:
+## half the citizens in a snowy afternoon were white cut-outs. The night beat was
+## green throughout, because deep night is nowhere near that band.
+##
+## Smoothstep rather than a step for the same reason: a hard pivot pops a figure
+## from white to black as it walks out of a hearth's pool, and that boundary is
+## crossed constantly in a city built around fires.
+static func lit_share(gl: float) -> float:
+	return smoothstep(GROUND_PIVOT, GROUND_PIVOT * 0.35, gl)
 
 
 ## `hue` re-valued to land at `target` luminance. Darkening scales the channels;
@@ -1158,23 +1176,30 @@ func _draw_agent_edge(ci: CanvasItem, dest: Rect2, art: StringName, foot: Vector
 	if rim_r.size.x <= 0.0 and fill_r.size.x <= 0.0:
 		return
 	var gl: float = ground_luma(foot)
+	var lit: float = lit_share(gl)
 	var on_screen: float = absf(dest.size.y) * maxf(zoom, 0.01)
-	if gl >= GROUND_PIVOT:
-		# Bright ground. The chassis is already the darkest thing here; all the
-		# contour has to do is stop it dissolving into the shadow beside it.
-		if rim_r.size.x > 0.0 and on_screen >= MIN_RIM_PX:
-			ci.draw_texture_rect_region(_atlas, dest, rim_r, at_luma(
-				DARK_RIM, maxf(gl - RIM_DELTA / POST_KEEP, 0.012)))
-		return
-	if fill_r.size.x > 0.0 and BODY_MIX > 0.0 and BODY_DELTA > 0.0:
-		# out = (1 - MIX) * figure + MIX * body, so the colour is asked for at
-		# target / MIX and the figure's own drawing survives at (1 - MIX).
+
+	# THE BODY, lifted only while the ground is too dark to carry a silhouette.
+	# `lit` fades the WEIGHT rather than the colour: fading the colour instead
+	# walks the paint toward white as the mix drops, which is how a snowy
+	# afternoon came back full of white citizens.
+	var mix: float = BODY_MIX * lit
+	if fill_r.size.x > 0.0 and mix > 0.02 and BODY_DELTA > 0.0:
+		# out = (1 - mix) * figure + mix * body, so the colour is asked for at
+		# target / BODY_MIX and the figure's own drawing survives underneath.
 		var body: float = (gl + BODY_DELTA / POST_KEEP) / BODY_MIX
 		ci.draw_texture_rect_region(_atlas, dest, fill_r, Color(
-			at_luma(FOE_BODY if hostile else KIN_BODY, minf(body, 1.0)), BODY_MIX))
-	if rim_r.size.x > 0.0 and on_screen >= MIN_RIM_PX and RIM_DELTA > 0.0:
-		ci.draw_texture_rect_region(_atlas, dest, rim_r, at_luma(
-			FOE_RIM if hostile else KIN_RIM, minf(gl + RIM_DELTA / POST_KEEP, 1.0)))
+			at_luma(FOE_BODY if hostile else KIN_BODY, minf(body, 1.0)), mix))
+
+	# THE CONTOUR, which always draws and simply changes sides. Above the pivot
+	# it is the near-black edge that keeps a dark chassis from dissolving into
+	# the shadow beside it; below, it is the moonlit or firelit crescent.
+	if rim_r.size.x <= 0.0 or on_screen < MIN_RIM_PX or RIM_DELTA <= 0.0:
+		return
+	var d: float = RIM_DELTA / POST_KEEP
+	var bright: Color = at_luma(FOE_RIM if hostile else KIN_RIM, minf(gl + d, 1.0))
+	var dark: Color = at_luma(DARK_RIM, maxf(gl - d, 0.012))
+	ci.draw_texture_rect_region(_atlas, dest, rim_r, dark.lerp(bright, lit))
 
 
 ## How much a figure of `sprite_h` world pixels is enlarged at camera `z`, so it
