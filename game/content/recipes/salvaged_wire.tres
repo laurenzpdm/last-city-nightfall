@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="RecipeDef" format=3]
+
+[ext_resource type="Script" path="res://game/sim/production/recipe_def.gd" id="1_wire0"]
+
+[resource]
+resource_name = "Salvaged Wire"
+script = ExtResource("1_wire0")
+id = &"salvaged_wire"
+display_name = "Salvaged Wire"
+description = "Armoured cable cut out of the buried streets and burned back to metal. Eight crates of rubble for two of copper: a fifth of what one drill lifts, which is exactly why the copper field is worth thirty tiles of pipe."
+category = &"salvage"
+tier = 2
+sort_order = 30
+inputs = Dictionary[StringName, int]({
+&"scrap": 8
+})
+outputs = Dictionary[StringName, int]({
+&"copper_ore": 2
+})
+time_ticks = 250
+machine_tags = Array[StringName]([&"sorter"])
+machines = Array[StringName]([&"rubble_sorter"])
+heat_cost = 45.0
+waste_heat = 4.0
+min_temperature_c = -25.0
+tint = Color(0.84, 0.52, 0.36, 1)
