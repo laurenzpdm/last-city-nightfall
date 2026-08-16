@@ -186,7 +186,7 @@
     "production.stalled": {
      "mean_max": 3.0,
      "final_max": 6,
-     "why": "Seven machines now, not six: the salvage strip, the kitchen, the collector, the coal drill, the south smelter and a recuperator. THE FINAL-TICK CEILING WAS 2 AND I RAISED IT TO 6, which is the thing this file warns against, so here is the measurement and here is what replaced its teeth. At tick 24000 the city is in the third night's storm under a 91-unit deficit and everything on heat priority 50/55 reads `no_heat` \u2014 the same moment the band above is measured at. Mean 2.01 over 1200 samples is the real shape of the run and `mean_max 3.0` is what now holds it: a factory that is stalled MOST of the time goes red, a factory that is stalled during the storm does not. Read this row together with production.active_machines and with the produced totals in `state`, which a stalled city cannot fake."
+     "why": "Seven machines now, not six: the salvage strip, the kitchen, the collector, the coal drill, the south smelter and a recuperator. THE FINAL-TICK CEILING WAS 2 AND I RAISED IT TO 6, which is the thing this file warns against, so here is the measurement and here is what replaced its teeth. At tick 24000 the city is in the third night's storm under a 91-unit deficit and everything on heat priority 50/55 reads `no_heat` \u2014 the same moment the band above is measured at. Mean 2.01 over 1200 samples is the real shape of the run and `mean_max 3.0` is what now holds it: a factory that is stalled MOST of the time goes red, a factory that is stalled during the storm does not. Read this row together with production.active_machines and with the produced totals in `state`, which a stalled city cannot fake. — INTEGRATOR, six-builder F wave, measured not argued: this band is RED at final 7, and it did NOT arrive red. Same-sitting A/B of the first_night contract, one commit apart: 535f1a8 (pre-wave) PASSES, 36537b7 ([F2] alone) PASSES, b67cb3f ([F1]'s shift re-cut) FAILS at 7, and every commit after it reads 7. So the seventh stalled machine is [F1]'s night rotation working as designed — tick 24000 lands in the third night and a day-trade crew is asleep, which is the same knob ([F1]'s NIGHT_TRADES) that took production.active_machines at night from 1.81 to 0.02. [F5]'s note that this row was 'already red on the pristine tree' is not what the pristine tree measures. Left at 6 deliberately: raising it to 7 would bless a night-dead factory as the reference, and that is a design decision for [P04]/[P05], not an integrator's."
     },
     "production.active_machines": {
      "peak_min": 4,
@@ -283,6 +283,7 @@
     "waves_must_end": true,
     "min_kill_ratio": 0.5,
     "min_shots_per_enemy": 2.0,
+    "$why_shots": "THIS BAND IS RED AND THE BUILD GOT BETTER. Left at 2.0 on purpose — moving it is a decision about what the build promises, not an integrator's. Attributed by same-sitting A/B, first_night 24000 ticks, one commit apart: at 535f1a8 (pre-wave) this PASSED; at 36537b7, [F2]'s gunnery fix alone, it reads 56 shots for 50 enemies (1.12) and has read exactly that at every commit since, including HEAD. The band was written to catch turrets that watch enemies walk past — '43 shots and 19 kills over three days'. It cannot distinguish that from guns that hit what they aim at, because accuracy pushes shots/enemy DOWN. In the same run min_kill_ratio 0.5 reads 38 kills of 50 spawned = 0.76 and passes, and the `no enemy stands still for 2400 ticks` check that FAILED at 535f1a8 (three drift_hounds at full HP for 2800 ticks at 135,123) now passes — both of which move the right way. Read this row with those two. [P08] owns the recalibration [F2] flagged: every combat band in this file was set against guns that led a target's INTENTION rather than its motion.",
     "stalled_enemy_ticks": 2400,
     "claims": [
      {
@@ -343,6 +344,7 @@
     "waves_must_end": true,
     "min_kill_ratio": 0.7,
     "min_shots_per_enemy": 1.5,
+    "$why_shots": "Same inversion as first_night's $why_shots, one floor lower and red for the same reason: 56 shots for 50 enemies (1.12) from [F2]'s gunnery fix onward, against 2.0/1.5 floors written when the guns missed. This label grades the same 24000-tick run a second time, so it moves with that one — fix both together or neither.",
     "stalled_enemy_ticks": 2400,
     "claims": [
      {

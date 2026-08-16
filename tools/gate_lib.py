@@ -681,7 +681,8 @@ def check_liveness(run: Run, spec: Dict[str, Any]) -> List[Finding]:
     if "min_kill_ratio" in spec:
         out.append(_kill_ratio(run, float(spec["min_kill_ratio"])))
     if "min_shots_per_enemy" in spec:
-        out.append(_shots_per_enemy(run, float(spec["min_shots_per_enemy"])))
+        out.append(_shots_per_enemy(run, float(spec["min_shots_per_enemy"]),
+                                    str(spec.get("$why_shots", ""))))
     for rule in spec.get("claims", []):
         out.extend(_claim_vs_series(run, rule))
     return out
@@ -766,17 +767,29 @@ def _kill_ratio(run: Run, bound: float) -> Finding:
                    "%d killed of %d spawned (%.2f)" % (killed, spawned, ratio))
 
 
-def _shots_per_enemy(run: Run, bound: float) -> Finding:
+def _shots_per_enemy(run: Run, bound: float, why: str = "") -> Finding:
+    """A FLOOR on shots per enemy, which is a proxy and can invert.
+
+    It was written to catch turrets that watch enemies walk past (43 shots and 19
+    kills across three days).  It cannot tell that apart from guns that hit what
+    they aim at: accuracy pushes this ratio DOWN, so a build whose gunnery got
+    better fails the same band as a build whose gunnery does nothing.  That is
+    why it carries a `why` — see $why_shots in tests/gate/expectations.json, and
+    read this row next to min_kill_ratio, which moves the right way in both
+    cases.
+    """
     shots = run.dotted("final.systems.combat.shots_fired")
     spawned = run.signals.get("enemy_spawned_count")
     if spawned is None:
         live = run.series.get("threat.live")
         spawned = live.peak() if live else None
     if shots is None or not spawned:
-        return Finding(UNCHECKED, "shots / enemy >= %s" % bound, "no shot or spawn count in this run")
+        return Finding(UNCHECKED, "shots / enemy >= %s" % bound,
+                       "no shot or spawn count in this run", why)
     ratio = float(shots) / float(spawned)
     return Finding(PASS if ratio >= bound else FAIL, "shots / enemy >= %s" % bound,
-                   "%s shots for %s enemies (%.2f)" % (_fmt(float(shots)), _fmt(float(spawned)), ratio))
+                   "%s shots for %s enemies (%.2f)" % (_fmt(float(shots)), _fmt(float(spawned)), ratio),
+                   why)
 
 
 def _claim_vs_series(run: Run, rule: Dict[str, Any]) -> List[Finding]:
