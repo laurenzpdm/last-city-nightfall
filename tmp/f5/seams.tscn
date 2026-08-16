@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tmp/f5/seams.gd" id="1_f5s"]
+
+[node name="Seams" type="Node"]
+script = ExtResource("1_f5s")
