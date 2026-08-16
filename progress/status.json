@@ -1,9 +1,9 @@
 {
- "round": 5,
- "phase": "E \u2014 judged. Round 6 next.",
- "state": "Wave E is judged, and the honest reading is that it did not move the critics. Same mean as wave D (4.1), and the blind comparison went from 1 win to 0 \u2014 two evens instead of one win. Real work landed: the night now takes structures (29 lost over 60k ticks against 6), the art grader was photographing the main menu and now grades the world at play zoom, the reference run automates. The critics still score it 4.1 and still lose eight dimensions.",
+ "round": 6,
+ "phase": "F \u2014 judged. The score went down.",
+ "state": "Wave F is judged and the score FELL: 4.1, 4.1, now 3.9. Legibility 5->3, coherence 5->3, keep-playing 3->2. The sim got deeper again \u2014 the guns went from 27 shots per kill to 2.4, the night now costs named dead, the city staffs itself \u2014 and what a critic can SEE got worse. Three waves of engineering and the presentation is not converging.",
  "agents_live": 0,
- "critic_score": 4.1,
+ "critic_score": 3.9,
  "blind_wins": 0,
  "blind_total": 10,
  "parts": [
@@ -204,50 +204,8 @@
   "shots/opening.png"
  ],
  "verdict": {
-  "summary": "Critic 4.1/10 again \u2014 first impression 4, world 4, legibility 5, automation 2, heat 7, night 2, onboarding 5, feel 4, coherence 5, keep-playing 3. Blind: OURS 0, EVEN 2 (information design, onboarding), THEIRS 8. The composition moved \u2014 onboarding and feel up, legibility and world down \u2014 but the total did not.",
-  "biggest_gap": "THE CITY WILL NOT STAFF ITSELF, and one function is why. At tick 24000: 60 job capacity, 39 required slots, 41 employable workers \u2014 every required slot fillable twice over \u2014 yet twelve buildings are understaffed and eight have assigned:0, including five of seven coal generators and the only smelter. assign_jobs() at game/sim/citizens/citizen_job_board.gd:463 fills each site with while site.assigned < site.capacity and never reads site.required, a field it already has. The Hearth takes 8 against a requirement of 4 and everything built later starves. The blind judge names the same failure from the other end: a world-class anticipation layer bolted to nothing \u2014 make night 2 breach the wall, burn a housing block, kill four people the player can name.",
-  "blind": [
-   {
-    "dimension": "Information design and legibility",
-    "winner": "even"
-   },
-   {
-    "dimension": "Onboarding",
-    "winner": "even"
-   },
-   {
-    "dimension": "Opening frame and first minute",
-    "winner": "theirs"
-   },
-   {
-    "dimension": "The look of the world",
-    "winner": "theirs"
-   },
-   {
-    "dimension": "Core loop depth",
-    "winner": "theirs"
-   },
-   {
-    "dimension": "Automation: visibility and reward",
-    "winner": "theirs"
-   },
-   {
-    "dimension": "Pressure and consequence",
-    "winner": "theirs"
-   },
-   {
-    "dimension": "Feel, feedback and sound",
-    "winner": "theirs"
-   },
-   {
-    "dimension": "Long-session pacing",
-    "winner": "theirs"
-   },
-   {
-    "dimension": "Coherence and finish",
-    "winner": "theirs"
-   }
-  ]
+  "summary": "Critic 3.9/10 \u2014 first impression 5, world 4, legibility 3, automation 3, heat 6, night 3, onboarding 6, feel 4, coherence 3, keep-playing 2. Blind: OURS 0, EVEN 2 (information design, pressure and consequence), THEIRS 8, four of them \"by a lot\". Pressure and consequence rose to EVEN \u2014 F2s gunnery and toll work landed. Everything about looking at the game fell.",
+  "biggest_gap": "YOU CANNOT SEE THE NIGHT, AND THE PREVIOUS FIX WAS AIMED AT THE WRONG VARIABLE. sprite_factory _hide() clamps all eleven enemy kinds to RGB about (14,11,16) \u2014 5% luminance \u2014 on a night ground the post grade puts at 12-18%. The silhouette is DARKER than the background it sits on. A gamma-0.35 lift of the whole frame finds zero enemies while the renderer reports 27 agents drawn that tick. The previous pass answered the same finding by raising MIN_AGENT_PX from 17 to 24 \u2014 size, not contrast. And the instrument that should have caught it is blind too: --ui-tour fails 11 of 17 with all eleven screenshots being the main menu, the same title-screen blindness fixed in frame_lab one wave ago and never fixed here."
  },
  "gate": {
   "label": "Gate (macOS CI)",
