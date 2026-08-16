@@ -242,7 +242,7 @@
     "production.chain_depth": {
      "final_min": 2,
      "must_move": true,
-     "why": "HOW FAR FROM THE GROUND THE CITY ACTUALLY GOT, and the band that records a KNOWN SHORTFALL rather than hiding it. The shipped graph in game/content/recipes/ is five transformations deep (ore -> plate -> steel -> pipe -> heat core) and this run reaches TWO: iron_ore out of the sorter's byproduct and off the new drill, iron_plate and slag out of the smelter. It is banded at 2 and not at 4 because 2 is what runs, and a band written above the measurement is a wish. What it does catch is the collapse: the first version of this scenario's factory quarter froze on night two and this series sat at 1 for the whole run. Raising it is the next part's job and it needs a scenario with the construction budget for four more machines \u2014 this one measurably does not: a six-machine quarter left 169 sites queued at t6420 and produced zero crafts in three days."
+     "why": "HOW FAR FROM THE GROUND THE CITY ACTUALLY GOT, AND A KNOWN SHORTFALL RECORDED RATHER THAN HIDDEN. The shipped graph is five transformations deep (ore -> plate -> steel -> pipe -> heat core) and this run reaches TWO: iron_ore out of the sorter's byproduct and off the new drill, iron_plate and slag out of the smelter. Banded at 2 because 2 is what runs, and a band written above the measurement is a wish.\n\nTHE PREVIOUS TEXT HERE SAID RAISING IT WAS 'the next part's job' AND NEEDED 'a scenario with the construction budget for four more machines'. That was tried three times this wave and the budget is not the binding constraint. Measured, in this scenario, on this build:\n  * nine machines and two burners: heat demand peak 190 -> 895 against a delivery that never passed 283. [P02] sheds by priority, so the whole factory went to power 0.00; 25 buildings froze, population 55 -> 39, hope 72 -> 30, and not one new machine finished a single craft.\n  * three machines and two burners: [P05] left all three at `assigned: 0` \u2014 artifacts/F5_v2/state.json, citizens.staffing, buildings 354/355/356 \u2014 while the city held 44 citizens, 33 employed and 66 job slots. Eleven idle people, nine unfilled slots, and chain_depth still 2.\n  * three burners and no machines at all: the good half was deficit peak 213 -> 100 and hope floor 27.9 -> 46.9. The bad half was three more porter-fed bunkers pulling the haulers off the belt \u2014 fuel_by_machine 1078 -> 507, fuel_by_porter 1201 -> 2067 \u2014 and the south smelter, competing for the same coal, making 0 plates against 23. Six bands red to buy one.\n\nSo this scenario is byte-identical to what it was, and the depth claim moved to tests/scenarios/deep_chain.json, which stands the labour market down in its first command and says so, reaches the depth banded there, and grows the city 18 -> 84. THIS BAND STAYS AT 2 UNTIL THE CITY CAN STAFF A FACTORY. When the staffing fix lands, re-run both: the foundry in tools/gen_scenarios.py `_foundry_spine` / `_foundry` / `_retool` moves back into first_night and this band goes to 4."
     }
    },
    "state": {
@@ -574,6 +574,159 @@
     "final.systems.production.produced.grain": {
      "min": 10,
      "why": "And the sorter behind it, for the same reason the reference run bands both: a ration count alone cannot tell a closed chain from a full larder."
+    }
+   }
+  },
+  "deep_chain": {
+   "why": "THE PRODUCTION RUN, AND THE ONLY PLACE IN THIS REPO WHERE THE CRAFTING GRAPH IS GRADED. Two critics ran this build and both wrote down the same finding: the graph never goes past depth 2 and production.ipm.* is nonzero for gear only. The shipped content in game/content/recipes/ is five transformations deep and always was. What stopped it was that copper_ore had no source but a mine, the nearest copper on this map is 37 tiles past the wall, and copper_coil feeds pipe_segment and circuit while heat_core needs both \u2014 so four of the fourteen shipped recipes could not be entered at all. `salvaged_wire` (8 scrap -> 2 copper_ore, at a fifth of a drill's rate) is the door. THIS SCENARIO STANDS THE LABOUR MARKET DOWN IN ITS FIRST COMMAND and says so in the script where a reader of the run can see it, because [P05] measurably assigns NOBODY to a machine finished after day one: three added to first_night read `assigned: 0` while the city held eleven unemployed citizens and nine unfilled slots. first_night keeps that coupling live and is where the job board is graded. What these bands claim is the other half: given crews, the chain runs, the city grows, and day five asks four times what day one did.",
+   "metrics": {
+    "production.chain_depth": {
+     "final_min": 5,
+     "must_move": true,
+     "why": "HOW FAR FROM THE GROUND THE CITY GOT. first_night reaches 2 \u2014 iron_ore out of a sorter's byproduct, iron_plate and slag out of one smelter \u2014 against content that reaches 5. This run reaches 5. Banded at what RUNS and not at what is wished for: a band written above the measurement is a wish, and this file already carries one paragraph about that. What it catches is the collapse: an earlier version of this quarter sat at 3 for a whole run because the workshop on `pipe_segment` read `power 0.0000` at every checkpoint \u2014 that recipe costs 50 heat over 5 s, exactly a workshop's 10 u/s rating, so it is the one recipe in the game that needs FULL power to turn at all, and the foundry had no burner of its own."
+    },
+    "production.crafts_total": {
+     "final_min": 900,
+     "must_move": true,
+     "why": "1422 measured here against 210 in first_night and 77 in the run the critics scored, all of which were gear. 900 is a third under measured: a factory that drops below it has lost the salvage strip or the foundry, not a machine."
+    },
+    "production.active_machines": {
+     "peak_min": 8,
+     "mean_min": 3.5,
+     "why": "Measured peak 13, mean 5.81, against first_night's peak 7 and mean 1.6. mean_min is the honest one \u2014 a factory can peak for one lucky sample and be dark for the rest of the run, which is exactly what the reference run does."
+    },
+    "production.machines": {
+     "final_min": 10,
+     "why": "Eleven machines standing at the end: two sorters, a kitchen, a collector, four smelters, a workshop, an assembly hall, a recuperator and a drill. Below ten the foundry or the south works was never built, and every produced-goods band under `state` is then being satisfied by the founders' pile."
+    },
+    "production.waste_recovered": {
+     "peak_min": 1.0,
+     "must_move": true,
+     "why": "THE HEAT-RECOVERY LOOP WITH TWO SOURCES ON IT, WHICH HAS NEVER HAPPENED. `waste.links` in every reference run to date was `{}` or one recuperator with one smelter. Here it is {292: [227, 399]} \u2014 the south smelter AND the assembly hall \u2014 and the series peaks at 3.0. That is the design's argument for density, made: a quarter packed tight enough to share a recuperator costs less to heat."
+    },
+    "production.ipm.copper_coil": {
+     "nonzero_by": 16000,
+     "why": "THE SHARPEST NUMBER IN THIS FILE. It is 0.0 for the whole of first_night and for every run of this project before this wave, because copper had no source inside the walls. First nonzero here at t12160 \u2014 day one's evening, off a rubble sorter cutting cable . A rate and not a total, because a total can be a founders' pile."
+    },
+    "production.ipm.steel_plate": {
+     "nonzero_by": 24000,
+     "why": "Depth 3, and it costs nothing: the south smelter is RETOOLED from iron_plate at t19600 rather than a new building being placed, which is the cheapest progression in the run because it needs no materials, no crew and no place in the build queue. Measured first nonzero t19720 \u2014 the foundry's own iron smelter frees the old one earlier than the script's retool."
+    },
+    "production.ipm.circuit": {
+     "nonzero_by": 30000,
+     "why": "Depth 3 on the OTHER branch: 3 copper_coil + 1 iron_plate in the assembly hall, which cannot exist without the wire line. Measured t25560. It is banded as a rate because `circuit` is also what gates inserter_mk2 and splitter_mk2 in game/content/buildings \u2014 the first tier in this game that changes the build menu."
+    },
+    "production.ipm.pipe_segment": {
+     "nonzero_by": 33000,
+     "why": "DEPTH 4, AND THE FIRST TIME ANYTHING IN THIS PROJECT HAS MADE A COMPONENT OUT OF TWO OTHER COMPONENTS. 1 steel_plate + 1 copper_coil, so it needs BOTH halves of this city at once \u2014 steel off the retooled smelter on the south rung, coil off the wire line eighteen tiles north \u2014 which is the whole argument for why a factory is a place and not a building. Measured first nonzero t27960, 164 units made. It also costs exactly 50 heat over 5 s against a workshop's 10 u/s rating, which makes it the one recipe in the game that needs FULL power to turn at all: the version of this quarter without its own burner made 46 gears, zero pipe segments, and stopped the whole run at depth 3."
+    },
+    "production.ipm.heat_core": {
+     "nonzero_by": 43000,
+     "why": "DEPTH 5. THE TOP OF THE SHIPPED GRAPH, REACHED FOR THE FIRST TIME IN THIS PROJECT. 2 pipe_segment + 1 circuit + 2 insulation, every one of them made in this city in this run by a machine the player can point at, on a chain that starts at a scrap collector picking rubble. First nonzero t41200; 9 made. This is the exact teeth under production.chain_depth \u2014 that series is a max over everything produced, and this is the single item that sets it. THE MARGIN IS THIN AND THAT IS THE TRUTH, NOT AN OVERSIGHT: the first heat core lands at t41200 in a run that stops at 43200, two thousand ticks of slack. The top of this tree is the last thing this city can afford, and a band with more room than that would stop being able to tell 'it got there late' from 'it never got there'."
+    },
+    "production.ipm.insulation": {
+     "nonzero_by": 30000,
+     "why": "THE SLAG LINE CLOSING. Iron smelting cannot be done without making slag, one per plate forever, and until this run no scenario had ever put a machine on it: `produced.slag` 23 and consumed 0, in every reference run there has ever been. Measured first nonzero t24800."
+    },
+    "build.rejected_total": {
+     "final_max": 12,
+     "why": "A CEILING, NOT THE TEETH, AND HERE IS WHY IT IS NOT ZERO LIKE first_night's. This run deliberately cuts the founders' pile \u2014 steel 1400 -> 380, copper_coil 500 -> 110 \u2014 so that the tiers are paid for by the factory rather than by a warehouse nobody earned; measured on the uncut version, 194 of 388 pipe segments were bought with founders' steel, which is a graph that LOOKS five deep and is two deep with a stockpile behind it. Eight placements were refused for cost at the measured cut, mostly late radiators and a booster pump. The teeth for the claim are the `produced.*` bands under `state`, which a stockpile cannot fake. This band only catches the cut going runaway \u2014 at 12 the city has stopped being able to build."
+    },
+    "citizens.population": {
+     "final_min": 60,
+     "delta_min": 35,
+     "must_move": true,
+     "why": "MORE MOUTHS, WHICH IS A THIRD OF WHAT DAY FIVE IS SUPPOSED TO ASK FOR. 18 founders to 84 at the end, 0 homeless, 84 beds. first_night ends at 55 and the version of this run without the four extra blocks was EXILED at t25400 with beds 0 and homeless 46. delta_min as well as final_min because a run that starts with 60 people and ends with 60 has not grown, it has been handed a city."
+    },
+    "heat.total_demand": {
+     "delta_min": 200.0,
+     "peak_min": 600.0,
+     "why": "MORE HEAT, WHICH IS THE OTHER THIRD. The city asks 61 units at the opening and 454 at the end, peaking at 857 in the fifth night \u2014 four district rungs, four smelters, a workshop, a hall, thirteen radiators and thirty-one tiles of new main. This is the band that says day five costs more than day one, and it is the only one that says it about the thing this whole game is denominated in."
+    },
+    "build.buildings_total": {
+     "peak_min": 340,
+     "must_move": true,
+     "why": "A BIGGER, DENSER CITY THAN IT STARTED WITH: 101 standing at the opening, 404 at the peak. Peak and not final, because [P07] eats trunk main and the count legitimately falls during a night \u2014 grading the last tick would grade the damage, not the growth."
+    },
+    "climate.day": {
+     "final_min": 5,
+     "why": "Four and a half in-game days. The scenario stops at 43200 rather than running six, and that is MEASURED, not chosen: this city is exiled at t47860 \u2014 discontent 100 \u2014 even with the night switched off and three humane laws signed, and the harness keeps replaying ticks afterwards, so a longer run grades a corpse (at t46000 hope reads 0.0, morale 0.2, population 74 -> 51). Raising that ceiling is [P05] and [P06]'s work. The ceiling itself is this run's most useful finding, because first_night stops at 24000 and the reference city falls over at 25400."
+    },
+    "society.hope": {
+     "min": 30.0,
+     "why": "Measured range 54.6 to 73.2, and 63.0 at the final tick. Not a balance target \u2014 it is the line below which this run stops describing a city anybody lives in, and the tripwire for the collapse that ate days four to six of two earlier versions of this scenario."
+    },
+    "citizens.food_days": {
+     "min": 4.0,
+     "why": "Days of food in hand; measured minimum 11.8 on a population that quadrupled. Below 0.75 [P05] stops accepting arrivals, which ends population growth, which ends staffing, which ends production. Four days is the margin at which the kitchen is still ahead of the mouths this run keeps adding."
+    },
+    "heat.networks": {
+     "final_max": 1,
+     "max": 5,
+     "why": "One hearth, one grid, all five days, with four district rungs and thirty-one tiles of new main hung off it. final_max 1 is the teeth: the finished city is a single network and nothing in the layout is allowed to be an island. The transient ceiling covers the seconds a trunk run spends as two or three components between the crew finishing its first tile and its last; measured high is 4."
+    },
+    "heat.frozen_buildings": {
+     "final_max": 3,
+     "max": 8,
+     "why": "A FREEZE IS PERMANENT \u2014 a frozen building stops radiating and stops drawing, so it can only thaw on somebody else's warmth. The transient ceiling is higher than first_night's because this city is twice the size and has three district rungs out past the Hearth's field; the final-tick band is what says it ended alive."
+    }
+   },
+   "state": {
+    "ended.reason": {
+     "exists": false,
+     "why": "THE BAND EVERY OTHER BAND IN THIS ENTRY DEPENDS ON. The harness does not stop at a game over: it prints THE RUN IS OVER and replays the remaining ticks with nobody in the city, so every series afterwards is a corpse being sampled. Two earlier versions of this scenario were exiled at t25400 and t47860 and their day-four-to-six numbers were meaningless. If `ended.reason` exists, this whole entry is grading a ruin and must be read as one."
+    },
+    "final.systems.production.produced.copper_ore": {
+     "min": 100,
+     "why": "`salvaged_wire`, the recipe this wave added, in units out of rubble. This key did not exist in any state.json before this wave because copper had no source inside the walls at all. 126 measured."
+    },
+    "final.systems.production.produced.copper_coil": {
+     "min": 200,
+     "why": "And the smelter behind it: 1 copper_ore -> 2 coil. 252 measured. Banded on the structure as well as on the rate above so a build cannot satisfy a counter without the goods existing \u2014 and this city is deliberately started with only 110 coil against the 76 day one alone spends, so the radiators, the booster pumps and the recuperator raised after the first night are made of copper it salvaged itself."
+    },
+    "final.systems.production.produced.steel_plate": {
+     "min": 90,
+     "why": "Depth 3. 143 measured, off ONE retooled smelter \u2014 first_night's `produced` table has no steel_plate key at all."
+    },
+    "final.systems.production.produced.circuit": {
+     "min": 45,
+     "why": "Depth 3 on the copper branch, out of the assembly hall: 100 measured. It is also the material that gates inserter_mk2 and splitter_mk2, so this number is the difference between a logistics tier existing on paper and existing in a save."
+    },
+    "final.systems.production.produced.insulation": {
+     "min": 28,
+     "why": "The slag loop closing: 2 slag + 1 timber, 42 measured. Slag has exactly one use at exactly the rate one iron smelter makes it, and until this run nothing in any scenario had ever consumed a gram of it."
+    },
+    "final.systems.production.produced.insulation_wool": {
+     "min": 10,
+     "why": "The other slag recipe, and the one that changes what may be PLACED: a `heat_pipe_insulated` costs one wool a tile, and the insulated arm this run lays to the coal outpost on day four could not have been drawn on day one at any price because the material did not exist. 20 measured. `heat_pipe_insulated` loses 4% a tile against a plain pipe's 11%, which over nineteen tiles is the whole reason the outpost drill stays warm."
+    },
+    "final.systems.production.produced.iron_plate": {
+     "min": 55,
+     "why": "91 measured against 23 in first_night, because there are two iron smelters and a second sorter on `sorted_rubble` feeding them. This is banded separately from crafts_total because crafts_total can be carried entirely by the kitchen and the collector, and in the reference run it is."
+    },
+    "final.systems.production.produced.slag": {
+     "min": 55,
+     "why": "One per plate, forever, and now with two machines downstream of it. Read together with produced.insulation and produced.insulation_wool: the pair is what says the byproduct is a puzzle rather than a counter."
+    },
+    "final.systems.production.produced.pipe_segment": {
+     "min": 100,
+     "why": "Depth 4, in units: 164 measured. There is no `pipe_segment` key in first_night's `produced` table at all, and there never has been in any run of this project. It is banded on the structure as well as on the rate above because a rate can be one lucky sample and a lifetime total cannot."
+    },
+    "final.systems.production.produced.heat_core": {
+     "min": 4,
+     "why": "DEPTH 5, IN UNITS. Nine of them. This is the deepest item the shipped content has and the key did not exist in any state.json this project has ever written. If a future run has this key missing or under four, the top of the tree has closed again and the run has gone back to being a factory that makes plate."
+    },
+    "final.systems.production.produced.gear": {
+     "min": 50,
+     "why": "85 measured. Gear is the one item the critics found nonzero in the run they scored \u2014 `production.ipm.*` was nonzero for gear ONLY \u2014 so it is here as the control: the thing that already worked has to keep working while the ten items around it start."
+    },
+    "final.systems.production.waste.links": {
+     "len_min": 1,
+     "why": "The structural half of production.waste_recovered. len_min counts RECUPERATORS and not sources, so a recuperator linked to nothing satisfies it \u2014 the reach is proved in tests/production/, not here. What it catches is a layout that stops putting one in reach of anything at all, which every layout before this wave did."
+    },
+    "errors": {
+     "len_max": 0,
+     "why": "state.json.errors is what the harness itself is willing to admit went wrong."
     }
    }
   }

@@ -551,7 +551,20 @@ def _foundry_spine(L):
     spine += L.line(5440, "heat_trunk_main", (11, -10), (11, -9))   # x139, y118-119
     L.place(5600, "warmth_radiator", 6, -13)                        # x134-135
     spine.append((CORE[0] + 6, CORE[1] - 13))
-    L.urgent(5700, spine)
+    # AND ITS OWN FIRE, WHICH THE FIRST VERSION OF THIS QUARTER DID NOT HAVE AND
+    # PAID FOR IN THE ONE NUMBER THE WHOLE SCENARIO EXISTS TO MOVE. Every
+    # machine out here is heat priority 50 or 55 — the two tiers [P02] sheds
+    # first — and `pipe_segment` costs 50 heat over 5 s, which is EXACTLY a
+    # workshop's 10 u/s rating, so it is the one recipe in the game that needs
+    # full power to run at all. Measured without this burner: the shop read
+    # `power 0.0000, no_heat, felt -4.5` at the final tick, made 46 gears and
+    # zero pipe segments, the assembly hall sat on `missing_input: pipe_segment`
+    # with its circuits already made, and the run stopped at chain depth 3. One
+    # burner is 30 units delivered HERE instead of pushed eighteen tiles down a
+    # main, and it stands between the two rungs so both of its faces conduct.
+    L.place(5800, "coal_generator", 13, -10)                        # x141-143
+    spine.append((CORE[0] + 13, CORE[1] - 10))
+    L.urgent(5900, spine)
 
 
 def _foundry(L):
@@ -1258,10 +1271,10 @@ def deep_chain():
     # scenario; the tiers are steel and copper, and they are what stays short.
     for entry in sc["script"]:
         if entry["cmd"].get("op") == "add_stock":
-            entry["cmd"]["items"] = {"iron_plate": 3400, "steel_plate": 380,
-                                     "stone": 2600, "timber": 2200, "scrap": 2400,
-                                     "gear": 300, "copper_coil": 90,
-                                     "coal": 2400, "grain": 1600}
+            entry["cmd"]["items"] = {"iron_plate": 3600, "steel_plate": 380,
+                                     "stone": 2600, "timber": 2200, "scrap": 2600,
+                                     "gear": 330, "copper_coil": 110,
+                                     "coal": 2800, "grain": 1600}
     L.cmd(42800, {"system": "production", "op": "ratios"})
     L.cmd(43000, {"system": "production", "op": "dump"})
     sc["name"] = "deep_chain"

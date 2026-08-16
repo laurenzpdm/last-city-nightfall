@@ -27,14 +27,14 @@
         "system": "build",
         "op": "add_stock",
         "items": {
-          "iron_plate": 3400,
+          "iron_plate": 3600,
           "steel_plate": 380,
           "stone": 2600,
           "timber": 2200,
-          "scrap": 2400,
-          "gear": 300,
-          "copper_coil": 90,
-          "coal": 2400,
+          "scrap": 2600,
+          "gear": 330,
+          "copper_coil": 110,
+          "coal": 2800,
           "grain": 1600
         }
       }
@@ -1882,7 +1882,19 @@
       }
     },
     {
-      "tick": 5700,
+      "tick": 5800,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          141,
+          118
+        ]
+      }
+    },
+    {
+      "tick": 5900,
       "cmd": {
         "system": "build",
         "op": "set_priority",
@@ -1894,7 +1906,7 @@
       }
     },
     {
-      "tick": 5700,
+      "tick": 5900,
       "cmd": {
         "system": "build",
         "op": "set_priority",
@@ -1906,7 +1918,7 @@
       }
     },
     {
-      "tick": 5700,
+      "tick": 5900,
       "cmd": {
         "system": "build",
         "op": "set_priority",
@@ -1918,7 +1930,7 @@
       }
     },
     {
-      "tick": 5700,
+      "tick": 5900,
       "cmd": {
         "system": "build",
         "op": "set_priority",
@@ -1930,7 +1942,7 @@
       }
     },
     {
-      "tick": 5700,
+      "tick": 5900,
       "cmd": {
         "system": "build",
         "op": "set_priority",
@@ -1942,7 +1954,7 @@
       }
     },
     {
-      "tick": 5700,
+      "tick": 5900,
       "cmd": {
         "system": "build",
         "op": "set_priority",
@@ -1954,7 +1966,7 @@
       }
     },
     {
-      "tick": 5700,
+      "tick": 5900,
       "cmd": {
         "system": "build",
         "op": "set_priority",
@@ -1966,7 +1978,7 @@
       }
     },
     {
-      "tick": 5700,
+      "tick": 5900,
       "cmd": {
         "system": "build",
         "op": "set_priority",
@@ -1978,7 +1990,7 @@
       }
     },
     {
-      "tick": 5700,
+      "tick": 5900,
       "cmd": {
         "system": "build",
         "op": "set_priority",
@@ -1990,7 +2002,7 @@
       }
     },
     {
-      "tick": 5700,
+      "tick": 5900,
       "cmd": {
         "system": "build",
         "op": "set_priority",
@@ -2002,7 +2014,7 @@
       }
     },
     {
-      "tick": 5700,
+      "tick": 5900,
       "cmd": {
         "system": "build",
         "op": "set_priority",
@@ -2014,7 +2026,7 @@
       }
     },
     {
-      "tick": 5700,
+      "tick": 5900,
       "cmd": {
         "system": "build",
         "op": "set_priority",
@@ -2026,7 +2038,7 @@
       }
     },
     {
-      "tick": 5700,
+      "tick": 5900,
       "cmd": {
         "system": "build",
         "op": "set_priority",
@@ -2038,7 +2050,7 @@
       }
     },
     {
-      "tick": 5700,
+      "tick": 5900,
       "cmd": {
         "system": "build",
         "op": "set_priority",
@@ -2050,7 +2062,7 @@
       }
     },
     {
-      "tick": 5700,
+      "tick": 5900,
       "cmd": {
         "system": "build",
         "op": "set_priority",
@@ -2062,13 +2074,25 @@
       }
     },
     {
-      "tick": 5700,
+      "tick": 5900,
       "cmd": {
         "system": "build",
         "op": "set_priority",
         "cell": [
           134,
           115
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 5900,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          141,
+          118
         ],
         "priority": 95
       }
