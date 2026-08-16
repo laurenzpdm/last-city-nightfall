@@ -38,6 +38,11 @@ uniform sampler2D snow_tex : filter_linear, repeat_disable;
 uniform sampler2D heat_tex : filter_linear, repeat_disable;
 uniform sampler2D soot_tex : filter_linear, repeat_disable;
 uniform sampler2D city_tex : filter_linear, repeat_disable;
+// THE GROUND'S MEMORY of where the population actually went. One texel per tile,
+// written by LcnEntityRenderer at every footfall, aged on the sim clock. Black
+// default on purpose: an unbound sampler2D reads WHITE, and a white wear field
+// is a plain trodden flat from edge to edge before anyone has taken a step.
+uniform sampler2D wear_tex : filter_linear, repeat_disable, hint_default_black;
 uniform sampler2D noise_tex : filter_linear, repeat_enable;
 uniform sampler2D pal_tex : filter_nearest, repeat_disable;
 
@@ -189,27 +194,26 @@ void fragment() {
 	float heat = texture(heat_tex, (w + hwarp * 32.0) / map_px).r;
 
 	// ---- tracks --------------------------------------------------------------
-	// Contour lines of two slow fields, revealed only where people are. A worn
-	// path is exactly this shape from the air: a long wandering line that does
-	// not care about the tile grid and only exists where there is somewhere to
-	// walk to. `city` is the blurred building-presence field, so tracks appear
-	// between structures and fade out on the empty plain.
-	// `city` is a heavily blurred 8-tile-per-texel field. Used raw as a mask it
-	// paints its own texel grid on the ground as soft diagonal-cornered islands —
-	// which is exactly what the second attempt at this did. Warped by noise it
-	// stops being a grid and becomes a fringe.
-	vec2 cwarp = (n4(t * 0.19 + vec2(53.0, 7.0)).ba - vec2(0.5)) * 150.0
-		+ (n4(t * 0.77 + vec2(131.0, 19.0)).rg - vec2(0.5)) * 46.0;
-	float city_w = texture(city_tex, (w + cwarp) / map_px).r;
-	float lived = smoothstep(0.30, 0.74, city_w);
-	float pf1 = fbm2(t * 0.043 + vec2(311.0, 77.0));
-	float pf2 = fbm2(t * 0.029 + vec2(7.0, 199.0));
-	// Width wobbles along the path: a track people wear is not a drafted line.
-	float wob = 0.010 + 0.012 * n1(t * 0.31 + vec2(163.0, 29.0));
-	float trail = max(
-		1.0 - smoothstep(0.0, wob * 0.62, abs(pf1 - 0.5)),
-		1.0 - smoothstep(0.0, wob * 0.44, abs(pf2 - 0.615)));
-	float worn = clamp(trail * lived, 0.0, 1.0);
+	// WHERE PEOPLE HAVE ACTUALLY WALKED. This used to be two contour lines of a
+	// slow noise field, revealed wherever the blurred building-presence texture
+	// was high — a shape that looks like paths from the air and is a path-shaped
+	// lie: it appeared the instant a building was placed, it ran where nobody
+	// had ever been, and it was pixel-identical at hour 3 and hour 1. It is now
+	// the wear field, written at the footfalls the entity pass already records
+	// and aged over game hours, so the plaza is worn because the city wore it
+	// and an abandoned quarter goes back under the snow.
+	//
+	// The field is one texel per tile and sampled linearly, so used raw it draws
+	// its own 32 px grid as soft diamonds. Warped by two octaves of noise it
+	// stops being a grid: the path wanders off the tiles the pathfinder used,
+	// which is what a real trodden route does.
+	vec2 wwarp = (n4(t * 0.37 + vec2(19.0, 97.0)).rg - vec2(0.5)) * 13.0
+		+ (n4(t * 0.13 + vec2(53.0, 7.0)).ba - vec2(0.5)) * 26.0;
+	float wear = texture(wear_tex, (w + wwarp) / map_px).r;
+	// Width and depth wobble along the route: a track people wear is not a
+	// drafted line, and this is the ONE thing the old contour version had right.
+	float wob = 0.62 + 0.38 * n1(t * 0.31 + vec2(163.0, 29.0));
+	float worn = clamp(smoothstep(0.045, 0.42, wear) * wob, 0.0, 1.0);
 
 	// ---- the crust -----------------------------------------------------------
 	// Coverage is a NARROW threshold against the drift field, so a snow edge is
@@ -291,11 +295,15 @@ void fragment() {
 	albedo = mix(albedo, snow_shadow * 0.72, lee * 0.30 * takes_snow);
 
 	// ---- worn ground ---------------------------------------------------------
-	// A path is packed snow: darker, bluer, no sparkle, with two ruts in it.
+	// A path is packed snow: darker, bluer, no sparkle. And it goes THROUGH
+	// stages, which is the whole point of a field that accumulates — a route
+	// used once is a discolouration, a route used all day is trodden down to the
+	// grit under it. A player watching their own city for three hours can see
+	// which of the two the road to the hearth has become.
 	vec3 packed_snow = mix(snow_shadow * 0.86, snow_mid * 0.80, 0.5);
-	albedo = mix(albedo, packed_snow, worn * 0.46);
-	float rut = 1.0 - smoothstep(0.0, 0.004, abs(pf1 - 0.5));
-	albedo *= 1.0 - rut * lived * 0.14;
+	albedo = mix(albedo, packed_snow, worn * 0.52);
+	float core = smoothstep(0.52, 0.94, wear);
+	albedo = mix(albedo, mix(scoured, ash_col, 0.30), core * 0.34);
 
 	// ---- industrial soot -----------------------------------------------------
 	float soot_mask = smoothstep(0.30, 0.86, soot) * (0.30 + 0.70 * fbm2(t * 1.22 + vec2(77.0)));

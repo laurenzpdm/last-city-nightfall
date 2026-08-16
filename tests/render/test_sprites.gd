@@ -137,12 +137,17 @@ func test_every_archetype_bakes_something_with_an_outline() -> void:
 ## by test_the_ten_enemies_are_distinguishable_by_shape_alone.
 const HUMAN_KINDS: Array[StringName] = [&"citizen", &"worker", &"porter", &"soldier"]
 
-## The screen height the figure floor gives a person at play zoom.
-const PLAY_PX: int = 17
+## The screen height the figure floor gives a person at play zoom. Read from the
+## renderer's own constant, never copied: a suite that hardcodes 17 goes on
+## certifying 17 px silhouettes after the floor moves, and would have graded the
+## shapes at a size the screen no longer shows.
+const PLAY_PX: int = int(LcnEntityRenderer.MIN_AGENT_PX)
 ## Cells across the mask. A figure this size cannot be wider than twice its
-## height without being something other than a person.
-const ROLE_W: int = 34
-const ROLE_H: int = 20
+## height without being something other than a person. Sized off the floor for
+## the same reason: at 24 px a 20-row mask would clip every figure's head off
+## and then measure how alike the remains are.
+const ROLE_W: int = PLAY_PX * 2
+const ROLE_H: int = PLAY_PX + 3
 
 
 ## THE ROLES READ APART AS SHAPES, at seventeen pixels, with no colour.
@@ -439,6 +444,81 @@ func test_the_ten_enemies_are_distinguishable_by_shape_alone() -> void:
 				pair = "%s vs %s" % [kinds[i], kinds[j]]
 	assert_lt(worst, 0.62,
 		"closest enemy silhouette pair is %s at %.3f overlap" % [pair, worst])
+
+
+## THE ECHELON, AT THE SIZE THE SCREEN ACTUALLY GIVES IT.
+##
+## The test above normalises every creature to a common WORLD scale, which is
+## the right frame for "are these ten designs distinct" and the WRONG one for
+## "can a player tell them apart in a night". The figure floor in
+## `LcnEntityRenderer.agent_scale` spends most of the size difference before the
+## sprite reaches the eye: at zoom 0.60 a 13 px hound is enlarged to the floor
+## and a 24 px breaker is enlarged to the same floor, so on screen they are the
+## same height and only their OUTLINES are left to carry which one is which.
+##
+## [F5] is building nights that crest at 10, 16, 33 and 40 bodies on one tick and
+## asked for exactly this: silhouette difference between the kinds at play zoom,
+## because an echelon coming over a ridge together is one shape repeated forty
+## times and the player has to read it in the second before it arrives.
+##
+## This is also the check that catches a figure floor raised too far. Push
+## MIN_AGENT_PX up and more creatures pile onto it, and this number climbs.
+func test_the_echelon_reads_at_play_zoom() -> void:
+	const PLAY_ZOOM: float = 0.60
+	var kinds: Array[StringName] = LcnSpriteFactory.ENEMY_KINDS
+	var masks: Dictionary[StringName, PackedByteArray] = {}
+	var heights: Dictionary[StringName, int] = {}
+	for kind: StringName in kinds:
+		var sprite: Dictionary = f.agent(kind)
+		var wh: float = float((sprite["texture"] as ImageTexture).get_image().get_height())
+		var px: int = int(round(wh * PLAY_ZOOM
+			* LcnEntityRenderer.agent_scale(wh, PLAY_ZOOM)))
+		heights[kind] = px
+		assert_gt(float(px), LcnEntityRenderer.MIN_AGENT_PX - 1.0,
+			"%s reaches the figure floor at play zoom (%d px)" % [kind, px])
+		assert_gt(float(px),
+			LcnEntityRenderer.agent_target_px(wh) - 1.0,
+			"%s reaches the height the floor asks for it (%d px of %.1f)"
+				% [kind, px, LcnEntityRenderer.agent_target_px(wh)])
+		masks[kind] = _mask_at_screen_height(sprite, px)
+	var worst: float = 0.0
+	var pair: String = ""
+	for i: int in kinds.size():
+		for j: int in range(i + 1, kinds.size()):
+			var same: float = _similarity(masks[kinds[i]], masks[kinds[j]])
+			if same > worst:
+				worst = same
+				pair = "%s (%d px) vs %s (%d px)" % [
+					kinds[i], heights[kinds[i]], kinds[j], heights[kinds[j]]]
+	assert_lt(worst, 0.66,
+		"closest pair in an echelon at zoom %.2f is %s at %.3f overlap — on screen, "
+		% [PLAY_ZOOM, pair, worst]
+		+ "after the figure floor, they are one creature")
+
+
+## Rasterised at the exact screen height `agent_scale` gives it, bottom-aligned
+## and centred on a canvas big enough for the boss, so what is compared is what
+## the player is shown and not what the atlas holds.
+static func _mask_at_screen_height(sprite: Dictionary, px: int) -> PackedByteArray:
+	var img: Image = (sprite["texture"] as ImageTexture).get_image()
+	var cw: int = PLAY_PX * 3
+	var ch: int = PLAY_PX * 2
+	var out := PackedByteArray()
+	out.resize(cw * ch)
+	var w: int = img.get_width()
+	var h: int = img.get_height()
+	var s: float = float(px) / float(maxi(h, 1))
+	var ox: float = (float(cw) - float(w) * s) * 0.5
+	var oy: float = float(ch) - float(h) * s - 1.0
+	for y: int in ch:
+		for x: int in cw:
+			var sx: int = int((float(x) - ox) / s)
+			var sy: int = int((float(y) - oy) / s)
+			var on: int = 0
+			if sx >= 0 and sy >= 0 and sx < w and sy < h and img.get_pixel(sx, sy).a > 0.45:
+				on = 1
+			out[y * cw + x] = on
+	return out
 
 
 ## The boss must not be a big hound. Size IS information in a tower defense:

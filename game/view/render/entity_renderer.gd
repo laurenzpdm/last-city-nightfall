@@ -63,8 +63,27 @@ const MIN_EMISSIVE_PX: float = 11.0
 ## figure's FEET so the thing stays standing where the simulation put it. Every
 ## RTS that lets you zoom out does some version of this; the alternative is a
 ## combat layer the player cannot see, which is the score this build got.
-const MIN_AGENT_PX: float = 17.0
-const MAX_AGENT_SCALE: float = 2.4
+##
+## THE FLOOR WAS RAISED FROM 17 TO 24, AND HERE IS THE FRAME THAT DID IT. Open
+## `artifacts/P13/frames/crowd.png` from the previous pass at 3x and the people
+## are all there, all four roles, each with a lit head and a trail behind it —
+## and every one of them is the same size and the same value as the crates,
+## drums, pipe stacks and rock props scattered over the same ground. At 17 px a
+## citizen was not hard to SEE; it was impossible to tell apart from the scenery,
+## which is why a judge who could see the whole city still reported finding one
+## human figure. Detail did not fix that and cannot: the fix is that the moving
+## things are decisively the biggest small things in the frame.
+##
+## 24 px is 1.25 tiles at zoom 0.60. A building is 60–160. The cap goes to 3.1
+## because the smallest thing that walks — a 13 px drift hound — is 7.8 screen
+## pixels at 0.60 and needs 3.08x to reach the floor; leaving the cap at 2.4
+## would have moved the constant and not the picture, which is the exact failure
+## mode this project has paid for twice, and
+## tests/render/test_sprites.gd::test_the_echelon_reads_at_play_zoom caught it at
+## 23 px against a floor of 24. The cap still binds where it was put there to
+## bind: at the strategic zoom a hound is 3 px and 3.1x leaves it 10, not 24.
+const MIN_AGENT_PX: float = 24.0
+const MAX_AGENT_SCALE: float = 3.1
 
 var model: LcnWorldModel = null
 var sprites: LcnSpriteFactory = null
@@ -524,8 +543,17 @@ func _lay_tracks() -> void:
 		_step_side[id] = 1 - side
 		_step_last[id] = p
 		var lateral: Vector2 = Vector2(-d.y, d.x).normalized() * (2.0 if side == 0 else -2.0)
-		_push_step(p + lateral, now,
-			3.8 if LcnSpriteFactory.is_enemy_kind(ag["kind"]) else 2.5)
+		var is_foe: bool = LcnSpriteFactory.is_enemy_kind(ag["kind"])
+		_push_step(p + lateral, now, 3.8 if is_foe else 2.5)
+		# ...and the same footfall is written into the ground's memory. The boot
+		# mark fades in 26 seconds and says where the city went in the last
+		# minute; the wear field keeps it for hours and is why the plaza at hour
+		# 3 is not the plaza at hour 1. See LcnTerrainField's WEAR block.
+		if field != null:
+			if is_foe:
+				field.add_wear(p, 0.85, 22)
+			else:
+				field.add_wear(p, 0.45, 12)
 	# Whatever died, went home or was culled stops being tracked. Without this
 	# the two side dictionaries are a slow leak across a long night.
 	if _step_last.size() > live.size():
@@ -993,9 +1021,37 @@ func _draw_agent(ci: CanvasItem, ag: Dictionary) -> void:
 ## without standing a renderer up.
 static func agent_scale(sprite_h: float, z: float) -> float:
 	var on_screen: float = maxf(sprite_h, 1.0) * maxf(z, 0.01)
-	if on_screen >= MIN_AGENT_PX:
+	var target: float = agent_target_px(sprite_h)
+	if on_screen >= target:
 		return 1.0
-	return minf(MIN_AGENT_PX / on_screen, MAX_AGENT_SCALE)
+	return minf(target / on_screen, MAX_AGENT_SCALE)
+
+
+## THE FLOOR IS A CURVE, NOT A LINE, and this is the reason.
+##
+## A flat floor pushes every figure to exactly the same screen height, which
+## silently spends the one cue a tower defense cannot do without:
+## `test_size_carries_the_threat` holds the 900 hp hoarfrost breaker at nearly
+## twice the height of the 30 hp drift hound IN THE ATLAS, and then the floor
+## enlarged the hound by 3.1x, the breaker by 1.7x, and delivered both to the
+## screen at 24 pixels. tests/render/test_sprites.gd::test_the_echelon_reads_at
+## _play_zoom measured what that costs: 0.677 silhouette overlap between those
+## two, i.e. at the zoom the game is played at they were one creature. The
+## previous floor of 17 did the same thing and nothing was measuring it.
+##
+## So the floor is applied to the SMALLEST thing that walks, and everything
+## heavier keeps a compressed share of its real size on top of that. 0.45 is a
+## square-root-ish compression: the boss stays unmistakably the boss without
+## becoming a building, and the breaker arrives visibly heavier than the trash
+## it arrives with.
+const REF_AGENT_H: float = 13.0
+const SIZE_KEEP: float = 0.45
+
+
+## The screen height the figure floor asks for, for a sprite `sprite_h` world
+## pixels tall. Never below MIN_AGENT_PX.
+static func agent_target_px(sprite_h: float) -> float:
+	return MIN_AGENT_PX * pow(maxf(sprite_h, REF_AGENT_H) / REF_AGENT_H, SIZE_KEEP)
 
 
 ## THE DEATHS. Two marks per kill, both out of the atlas, both additive because

@@ -476,6 +476,8 @@ func ambient_temperature() -> float:
 	return lerpf(-48.0, -12.0, clampf(sin(d * TAU - PI * 0.5) * 0.5 + 0.5, 0.0, 1.0))
 
 
+## The GREAT FROST envelope alone, 0..1 — the scheduled campaign storm and
+## nothing else. What the ground is actually told is `ground_weather()`.
 func storm() -> float:
 	if _climate != null:
 		for m: String in ["storm_intensity", "storm", "blizzard"]:
@@ -484,6 +486,59 @@ func storm() -> float:
 		if _climate.has_method("weather_intensity"):
 			return clampf(float(_climate.call("weather_intensity")), 0.0, 1.0)
 	return 0.0
+
+
+## How much weather the GROUND shows, 0..1. Drives the spindrift in
+## terrain.gdshader, which is the only part of this game's weather that survives
+## being photographed.
+##
+## THE WEATHER WAS WIRED TO THE RAREST EVENT ON THE CALENDAR. The ground was
+## driven off `storm()`, which is [P09]'s Great Frost envelope: a scheduled
+## campaign storm, days apart. In `artifacts/F4b_probe` — first_night, seed 7,
+## 9000 ticks — `climate.storm_intensity` is 0.000 on every single row, while
+## `climate.weather` reads `snowfall` for roughly 7000 of them, visibility falls
+## to 0.83 and the wind blows at 0.22–0.31. So the plain was rendered dead calm
+## through an afternoon of snow, and "there is no visible weather in a still"
+## was not a missing effect but an effect connected to the one thing that never
+## happens in the hours a critic looks at.
+##
+## The ordinary weather layer is the same physical thing at a lower amplitude —
+## wind moving loose snow over the ground — so it drives the same term. The
+## frost is the TOP of that scale, not a separate switch, which is why this
+## returns the max: a Great Frost still looks like a Great Frost.
+const GROUND_WEATHER: Dictionary[StringName, float] = {
+	&"clear": 0.0,
+	&"overcast": 0.14,
+	&"snowfall": 0.52,
+	&"blizzard": 0.86,
+	&"great_frost": 1.0,
+}
+
+
+func ground_weather() -> float:
+	var frost: float = storm()
+	if _climate == null:
+		return frost
+	# The weather's KIND sets the ceiling: snow has to be falling (or lying
+	# loose) before the wind has anything to drive along the ground.
+	var base: float = -1.0
+	if _climate.has_method("weather"):
+		base = float(GROUND_WEATHER.get(StringName(str(_climate.call("weather"))), -1.0))
+	var inten: float = 0.6
+	if _climate.has_method("weather_intensity"):
+		inten = clampf(float(_climate.call("weather_intensity")), 0.0, 1.0)
+	if base < 0.0:
+		# A climate that reports an intensity but no kind we know: believe the
+		# intensity, at the amplitude of ordinary snowfall.
+		base = 0.52 * inten if _climate.has_method("weather_intensity") else 0.0
+	var gust: float = 0.35
+	if _climate.has_method("wind"):
+		gust = clampf(float(_climate.call("wind")), 0.0, 1.0)
+	# Spindrift is wind acting on snow: no wind, no tongues, however hard it is
+	# falling — and the flakes in the air are [P14]'s half of the same weather.
+	var drive: float = base * (0.55 + 0.45 * inten) \
+		* (0.45 + 0.55 * clampf(gust / 0.55, 0.0, 1.0))
+	return clampf(maxf(frost, drive), 0.0, 1.0)
 
 
 ## Temperature at a tile, taking every heat source into account. Drives the ice

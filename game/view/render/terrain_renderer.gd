@@ -94,6 +94,7 @@ func bind_world() -> void:
 	ground_material.set_shader_parameter("heat_tex", field.heat_tex)
 	ground_material.set_shader_parameter("soot_tex", field.soot_tex)
 	ground_material.set_shader_parameter("city_tex", field.city_tex)
+	ground_material.set_shader_parameter("wear_tex", field.wear_tex)
 	ground_material.set_shader_parameter("noise_tex", field.noise_tex)
 	ground_material.set_shader_parameter("pal_tex", field.palette_tex)
 	ground_material.set_shader_parameter("map_px", Vector2(field.size) * float(TILE))
@@ -150,6 +151,14 @@ func render(view: Rect2, grade: Dictionary, zoom: float, full: bool = false) -> 
 		_city_cooldown = 30
 		field.refresh_city(model.buildings())
 
+	# THE GROUND'S MEMORY. Written by the entity pass wherever a figure actually
+	# put a foot down, aged here on the sim clock (never on frame delta, so a
+	# slow machine wears the same paths at the same moment), and buried faster
+	# the harder it is snowing. One upload a frame at most.
+	var weather: float = model.ground_weather()
+	field.decay_wear(SimClock.seconds(), weather)
+	field.upload_wear()
+
 	ground_material.set_shader_parameter("detail", _detail)
 	ground_material.set_shader_parameter("time_s", SimClock.seconds())
 	ground_material.set_shader_parameter("sun_dir", grade["sun_dir"])
@@ -161,9 +170,11 @@ func render(view: Rect2, grade: Dictionary, zoom: float, full: bool = false) -> 
 	ground_material.set_shader_parameter("bounce_col", _v3(grade["bounce_col"]))
 	ground_material.set_shader_parameter("bounce", float(grade["bounce"]))
 	ground_material.set_shader_parameter("wild", float(grade["wild"]))
-	# The storm reaches the GROUND, not only [P14]'s air. A still frame of a
-	# blizzard has to be different from a still frame of a calm afternoon.
-	ground_material.set_shader_parameter("storm", model.storm())
+	# The weather reaches the GROUND, not only [P14]'s air. A still frame of a
+	# snowing afternoon has to be different from a still frame of a calm one —
+	# and it is the SNOWING AFTERNOON that a session is mostly made of, which is
+	# why this asks for ground_weather() and not for the Great Frost envelope.
+	ground_material.set_shader_parameter("storm", weather)
 	_quad.queue_redraw()
 	_update_us = Time.get_ticks_usec() - t0
 
@@ -186,6 +197,8 @@ func invalidate_near(cell: Vector2i) -> void:
 func clear_all() -> void:
 	_pending_chunks.clear()
 	_buildings_stamp = -1
+	if field != null:
+		field.clear_wear()
 
 
 func detail_level() -> float:
@@ -209,6 +222,9 @@ func stats() -> Dictionary:
 		"snow_us": int(f.get("snow_us", 0)),
 		"sources_us": int(f.get("sources_us", 0)),
 		"city_us": int(f.get("city_us", 0)),
+		"wear_us": int(f.get("wear_us", 0)),
+		"wear_stamps": int(f.get("wear_stamps", 0)),
+		"wear_mean": field.wear_mean() if field != null else 0.0,
 	}
 
 

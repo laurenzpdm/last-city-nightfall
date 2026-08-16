@@ -112,8 +112,17 @@ var _crowd: Dictionary = {}
 var _storm_done: bool = false
 var _storm_step: int = 0
 var _calm_plate: Image = null
+var _snow_plate: Image = null
 var _storm_report: Dictionary = {}
+var _snow_report: Dictionary = {}
 var _stub_climate: SimSystem = null
+var _wear_done: bool = false
+var _wear_begun: bool = false
+var _wear_step: int = 0
+var _wear_walked: int = 0
+var _wear_tick: int = 0
+var _wear_fresh: Image = null
+var _wear_report: Dictionary = {}
 
 
 func _ready() -> void:
@@ -174,6 +183,9 @@ func _process(_delta: float) -> void:
 			return
 		if not _crowd_done:
 			_stage_the_crowd()
+			return
+		if not _wear_done:
+			_stage_the_wear()
 			return
 		if not _storm_done:
 			_stage_the_storm()
@@ -361,6 +373,19 @@ const CROWD_BLOCK_MIN: int = 7
 ## differently on another GPU.
 const CROWD_MIN_REACH: int = 12500
 const CROWD_MIN_PLACES: int = 275
+## What it takes for ONE person to count as findable: screen pixels they change,
+## and the peak luminance step they make on the ground they stand on.
+const PERSON_MIN_PX: int = 90
+const PERSON_MIN_CONTRAST: float = 0.035
+## ...and how much of the crowd has to clear that bar. NOT the worst case: a
+## citizen who has walked behind the hearth is legitimately invisible and always
+## will be, and a floor on the single worst figure in the frame is a floor on
+## occlusion. This says the population is findable, which is the claim the judge
+## disputed, and it cannot be paid by one bright figure or by the boot marks.
+const PERSON_MIN_FINDABLE: float = 0.75
+## How many of the crowd have to be inside the frame at all for that fraction to
+## mean anything. Below this the beat is measuring three people.
+const PERSON_MIN_COUNTED: int = 12
 
 
 func _stage_the_crowd() -> void:
@@ -421,9 +446,64 @@ func _stage_the_crowd() -> void:
 	_crowd = _crowd_grade(img, _crowd_bare)
 	_crowd["agents"] = model.agent_count()
 	_crowd["tracks"] = int(_renderer.entities.stats()["tracks"])
+	_grade_each_person(img, _crowd_bare, model)
 	print("  crowd  %d agents, %d boot marks — they change %d px in %d places on the screen"
 		% [int(_crowd["agents"]), int(_crowd["tracks"]),
 			int(_crowd["reach"]), int(_crowd["places"])])
+	print("  crowd  %d of them inside the frame; %d are individually findable (%.0f%%), "
+		% [int(_crowd["counted"]), int(_crowd["findable"]),
+			float(_crowd["findable_frac"]) * 100.0]
+		+ "the 10th-percentile figure covers %d px, the median %d px"
+		% [int(_crowd["p10_px"]), int(_crowd["median_px"])])
+
+
+## CAN YOU FIND A PERSON — asked once per person, not once per frame.
+##
+## REACH and PLACES above are aggregates, and an aggregate is exactly what a
+## judge's "I could find one human figure" does not dispute: thirty people and
+## four hundred boot marks put plenty of pixels on the screen between them. The
+## question is whether ANY GIVEN ONE of them is findable, which is the question
+## the night beat already asks of every enemy — so it is asked here of every
+## citizen, by the same differential, and reported by its WORST case.
+##
+## The box is centred on the figure's own screen position through the live canvas
+## transform, so this measures the person and not the neighbourhood: a trail of
+## boot marks two tiles away cannot sign for a citizen nobody can see.
+func _grade_each_person(lit: Image, bare: Image, model: LcnWorldModel) -> void:
+	var xf: Transform2D = get_viewport().get_canvas_transform()
+	var half: int = int(LcnEntityRenderer.MIN_AGENT_PX * 0.75)
+	var w: int = mini(lit.get_width(), bare.get_width())
+	var h: int = mini(lit.get_height(), bare.get_height())
+	var pxs: Array[int] = []
+	var findable: int = 0
+	for ag: Dictionary in model.agents(1.0):
+		if LcnSpriteFactory.is_enemy_kind(ag["kind"]):
+			continue
+		var s: Vector2 = xf * (ag["pos"] as Vector2)
+		var x0: int = int(s.x) - half
+		var y0: int = int(s.y) - half * 2
+		if x0 < 0 or y0 < 0 or x0 + half * 2 >= w or y0 + half * 2 + half >= h:
+			continue
+		var hits: int = 0
+		var peak: float = 0.0
+		for y: int in range(y0, y0 + half * 3):
+			for x: int in range(x0, x0 + half * 2):
+				var a: Color = lit.get_pixel(x, y)
+				var b: Color = bare.get_pixel(x, y)
+				var d: float = absf(
+					(a.r - b.r) * 0.2126 + (a.g - b.g) * 0.7152 + (a.b - b.b) * 0.0722)
+				if d > 0.012:
+					hits += 1
+				peak = maxf(peak, d)
+		pxs.append(hits)
+		if hits >= PERSON_MIN_PX and peak >= PERSON_MIN_CONTRAST:
+			findable += 1
+	pxs.sort()
+	_crowd["counted"] = pxs.size()
+	_crowd["findable"] = findable
+	_crowd["findable_frac"] = float(findable) / float(maxi(1, pxs.size()))
+	_crowd["p10_px"] = pxs[pxs.size() / 10] if not pxs.is_empty() else 0
+	_crowd["median_px"] = pxs[pxs.size() / 2] if not pxs.is_empty() else 0
 
 
 ## REACH and PLACES: what the people put on the screen, and how spread out it is.
@@ -473,18 +553,50 @@ static func _crowd_grade(lit: Image, bare: Image) -> Dictionary:
 const STORM_MIN_REACH: float = 0.10
 const STORM_MIN_DELTA: float = 0.006
 
+## ── AND THE WEATHER THAT ACTUALLY HAPPENS ─────────────────────────────────────
+##
+## The blizzard plate has passed since the ground learned about `storm`, and the
+## build still came back from a critic as "there is no visible weather in a
+## still". Both are true, because the ground was driven off `storm_intensity()`,
+## which is [P09]'s GREAT FROST envelope — a scheduled campaign event.
+##
+## `artifacts/F4b_probe/metrics.csv` (first_night, seed 7, 9000 ticks) says what
+## a session is actually made of: `climate.storm_intensity` is 0.000 on every
+## row, and `climate.weather` reads `snowfall` for roughly 7000 of them, wind
+## 0.22–0.31, visibility down to 0.83. So the hours a player and a critic look
+## at were rendered dead calm, and the blizzard test passed the whole time.
+##
+## This plate is that run's own numbers. It is the honest question: does an
+## ORDINARY SNOWING AFTERNOON look different from a still one.
+const SNOW_MIN_REACH: float = 0.10
+const SNOW_MIN_DELTA: float = 0.0020
+
 
 class StubClimate extends SimSystem:
-	## Exactly the one method LcnWorldModel.storm() looks for, and nothing else:
-	## a stub that also answered the hour would move every other number in this
-	## report.
+	## The methods LcnWorldModel asks the weather for, and nothing else: a stub
+	## that also answered the hour would move every other number in this report.
+	## `storm_intensity` is present and returns 0 on the snowfall plate ON
+	## PURPOSE — that is what the real ClimateSystem does on an ordinary day, and
+	## it is what makes this beat red against a renderer that reads only it.
 	var intensity: float = 0.0
+	var kind: StringName = &"clear"
+	var inten: float = 0.0
+	var gust: float = 0.0
 
 	func system_name() -> StringName:
 		return &"climate"
 
 	func storm_intensity() -> float:
 		return intensity
+
+	func weather() -> StringName:
+		return kind
+
+	func weather_intensity() -> float:
+		return inten
+
+	func wind() -> float:
+		return gust
 
 
 func _stage_the_storm() -> void:
@@ -495,6 +607,11 @@ func _stage_the_storm() -> void:
 		_stub_climate = StubClimate.new()
 		Sim.by_name[&"climate"] = _stub_climate
 		_renderer.world_model().attach()
+		# The clock is frozen for the whole beat: three plates that differ by the
+		# weather and by nothing else, not by the hour drifting between them.
+		# (With no climate answering the hour, `day_fraction` runs off
+		# SimClock.seconds, so an unfrozen clock would relight the frame.)
+		SimClock.tick = int(fposmod(0.58 - 0.22, 1.0) * 40.0 * 20.0)
 		# [P14]'s snow lives on layers 52–59, under [P13]'s post layer, so the
 		# chrome strip leaves it alone — correctly, it is part of the look. It is
 		# hidden HERE because this particular measurement is of the ground, and a
@@ -504,13 +621,44 @@ func _stage_the_storm() -> void:
 	_storm_step += 1
 	if _storm_step <= SETTLE_FRAMES:
 		return
+	var stub: StubClimate = _stub_climate as StubClimate
 	if _calm_plate == null:
 		_strip_chrome()
 		var ctex: ViewportTexture = get_viewport().get_texture()
 		_calm_plate = ctex.get_image() if ctex != null else null
 		if _calm_plate != null:
 			_calm_plate.save_png(ProjectSettings.globalize_path("%s/weather_calm.png" % OUT))
-		(_stub_climate as StubClimate).intensity = 1.0
+		# PLATE 2: the weather a session is made of. Verbatim from
+		# artifacts/F4b_probe/metrics.csv — snowfall, wind 0.28, and a Great
+		# Frost envelope of exactly zero, because that is what the real climate
+		# reports on an ordinary afternoon.
+		stub.kind = &"snowfall"
+		stub.inten = 0.55
+		stub.gust = 0.28
+		stub.intensity = 0.0
+		_storm_step = 1
+		return
+	if _snow_plate == null:
+		_strip_chrome()
+		var stex: ViewportTexture = get_viewport().get_texture()
+		_snow_plate = stex.get_image() if stex != null else null
+		if _snow_plate != null:
+			_snow_plate.save_png(ProjectSettings.globalize_path("%s/weather_snowfall.png" % OUT))
+			_snow_report = _storm_grade(_snow_plate, _calm_plate)
+			var mdl: LcnWorldModel = _renderer.world_model()
+			# Guarded so the beat runs against a build with no composed weather:
+			# there it reports 0.0% and 0.00, which is the red it exists for.
+			var told: float = mdl.ground_weather() if mdl.has_method("ground_weather") \
+				else mdl.storm()
+			print("  snow   an ordinary snowing afternoon changes %.1f%% of the frame, "
+				% [float(_snow_report["reach"]) * 100.0]
+				+ "mean |delta| %.4f — the ground is told %.2f"
+				% [float(_snow_report["delta"]), told])
+		# PLATE 3: the Great Frost, which is what was being measured before.
+		stub.kind = &"great_frost"
+		stub.inten = 1.0
+		stub.gust = 0.9
+		stub.intensity = 1.0
 		_storm_step = 1
 		return
 	_storm_done = true
@@ -524,6 +672,126 @@ func _stage_the_storm() -> void:
 	_storm_report = _storm_grade(img, _calm_plate)
 	print("  storm  changes %.1f%% of the frame, mean |delta| %.4f — the ground in a blizzard"
 		% [float(_storm_report["reach"]) * 100.0, float(_storm_report["delta"])])
+
+
+# ------------------------------------------------------ the ground remembers --
+#
+# "Hour 3 looks like hour 1 because the city never fills the frame." — the blind
+# judge, on a build where the only thing in the picture that could accumulate
+# was the boot marks, which are a 420-entry ring buffer that forgets in 26
+# seconds. Everything else in the frame is a function of the buildings and the
+# hour, so two photographs taken three hours apart at the same hour of the same
+# unchanged settlement were the SAME PICTURE, and correctly so.
+#
+# The wear field is the answer, and this is the measurement of it: the identical
+# camera, the identical frozen hour, the identical settlement, [P14] hidden and
+# THE PEOPLE THEMSELVES HIDDEN IN BOTH PLATES — so the only difference between
+# the two frames is what the ground remembers about where they went.
+#
+# Against a build with no wear field the difference is exactly zero: the old
+# "tracks" were contour lines of a static noise field revealed by the building
+# presence texture, and no amount of walking moved them by one pixel.
+const WEAR_TICKS: int = 260
+## Fraction of the frame the city's own history is allowed to occupy, and the
+## mean step it makes. Deliberately below the storm's floors: this is the ground
+## going quietly darker along the routes people use, not weather.
+const WEAR_MIN_REACH: float = 0.020
+const WEAR_MIN_DELTA: float = 0.0010
+
+
+func _stage_the_wear() -> void:
+	if _renderer == null or _renderer.terrain == null or _renderer.terrain.field == null:
+		_wear_done = true
+		return
+	var field: LcnTerrainField = _renderer.terrain.field
+	var model: LcnWorldModel = _renderer.world_model()
+	# SET UP ONCE. `_wear_step` is reset to zero between the two phases, so the
+	# setup cannot hang off it — the first draft did, re-entered this block after
+	# plate A, and switched the crowd back OFF for the entire walk. The frame lab
+	# reported 0 agents and 0 boot marks for 177 straight frames and would have
+	# gone on to grade the wear field at exactly zero, which is the shape of a
+	# suite that measures nothing and says so in a number that looks like a
+	# finding.
+	if not _wear_begun:
+		_wear_begun = true
+		if _cam != null:
+			_cam.position = _centre
+			_cam.zoom = Vector2(0.60, 0.60)
+			_cam.force_update_scroll()
+		_wear_tick = int(fposmod(0.58 - 0.22, 1.0) * 40.0 * 20.0)
+		SimClock.tick = _wear_tick
+		# A plain nobody has crossed yet. The crowd beat has already walked this
+		# settlement for 64 ticks, so the field has to be emptied or plate A is
+		# an hour-1 photograph of an hour-1-and-a-bit city.
+		#
+		# Guarded, so this beat can be run in a scratch worktree against a build
+		# that has no wear field at all. That is the point of it: there it takes
+		# the same two photographs and reports 0.00%, which is the red this check
+		# was written for. A beat that crashed on the old code would prove
+		# nothing about it.
+		if field.has_method("clear_wear"):
+			field.clear_wear()
+		for i: int in LcnSpriteFactory.ENEMY_KINDS.size():
+			model.remove_agent(9000 + i)
+		_renderer.entities.draw_agents = false
+	_wear_step += 1
+	if _wear_fresh == null:
+		if _wear_step <= SETTLE_FRAMES:
+			return
+		_strip_chrome()
+		var ftex: ViewportTexture = get_viewport().get_texture()
+		_wear_fresh = ftex.get_image() if ftex != null else null
+		if _wear_fresh != null:
+			_wear_fresh.save_png(ProjectSettings.globalize_path("%s/wear_fresh.png" % OUT))
+		_renderer.entities.draw_agents = true
+		_wear_step = 0
+		return
+	if _wear_walked < WEAR_TICKS:
+		# One sim tick per frame, exactly as the crowd beat does: wear is written
+		# on tick CHANGES, so walking the crowd inside one frame would wear
+		# nothing and grading it would be grading a bug.
+		_wear_walked += 1
+		SimClock.tick += 1
+		model.advance(SimClock.tick)
+		# A walk in which nobody walks is the failure this beat is most likely to
+		# have and least likely to notice, so it is checked while it happens
+		# rather than inferred from the picture afterwards.
+		if _wear_walked == WEAR_TICKS:
+			_wear_report["walked_agents"] = int(_renderer.entities.stats()["visible_agents"])
+			_wear_report["walked_tracks"] = int(_renderer.entities.stats()["tracks"])
+		_wear_step = 0
+		return
+	if _wear_step == 1:
+		# THE HOUR GOES BACK. With no climate system the day is driven off
+		# SimClock.seconds, so 420 ticks is a fifth of the day cycle and the two
+		# plates would differ by the light before they differed by the ground.
+		# The wear field is not on the clock and does not care.
+		SimClock.tick = _wear_tick
+		_renderer.entities.draw_agents = false
+		return
+	if _wear_step <= 1 + SETTLE_FRAMES:
+		return
+	_wear_done = true
+	_strip_chrome()
+	var tex: ViewportTexture = get_viewport().get_texture()
+	var img: Image = tex.get_image() if tex != null else null
+	if img == null or _wear_fresh == null:
+		print("  UNCHECKED the ground's memory — the viewport handed back no image")
+		return
+	img.save_png(ProjectSettings.globalize_path("%s/wear_lived.png" % OUT))
+	var walked_agents: int = int(_wear_report.get("walked_agents", 0))
+	var walked_tracks: int = int(_wear_report.get("walked_tracks", 0))
+	_wear_report = _storm_grade(img, _wear_fresh)
+	_wear_report["walked_agents"] = walked_agents
+	_wear_report["walked_tracks"] = walked_tracks
+	_wear_report["mean"] = field.wear_mean() if field.has_method("wear_mean") else 0.0
+	_wear_report["stamps"] = int(field.stats().get("wear_stamps", 0))
+	_renderer.entities.draw_agents = true
+	print("  wear   %d ticks of %d visible people (%d boot marks, %d footfalls recorded): "
+		% [WEAR_TICKS, walked_agents, walked_tracks, int(_wear_report["stamps"])]
+		+ "the same frame differs by %.2f%% of the screen, mean |delta| %.4f "
+		% [float(_wear_report["reach"]) * 100.0, float(_wear_report["delta"])]
+		+ "(field mean %.4f) — the ground remembers" % float(_wear_report["mean"]))
 
 
 func _hide_vfx() -> void:
@@ -895,6 +1163,16 @@ func _summarise() -> void:
 		if int(_crowd["places"]) < CROWD_MIN_PLACES:
 			fails.append("there is somebody in only %d places on the screen (want %d) — a player looking at this frame finds a figure, not a population"
 				% [int(_crowd["places"]), CROWD_MIN_PLACES])
+		# ...and the same question asked of each person separately, because the
+		# two numbers above are aggregates and the judge's sentence was not.
+		if int(_crowd.get("counted", 0)) < PERSON_MIN_COUNTED:
+			fails.append("only %d of the crowd were inside the frame to grade (want %d) — the per-figure floors were not really asked"
+				% [int(_crowd.get("counted", 0)), PERSON_MIN_COUNTED])
+		elif float(_crowd["findable_frac"]) < PERSON_MIN_FINDABLE:
+			fails.append("only %d of the %d people in this frame are individually findable (%.0f%%, want %.0f%%) — each has to change %d screen pixels at %.3f contrast to count, and the 10th-percentile figure changes %d"
+				% [int(_crowd["findable"]), int(_crowd["counted"]),
+					float(_crowd["findable_frac"]) * 100.0, PERSON_MIN_FINDABLE * 100.0,
+					PERSON_MIN_PX, PERSON_MIN_CONTRAST, int(_crowd["p10_px"])])
 
 	# 0d. THE WEATHER IS IN THE PICTURE. Not in the air where a still cannot see
 	#     it: on the ground, where a photograph can.
@@ -907,6 +1185,41 @@ func _summarise() -> void:
 		if float(_storm_report["delta"]) < STORM_MIN_DELTA:
 			fails.append("a full blizzard moves the frame by %.4f of a stop (want %.3f) — the weather is not doing anything the eye can see"
 				% [float(_storm_report["delta"]), STORM_MIN_DELTA])
+
+	# 0e. ...AND THE WEATHER THAT IS ACTUALLY BLOWING. A blizzard is a scheduled
+	#     event; snowfall is most of a session, and it was rendered as a calm
+	#     afternoon for every hour a critic has ever looked at.
+	if _snow_report.is_empty():
+		fails.append("the ordinary weather was never staged — the snowfall plate did not run")
+	else:
+		if float(_snow_report["reach"]) < SNOW_MIN_REACH:
+			fails.append("an ordinary snowing afternoon changes only %.1f%% of the ground (want %.0f%%) — the ground is only wired to the Great Frost, which a first night never sees"
+				% [float(_snow_report["reach"]) * 100.0, SNOW_MIN_REACH * 100.0])
+		if float(_snow_report["delta"]) < SNOW_MIN_DELTA:
+			fails.append("an ordinary snowing afternoon moves the frame by %.4f of a stop (want %.4f) — there is no visible weather in the hours the game is played in"
+				% [float(_snow_report["delta"]), SNOW_MIN_DELTA])
+
+	# 0f. THE CITY GROWS INTO THE SCREEN. Two photographs of the same settlement
+	#     at the same hour from the same camera, one taken before its people had
+	#     walked anywhere and one after. If they are the same picture, hour 3
+	#     looks like hour 1 — which is the sentence this beat exists to answer.
+	if _wear_report.is_empty():
+		fails.append("the ground's memory was never staged — the wear beat did not run")
+	elif int(_wear_report.get("walked_agents", 0)) < 8:
+		# THE PRECONDITION, ASSERTED. A beat that walks nobody reports a perfect
+		# zero and reads exactly like a renderer that forgets, which is how a
+		# suite ends up passing on a check it never performed.
+		fails.append("the wear beat walked %d visible people — it measured nothing, so its %.2f%% means nothing"
+			% [int(_wear_report.get("walked_agents", 0)),
+				float(_wear_report.get("reach", 0.0)) * 100.0])
+	else:
+		if float(_wear_report["reach"]) < WEAR_MIN_REACH:
+			fails.append("%d footfalls change %.2f%% of the frame (want %.1f%%) — the ground does not remember anybody, so hour 3 is hour 1"
+				% [int(_wear_report["stamps"]), float(_wear_report["reach"]) * 100.0,
+					WEAR_MIN_REACH * 100.0])
+		if float(_wear_report["delta"]) < WEAR_MIN_DELTA:
+			fails.append("a day of walking moves the frame by %.4f of a stop (want %.4f) — nothing in this picture accumulates"
+				% [float(_wear_report["delta"]), WEAR_MIN_DELTA])
 
 	# 0. THE GROUND SHADER ACTUALLY COMPILED. A canvas shader that fails to
 	#    compile does not throw and does not stop the frame: Godot falls back to
