@@ -66,6 +66,22 @@ const CAUSE_PHRASES: Dictionary[StringName, String] = {
 	&"exhaustion": "worked themselves to death",
 }
 
+## The same causes for someone the city does not put on a shift.
+##
+## `CitizenPool._cause_index()` ends on exhaustion, so exhaustion is BOTH a real
+## cause and the "none of the above" bucket. On an adult that is a fair guess. On
+## a child it produced, in two separate reference runs, the obituary
+##
+##     Marek Novak, 12, child, worked themselves to death.
+##
+## — a claim about child labour that nothing else in this build makes, printed
+## in the one line the player reads as the city's own voice. The cause is not
+## changed (society and the narrative both count it, and a guess is still the
+## honest answer); only what the city is willing to say out loud about it.
+const CAUSE_PHRASES_UNWORKED: Dictionary[StringName, String] = {
+	&"exhaustion": "did not wake up",
+}
+
 # ==========================================================================
 #  trades
 # ==========================================================================

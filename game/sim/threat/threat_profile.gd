@@ -166,7 +166,15 @@ extends Resource
 ])
 @export var set_piece_notice_line: String = "{title}. They are massing for it — {band} at least, and the cold is coming with them."
 @export var wave_started_line: String = "Night {wave}: {band} out of {dirs}."
-@export var wave_cleared_line: String = "Night {wave} held. {detail}"
+## THE VERDICT IS NOT THIS LINE'S TO GIVE. `ThreatSystem` prefixes every dawn
+## report with `ThreatDefs.verdict_label()` — one of five sentences that already
+## say how the night went — and this template then said "held" a second time,
+## whatever the verdict was. Best case that was an echo ("Held, and it cost.
+## Night 1 held."); worst case it was a flat contradiction, because verdict 1 is
+## "They got through the line." and this line answered "Night 2 held." A breach
+## and a hold in eight words. It carries the numbers now; the verdict carries the
+## judgement, and it does so once. Same shape as `wave_started_line` above.
+@export var wave_cleared_line: String = "Night {wave}: {detail}"
 @export var wave_breached_line: String = "They are through the line out of {dirs}."
 
 # ==========================================================================

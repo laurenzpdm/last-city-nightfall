@@ -889,7 +889,15 @@ func _resolve_wave(at_dawn: bool) -> void:
 		and withdrew == 0
 	if wiped:
 		_waves_wiped += 1
-	var detail: String = "%d of %d put down%s" % [
+	# ENDS IN A FULL STOP, because a sentence the toll is appended to does not
+	# get one anywhere else. The dawn line careless_night actually raised read
+	#
+	#   Held, and it cost. Night 1 held. 0 of 6 put down, 1 structure lost Gone
+	#   by morning: Housing Block. Otto Salo did not come out. 8 hurt.
+	#
+	# — the one line the player reads at dawn, running two sentences together at
+	# the exact word where the arithmetic stops and the names begin.
+	var detail: String = "%d of %d put down%s." % [
 		int(outcome.get("killed", 0)), maxi(1, int(outcome.get("spawned", 0))),
 		"" if int(outcome.get("structures_lost", 0)) == 0
 			else ", %d structure%s lost" % [int(outcome.get("structures_lost", 0)),

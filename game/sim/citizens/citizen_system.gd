@@ -545,8 +545,12 @@ func _on_injury(slot: int, tick: int) -> void:
 	var site: CitizenJobBoard.Site = board.site_of(pool.job[slot])
 	var where: String = site.label if site != null else "work"
 	pool.set_state(slot, CitizenDefs.State.INJURED, tick)
+	# "at the Workshop" takes the article; the no-site fallback does not, and
+	# the alert panel carried "Marek Novak was hurt at the work." through every
+	# reference run in the library.
+	var place: String = ("at the %s" % where) if site != null else "at work"
 	_alert(StringName("citizen_injured"), 1,
-		"%s was hurt at the %s." % [_name_of(slot), where], _citizen_pos(slot), tick)
+		"%s was hurt %s." % [_name_of(slot), place], _citizen_pos(slot), tick)
 	Log.info(TAG, "#%d %s injured at %s (severity %.0f)" % [
 		pool.ids[slot], _name_of(slot), where, pool.injury[slot]])
 
@@ -581,9 +585,18 @@ func _bury(tick: int) -> void:
 		_grief += CitizenDefs.GRIEF_PER_DEATH
 		_last_deaths.append(id)
 
+		# Someone with no job cannot have worked themselves to death, and the
+		# sentence already says so two clauses earlier: `_trade_index()` only
+		# answers "child" or "pensioner" for a citizen holding no job at all.
+		# `Marek Novak, 12, child, worked themselves to death.` argued with
+		# itself inside one line.
+		var phrase: String = ""
+		if pool.job[slot] < 0:
+			phrase = String(CitizenDefs.CAUSE_PHRASES_UNWORKED.get(cause, ""))
+		if phrase == "":
+			phrase = String(CitizenDefs.CAUSE_PHRASES.get(cause, "died"))
 		var sentence: String = "%s, %d, %s, %s." % [
-			_name_of(slot), pool.age[slot], _trade_label(slot),
-			String(CitizenDefs.CAUSE_PHRASES.get(cause, "died"))]
+			_name_of(slot), pool.age[slot], _trade_label(slot), phrase]
 		Bus.citizen_died.emit(id, cause)
 		Bus.alert_raised.emit(1, &"citizen_died", sentence, _citizen_pos(slot))
 		if i < DEATH_DETAIL_CAP:
