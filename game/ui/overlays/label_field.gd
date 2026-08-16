@@ -70,6 +70,16 @@ const RANK_SHARE: Array[float] = [0.25, 0.5, 0.7, 1.0]
 const GUTTER_PX: float = 3.0
 ## How far outside a HUD panel a word must stay, in SCREEN pixels.
 const CHROME_MARGIN_PX: float = 6.0
+## The most times ONE STRING may appear in a frame, whatever key it was filed
+## under and however many copies its caller asked for. Two identical words are a
+## pair a player tells apart by where they are; three is a list, and a list
+## belongs in the legend or behind a count. This is a backstop under rule 3: the
+## coverage lens files every turret's range under the key "range" and asks for
+## eight, which is right — until four turrets have the same reach and the frame
+## says "9 tiles" four times. `tests/boot/run_reachability.tscn` caught exactly
+## that at zoom 1.00, in a real run, after the density suite was already green at
+## the three zooms it measures.
+const MAX_SAME_TEXT: int = 2
 
 ## Why a word was refused. Counted per frame and reported by `stats()`.
 enum Cull { OFFSCREEN, CHROME, REPEAT, OVERLAP, BUDGET }
@@ -105,6 +115,7 @@ var enforce: bool = true
 
 var _rank_used: PackedInt32Array = PackedInt32Array()
 var _key_used: Dictionary[String, int] = {}
+var _text_used: Dictionary[String, int] = {}
 var _culls: PackedInt32Array = PackedInt32Array()
 
 
@@ -143,6 +154,7 @@ func begin(visible_world: Rect2, world_per_px: float, budget_n: int,
 	chip_ranks.clear()
 	chip_slot.clear()
 	_key_used.clear()
+	_text_used.clear()
 	for i: int in RANK_COUNT:
 		_rank_used[i] = 0
 	for j: int in _culls.size():
@@ -189,7 +201,7 @@ func place(candidates: Array[Rect2], text: String, rank: int, copies: int = 1,
 	for i: int in candidates.size():
 		var box: Rect2 = candidates[i]
 		var padded: Rect2 = box.grow(GUTTER_PX * wpp * 0.5)
-		var why: int = _refuse(box, padded, id, r, copies)
+		var why: int = _refuse(box, padded, text, id, r, copies)
 		if why < 0:
 			chip_slot.append(boxes.size())
 			boxes.append(padded)
@@ -198,6 +210,7 @@ func place(candidates: Array[Rect2], text: String, rank: int, copies: int = 1,
 			chip_ranks.append(r)
 			_rank_used[r] += 1
 			_key_used[id] = _key_used.get(id, 0) + 1
+			_text_used[text] = _text_used.get(text, 0) + 1
 			return i
 		last = why
 	_culls[last] += 1
@@ -207,7 +220,8 @@ func place(candidates: Array[Rect2], text: String, rank: int, copies: int = 1,
 ## The first rule this box breaks, or -1 when it breaks none. The order is the
 ## order in the header, and it is also the order of usefulness to a reader: a
 ## word off the edge is a different bug from a word that ran out of budget.
-func _refuse(box: Rect2, padded: Rect2, id: String, rank: int, copies: int) -> int:
+func _refuse(box: Rect2, padded: Rect2, text: String, id: String, rank: int,
+		copies: int) -> int:
 	if not view.intersects(box):
 		return Cull.OFFSCREEN
 	if not enforce:
@@ -217,6 +231,8 @@ func _refuse(box: Rect2, padded: Rect2, id: String, rank: int, copies: int) -> i
 		if panel.grow(margin).intersects(box):
 			return Cull.CHROME
 	if _key_used.get(id, 0) >= maxi(1, copies):
+		return Cull.REPEAT
+	if _text_used.get(text, 0) >= MAX_SAME_TEXT:
 		return Cull.REPEAT
 	for taken: Rect2 in boxes:
 		if taken.intersects(padded):

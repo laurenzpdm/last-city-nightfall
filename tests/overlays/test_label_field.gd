@@ -92,6 +92,25 @@ func test_two_different_counts_of_the_same_problem_are_one_thing() -> void:
 		1, "building"), "different text, same fact, one chip")
 
 
+## The backstop under rule 3. The coverage lens files every turret's range under
+## one key and asks for eight, which is right until four turrets have the same
+## reach — and then the frame reads "9 tiles" four times. Found in a REAL run at
+## zoom 1.00 by `tests/boot/run_reachability.tscn`, after this suite was already
+## green at the three zooms it measures. A cap the caller cannot raise.
+func test_one_string_never_appears_more_than_twice_however_many_copies_were_asked_for() -> void:
+	f.begin(Rect2(0.0, 0.0, 100000.0, 100000.0), 1.0, 12, [])
+	var placed: int = 0
+	for i: int in 8:
+		if f.request(Rect2(float(i) * 200.0, 0.0, 100.0, 20.0), "9 tiles",
+				LcnLabelField.Rank.FIGURE, 8, "range"):
+			placed += 1
+	assert_eq(placed, LcnLabelField.MAX_SAME_TEXT, "eight asked for, two drawn")
+	assert_le(float(f.worst_repeat()), float(LcnLabelField.MAX_SAME_TEXT))
+	# And the key's own allowance still works for genuinely different readings.
+	assert_true(f.request(Rect2(9000.0, 0.0, 100.0, 20.0), "12 tiles",
+		LcnLabelField.Rank.FIGURE, 8, "range"), "a different reading is a different word")
+
+
 # ================================================================  rule 4  ==
 
 ## "30°C" over "no crew", "27°C" over "building". The frame the critic counted
