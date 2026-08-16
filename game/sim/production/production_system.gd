@@ -38,6 +38,19 @@ extends SimSystem
 ##  TIER 1  rubble_sorter
 ##    sorted_rubble 4 scrap    -> 2 stone + 1 timber + 1 iron_ore     100t
 ##    salvaged_stores 6 scrap  -> 2 grain + 1 timber                  200t
+##    salvaged_wire 8 scrap    -> 2 copper_ore                        250t   0.16/s
+##
+##  WHY THE WIRE RECIPE EXISTS AND WHY ITS NUMBER IS BAD ON PURPOSE. Until it
+##  landed, `copper_ore` was a RAW material — the only way to get any was a
+##  drill standing on a copper field, and on the reference map the nearest one
+##  is 37 tiles south-east of the wall. `copper_coil` feeds `pipe_segment` and
+##  `circuit`, `heat_core` needs both, and a `warmth_radiator` costs coil to
+##  place, so FOUR of the fourteen shipped recipes were unreachable by anyone
+##  who had not first mounted an expedition, and the reference run reached chain
+##  depth 2 against content that is five deep. Salvage closes the hole at
+##  0.16 ore/s against a drill's 0.80: FIVE sorters to feed one copper smelter.
+##  That ratio is the design. It is how a poor city gets its first coil, and it
+##  is the tooltip telling the player, in numbers, to go and take the field.
 ##
 ##  TIER 2  workshop
 ##    gear          2 iron_plate                    -> 1 gear         100t   0.20/s

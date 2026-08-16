@@ -32,7 +32,7 @@
           "scrap": 1600,
           "gear": 700,
           "copper_coil": 500,
-          "coal": 2400,
+          "coal": 1800,
           "grain": 1600
         }
       }
@@ -1564,30 +1564,6 @@
       }
     },
     {
-      "tick": 4400,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          115,
-          123
-        ]
-      }
-    },
-    {
-      "tick": 4460,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          141,
-          123
-        ]
-      }
-    },
-    {
       "tick": 4500,
       "cmd": {
         "system": "build",
@@ -1597,30 +1573,6 @@
           119,
           101
         ]
-      }
-    },
-    {
-      "tick": 4520,
-      "cmd": {
-        "system": "build",
-        "op": "set_priority",
-        "cell": [
-          115,
-          123
-        ],
-        "priority": 95
-      }
-    },
-    {
-      "tick": 4520,
-      "cmd": {
-        "system": "build",
-        "op": "set_priority",
-        "cell": [
-          141,
-          123
-        ],
-        "priority": 95
       }
     },
     {
