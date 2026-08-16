@@ -55,13 +55,16 @@ extends Node
 ## test files copied across, and the same wave photographed from the same camera
 ## at the same hour and the same seed:
 ##
-##   build              median deltaL   worst    blobs found
-##   before this pass          0.0786  0.0608          0/18
-##   after                     0.4304  0.3896         17/18
+##   build              median deltaL   worst    blobs found   midday
+##   before this pass          0.1203  0.0608          0/18     green
+##   after                     0.4253  0.3942         17/18     green
 ##
-## Two FAIL lines, both of them the sentence a critic wrote. That number, 0.0786,
-## also independently reproduces the measurement taken off the previous pass's
-## own `artifacts/P13/frames/night_foes.png` (median 0.0922 over eleven) — two
+## Two FAIL lines against the old build, both of them the sentence a critic
+## wrote — and the midday beat green on BOTH, which is the correct shape: the day
+## was never the broken half, and a suite that went red on both would be
+## measuring the staging rather than the change. That 0.12 also independently
+## reproduces the measurement taken off the previous pass's own
+## `artifacts/P13/frames/night_foes.png` (median 0.0922 over eleven) — two
 ## instruments, different staging, same answer.
 ##
 ## `tests/render/test_agent_masks.gd` does not even compile against that build,
@@ -148,6 +151,9 @@ var _seen_chrome: Dictionary[String, bool] = {}
 var _chrome_left: PackedStringArray = PackedStringArray()
 var _spots: Array[Dictionary] = []
 var _fails: Array[String] = []
+## How many figures each hour actually graded, appended as the LAST statement of
+## `_judge`. See `_verdict`.
+var _graded: Array[int] = []
 
 
 func _ready() -> void:
@@ -283,7 +289,12 @@ func _judge(hour: Dictionary, lit: Image, bare: Image) -> void:
 			continue
 		var r: Dictionary = _grade_one(lit, bare, x0, y0)
 		r["kind"] = spot["kind"]
-		r["est"] = _renderer.entities.ground_luma(spot["pos"] as Vector2)
+		# DIAGNOSTIC, NOT VERDICT — and guarded, so this suite still delivers a
+		# clean red rather than a stack trace when it is checked out against a
+		# build that predates `ground_luma`. That is not hypothetical: it is
+		# exactly how this suite is proved capable of failing.
+		r["est"] = _renderer.entities.ground_luma(spot["pos"] as Vector2) \
+			if _renderer.entities.has_method("ground_luma") else -1.0
 		rows.append(r)
 		deltas.append(float(r["delta"]))
 		if int(r["blob"]) >= MIN_BLOB_PX:
@@ -323,8 +334,7 @@ func _judge(hour: Dictionary, lit: Image, bare: Image) -> void:
 		_fails.append(("%s: only %d of the wave landed inside the frame — the "
 			+ "camera is not looking at what this suite staged, so nothing here "
 			+ "was measured") % [hour["name"], rows.size()])
-		return
-	if want_lit:
+	elif want_lit:
 		if median < MIN_MEDIAN_DELTA:
 			_fails.append(("%s: the wave is not separated from the ground it walks "
 				+ "on: median deltaL %.4f against a bar of %.2f. Half the night is "
@@ -333,26 +343,55 @@ func _judge(hour: Dictionary, lit: Image, bare: Image) -> void:
 			_fails.append(("%s: %d of %d figures resolve as a distinct "
 				+ "high-contrast blob, and the bar is %d. The agent counter is not "
 				+ "the picture.") % [hour["name"], found, rows.size(), MIN_FOUND])
-		return
-	# THE OTHER DIRECTION. On ground bright enough to carry a silhouette the
-	# treatment must be OFF, and every figure back to being darker than what is
-	# behind it.
-	if dark_enough < DAY_MIN_DARK_COUNT:
-		_fails.append(("%s: only %d of %d figures are darker than the ground "
-			+ "beside them by %.2f. On a bright plain a figure that is not a "
-			+ "silhouette is nothing.")
-			% [hour["name"], dark_enough, rows.size(), DAY_MIN_DARK])
-	if not lamps.is_empty():
-		_fails.append(("%s: %d figure(s) are lit over more than %.0f%% of "
-			+ "themselves — %s. The ground-keyed lift is supposed to be off at "
-			+ "this hour; a lit figure on lit snow is the white-cut-out defect "
-			+ "this beat exists for.")
-			% [hour["name"], lamps.size(), DAY_MAX_LIT_FRAC * 100.0, ", ".join(lamps)])
+	else:
+		# THE OTHER DIRECTION. On ground bright enough to carry a silhouette the
+		# treatment must be OFF, and every figure back to being darker than what
+		# is behind it.
+		if dark_enough < DAY_MIN_DARK_COUNT:
+			_fails.append(("%s: only %d of %d figures are darker than the ground "
+				+ "beside them by %.2f. On a bright plain a figure that is not a "
+				+ "silhouette is nothing.")
+				% [hour["name"], dark_enough, rows.size(), DAY_MIN_DARK])
+		if not lamps.is_empty():
+			_fails.append(("%s: %d figure(s) are lit over more than %.0f%% of "
+				+ "themselves — %s. The ground-keyed lift is supposed to be off at "
+				+ "this hour; a lit figure on lit snow is the white-cut-out defect "
+				+ "this beat exists for.")
+				% [hour["name"], lamps.size(), DAY_MAX_LIT_FRAC * 100.0,
+					", ".join(lamps)])
+	# LAST STATEMENT IN THE FUNCTION, ON PURPOSE. See `_verdict`.
+	_graded.append(rows.size())
 
 
+## ── THE VERDICT REFUSES TO BE GIVEN OVER WORK THAT DID NOT HAPPEN ────────────
+##
+## This guard is here because THIS SUITE PRINTED A FALSE GREEN, once, and it is
+## worth the paragraph. Checked out against the build it was written to fail,
+## `_judge` raised on its first row — `ground_luma` does not exist there — and a
+## raised GDScript call abandons the WHOLE function. `rows` stayed empty, nothing
+## was appended to `_fails`, both hours "completed", and the run printed TESTS
+## PASSED over a build whose night is measurably blank.
+##
+## The `rows.size() < MIN_FOUND` check inside `_judge` did not save it, because
+## that check is also inside `_judge`. Any assertion that lives downstream of the
+## thing that can abort is not an assertion.
+##
+## So the count is recorded as the last statement of `_judge`, and the verdict is
+## computed from OUTSIDE it: an hour that did not reach the end of its own
+## grading has no entry, and a run missing an entry cannot pass no matter how
+## empty `_fails` is. Silence is not success.
 func _verdict() -> void:
+	if _graded.size() != HOURS.size():
+		_fails.append(("only %d of %d hours finished grading — a beat that "
+			+ "abandoned itself part-way has asserted NOTHING, and an empty "
+			+ "failure list is not a pass") % [_graded.size(), HOURS.size()])
+	for i: int in _graded.size():
+		if _graded[i] < MIN_FOUND:
+			_fails.append("%s graded only %d figures of a staged %d"
+				% [HOURS[i]["name"], _graded[i], WAVE])
 	if _fails.is_empty():
-		print("  the night is on screen, and the day is still a silhouette")
+		print("  %d hours, %d figures each — the night is on screen, and the day "
+			% [_graded.size(), _graded[0]] + "is still a silhouette")
 		print("TESTS PASSED")
 		_finish(0)
 		return
