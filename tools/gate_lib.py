@@ -896,6 +896,14 @@ def _claim_implies(run: Run, rule: Dict[str, Any], pat: "re.Pattern[str]") -> Fi
     if lies:
         return Finding(FAIL, "alerts tell the truth: %s" % name,
                        "%d contradicted: %s" % (len(lies), " | ".join(lies[:3])), why)
+    if matched == 0 and rule.get("expect_at_least_one"):
+        # The sibling shape (`series`/`horizon_seconds`) has honoured this key
+        # since it was written; this one accepted it and did nothing, so a rule
+        # that said "the city MUST warn about this" passed on a run where the
+        # city said nothing at all.  Both shapes now mean the same thing by it.
+        return Finding(FAIL, "alerts tell the truth: %s" % name,
+                       "no alert ever matched %r, so the panel this rule guards "
+                       "never fired" % rule["match"], why)
     if matched == 0:
         return Finding(PASS, "alerts tell the truth: %s" % name,
                        "no alert of this shape was raised in this run", why)

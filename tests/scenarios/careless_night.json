@@ -351,19 +351,19 @@
       "name": "opening"
     },
     {
-      "tick": 3400,
+      "tick": 2200,
       "name": "midday"
     },
     {
-      "tick": 5500,
+      "tick": 3900,
       "name": "dusk"
     },
     {
-      "tick": 7200,
+      "tick": 6720,
       "name": "assault"
     },
     {
-      "tick": 9800,
+      "tick": 8000,
       "name": "dawn"
     }
   ]

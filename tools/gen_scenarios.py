@@ -1791,12 +1791,32 @@ def _opening_settlement(L):
     L.place(11, "housing_block", -9, 3, free=True, instant=True)
 
 
+# THE BEATS, MEASURED AGAINST THE CLOCK INSTEAD OF GUESSED.
+#
+# These are the reference frames the art, audio and UI parts are graded on, and
+# every one of them was named for a beat it did not photograph. Seed 7's day 1
+# runs, identically in both halves of the pair (`climate.phase` in metrics.csv):
+#
+#     t20 morning · t1060 afternoon · t3360 dusk · t4320 night
+#     t6240 deep night · t7600 dawn · t8560 morning (day 2)
+#
+# against which the old beats were `midday` at t3400 (dusk, sixteen seconds
+# after the light started going), `dusk` at t5500 (night, twenty minutes after
+# it had gone), `assault` at t7200 and `dawn` at t9800 (mid-morning of day 2).
+#
+# `assault` was the expensive one. steady_hand's night is two contacts of about
+# ten seconds each — three bodies at t4500 dead by t4700, three more at t6700
+# dead by t6900 — so a shot at t7200 photographs an empty snowfield and calls it
+# an assault, in the run whose whole job is to show what a defended perimeter
+# looks like while it is working. t6720 is the one tick in the night where BOTH
+# halves have enemies inside the city: six standing untouched in the careless
+# run, three under fire in the steady one. That single frame is the A/B.
 _AB_SHOTS = [
     {"tick": 30, "name": "opening"},
-    {"tick": 3400, "name": "midday"},
-    {"tick": 5500, "name": "dusk"},
-    {"tick": 7200, "name": "assault"},
-    {"tick": 9800, "name": "dawn"},
+    {"tick": 2200, "name": "midday"},
+    {"tick": 3900, "name": "dusk"},
+    {"tick": 6720, "name": "assault"},
+    {"tick": 8000, "name": "dawn"},
 ]
 
 
