@@ -361,12 +361,22 @@ func _seed_opening_settlement() -> void:
 ## them structurally; `opening_defects()` checks the result on every launch.
 static func opening_commands(c: Vector2i) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
+	# Every tile this layout has already claimed. The coal road is walked, not
+	# drawn, so it is the one run that can arrive somewhere the layout has already
+	# built — and a pipe tile REFUSED for being occupied is a hole in a pipe.
+	var taken: Dictionary[Vector2i, bool] = {}
+	var claim := func(rect: Rect2i) -> void:
+		for y: int in rect.size.y:
+			for x: int in rect.size.x:
+				taken[rect.position + Vector2i(x, y)] = true
 	var place := func(kind: String, cell: Vector2i, rot: int) -> void:
 		out.append({"system": &"build", "op": "place", "kind": kind,
 			"cell": [cell.x, cell.y], "rot": rot, "free": true, "instant": true})
+		claim.call(Rect2i(cell, footprint_of(StringName(kind))))
 	var line := func(kind: String, a: Vector2i, b: Vector2i) -> void:
 		out.append({"system": &"build", "op": "place_line", "kind": kind,
 			"from": [a.x, a.y], "to": [b.x, b.y], "free": true, "instant": true})
+		claim.call(Rect2i(a, Vector2i.ONE).merge(Rect2i(b, Vector2i.ONE)))
 
 	## A heat consumer and the pipe that reaches it, as one indivisible act.
 	## `from` is the first spur tile (orthogonally touching the trunk), `dir` the
@@ -403,6 +413,102 @@ static func opening_commands(c: Vector2i) -> Array[Dictionary]:
 	# further out so the spur clears the storage yard.
 	fed.call("watchtower", Vector2i(2, 2), c + Vector2i(12, -1), Vector2i(0, -1), 8)
 	fed.call("turret_mount", Vector2i(2, 2), c + Vector2i(13, 2), Vector2i(0, 1), 8)
+
+	# THE COAL ROAD. A burner is a heat source only while something keeps filling
+	# it. This settlement opened with 200 coal and no income of any kind: measured
+	# unattended from boot, the Hearth ran dry at t≈4700, the watch and the turret
+	# froze at t=5310, and by t=6317 the whole city INCLUDING THE HEARTH was frozen
+	# solid and never recovered — with 320 scrap in the yard and nothing that could
+	# burn it. `fuel_items` past its first entry is dead data (HeatDef._first_fuel
+	# keeps one), so the timber a salvage line makes cannot feed the Hearth. Coal
+	# can, and coal is in the ground.
+	#
+	# The seam is ASKED FOR, never typed (`coal_seam`), and the road out to it is
+	# WALKED, never drawn (`road_to_core`): the first version of this was a typed
+	# L of two straight runs, and on 2 of 8 seeds it drove the pipe into a ridge,
+	# broke in the middle and left the drill on its own network — the watchtower's
+	# bug again, one wave later, in the code written to prevent it.
+	var seam: Vector2i = coal_seam(c)
+	if seam.x >= 0:
+		place.call("ore_drill", seam - Vector2i(1, 1), 0)
+		for cell: Vector2i in road_to_core(seam, c):
+			# The road begins inside the drill and ends inside the Hearth, and in
+			# between it can cross a trunk or clip a housing block. Anything already
+			# claimed is left alone: it is a heat node too, so the road runs THROUGH
+			# the city's own fabric rather than being refused a tile at a time.
+			if not taken.has(cell):
+				place.call("heat_pipe", cell, 0)
+	return out
+
+
+## Footprint of a building kind, from the registry, or 1x1 when it has no def.
+static func footprint_of(kind: StringName) -> Vector2i:
+	var def: Resource = Registry.get_item("buildings", kind)
+	if def == null or not ("size" in def):
+		return Vector2i.ONE
+	return def.get("size")
+
+
+## Where this map keeps the coal the opening settlement runs on, or (-1,-1).
+##
+## `MapGenerator._pass_deposits` pins the FIRST cluster of every kind to the
+## inner band on purpose — its own comment is "on a real run means the player's
+## first coal is ninety tiles from the hearth" — so asking the grid is not a
+## lucky guess about seed 7, it is reading the promise the generator makes on
+## every map. Returns (-1,-1) when there is no grid or no coal in range, which
+## `opening_defects()` then reports as a settlement that cannot refuel itself
+## rather than a drill quietly not placed.
+static func coal_seam(core: Vector2i, max_radius: int = 64) -> Vector2i:
+	var grid: SimSystem = Sim.get_system(&"grid")
+	if grid == null or not grid.has_method("nearest_resource"):
+		return Vector2i(-1, -1)
+	return grid.call("nearest_resource", core, Grid.Res.COAL, max_radius)
+
+
+## The tiles a pipe run from `from` back to the city core may stand on, in order.
+##
+## This is not a drawn line. It is the CITY'S OWN ANSWER to "how do you get home
+## from here": [P01]'s core flow field, the same field every citizen and every
+## attacker walks, stepped one tile at a time. A map that puts a ridge across
+## the direct route moves the road around it instead of breaking the pipe in the
+## middle, because the field never routes through ground nobody can stand on.
+##
+## That the result is also BUILDABLE is a property of `Grid.TERRAIN_FLAGS`, where
+## F_WALK and F_BUILD are set on exactly the same six terrains — the two ground
+## types the field refuses (ridge, chasm) are the two that refuse a foundation.
+## `tests/f3/test_opening_settlement.gd` asserts that pairing rather than
+## assuming it, because if [P01] ever grants F_WALK to a tile that cannot take a
+## structure, this road develops holes and nothing else in the build would say so.
+##
+## Diagonal steps are expanded into two orthogonal ones: heat conducts between
+## edge-sharing tiles, so a diagonal in the path is a break in the network.
+##
+## The field's goal is a RING of core goal tiles, not the core cell, so it stops
+## steering a tile or two short of the Hearth — measured, two tiles short on seed
+## 7, which is a one-tile hole in a twenty-nine tile pipe and a drill on its own
+## network. The walk therefore finishes by hand, straight in along the wider axis.
+static func road_to_core(from: Vector2i, core: Vector2i, max_steps: int = 256) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	var grid: SimSystem = Sim.get_system(&"grid")
+	if grid == null or not grid.has_method("flow_direction"):
+		return out
+	var p: Vector2i = from
+	out.append(p)
+	for _i: int in max_steps:
+		var step: Vector2i = grid.call("flow_direction", p)
+		if step == Vector2i.ZERO:
+			break
+		if step.x != 0 and step.y != 0:
+			p += Vector2i(step.x, 0)
+			out.append(p)
+		p += Vector2i(0, step.y) if step.x != 0 and step.y != 0 else step
+		out.append(p)
+	for _j: int in max_steps:
+		var d: Vector2i = core - p
+		if d == Vector2i.ZERO:
+			break
+		p += Vector2i(signi(d.x), 0) if absi(d.x) >= absi(d.y) else Vector2i(0, signi(d.y))
+		out.append(p)
 	return out
 
 
@@ -456,6 +562,59 @@ static func opening_defects() -> PackedStringArray:
 				b2.def.display_name, b2.cell.x, b2.cell.y, b2.def.heat_consumed, nid])
 	if consumers == 0:
 		out.append("the opening settlement placed no heat consumers at all — the layout did not land")
+	out.append_array(_unfuelled_burners(buildings))
+	return out
+
+
+## Every burner in the opening settlement that nothing in the settlement can
+## refuel, as a line naming the building and the item it eats.
+##
+## Connectivity was only half the defect. With the watchtower and the turret back
+## on the trunk, the settlement still froze SOLID — the Hearth included — at
+## t=6317 of every unattended run, because it shipped 200 coal, burned it in five
+## minutes and had no coal income of any kind. "Every consumer can be reached by
+## heat" and "heat keeps being made" are two different questions and the second
+## one is the one that ends a run.
+##
+## A burner eats exactly ONE item: `HeatDef._first_fuel` keeps `fuel_items[0]` and
+## `deliver_fuel` rejects everything else, so the Hearth's declared taste for
+## timber is dead data and a salvage line cannot save it. The check is therefore
+## about that one item, and the two honest ways to get one: dig it out of the
+## ground, or craft it.
+static func _unfuelled_burners(buildings: Array) -> PackedStringArray:
+	var out: PackedStringArray = PackedStringArray()
+	var grid: SimSystem = Sim.get_system(&"grid")
+	var made: Dictionary[StringName, bool] = {}
+	for b: BuildingInstance in buildings:
+		if b.def == null:
+			continue
+		# Extractors: a named seam, or a wildcard drill standing on a real deposit.
+		if String(b.def.extracts) != "" and b.def.extract_rate > 0.0:
+			if b.def.extracts != BuildTypes.ANY_ORE:
+				made[b.def.extracts] = true
+			elif grid != null:
+				for cell: Vector2i in b.cells:
+					var kind: int = int(grid.call("resource_kind_at", cell))
+					if kind > 0 and kind < ProductionSystem.ORE_ITEMS.size():
+						made[ProductionSystem.ORE_ITEMS[kind]] = true
+		# Crafters: anything a recipe this machine may run puts out.
+		for rid: StringName in b.def.recipes:
+			var r: Resource = Registry.get_item("recipes", rid)
+			if r == null:
+				continue
+			for key: Variant in (r.get("outputs") as Dictionary).keys():
+				made[StringName(key)] = true
+			for key2: Variant in (r.get("byproducts") as Dictionary).keys():
+				made[StringName(key2)] = true
+
+	for b2: BuildingInstance in buildings:
+		if b2.def == null or b2.def.heat_produced <= 0.0 or b2.def.fuel_items.is_empty():
+			continue
+		var fuel: StringName = b2.def.fuel_items[0]
+		if not made.has(fuel):
+			out.append("%s at %d,%d burns %s to make %.0f heat, and nothing in the opening settlement digs or crafts %s — the city runs on its starting pile and then goes out" % [
+				b2.def.display_name, b2.cell.x, b2.cell.y, String(fuel),
+				b2.def.heat_produced, String(fuel)])
 	return out
 
 

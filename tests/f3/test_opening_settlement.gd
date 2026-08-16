@@ -191,6 +191,163 @@ func test_every_consumer_touches_a_conduit() -> void:
 	assert_empty(stranded, "every heat consumer's footprint touches a pipe")
 
 
+## ==========================================================================
+##  THE SECOND HALF OF THE DEFECT: a grid that is whole is not a grid that lasts
+## ==========================================================================
+##
+## Reconnecting the watchtower and the turret moved their freeze from t=600 to
+## t=5310 and stopped there. Measured on the layout as it stood after that fix,
+## seed 7, unattended from boot: coal stock hit 0 at t≈1800, the Hearth's own
+## bunker emptied at t≈4700, the two defences froze at t=5310 and t=5364, and by
+## t=6317 EVERY building in the city was frozen — the Hearth included, the one
+## building whose own description says "if it goes out, the city does" — with 320
+## scrap in the yard and nothing that could burn it. It never recovered: at
+## t=12000 supply was still 0.0 and twelve buildings were still solid.
+##
+## The critic's sentence for the first version of this bug was "the opening
+## settlement fails on its own before the player touches it. That is not
+## pressure, that is a broken save." It was still true. So these three tests ask
+## the question the connectivity tests do not: does the city keep making heat.
+
+
+## The gate's second half, run against the layout a player gets.
+func test_every_burner_has_something_that_makes_its_fuel() -> void:
+	var boot: Script = load("res://game/boot.gd")
+	var raw: Variant = boot.call("opening_defects")
+	assert_eq(typeof(raw), TYPE_PACKED_STRING_ARRAY, "the gate answers with a list")
+	var lines: PackedStringArray = raw as PackedStringArray
+	var fuel_lines: PackedStringArray = PackedStringArray()
+	for s: String in lines:
+		if s.contains("burns"):
+			fuel_lines.append(s)
+	assert_empty(fuel_lines,
+			"every burner in the opening settlement has a source of its fuel on the map")
+
+
+## THE RED CHECK, and it lives in the suite instead of in a scratch tree.
+##
+## Builds the same settlement with the coal drill and its road taken back out —
+## which is exactly the layout that shipped last wave — and asserts the gate
+## NAMES the Hearth and the item it eats. A gate that cannot fail is not a gate,
+## and this is the one assertion that proves the one above is not vacuous.
+func test_the_gate_names_a_hearth_with_no_coal_behind_it() -> void:
+	var scratch := SimFixture.new(OPENING_SEED).start()
+	var grid: SimSystem = scratch.system(&"grid")
+	var core: Vector2i = grid.call("core_cell")
+	var boot: Script = load("res://game/boot.gd")
+	var removed: int = 0
+	for cmd: Dictionary in boot.call("opening_commands", core):
+		# The pre-fix opening: no drill, and no road out to the seam. Recognised
+		# by KIND, so this keeps meaning "take the coal away" if the road moves.
+		if String(cmd.get("kind", "")) == "ore_drill":
+			removed += 1
+			continue
+		scratch.cmd(cmd)
+	scratch.run(1)
+	assert_eq(removed, 1, "there was exactly one coal drill in the layout to take away")
+
+	var defects: PackedStringArray = boot.call("opening_defects")
+	var named: bool = false
+	for s: String in defects:
+		if s.contains("The Hearth") and s.contains("coal"):
+			named = true
+	assert_true(named, "the gate names the Hearth and the coal it cannot get, got %s" % str(Array(defects)))
+	scratch.stop()
+	# The suite's own world was torn down with it; put it back for teardown().
+	world = SimFixture.new(OPENING_SEED).start()
+	for cmd2: Dictionary in boot.call("opening_commands", world.system(&"grid").call("core_cell")):
+		world.cmd(cmd2)
+	world.run(1)
+
+
+## The whole of day 1 and into day 2, unattended, with nobody touching anything.
+## The Hearth must still be burning and the city must still be warm at the hour
+## the old build was a field of frozen boxes.
+func test_the_city_is_still_alight_a_day_later() -> void:
+	var build: SimSystem = world.system(&"build")
+	var heat: SimSystem = world.system(&"heat")
+	var hearth_id: int = -1
+	for b: BuildingInstance in build.call("all_buildings"):
+		if b.kind == &"the_hearth":
+			hearth_id = b.id
+	assert_ne(hearth_id, -1, "the hearth stands")
+	if hearth_id < 0:
+		return
+
+	var worst_frozen: int = 0
+	var worst_at: int = 0
+	var frozen_names: String = ""
+	for at: int in [2000, 4000, 6600, 9600]:
+		world.run(at - world.tick())
+		assert_false(bool(heat.call("is_frozen", hearth_id)),
+				"the Hearth is still burning at t=%d — it froze at t=6317 of every run before the coal road" % at)
+		var n: int = int((heat.call("totals") as Dictionary).get("frozen", 0))
+		if n > worst_frozen:
+			worst_frozen = n
+			worst_at = at
+			var names: PackedStringArray = PackedStringArray()
+			for b2: BuildingInstance in build.call("all_buildings"):
+				if bool(heat.call("is_frozen", b2.id)):
+					names.append("%s at %s" % [b2.kind, str(b2.cell)])
+			frozen_names = str(Array(names))
+	assert_eq(worst_frozen, 0,
+			"nothing in the opening settlement is frozen anywhere in the first day and a half (worst: %d at t=%d — %s)" % [
+				worst_frozen, worst_at, frozen_names])
+	assert_gt(float(heat.call("fuel_stock_of", hearth_id)), 0.0,
+			"and the Hearth still has fuel in its bunker at t=9600, which is what makes the line above mean anything")
+
+
+## The assumption the coal road stands on, asserted instead of trusted.
+##
+## `road_to_core` walks [P01]'s WALKABLE flow field and then builds pipe on every
+## tile of it. That is only sound while walkable ground is buildable ground. If
+## [P01] ever gives F_WALK to a terrain that refuses a foundation, the road grows
+## holes in the middle and the only symptom is a drill on its own network on some
+## seeds and not others — the exact shape of the bug this whole file exists for.
+func test_walkable_ground_is_buildable_ground() -> void:
+	var mismatched: PackedStringArray = PackedStringArray()
+	for t: int in Grid.TERRAIN_COUNT:
+		var flags: int = Grid.TERRAIN_FLAGS[t]
+		var walk: bool = (flags & Grid.F_WALK) != 0
+		var build_ok: bool = (flags & Grid.F_BUILD) != 0
+		if walk != build_ok:
+			mismatched.append("%s walk=%s build=%s" % [Grid.TERRAIN_NAMES[t], walk, build_ok])
+	assert_size(Grid.TERRAIN_FLAGS, Grid.TERRAIN_COUNT, "the terrain table is whole")
+	assert_empty(mismatched,
+			"every terrain a citizen can stand on can also take a pipe — road_to_core lays pipe along a walk field")
+
+
+## Seed 7 is one map. The road is derived from the map, so it has to hold on maps
+## it was not written against — and the first version did not: a typed L of two
+## straight runs drove the pipe into a ridge on 2 of these 5 seeds, broke in the
+## middle, and left the drill on its own network with the gate reporting it.
+func test_the_opening_holds_on_maps_it_was_not_written_against() -> void:
+	var boot: Script = load("res://game/boot.gd")
+	var broken: PackedStringArray = PackedStringArray()
+	var checked: int = 0
+	for s: int in [1, 3, 11, 99, 1234]:
+		var w := SimFixture.new(s).start()
+		var core: Vector2i = w.system(&"grid").call("core_cell")
+		for cmd: Dictionary in boot.call("opening_commands", core):
+			w.cmd(cmd)
+		w.run(1)
+		checked += 1
+		var nets: PackedInt32Array = w.system(&"heat").call("network_ids")
+		if nets.size() != 1:
+			broken.append("seed %d opens on %d heat networks" % [s, nets.size()])
+		for line: String in (boot.call("opening_defects") as PackedStringArray):
+			broken.append("seed %d: %s" % [s, line])
+		w.stop()
+	assert_eq(checked, 5, "five maps were actually generated and seeded")
+	assert_empty(broken, "the opening settlement is whole on every map it was tried on")
+
+	# The suite's shared world went with the last fixture; rebuild it.
+	world = SimFixture.new(OPENING_SEED).start()
+	for cmd2: Dictionary in boot.call("opening_commands", world.system(&"grid").call("core_cell")):
+		world.cmd(cmd2)
+	world.run(1)
+
+
 ## Source text of one function, so a test can assert that boot WIRED the gate in
 ## rather than merely exposing it. Reading the script is the only way to prove a
 ## call site exists without booting the whole view.
