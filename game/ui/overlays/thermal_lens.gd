@@ -24,7 +24,13 @@ const FIELD_ALPHA: float = 0.66
 const SOFT_RANGE: float = 9.0
 ## Opacity where the ground is exactly at outside air — a hint, not a sheet.
 const FLOOR_ALPHA: float = 0.10
-const LABELS_PER_LINE: int = 3
+## ONE NAME PER CONTOUR. This used to be 3, on the reasoning that a long line
+## running off both edges of the screen should be named wherever the player is
+## looking. What it actually produced, on a CLOSED contour around a single warm
+## island, was `SURVIVAL LINE -10°C` stamped three times on one loop — three
+## labels for one fact, and the same fact each time. A line is one thing. It gets
+## one name, placed nearest the middle of the screen, where the eye already is.
+const LABELS_PER_LINE: int = 1
 
 var _tex: ImageTexture = null
 var _img: Image = null
@@ -48,6 +54,7 @@ func _draw() -> void:
 	_draw_isoline(SURVIVAL_C, "SURVIVAL LINE  %.0f°C" % SURVIVAL_C, pal.ice(), 3.2, 0.0)
 	_draw_isoline(COMFORT_C, "COMFORT  +%.0f°C" % COMFORT_C, pal.good(), 2.0, 9.0)
 	_draw_cold_marks()
+	flush_labels()
 	draw_us = Time.get_ticks_usec() - t0
 
 
@@ -120,19 +127,27 @@ func _draw_isoline(level: float, text: String, c: Color, width_px: float, dash: 
 	_label_line(text, c)
 
 
-## Puts the name of the line ON the line, a few times, where it is on screen.
+## Puts the name of the line ON the line, once, at the visible point closest to
+## the middle of the screen. Deterministic — ties break on the earlier vertex —
+## so the name does not hop from one side of the loop to the other as the field
+## breathes.
 func _label_line(text: String, c: Color) -> void:
-	var placed: int = 0
-	var stride: int = maxi(2, (_line.size() / 2) / (LABELS_PER_LINE + 1))
+	var centre: Vector2 = view.get_center()
+	var best: Vector2 = Vector2.ZERO
+	var best_d: float = INF
 	var i: int = 0
-	var last: Vector2 = Vector2(-99999.0, -99999.0)
-	while i + 1 < _line.size() and placed < LABELS_PER_LINE:
+	while i + 1 < _line.size():
 		var p: Vector2 = _line[i]
-		if view.has_point(p) and p.distance_to(last) > px(260.0):
-			plate(p + Vector2(px(8.0), -px(9.0)), text, 14.0, c)
-			last = p
-			placed += 1
-		i += stride * 2
+		if view.has_point(p):
+			var d: float = p.distance_squared_to(centre)
+			if d < best_d:
+				best_d = d
+				best = p
+		i += 2
+	if best_d == INF:
+		return
+	word(best + Vector2(px(8.0), -px(9.0)), text, 14.0, c,
+		LcnLabelField.Rank.IDENTITY, LABELS_PER_LINE, text, true)
 
 
 ## Structures standing outside the survival line, so "this district is doomed"

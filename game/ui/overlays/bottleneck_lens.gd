@@ -51,6 +51,7 @@ func _draw() -> void:
 	_draw_chokes()
 	_draw_leaders(victims)
 	_draw_verdicts()
+	flush_labels()
 	draw_us = Time.get_ticks_usec() - t0
 
 
@@ -183,7 +184,8 @@ func _draw_verdicts() -> void:
 		else:
 			text = "SOURCE AT FULL OUTPUT  ->  %d buildings draw on it" % [
 				int(b.get("consumers", 0))]
-		plate(r.position + Vector2(r.size.x + px(10.0), -px(6.0)), text, 15.0, pal.bad())
+		word(r.position + Vector2(r.size.x + px(10.0), -px(6.0)), text, 15.0,
+			pal.bad(), LcnLabelField.Rank.VERDICT, 3, "capacity", true)
 
 	# Anything the router could not reach at all is a different failure and
 	# deserves a different word.
@@ -200,5 +202,9 @@ func _draw_verdicts() -> void:
 		if not visible_rect(r2.grow(TILE * 2.0)):
 			continue
 		orphan += 1
-		plate(r2.position + Vector2(0.0, -px(22.0)),
-			"NOT CONNECTED TO ANY SOURCE", 14.0, pal.void_color())
+		# Four identical "NOT CONNECTED TO ANY SOURCE" plates used to be allowed,
+		# one per orphan. It is one fact about the grid, not four about four tiles;
+		# the rings already say WHICH tiles, and the legend says what to do.
+		word(r2.position + Vector2(0.0, -px(22.0)),
+			"NOT CONNECTED TO ANY SOURCE", 14.0, pal.void_color(),
+			LcnLabelField.Rank.VERDICT, 1, "", true)

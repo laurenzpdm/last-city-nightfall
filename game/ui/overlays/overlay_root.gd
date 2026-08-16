@@ -64,6 +64,11 @@ var mode: int = LcnOverlayDefs.Mode.NONE
 var alt_held: bool = false
 var snap: LcnOverlaySnapshot = LcnOverlaySnapshot.new()
 var pal: LcnOverlayPalette = LcnOverlayPalette.new()
+## ONE arbiter for every word this part puts into world space, shared by the
+## status layer and the active lens. The player sees one frame, so one frame is
+## what gets budgeted — a per-layer rectangle list is exactly how a freeze lens
+## temperature came to be printed over a status layer "no crew".
+var field: LcnLabelField = LcnLabelField.new()
 
 var _world: CanvasLayer = null
 var _ui: CanvasLayer = null
@@ -425,11 +430,16 @@ func _process(delta: float) -> void:
 		snap.sample_warmth(_view)
 
 	var detail: int = _camera.detail_level() if _camera != null else 1
-	_icons.sync(snap, pal, _view, _wpp, t, alt_held, detail)
+	# The frame's word budget is opened HERE, before either layer draws, because
+	# the budget belongs to the frame and not to a layer. `_zoom()` is the same
+	# number the rail prints, so the density a critic counts on screen and the
+	# density this part logs are the same measurement.
+	field.begin(_view, _wpp, LcnLabelField.budget_for(_zoom()), _chrome_world())
+	_icons.sync(snap, pal, _view, _wpp, t, alt_held, detail, field)
 	_icons.queue_redraw()
 	var lens: LcnOverlayLayer = _lenses.get(mode)
 	if lens != null:
-		lens.sync(snap, pal, _view, _wpp, t, alt_held, detail)
+		lens.sync(snap, pal, _view, _wpp, t, alt_held, detail, field)
 		lens.queue_redraw()
 	_pull_slots()
 	_legend.refresh(pal, snap, mode, alt_held, _keys, _zoom_text())
@@ -441,6 +451,10 @@ func _process(delta: float) -> void:
 		Log.info("overlay", "%s | sample %.2f ms (4 Hz) | draw %.2f ms | %d heat nodes, %d structures, %d grids" % [
 			LcnOverlayDefs.mode_id(mode), _sample_us / 1000.0, _draw_us / 1000.0,
 			snap.node_count, snap.bld_count, snap.nets.size()])
+		# The density read, in the log, on every run. A critic counted the chips
+		# in a frame by hand and was right; a build that cannot count its own is
+		# a build that will let it happen again.
+		Log.info("overlay", "density @ zoom %.2f — %s" % [_zoom(), field.summary()])
 
 
 ## Polled rather than signalled: [P24] owns Settings and has no change signal for
@@ -476,10 +490,68 @@ func _update_view() -> void:
 	_view = xf.affine_inverse() * Rect2(Vector2.ZERO, size)
 
 
+func _zoom() -> float:
+	return 1.0 / maxf(_wpp, 0.0001)
+
+
 func _zoom_text() -> String:
 	if _camera == null or not is_instance_valid(_camera):
 		return ""
 	return "zoom %.2f (%s)" % [_camera.zoom_level(), _camera.detail_level_name()]
+
+
+## EVERY RECTANGLE THE INTERFACE IS STANDING ON, IN WORLD COORDINATES.
+##
+## ARCHITECTURE.md §3 says a lens is paint on the ground and the ground does not
+## get to cover the clock, and this part has been obeying the letter of it —
+## `OVERLAY_WORLD` (62) is under `HUD` (65), boot enforces it, the reachability
+## suite fails if it inverts. It was still wrong on screen. [P17]'s panels are
+## translucent by design, so a world badge drawn UNDER the clock panel is a badge
+## drawn THROUGH the clock panel: in `artifacts/CRIT/shots/build.png` the badge
+## `= GRID 3 0/0 heat/s NO SOURCE` reads across the top of the clock and
+## `| GRID 1 47/47 heat/s` collides with the "2:21" numeral, and in
+## `deep_night.world.png` a `FROZEN -24°C` plate sits on the same panel. Layer
+## order was never going to fix that. The pixels have to be spoken for.
+##
+## So the HUD's own rectangles come back here every frame and become keep-out.
+## Read from [P17]'s `chrome_rects()` — WHAT IS PAINTED, not what was reserved:
+## a panel that is mid-animation or has shed a row is a different rectangle from
+## the one the composition solved for, and the badge lands on the paint.
+##
+## Mapped screen -> world through `_view` rather than through the canvas
+## transform, so it agrees with the rectangle every lens is already culling
+## against whether the camera answered this frame or not.
+func _chrome_world() -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	var vp: Viewport = get_viewport()
+	if vp == null or _view.size.x <= 1.0:
+		return out
+	var screen: Vector2 = vp.get_visible_rect().size
+	if screen.x < 1.0 or screen.y < 1.0:
+		return out
+	var k := Vector2(_view.size.x / screen.x, _view.size.y / screen.y)
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		return out
+	for node: Node in tree.get_nodes_in_group(&"lcn_hud_chrome"):
+		if not node.has_method(&"chrome_rects"):
+			continue
+		var rects: Dictionary = node.call(&"chrome_rects") as Dictionary
+		var keys: Array = rects.keys()
+		keys.sort()   # a keep-out list that changes order changes nothing, but a
+		              # deterministic one is a diffable one
+		for key: Variant in keys:
+			var r: Rect2 = rects[key] as Rect2
+			if r.size.x <= 1.0 or r.size.y <= 1.0:
+				continue
+			out.append(Rect2(_view.position + r.position * k, r.size * k))
+	# This part's own chrome counts too: the legend and the lens rail are drawn
+	# in screen space on OVERLAY_UI and are just as opaque to a world badge.
+	for key2: Variant in ["legend", "rail", "lens_hint"]:
+		var mine: Rect2 = chrome_rects().get(key2, Rect2()) as Rect2
+		if mine.size.x > 1.0 and mine.size.y > 1.0:
+			out.append(Rect2(_view.position + mine.position * k, mine.size * k))
+	return out
 
 
 ## A --harness --visual run walks the lenses so the reference scenario's own
@@ -504,9 +576,12 @@ func _drive_harness() -> void:
 # diagnostics
 # =========================================================================
 
-## Numbers a critic (or a perf gate) can read instead of a claim.
+## Numbers a critic (or a perf gate) can read instead of a claim. Includes the
+## LAST FRAME'S density read — chips, marks, overlaps, words refused and why —
+## because "the lenses are legible at the zoom the game is played at" is a claim
+## with a number behind it or it is a claim with nothing behind it.
 func stats() -> Dictionary:
-	return {
+	var out: Dictionary = {
 		"mode": String(LcnOverlayDefs.mode_id(mode)),
 		"sample_us": int(_sample_us),
 		"draw_us": int(_draw_us),
@@ -517,4 +592,7 @@ func stats() -> Dictionary:
 		"starved": snap.starved_count(),
 		"frozen": snap.frozen_count(),
 		"vision": LcnOverlayPalette.vision_name(pal.vision),
+		"zoom": snappedf(_zoom(), 0.01),
 	}
+	out.merge(field.stats())
+	return out

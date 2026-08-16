@@ -50,6 +50,7 @@ func _draw() -> void:
 	_draw_spines()
 	_draw_flow()
 	_draw_badges()
+	flush_labels()
 	draw_us = Time.get_ticks_usec() - t0
 
 
@@ -242,4 +243,11 @@ func _draw_badges() -> void:
 			snap.node_center(row).x,
 			snap.node_rect(row).position.y - px(24.0))
 		var tint: Color = pal.bad() if (producers == 0 or deficit > 0.5) else c
-		plate(anchor - Vector2(plate_width(text, 15.0) * 0.5, 0.0), text, 15.0, tint)
+		# `= GRID 3 0/0 heat/s NO SOURCE` printed straight through the clock
+		# panel in artifacts/CRIT/shots/build.png, and `| GRID 1 47/47 heat/s`
+		# landed on the "2:21" numeral. The lens IS under the HUD in the layer
+		# table, and that was never the point: the clock panel is translucent, so
+		# under it is still through it. The field holds [P17]'s rectangles and
+		# this badge simply does not get those pixels. ARCHITECTURE.md §3.
+		word(anchor, text, 15.0, tint, LcnLabelField.Rank.IDENTITY, 1,
+			"grid %d" % nid2, true, true)

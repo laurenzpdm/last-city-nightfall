@@ -13,13 +13,26 @@ extends LcnOverlayLayer
 ## instead of a wall of icons.
 ##
 ## Zoom is handled honestly rather than by scaling everything down until it is
-## invisible: past strategic zoom the badges CLUSTER, one marker per district
-## with a count, so a whole city fits on screen and still reads.
+## invisible. Three thresholds, all measured in SCREEN pixels so that the rule is
+## about what the player can actually resolve rather than about the city:
+##
+##   badges closer than 27 px MERGE into one marker with a count
+##   badges of the same problem within 220 px share ONE word
+##   past `CLUSTER_ZOOM` the whole thing becomes one marker per district
+##
+## and every word this layer wants goes through `LcnLabelField` along with every
+## word the active lens wants, because the player is looking at one frame.
 
 const BADGE_LIMIT: int = 56
 const CLUSTER_ZOOM: float = 1.9        ## world px per screen px past which we cluster
 const CLUSTER_TILES: float = 12.0
 const BADGE_PX: float = 11.0
+## Two badges closer than this on SCREEN are one marker with a count. It is the
+## zoom, not the city, that decides: at 1.6 nothing merges and every building
+## keeps its own badge; at 0.50 a district answers with one mark.
+const BADGE_MERGE_PX: float = 27.0
+## Badges of the same problem within this many SCREEN px share one word.
+const WORD_CLUSTER_PX: float = 220.0
 
 var _glyphs: PackedVector2Array = PackedVector2Array()
 var _glyph_cols: PackedColorArray = PackedColorArray()
@@ -27,14 +40,55 @@ var _clusters: Dictionary[Vector2i, int] = {}
 var _cluster_worst: Dictionary[Vector2i, int] = {}
 var _stall_reason: Dictionary[int, String] = {}
 var _stall_tick: int = -1
-## World-space rectangles of the badge labels already drawn THIS frame.
-## See `_label_if_clear`.
-var _label_rects: Array[Rect2] = []
+## Merged badge markers for this frame, in building index order.
+var _mark_at: Array[Vector2] = []
+var _mark_problem: PackedInt32Array = PackedInt32Array()
+var _mark_count: PackedInt32Array = PackedInt32Array()
+var _mark_progress: PackedFloat32Array = PackedFloat32Array()
+## The pixels each marker owns — its disc plus the count printed on it. Words go
+## outside this, never through it.
+var _mark_claim: Array[Rect2] = []
+## Every badge position seen, and the marker it belongs to. Merging is SINGLE
+## LINKAGE over these — a new badge joins if it is close to ANY member, not only
+## to the first one — which is what collapses a ladder of evenly spaced sites
+## instead of halving it.
+var _link_at: Array[Vector2] = []
+var _link_mark: PackedInt32Array = PackedInt32Array()
+## Spatial index over `_link_at`, so merging is O(buildings) rather than
+## O(buildings x badges) and stays deterministic: cells are visited in a fixed
+## order and buildings are walked in index order.
+var _mark_grid: Dictionary[Vector2i, PackedInt32Array] = {}
+var _clustered: bool = false
 
 
 func _init() -> void:
 	super()
 	name = "StatusIcons"
+
+
+## THE MARKS ARE DECIDED AND THEIR PIXELS CLAIMED HERE, NOT IN `_draw()`.
+##
+## Every layer's `sync()` runs before any layer's `_draw()`, and that ordering is
+## the root's to control. Draw order is not: it is a property of the canvas item
+## tree, and when the lens happened to paint first, its verdicts were placed
+## against a field that had not yet been told where the badges were — and
+## `= GRID 5 0/12 heat/s NO SOURCE` came out straight across three of them. A
+## correctness rule that depends on which node the engine walks first is not a
+## rule. So the reservation happens at sync, unconditionally, before the first
+## word of the frame can be requested by anybody.
+func sync(s: LcnOverlaySnapshot, p: LcnOverlayPalette, v: Rect2, world_per_px: float,
+		t: float, alt_held: bool, detail_level: int, f: LcnLabelField = null) -> void:
+	super.sync(s, p, v, world_per_px, t, alt_held, detail_level, f)
+	if snap == null or snap.bld_count == 0:
+		return
+	_refresh_stalls()
+	_clustered = wpp > CLUSTER_ZOOM
+	if _clustered:
+		_collect_clusters()
+	else:
+		_collect_marks()
+	for claim: Rect2 in _mark_claim:
+		reserve(claim)
 
 
 func _draw() -> void:
@@ -43,13 +97,13 @@ func _draw() -> void:
 	var t0: int = Time.get_ticks_usec()
 	_glyphs.clear()
 	_glyph_cols.clear()
-	_refresh_stalls()
-	if wpp > CLUSTER_ZOOM:
+	if _clustered:
 		_draw_clustered()
 	else:
 		_draw_badges()
 	if _glyphs.size() >= 2:
 		draw_multiline_colors(_glyphs, _glyph_cols, stroke(1.8))
+	flush_labels()
 	draw_us = Time.get_ticks_usec() - t0
 
 
@@ -127,56 +181,115 @@ func problem_color(p: int) -> Color:
 # drawing
 # =========================================================================
 
-## A badge label, unless another one is already standing there.
+## ONE MARK PER THING THE PLAYER CARES ABOUT, NOT ONE PER TILE.
 ##
-## THE BADGES SURVIVE A CROWD AND THE WORDS BESIDE THEM DO NOT. One badge per
-## building is the rule this whole file is built on, and it holds — but with ALT
-## down every badge also prints its problem in words, and a row of construction
-## sites is a row of overlapping words. `artifacts/play1/shots/assault.png`, the
-## reference frame the art and UI parts grade against, has a strip across the top
-## of the city reading "building building buildinginginging": eleven true labels
-## rendered into one false one. The ALT reading is exactly the moment a player is
-## leaning in to find out what is wrong, and it is the moment the layer stops
-## being able to tell them.
+## The old rule was one badge per building, and it is a good rule right up until
+## the badges are closer together on screen than a badge is wide. In
+## `artifacts/CRIT/shots/assault.world.png` — the reference frame the art and UI
+## parts grade against — it produced a VERTICAL LADDER of 22 identical
+## "building" chips down the centre of the screen. A critic's word for the frame
+## was "a crash dump", and they were right: 22 marks carrying one fact between
+## them is not 22 facts, it is one fact printed 22 times.
 ##
-## The badge itself still draws — the circle, the ring and the glyph survive a
-## crowd, and their colour is the severity. Only the WORD is dropped, and only
-## when the pixels it wants are already spoken for. Deterministic: the loop walks
-## buildings in index order, so the same frame always keeps the same labels.
-func _label_if_clear(at: Vector2, text: String, size_px: float, c: Color) -> void:
-	if font == null or text == "":
-		return
-	var s: int = maxi(8, int(round(size_px)))
-	var size: Vector2 = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, s)
-	# `label()` puts the BASELINE at `at`, so the box hangs above it.
-	var box := Rect2(at - Vector2(0.0, size.y * 0.8 * wpp),
-		Vector2(size.x * wpp, size.y * wpp))
-	for taken: Rect2 in _label_rects:
-		if taken.intersects(box):
-			return
-	_label_rects.append(box)
-	label(at, text, size_px, c)
+## So the badges MERGE by screen distance. Two problems closer than
+## `BADGE_MERGE_PX` become one marker with a count, worst problem winning, and
+## because the threshold is in SCREEN pixels the behaviour falls out of the zoom:
+## at 1.60 nothing merges and every building keeps its own badge, at 0.50 a whole
+## district answers with one mark and a number. Nothing is hidden — the count is
+## on the marker — and the pass is deterministic, walking buildings in index
+## order over a fixed-order cell grid, so the same frame always merges the same
+## way and a drifting camera does not make the marks flicker.
+## How far a merged marker may reach from where it started, as a multiple of
+## `BADGE_MERGE_PX`. Single linkage with no leash chains across a contiguous city
+## and answers a screenful of trouble with one dot; four badge-widths keeps a
+## marker to something a player can point at.
+const MARK_EXTENT: float = 4.0
 
 
-func _draw_badges() -> void:
-	var beat: float = LcnOverlayGeometry.pulse(time_s, 1.1, pal.reduce_motion)
-	_label_rects.clear()
-	var shown: int = 0
+func _collect_marks() -> void:
+	_mark_at.clear()
+	_mark_problem.clear()
+	_mark_count.clear()
+	_mark_progress.clear()
+	_mark_claim.clear()
+	_link_at.clear()
+	_link_mark.clear()
+	_mark_grid.clear()
+	var merge: float = px(BADGE_MERGE_PX)
+	var leash: float = merge * MARK_EXTENT
+	var radius: float = px(BADGE_PX)
 	for i: int in snap.bld_count:
-		if shown >= BADGE_LIMIT:
-			break
 		var r: Rect2 = snap.bld_rect(i)
 		if not visible_rect(r.grow(TILE)):
 			continue
 		var p: int = problem_of(i)
 		if p == LcnOverlayDefs.Problem.NONE:
 			continue
-		shown += 1
+		var at := Vector2(r.get_center().x, r.position.y - radius - px(4.0))
+		var into: int = _nearest_mark(at, merge, leash)
+		if into < 0 and _mark_at.size() < BADGE_LIMIT:
+			into = _mark_at.size()
+			_mark_at.append(at)
+			_mark_problem.append(p)
+			_mark_count.append(0)
+			_mark_progress.append(snap.bld_progress[i])
+			_mark_claim.append(Rect2())
+		if into < 0:
+			continue
+		_mark_count[into] += 1
+		if p > _mark_problem[into]:
+			_mark_problem[into] = p
+			_mark_progress[into] = snap.bld_progress[i]
+		_mark_claim[into] = _claim_of(_mark_at[into], radius * 1.12, _mark_count[into])
+		var key: Vector2i = LcnOverlayGeometry.cluster_key(at, merge)
+		var bucket: PackedInt32Array = _mark_grid.get(key, PackedInt32Array())
+		bucket.append(_link_at.size())
+		_mark_grid[key] = bucket
+		_link_at.append(at)
+		_link_mark.append(into)
+
+
+## The pixels a marker owns: its disc at its LARGEST (the pulse makes the rim
+## breathe, and a claim that shrank with the beat would let a word in on the down
+## stroke) plus room for the count printed beside the glyph.
+func _claim_of(at: Vector2, radius: float, count: int) -> Rect2:
+	var box := Rect2(at - Vector2(radius, radius) * 1.15, Vector2(radius, radius) * 2.3)
+	if count > 1:
+		box.size.x += px(20.0)
+	return box
+
+
+## The marker of the closest badge already placed within `merge` world units,
+## provided that marker's origin is still within `leash`. -1 for a new marker.
+func _nearest_mark(at: Vector2, merge: float, leash: float) -> int:
+	var key: Vector2i = LcnOverlayGeometry.cluster_key(at, merge)
+	var best: int = -1
+	var best_d: float = merge * merge
+	for dy: int in [-1, 0, 1]:
+		for dx: int in [-1, 0, 1]:
+			var bucket: PackedInt32Array = _mark_grid.get(key + Vector2i(dx, dy),
+				PackedInt32Array())
+			for k: int in bucket:
+				var d: float = _link_at[k].distance_squared_to(at)
+				if d >= best_d:
+					continue
+				var m: int = _link_mark[k]
+				if _mark_at[m].distance_to(at) > leash:
+					continue
+				best_d = d
+				best = m
+	return best
+
+
+func _draw_badges() -> void:
+	var beat: float = LcnOverlayGeometry.pulse(time_s, 1.1, pal.reduce_motion)
+	for m: int in _mark_at.size():
+		var p: int = _mark_problem[m]
+		var n: int = _mark_count[m]
 		var sev: int = LcnOverlayDefs.problem_severity(p)
 		var c: Color = problem_color(p)
 		var radius: float = px(BADGE_PX) * (1.0 + (0.12 * beat if sev >= 1 else 0.0))
-		# Above the building, never on it.
-		var at := Vector2(r.get_center().x, r.position.y - radius - px(4.0))
+		var at: Vector2 = _mark_at[m]
 		if sev >= 2:
 			draw_circle(at, radius * 1.85, LcnOverlayPalette.with_a(c, pal.fill(0.10 + 0.10 * beat)))
 		draw_circle(at, radius, Color(0.035, 0.05, 0.078, 0.94))
@@ -185,19 +298,79 @@ func _draw_badges() -> void:
 		for _k: int in 20:
 			_glyph_cols.append(rim)
 		_glyph(p, at, radius * 0.62, c)
-		if alt or p == LcnOverlayDefs.Problem.FROZEN:
-			_label_if_clear(at + Vector2(radius + px(4.0), px(4.0)),
-				LcnOverlayDefs.problem_label(p), 12.0, c)
-		if p == LcnOverlayDefs.Problem.BUILDING:
-			_progress_arc(at, radius * 0.8, snap.bld_progress[i], c)
+		if p == LcnOverlayDefs.Problem.BUILDING and n == 1:
+			_progress_arc(at, radius * 0.8, _mark_progress[m], c)
+		if n > 1:
+			mark_text(at + Vector2(radius * 0.7, -radius * 0.45), "%d" % n, 12.0, c)
+	_draw_mark_words()
+
+
+## The words beside the marks — one per PROBLEM per neighbourhood, never one per
+## building. "no crew ×7" is the fact; seven chips reading "no crew" is the same
+## fact, seven times, in each other's way.
+##
+## How many neighbourhoods may each speak at once is decided by the zoom: close
+## in, three chips of the same problem are three places to look at; at strategic
+## zoom the city answers once with a total.
+func _draw_mark_words() -> void:
+	if _mark_at.is_empty():
+		return
+	var cell: float = px(WORD_CLUSTER_PX)
+	var groups: Dictionary[Vector3i, int] = {}   ## (problem, cell x, cell y) -> count
+	var anchor: Dictionary[Vector3i, Vector2] = {}
+	var seq: Dictionary[Vector3i, int] = {}
+	var order: Array[Vector3i] = []
+	for m: int in _mark_at.size():
+		var p: int = _mark_problem[m]
+		if not (alt or LcnOverlayDefs.problem_severity(p) >= 2):
+			continue
+		var k: Vector2i = LcnOverlayGeometry.cluster_key(_mark_at[m], cell)
+		var g := Vector3i(p, k.x, k.y)
+		if not groups.has(g):
+			groups[g] = 0
+			# Clear of the marker's own claim, which is wider when the marker is
+			# carrying a count. A word placed inside it was refused for
+			# overlapping the very mark it belongs to, and the whole layer went
+			# silent — 33 marks and not one word, which reads as "nothing is
+			# wrong" over a city with three buildings frozen solid.
+			var claim: Rect2 = _mark_claim[m] if m < _mark_claim.size() \
+				else Rect2(_mark_at[m], Vector2.ZERO)
+			anchor[g] = Vector2(claim.position.x + claim.size.x + px(4.0),
+				_mark_at[m].y + px(4.0))
+			seq[g] = order.size()
+			order.append(g)
+		groups[g] = groups[g] + _mark_count[m]
+	# Loudest first, then the order they were met, so the frame is stable.
+	order.sort_custom(func(a: Vector3i, b: Vector3i) -> bool:
+		var sa: int = LcnOverlayDefs.problem_severity(a.x)
+		var sb: int = LcnOverlayDefs.problem_severity(b.x)
+		if sa != sb:
+			return sa > sb
+		return seq[a] < seq[b])
+	var copies: int = 1 if wpp >= 1.0 else 3
+	for g: Vector3i in order:
+		var p2: int = g.x
+		var n: int = groups[g]
+		var text: String = LcnOverlayDefs.problem_label(p2)
+		if n > 1:
+			text += "  ×%d" % n
+		var sev: int = LcnOverlayDefs.problem_severity(p2)
+		word(anchor[g], text, 12.0, problem_color(p2),
+			LcnLabelField.Rank.FIGURE if sev >= 2 else LcnLabelField.Rank.AMBIENT,
+			copies, LcnOverlayDefs.problem_label(p2))
 
 
 ## Zoomed out: one marker per district, with how many things are wrong in it.
 ## The alternative — shrinking every badge — produces a screen of unreadable
 ## confetti, which is the failure mode this whole part exists to avoid.
-func _draw_clustered() -> void:
+func _collect_clusters() -> void:
 	_clusters.clear()
 	_cluster_worst.clear()
+	_mark_at.clear()
+	_mark_problem.clear()
+	_mark_count.clear()
+	_mark_progress.clear()
+	_mark_claim.clear()
 	var size: float = CLUSTER_TILES * TILE
 	for i: int in snap.bld_count:
 		var r: Rect2 = snap.bld_rect(i)
@@ -211,22 +384,33 @@ func _draw_clustered() -> void:
 		_cluster_worst[key] = maxi(_cluster_worst.get(key, 0), p)
 	var keys: Array = _clusters.keys()
 	keys.sort()
-	var beat: float = LcnOverlayGeometry.pulse(time_s, 0.9, pal.reduce_motion)
-	var shown: int = 0
+	var radius: float = px(13.0) * 1.1
 	for k: Vector2i in keys:
-		if shown >= BADGE_LIMIT:
+		if _mark_at.size() >= BADGE_LIMIT:
 			break
-		shown += 1
-		var p2: int = _cluster_worst[k]
-		var c: Color = problem_color(p2)
 		var at := Vector2(float(k.x) + 0.5, float(k.y) + 0.5) * size
+		_mark_at.append(at)
+		_mark_problem.append(_cluster_worst[k])
+		_mark_count.append(_clusters[k])
+		_mark_progress.append(0.0)
+		_mark_claim.append(Rect2(at - Vector2(radius, radius) * 1.2,
+			Vector2(radius, radius) * 2.4))
+
+
+func _draw_clustered() -> void:
+	var beat: float = LcnOverlayGeometry.pulse(time_s, 0.9, pal.reduce_motion)
+	for m: int in _mark_at.size():
+		var c: Color = problem_color(_mark_problem[m])
+		var at: Vector2 = _mark_at[m]
 		var radius: float = px(13.0) * (1.0 + 0.1 * beat)
 		draw_circle(at, radius * 1.7, LcnOverlayPalette.with_a(c, pal.fill(0.12)))
 		draw_circle(at, radius, Color(0.035, 0.05, 0.078, 0.94))
 		LcnOverlayGeometry.ring(at, radius, 20, _glyphs)
 		for _j: int in 20:
 			_glyph_cols.append(LcnOverlayPalette.with_a(c, 0.9))
-		label(at - Vector2(px(5.0), -px(5.0)), str(_clusters[k]), 15.0, c)
+		# The count is inside the disc the marker claimed at sync, so it costs no
+		# word: a number on a mark is part of the mark, not a chip beside it.
+		mark_text(at - Vector2(px(5.0), -px(5.0)), str(_mark_count[m]), 15.0, c)
 
 
 func _progress_arc(at: Vector2, radius: float, t: float, c: Color) -> void:
