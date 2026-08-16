@@ -992,11 +992,19 @@ func note_hit(_turret_id: int, _pos: Vector2, _amount: float) -> void:
 ## HOUSING FIRST, and that is a design statement, not a heuristic. They come for
 ## the warmth; inside the wall the warmest thing with a door in it is a house
 ## with people asleep behind it. It is also the only rule in this part that makes
-## a BREACH cost what a breach should cost: before it, every night in this build
-## billed the player in wall panels, pipe and turret mounts — things that were in
-## the way — and `combat.citizens_killed` read 0 across 60000 ticks. A hole in
-## the line now costs names, and the wall is the thing that decides whether it
-## does. See tests/combat/night_takes_people_{walled,open}.json for the pair.
+## a BREACH cost what a breach should cost: before it, a body that reached the
+## fire with no legal target evaporated within a tile, or simply stood where the
+## hearth's footprint parked it until dawn — so the hole it came through was
+## free. A hole in the line now costs names, and the wall is the thing that
+## decides whether it does. See tests/combat/night_takes_people_{walled,open}.json.
+##
+## DO NOT REPEAT THE PREMISE THAT `combat.citizens_killed` READS 0. That was true
+## of [E1]'s build and is stale against this one — [P05]'s people landing switched
+## the toll on, and progress/parts/F2.json records twelve named dead at 60000
+## ticks on the PRE-CHANGE code at 535f1a8. It is also length-dependent: the
+## integrator measured `toll_dead` 0 at gate length (first_night, 24000) on this
+## build, so a run that stops at 24000 sees a toll of zero either way. Quote a
+## tick count with the number or do not quote the number.
 ##
 ## Never the fire itself: _nearest_structure skips landmarks, so this can never
 ## hand back the target enemy_attack would refuse.

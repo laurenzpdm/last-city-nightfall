@@ -829,9 +829,14 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 			# reference run three drift hounds arrived at 128,131 — three tiles
 			# off the hearth, which is outside the one-tile absorb radius — and so
 			# they did not even evaporate: they stood there for 2600 ticks doing
-			# nothing while the wall shot at them. Every structure this build has
-			# ever lost was a wall panel, a pipe or a turret mount out on the
-			# perimeter with nobody in it, and combat.citizens_killed read 0.
+			# nothing while the wall shot at them. (That stall is real and the gate
+			# saw it: at 535f1a8 the first_night contract failed `no enemy stands
+			# still for 2400 ticks` naming these three bodies at full HP; on this
+			# build that check passes.) What must NOT be carried forward is the
+			# rest of the old premise — that every structure lost was perimeter
+			# furniture and combat.citizens_killed read 0. That is [E1]-era and
+			# stale; see the note on CombatSystem.inside_target for what replaced
+			# it and why the number depends on how long you run.
 			#
 			# Now it turns on the hearth district. CombatSystem.inside_target
 			# picks what — housing first, because the warmth they came for is the
