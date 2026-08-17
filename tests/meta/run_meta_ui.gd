@@ -25,7 +25,12 @@ extends Node
 const TAG: String = "meta-ui"
 const BOOT_SCENE: String = "res://game/boot.tscn"
 const SETTLE: int = 3
-const SLOT: String = "suite_slot"
+## The slot this suite writes, carrying this process's id. `user://saves/` and
+## `game/core/settings.cfg` are one path per MACHINE, not one per process: this
+## suite runs in its own Godot process, and so does everybody else's copy of the
+## gate. Filled in by _boot_a_real_session, which also takes the machine-wide
+## test lock for the whole run — see tests/save/save_slots.gd.
+var _slot: String = "suite_slot"
 
 var _checks: int = 0
 var _failures: PackedStringArray = PackedStringArray()
@@ -85,6 +90,8 @@ func _boot_a_real_session() -> void:
 		_ok(false, "run with --force-ui or a display: without either the meta "
 			+ "bootstrap declines and every check below cannot fail")
 		return
+	LcnSaveSlots.hold("tests/meta run_meta_ui")
+	_slot = LcnSaveSlots.scratch("suite_slot")
 	_had_settings = FileAccess.file_exists(Settings.PATH)
 	if _had_settings:
 		_settings_backup = FileAccess.get_file_as_bytes(Settings.PATH)
@@ -305,7 +312,7 @@ func _suite_rebinding_goes_through_the_reservation_table() -> void:
 # ============================================================== save / load ==
 
 func _suite_saving_and_loading_from_the_menu() -> void:
-	LcnSaveManager.delete(SLOT)
+	LcnSaveManager.delete(_slot)
 	SimClock.start()
 	await _settle(6)
 	await _press(KEY_ESCAPE)
@@ -315,9 +322,9 @@ func _suite_saving_and_loading_from_the_menu() -> void:
 	await _shoot("saves")
 
 	# Write a new slot the way the browser does, then prove the browser sees it.
-	var head: Dictionary = LcnSaveManager.save(SLOT, "Suite city")
+	var head: Dictionary = LcnSaveManager.save(_slot, "Suite city")
 	_ok(not head.is_empty(), "a save was written")
-	var thumb: PackedByteArray = LcnSaveFile.read_header_and_thumb(SLOT).get("thumbnail", PackedByteArray())
+	var thumb: PackedByteArray = LcnSaveFile.read_header_and_thumb(_slot).get("thumbnail", PackedByteArray())
 	if DisplayServer.get_name() == "headless":
 		_skip("the save carries a thumbnail", "no renderer: there is no frame to photograph")
 	else:
@@ -339,7 +346,7 @@ func _suite_saving_and_loading_from_the_menu() -> void:
 	await _settle(20)
 	var moved_on: int = SimClock.tick
 	_ok(moved_on > tick_at_save, "the city ran on after the save (%d → %d)" % [tick_at_save, moved_on])
-	_meta._load_and_close(SLOT)
+	_meta._load_and_close(_slot)
 	# Read the clock BEFORE settling: the load resumes the world, so a frame of
 	# waiting here would be measuring how fast this machine is, not the load.
 	var at_load: int = SimClock.tick
@@ -370,18 +377,18 @@ func _suite_destroying_a_save_asks_first() -> void:
 	await _press(KEY_ESCAPE)
 	_ok(_open(&"saves", {"mode": "load"}), "the load browser opens")
 	var screen := _meta._stack[_meta._stack.size() - 1] as LcnSaveBrowser
-	var id := StringName("slot_" + SLOT)
+	var id := StringName("slot_" + _slot)
 	_ok(screen.list.focus_id(id), "the suite's save can be focused")
 	await _press(KEY_DELETE)
 	_ok(_meta.current_screen() == &"confirm", "Delete asks first")
-	_ok(LcnSaveManager.exists(SLOT), "nothing has been deleted yet")
+	_ok(LcnSaveManager.exists(_slot), "nothing has been deleted yet")
 	await _shoot("confirm_delete")
 
 	var dialog := _meta._stack[_meta._stack.size() - 1] as LcnConfirmDialog
 	_ok(dialog.list.focused_id() == &"cancel",
 		"the SAFE entry is focused, so Enter on a dialog you did not read keeps the city")
 	await _press(KEY_ENTER)
-	_ok(LcnSaveManager.exists(SLOT), "cancelling kept the save")
+	_ok(LcnSaveManager.exists(_slot), "cancelling kept the save")
 	_ok(_meta.current_screen() == &"saves", "…and went back to the browser")
 
 	# Now actually delete it.
@@ -390,7 +397,7 @@ func _suite_destroying_a_save_asks_first() -> void:
 	var dialog2 := _meta._stack[_meta._stack.size() - 1] as LcnConfirmDialog
 	_ok(dialog2 != null and dialog2.list.focus_id(&"confirm"), "the destructive entry can be chosen")
 	await _press(KEY_ENTER)
-	_ok(not LcnSaveManager.exists(SLOT), "confirming deleted it")
+	_ok(not LcnSaveManager.exists(_slot), "confirming deleted it")
 	await _press(KEY_ESCAPE)
 	await _press(KEY_ESCAPE)
 
@@ -573,4 +580,6 @@ func _restore_settings() -> void:
 		var _e: int = DirAccess.remove_absolute(ProjectSettings.globalize_path(Settings.PATH))
 	Settings.load_from_disk()
 	Keybinds.restore(Settings)
-	LcnSaveManager.delete(SLOT)
+	LcnSaveManager.delete(_slot)
+	LcnSaveSlots.purge()
+	LcnSaveSlots.drop()
