@@ -1,6 +1,6 @@
 {
   "name": "first_night",
-  "description": "THE REFERENCE RUN. Three full days and two nights on one heat grid: a Hearth, six coal burners standing in its own warmth, five of them loaded by inserters off ONE belt out of a coal yard, a drill on the seam north of the wall keeping that yard filled through a standing porter order, a salvage strip turning scrap into grain into rations and scrap into ore for the smelter, homes and shops on two rungs, and a perimeter that spends the city's own warmth to hold the dark. This is what the art, audio and UI parts screenshot against, and it is the run that has to prove the automation, production and food pillars RUN rather than merely tick.",
+  "description": "THE REFERENCE RUN. Three full days and two nights on one heat grid: a Hearth, six coal burners standing in its own warmth, five of them loaded by inserters off ONE belt out of a coal yard, a drill on the seam north of the wall keeping that yard filled through a standing porter order, a salvage strip turning scrap into grain into rations and scrap into ore for the smelter and a workshop on the end of it turning that plate into gears, homes and shops on two rungs, and a perimeter that spends the city's own warmth to hold the dark. This is what the art, audio and UI parts screenshot against, and it is the run that has to prove the automation, production and food pillars RUN rather than merely tick.",
   "tags": [
     "reference",
     "gate",
@@ -611,6 +611,30 @@
       }
     },
     {
+      "tick": 230,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "workshop",
+        "cell": [
+          135,
+          117
+        ]
+      }
+    },
+    {
+      "tick": 231,
+      "cmd": {
+        "system": "production",
+        "op": "set_recipe",
+        "cell": [
+          135,
+          117
+        ],
+        "recipe": "gear"
+      }
+    },
+    {
       "tick": 240,
       "cmd": {
         "system": "build",
@@ -992,6 +1016,18 @@
           131
         ],
         "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          135,
+          117
+        ],
+        "priority": 70
       }
     },
     {

@@ -633,7 +633,7 @@ def _retool(L):
     L.urgent(2 * 9600 + 700, [(CORE[0] + 12, CORE[1] - 14)])
 
 
-def first_night():
+def first_night(strip_workshop: bool = True):
     L = Layout()
     # Materials, not a cheat code: the old stock ran dry on day two and FOUR
     # placements were refused for cost, which is why the workshop and the
@@ -643,10 +643,10 @@ def first_night():
     L.stock(1, {"iron_plate": 3200, "steel_plate": 1400, "stone": 2600,
                 "timber": 2200, "scrap": 1600, "gear": 700, "copper_coil": 500,
                 "coal": 1800, "grain": 1600})
-    # THIS SCENARIO IS BYTE-FOR-BYTE WHAT IT WAS, AND THAT IS A RESULT, NOT AN
-    # OMISSION. Three separate attempts to put a factory quarter in here were
-    # measured against the bands in tests/gate/expectations.json and every one
-    # of them made the reference run WORSE:
+    # THE FACTORY THIS SCENARIO IS ALLOWED TO HAVE IS EXACTLY ONE BUILDING, AND
+    # THAT IS A RESULT, NOT AN OMISSION. Three separate attempts to put a
+    # factory QUARTER in here were measured against the bands in
+    # tests/gate/expectations.json and every one of them made the run WORSE:
     #
     #   nine machines + two burners  demand peak 190 -> 895 against a delivery
     #                                that never passed 283; 25 buildings frozen,
@@ -666,12 +666,14 @@ def first_night():
     #                                0 plates against 23. Six bands red to buy
     #                                one.
     #
-    # The reference run cannot presently crew, feed or heat a factory, and the
-    # first two of those are not [P04]'s to fix. The experiment therefore lives
-    # in tests/scenarios/deep_chain.json, which stands the job board down in its
-    # first command and says so. When the staffing fix lands, the foundry in
-    # _foundry_spine / _foundry / _retool moves back in here and this comment
-    # gets deleted.
+    # What every one of those three bought its depth with was CAPACITY the grid
+    # and the job board did not have: nine machines, sixty tiles of new main and
+    # 300 units of demand. The single workshop on the end of the salvage strip
+    # (see "AND ONE SHOP ON THE END OF THE STRIP" above) buys the same tier for
+    # 10 units on ground that is already heated and already crewed, which is why
+    # it is in and the quarter is not. The full foundry experiment still lives in
+    # tests/scenarios/deep_chain.json, where the recipes above `gear` — steel,
+    # copper coil, pipe segment, circuit — are what is actually being graded.
     # GRAIN IS SEED STOCK, NOT A CHEAT. The kitchen turns 2 grain into 3
     # rations, so the founders' store is what feeds the city while the sorters
     # are still being built — and [P05] gates arrivals on
@@ -845,6 +847,58 @@ def first_night():
     L.place(210, "warmth_radiator", 5, -10)                 # x133-134
     L.place(220, "scrap_collector", 3, -10)                 # x131-132
 
+    # === AND ONE SHOP ON THE END OF THE STRIP ===============================
+    #
+    # THE PILLAR THAT WAS NOT IN THE REFERENCE RUN. `gear` and `circuit` both
+    # declare `machines [workshop, assembly_hall]` and this scenario placed
+    # NEITHER, so the flagship run reached chain depth 2 — ore, plate, slag —
+    # against a shipped graph five transformations deep, and the automation
+    # pillar was graded on a city that could not make a part. That is not a
+    # [P04] hole: production makes gears the moment something is standing that
+    # can. It is this file's hole, and it is one building wide.
+    #
+    # ONE SHOP AND NOT A QUARTER, WHICH IS THE WHOLE FINDING. Three earlier
+    # attempts put a foundry in here and every one made the run worse (see the
+    # measured list in first_night() below); all three bought their depth with
+    # nine machines, sixty tiles of new main and 300 units of demand this grid
+    # has never had. A workshop is 10 units — one third of ONE burner — it eats
+    # a stock the city already carries and it sits on ground the strip already
+    # heats. Nothing else in this scenario moved.
+    #
+    # WHY x135-138 AND NOWHERE ELSE. Modelled against the smoothstep falloff in
+    # game/sim/heat/warmth_field.gd over every radiating source in this layout,
+    # at the coldest ambient the run reaches (-32.85):
+    #
+    #   centre cell (137,118)   warmth 15.1 C  — the radiator at x133-134 is
+    #                           worth 10.7 of it, the Hearth 4.4
+    #   internal temp           ambient + 15.1 + 1.6 x 10 x (1 + 0.35 x 1.5)
+    #                           = -32.85 + 15.1 + 24.4 = +6.6 C, against a
+    #                           freezing point of -10
+    #
+    # and its whole south face sits on the y120 rung, so it is on the grid
+    # without one new tile of conduit. Every other free 4x3 on this map is
+    # colder: (117,138) is 16.7 but touches no conductor at all, (141,122) is
+    # 5.8, and anything south of y140 is 0.0 and freezes on the first night.
+    # The shop carries no `heat_radius` of its own, so unlike the kitchen it
+    # gets no warmth back from itself — it is living entirely on the strip's
+    # radiator, which is why it goes at the radiator's shoulder and not past it.
+    #
+    # PRIORITY 70 AND NOT 95. The supply chain above is marked 95 because a
+    # burner with no belt is a burner that dies; a shop is not that. 70 puts it
+    # ahead of its own build_priority of 55 and ahead of the belts and the
+    # bunkers it does not compete with, and behind the wall (85) and the guns
+    # (90), so buying chain depth cannot cost this run its perimeter.
+    #
+    # `strip_workshop=False` is deep_chain and ONLY deep_chain: its foundry
+    # quarter stands on exactly this ground — (135,118) is the copper sorter and
+    # y117 x131-143 is the rung that feeds the machine row above it — and it
+    # already builds a workshop of its own at (136,114). Two shops on one site
+    # is not a deeper graph, it is a placement the runtime would refuse.
+    if strip_workshop:
+        L.place(230, "workshop", 7, -11)                     # x135-138, y117-119
+        L.recipe(231, (7, -11), "gear")                      # iron_plate -> GEAR
+        L.urgent(240, [(CORE[0] + 7, CORE[1] - 11)], priority=70)
+
     # === THE SOUTH DISTRICT =================================================
     L.line(2400, "heat_trunk_main", (-2, 3), (-2, 6))       # x126 spine
     L.line(2420, "heat_pipe", (-16, 7), (15, 7))            # y135 rung
@@ -991,7 +1045,8 @@ def first_night():
                         "of them loaded by inserters off ONE belt out of a coal yard, a "
                         "drill on the seam north of the wall keeping that yard filled "
                         "through a standing porter order, a salvage strip turning scrap "
-                        "into grain into rations and scrap into ore for the smelter, homes "
+                        "into grain into rations and scrap into ore for the smelter and a "
+                        "workshop on the end of it turning that plate into gears, homes "
                         "and shops on two rungs, and a perimeter that spends the city's own "
                         "warmth to hold the dark. This is what the art, audio and UI parts "
                         "screenshot against, and it is the run that has to prove the "
@@ -1202,7 +1257,7 @@ def _east_road(L):
 
 
 def deep_chain():
-    sc = first_night()
+    sc = first_night(strip_workshop=False)
     L = sc["_layout"]
     # SAID IN THE FIRST COMMAND OF THE RUN, not in a comment. See the header.
     L.cmd(1, {"system": "production", "op": "set_staffing_autarky", "on": True})
