@@ -417,17 +417,35 @@ class _Graph extends Control:
 
 	## One line under the name, in a box 168 pixels wide. What it opens if it
 	## opens anything, otherwise what it costs to think about.
+	##
+	## IT USED TO COUNT INSTEAD OF NAMING. `artifacts/play_tour/shots/03_tech.png`
+	## shows a tree in which "Pressurised Mains" reads "2 buildings" and "Alloy
+	## Steel" reads "1 unlock" — a number a player cannot want, in the one screen
+	## whose entire job is answering "what do I get". The model already carries
+	## the kinds; one of them fits in 168 pixels and two of them fit as "X + 1
+	## more", so the row says a NAME and falls back to the count only when the
+	## name would not fit at all.
 	static func _node_subtitle(n: LcnTechModel.TechNode) -> String:
 		if not n.unlocks.is_empty():
-			return "%d building%s" % [n.unlocks.size(), "" if n.unlocks.size() == 1 else "s"]
+			return _opens_line(n.unlocks)
 		if not n.grants.is_empty():
-			return "%d unlock%s" % [n.grants.size(), "" if n.grants.size() == 1 else "s"]
+			return _opens_line(n.grants)
 		var payoff: PackedStringArray = n.effect_lines()
 		if not payoff.is_empty():
 			return payoff[0]
 		if n.cost_points > 0.0:
 			return "%s insight" % LcnUiFormat.num(n.cost_points)
 		return LcnUiFormat.item_name(n.branch)
+
+	## "Booster Pump", "Booster Pump +1 more". Sorted by the model already, so
+	## the same node always reads the same way.
+	static func _opens_line(ids: Array[StringName]) -> String:
+		var first: String = LcnUiFormat.item_name(ids[0])
+		if ids.size() == 1:
+			return first
+		if first.length() <= 18:
+			return "%s +%d more" % [first, ids.size() - 1]
+		return "%s and %d more" % [first.substr(0, 16) + "…", ids.size() - 1]
 
 	func _is_done(id: StringName) -> bool:
 		if model == null:
