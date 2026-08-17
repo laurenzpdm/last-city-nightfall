@@ -1952,10 +1952,13 @@ def careless():
     }
 
 
-def steady():
-    L = Layout()
-    _opening_settlement(L)
+def _steady_first_day(L):
+    """steady_hand's day 1, on its own so a later run can inherit it verbatim.
 
+    `the_sixth_night` builds exactly this and then stops building, which is only
+    a fair question about escalation if it is byte-for-byte the same day 1 that
+    holds night 1 comfortably in the A/B pair.
+    """
     # 1. HEAT FIRST, AND ON THE GRID. A generator on the founding spine before
     #    anything that draws from it, a second one before dusk, and a buffer to
     #    carry the night.
@@ -2016,6 +2019,12 @@ def steady():
     # 5. THE SECOND GENERATOR, BEFORE DUSK RATHER THAN DURING THE NIGHT.
     L.line(4400, "heat_pipe", (0, 14), (0, 18))
     L.place(4600, "coal_generator", 1, 17)
+
+
+def steady():
+    L = Layout()
+    _opening_settlement(L)
+    _steady_first_day(L)
     return {
         "name": "steady_hand",
         "description": ("PLAYED WELL, and the control for careless_night. The same seed, "
@@ -2033,6 +2042,110 @@ def steady():
         "script": L.script,
         "_layout": L,
         "shots": _AB_SHOTS,
+    }
+
+
+# ============================================================================
+# THE THIRD RUN IN THE FAMILY: DOES DAY 6 ASK MORE THAN DAY 1?
+#
+# careless_night and steady_hand ask whether the interface can tell a bad
+# decision from a good one INSIDE ONE DAY. Neither of them can say anything
+# about escalation, because both stop at t=11000 — the middle of day 2 — and a
+# curve that has not been walked is a claim nobody has checked.
+#
+# So: steady_hand's day 1, verbatim, and then the player stops. Same seed, same
+# opening settlement, same four turrets and two watchtowers standing on the same
+# grid, held unchanged through six nights. Every number that moves in this run
+# moved because the WORLD escalated, not because the city changed, and that is
+# the only way to read the difficulty curve as a player experiences it rather
+# than as a table.
+#
+# What to read in the artifacts:
+#   * `threat.plan` / the `wave N composed` log lines — budget, unit count and
+#     how many vectors each night arrives on.
+#   * `[threat] night N:` — spawned / killed / walked away / structures lost.
+#     A day-1 perimeter that still clears night 6 without a scratch is a flat
+#     curve wearing an escalation table.
+#   * `climate` — the escalation beat turns over on day 4 ("The Cold Finds Its
+#     Teeth", baseline -24°C), which is the first time the world asks the
+#     player for something day 1 did not.
+#   * `society` — hope and discontent under six nights of the same answer.
+#
+# Six full days is 57,600 ticks; this runs to 62,000 so night 6 finishes and
+# dawn of day 7 is on the record.
+#
+# AND IT SHIPS NO SHOTS, DELIBERATELY. `tests/gate/test_shot_beats.gd` walks a
+# real ClimateSystem tick by tick to prove that a beat named `sixth_night` is
+# photographed at night on day 6, and it caps that walk at MAX_WALK = 24000
+# because "a suite that walks a 43k-tick scenario tick by tick for every file is
+# a suite people start skipping". Every beat this run would want to name lives
+# past that cap, so the suite cannot verify any of them — and a screenshot whose
+# name nothing can check is exactly what that file exists to stop.
+#
+# It costs nothing here: this is a headless control and its whole evidence is
+# metrics.csv and the `wave N composed` / `night N:` lines in log.txt. Naming
+# beats it could not stand behind would have bought a picture nobody asked for
+# at the price of the one guard that keeps the reference frames honest.
+
+
+def sixth_night():
+    L = Layout()
+    _opening_settlement(L)
+    _steady_first_day(L)
+    # Coal keeps arriving on the belt, because a scenario that runs out of fuel
+    # on day 3 measures a supply chain and not a difficulty curve. This is the
+    # ONE thing the player keeps doing, and it is deliberately the thing that
+    # takes no decision.
+    for day in range(2, 7):
+        L.cmd(day * 9600 + 400, {"system": "logistics", "op": "insert",
+                                 "cell": [CORE[0] - 10, CORE[1] + 18],
+                                 "item": "coal", "count": 900})
+    # THE PLAYER ANSWERS THE PHONE, AND ONLY THAT.
+    #
+    # Without this the run is not an escalation test at all. [P06]'s Ember
+    # Congregation opens a grievance about the unburied at t=11200, turns it
+    # into a demand at t=16880, issues an ultimatum at t=19780 and puts the
+    # council out of its own gate at t=24580 — day 3 — after which `society.*`
+    # flatlines at discontent 100 / hope 11.3 for the remaining 37,000 ticks
+    # while threat, combat and heat carry on escalating into a city with nobody
+    # in it. That is true of EVERY headless run in this library, because a
+    # scenario cannot click a law, and it means nothing in the artifacts has
+    # ever measured a night past the third one.
+    #
+    # One law, signed the hour it is asked for, at the only moment a real player
+    # would also be signing it. It is not a build decision and it does not touch
+    # the perimeter, which is the whole point: the city that meets night 6 is
+    # still exactly steady_hand's day 1.
+    L.cmd(17000, {"system": "society", "op": "sign", "law": "named_graves"})
+    return {
+        "name": "the_sixth_night",
+        "description": ("THE ESCALATION CONTROL. steady_hand's day 1, built exactly as "
+                        "steady_hand builds it, and then the player never builds again — "
+                        "six nights answered with one day's worth of city. Same seed and "
+                        "same opening settlement as careless_night and steady_hand, so the "
+                        "three runs are one family with the time axis added. Nothing here "
+                        "measures a decision; everything here measures whether the world "
+                        "asks more on day 6 than it did on day 1, and whether the game "
+                        "says so before the sixth night rather than after it. Read the "
+                        "'wave N composed' budgets and the 'night N:' outcomes down the "
+                        "log: if a day-1 perimeter still clears night 6 clean, the "
+                        "escalation is a table and not a curve."),
+        "tags": ["reference", "escalation"],
+        "seed": 7, "ticks": 62000, "sample_every": 40,
+        # Slower per tick than the A/B pair on purpose: by day 5 there are
+        # several times as many bodies in the field, and a floor written for day
+        # 1 would fail this run for succeeding at its own premise.
+        # THE FRAGMENTATION IS THE RESULT, NOT A LAYOUT DEFECT, so the claim has
+        # to be one this run can actually keep. `max_heat_networks` is graded on
+        # the worst moment of the graded days, and measured here it goes 3 (the
+        # grid closing up while day 1 is still a building site) · 1 · 1 · 1 · 1 ·
+        # 9 · 8: one clean grid from day 2 until night 6 takes the city apart.
+        # Claiming 1 would fail this scenario for succeeding at its own premise;
+        # claiming 9 says out loud what a day-1 perimeter is worth on night 6.
+        "expects": {"min_ticks_per_second": 300, "max_errors": 0,
+                    "balance_days": [1, 3, 6], "max_heat_networks": 9},
+        "script": L.script,
+        "_layout": L,
     }
 
 
@@ -2055,5 +2168,5 @@ def _reaches_conduit(layout, kind, origin):
 
 if __name__ == "__main__":
     for build in (smoke, first_night, deep_chain, determinism, stress, economy,
-                  careless, steady):
+                  careless, steady, sixth_night):
         write(build())

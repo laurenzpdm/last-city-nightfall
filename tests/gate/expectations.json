@@ -759,6 +759,47 @@
      "why": "state.json.errors is what the harness itself is willing to admit went wrong."
     }
    }
+  },
+  "the_sixth_night": {
+   "why": "THE ESCALATION CONTROL, and the third run in the careless_night / steady_hand family. It builds steady_hand's day 1 VERBATIM and then never builds again, so every number that moves after day 1 moved because the WORLD escalated and not because the city changed. The bands below assert that the curve is a curve: that night 6 arrives with tens of times the budget night 1 arrived with, that a day-1 perimeter cannot hold it, and that the city is still standing long enough to be measured. Without this run the whole library stops at the middle of day 2 and 'day 6 asks more than day 1' is a claim nobody has checked.",
+   "metrics": {
+    "threat.budget": {
+     "peak_min": 400.0,
+     "why": "Night 1 is composed at budget 8.0. If the last night this run reaches is not at least fifty times that, the difficulty curve has gone flat and the whole premise of the scenario is unmeasurable. Measured: 576.7 on wave 7."
+    },
+    "threat.waves_survived": {
+     "final_min": 5,
+     "why": "Six nights actually resolve. A run that dies on night 2 measures a bad day 1, not an escalation, and the bands above would be read off a corpse."
+    },
+    "combat.structures_lost": {
+     "final_min": 20,
+     "why": "THE POINT OF THE RUN. Day 1's perimeter clears night 1 without a scratch and is taken apart by night 6. If this ever comes back near zero the world stopped asking for more and the curve is a table. Measured: 51."
+    },
+    "climate.day": {
+     "final_min": 6,
+     "why": "The run has to REACH day 6. Everything else here is meaningless if it does not."
+    },
+    "society.laws_signed": {
+     "final_min": 1,
+     "why": "One law, signed the hour it is demanded. Without it [P06] puts the council out of its own gate on day 3 and 37,000 ticks of this run are a city with nobody in it \u2014 which is true of every other headless run in this library and is why nothing here had ever measured a night past the third one."
+    },
+    "citizens.population": {
+     "final_min": 5,
+     "must_move": true,
+     "why": "It costs people. 24 alive at the end of day 5, 11 at the end of day 7. A floor, not a target: the run is allowed to be brutal and is not allowed to be empty."
+    }
+   },
+   "state": {
+    "final.systems.production.produced.ration": {
+     "exists": true,
+     "why": "steady_hand's kitchen chain is inherited whole and keeps running for six days without anyone touching it. If a ration ever stops arriving here, the day-1 build changed and this run is no longer the same city steady_hand grades."
+    }
+   },
+   "liveness": {
+    "waves_must_end": true,
+    "stalled_enemy_ticks": 3600,
+    "$why_stalled": "Same allowance as careless_night and for a related reason: by night 6 there are a hundred bodies in the field against two working guns, and an enemy nothing is shooting at is the DESIGNED consequence of meeting day 6 with day 1's perimeter. The wave still has to end, and threat.waves_survived still has to reach 5."
+   }
   }
  }
 }
