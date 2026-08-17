@@ -1,0 +1,43 @@
+{
+ "ts": "2026-08-17T08:15:00Z",
+ "part": "G5",
+ "title": "The menu stops saying zero, the reference run finally has a machine that can make a part, and five buildings get a night shift",
+ "verified": {
+  "the '0 alive' save, reproduced from disk not from reasoning": "~/.local/share/godot/app_userdata/*/saves held three real autosaves: autosave_1 'Dawn of day 4' population 0, autosave_3 'Dawn of day 3' population 0, autosave_2 'Dawn of day 2' population 18. describe_slot() rendered the first as 'Dawn of day 4 · 0 alive' and the title screen offered it under Continue. That is the critic's line, byte for byte.",
+  "and the ordering bug underneath, found by a test that would not go green": "LcnSaveManager.slots() sorted with `if not is_equal_approx(ta, tb): return ta > tb` on two Unix times. is_equal_approx is RELATIVE — tolerance 1e-5 x magnitude — and a 2026 timestamp is 1.79e9, so ANY two saves written within ~17870 s (five hours) counted as simultaneous and the list fell through to sorting by slot NAME. Every autosave this game writes is inside that window: `autosave_1` was permanently 'the most recent save'. Compared as whole seconds now.",
+  "tests/meta/test_the_menu_never_says_zero.gd": "7 tests, 24 asserts, green. tests/meta 47/47 green.",
+  "the strongest form, run": "old describe_slot body + old sort + `out['population'] = 0` pasted back over the new save_manager.gd, suite re-run: 4 assertions red in 3 tests, all printing '0 alive  ·  just now' and the wrong Continue slot. Restored from the copy, `git diff` clean.",
+  "reference run A/B, one tree, one seed, 24000 ticks, one building the only difference": "artifacts/G5_A (workshop stripped out of the scenario JSON) against artifacts/G5_B. chain_depth 2 -> 3 (crosses at t17760, holds); gear 0 -> 47; crafts 213 -> 248; hope at the final tick 29.6 -> 47.2; iron_plate 24 -> 21 (band 18); ration 351 -> 342 (band 300); coal 180 -> 180; grain 48 -> 48.",
+  "tools/assert_run.py, both runs": "G5_A 47 pass / 4 FAIL, G5_B 47 pass / 4 FAIL — the SAME four, all of them red without the workshop as well: heat.frozen_buildings final 1, logistics.lines_dry 1, production.stalled (7 vs band 6, already-documented red), 'every wave ends'. With the new bands in: G5_B 49 pass / 4 FAIL.",
+  "the new bands, proven red against the fallback they exist to catch": "tools/assert_run.py artifacts/G5_A now reports 'production.chain_depth final_min 3, final 2', 'peak_min 3, peak 2' and 'produced.gear missing from state.json'. That run is precisely 'the workshop silently went away'.",
+  "the workshop is warm, measured not argued": "state.json machine #173 at (135,117), felt_c 0.53 at the final tick, not frozen, after two nights at ambient -34.88. Predicted +6.6 C from the smoothstep model in game/sim/heat/warmth_field.gd (15.1 C of borrowed warmth at centre cell (137,118), +24.4 from 10 units served x insulation 0.35).",
+  "placement priority, measured": "urgent 90 (ahead of the wall and the guns) lands the shop at t2298 and 92 gears, and wrecks the run: ration 351 -> 147, grain -> 28, iron_plate -> 0, 12 bands red (artifacts/G5_shop90). urgent 70 lands it at t11016 and keeps every band. 70 it is.",
+  "one burner to pay for it: measured and rejected": "artifacts/G5_shopfire. A coal_generator at (140,131) reproduced the failure already written down in this file's comments — one more porter-fed bunker, the south smelter competing for the same coal, iron_plate 21 -> 0.",
+  "staff_capacity, against the code that reads it": "CitizenJobBoard.cut_shifts computes `to_other = clampi(crew.size() - need, 0, need)`. With capacity == required == 1 that is 0 for every one of the five, so each covered its primary rotation only. staff_capacity 2 makes it 1: one body on each.",
+  "determinism": "tools/determinism.sh — smoke IDENTICAL sha256 e667d7fe7a8f0b33, determinism IDENTICAL sha256 bd5e6c742ae2e883.",
+  "gate self-checks": "tests/gate 24/24 (802 asserts), tests/p00 87/87 (12545 asserts) — the scenario contract suite validates every band and every placement in the regenerated first_night.json."
+ },
+ "changed": [
+  "game/ui/meta/save_manager.gd — souls_of/souls_words/is_resumable/most_recent_playable; describe_world() omits keys it cannot compute; slots() sorted on whole seconds",
+  "game/ui/meta/main_menu.gd — Continue reads most_recent_playable()",
+  "game/ui/meta/pause_menu.gd — the subtitle is built from the clauses this build can answer",
+  "game/ui/meta/save_browser.gd — both destroy-confirm dialogs go through _slot_sentence()",
+  "game/ui/meta/README.md — the two rules written down",
+  "tests/meta/test_the_menu_never_says_zero.gd — new",
+  "tools/gen_scenarios.py — one workshop at (135,117) running gear in first_night; deep_chain opts out",
+  "tests/scenarios/first_night.json — regenerated",
+  "tests/gate/expectations.json — production.chain_depth final_min 2 -> 3 + peak_min 3; new state band produced.gear min 20",
+  "game/content/buildings/{coal_generator,turret_mount,watchtower,granary,recuperator}.tres — staff_capacity 2"
+ ],
+ "not_verified": [
+  "The HUD frame. `10_build_ghost.png` with '0 alive' beside 'warm, fed and working' does NOT reproduce on this tree: artifacts/G5_tour/shots/10_build_ghost.png reads '18 alive · 5 idle · BODY WARMTH 72% · FOOD 5.3 days'. The panel is game/ui/hud/vitals_widget.gd, which is [P17]'s and not mine to write in.",
+  "perf — four cores shared with three other agents all wave; the integrator owns that measurement.",
+  "tools/check.sh end to end — not run; the parts touched were run individually (meta, gate, p00, citizens)."
+ ],
+ "handoff": {
+  "[P17] game/ui/hud/vitals_widget.gd + hud_probe.gd": "The remaining half of the '0 alive' frame, and it is one branch. `should_show()` guards has_population (missing system) but not population == 0 (a city that ended). With population 0 every derived figure collapses to a default that reads as GOOD: _draw_condition() finds no freezing/sick/hurt/unhoused/idle and prints 'warm, fed and working'; warmth01 draws BODY WARMTH 0%; food_days is huge so _food() prints 'plenty'; and city_is_cold()/city_is_freezing() both return false because they require population > 0, so the frame is severity CALM. A dead city renders as a calm, healthy one. Same rule the panel's own header already states — 'never a wall of zeroes' — applied to the zero it can compute as well as the one it cannot. LcnSaveManager.souls_words() is the shape [P24] used.",
+  "[P05] tests/citizens/test_citizen_shifts.gd:398": "staff_capacity 2 makes `test_the_night_trades_hold_their_requirement_after_dark` fail on its PRECONDITION — `assert_gt(thin, 0, 'at least one of them has no surplus to spare')` finds 0, because every night trade now has a spare hand, which is the point of the change. Confirmed by reverting turret_mount.tres and watchtower.tres to HEAD~1 in place: the same test passes, then fails again with them back. The suite needs to either drop that precondition or build a thin crew explicitly (a site whose staff_capacity equals its workers_required); the assertion it protects is still worth keeping.",
+  "[P09] climate ordering, one line, cosmetic but a lie in a file": "Every autosave header carries `phase: deep_night` under the name 'Dawn of day N'. ClimateSystem.step() calls _roll_to_day() — which emits Bus.day_started, which the autosave runs on — BEFORE _emit_phase_change() updates _phase_idx, so anything reading climate.metrics() inside that signal gets the previous tick's phase. Not on screen anywhere today, so it is not urgent; it is one swap.",
+  "INTEGRATOR": "production.stalled final 7 -> 8 against a ceiling of 6. It was already red at 7 before this wave and that band's own note says so at length. The eighth is the new workshop, stalled at t24000 for the same reason as the other seven: tick 24000 lands in the third night, discontent is 100 and every machine reads `unstaffed`. Not raised."
+ }
+}
