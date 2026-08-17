@@ -243,6 +243,11 @@ func _find_run() -> String:
 	for cand: String in order:
 		if not FileAccess.file_exists(cand.path_join("log.txt")):
 			continue
+		# A run made before this file's instrument existed has the frames but not
+		# the rectangles, and grading it would report four UNCHECKED lines about a
+		# build nobody is looking at. Skip to the newest run that can answer.
+		if _dumps(cand).is_empty():
+			continue
 		for shot: Dictionary in _shots(cand):
 			if int(shot["hostiles"]) > 0 \
 					and FileAccess.file_exists(_world_png(cand, String(shot["name"]))):
