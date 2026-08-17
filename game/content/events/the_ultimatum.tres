@@ -23,7 +23,7 @@ priority = 88
 lede = "{demand_faction_text} have stopped asking and started setting a deadline."
 body = "The terms, as they were given: {demand_text}
 
-Discontent stands at {discontent} and there are {grievances} open grievances against the Hall. This is not a mood any more. It is a position, with a date on it, held by people who work the machines that keep everybody alive.
+Discontent stands at {discontent} and there are {grievances_worded} against the Hall. This is not a mood any more. It is a position, with a date on it, held by people who work the machines that keep everybody alive.
 
 The Book of Laws is in the Survey Hall. If the answer is a law, it is in there, and it will take hours of argument to come into force once it is signed. Those hours come out of the deadline, not out of the time before it."
 cause_prose = "A faction issues terms when a grievance has been open long enough that asking stopped working."

@@ -684,8 +684,8 @@ func _reports() -> void:
 		"{demand_faction_text} have stopped asking and started setting a "
 		+ "deadline.",
 		"The terms, as they were given: {demand_text}\n\n"
-		+ "Discontent stands at {discontent} and there are {grievances} open "
-		+ "grievances against the Hall. This is not a mood any more. It is a "
+		+ "Discontent stands at {discontent} and there are {grievances_worded} "
+		+ "against the Hall. This is not a mood any more. It is a "
 		+ "position, with a date on it, held by people who work the machines "
 		+ "that keep everybody alive.\n\n"
 		+ "The Book of Laws is in the Survey Hall. If the answer is a law, it "

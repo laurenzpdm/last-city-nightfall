@@ -264,6 +264,17 @@ func tokens() -> Dictionary:
 		var value: String = String(text.get(k, ""))
 		out[String(k) + "_text"] = value if value.strip_edges() != "" \
 			else String(NarrativeDefs.TEXTS[k])
+	# COUNTED THINGS, WORDED, so a sentence does not have to guess the number it
+	# will be handed. `the_ultimatum` read "there are 1 open grievances against
+	# the Hall" in `artifacts/play1/shots/second_night.png` — a card written with
+	# real care, undone by an s. A `{token}` that carries its own noun is the only
+	# way authored prose can be right at every count.
+	for pair: Array in [[&"grievances", "open grievance"],
+			[&"demands", "demand with a deadline on it"],
+			[&"laws_signed", "law signed"]]:
+		var n: int = int(roundf(fact(pair[0] as StringName)))
+		out[String(pair[0]) + "_worded"] = "%d %s%s" % [
+			n, String(pair[1]), "" if n == 1 else "s"]
 	return out
 
 

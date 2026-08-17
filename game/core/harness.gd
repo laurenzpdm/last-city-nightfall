@@ -601,8 +601,17 @@ func _beat_report() -> Array:
 			"aimed_tick": b["tick"],
 			"fired_tick": b["fired"],
 			"claims": _claim_text(claim),
-			"photographed": ("%s of day %d, %d hostile(s) alive" % [
-				String(b["phase"]), int(b["day"]), int(b["live"])])
+			# A SHOT TAKEN AFTER THE ENDING IS A PHOTOGRAPH OF A CORPSE, AND THE
+			# ROW SAID `ok: true` ABOUT IT. `artifacts/play1/shots/
+			# third_day_city.png` fired at t21600 on a run that ended at
+			# t20980; the frame has [P22]'s "The City Did Not Stand" card in the
+			# middle of it and every panel around that card still forecasting
+			# the next wave. `ended` at the top of this file says the run
+			# stopped; only this line can say WHICH photographs are after it.
+			"photographed": ("%s of day %d, %d hostile(s) alive%s" % [
+				String(b["phase"]), int(b["day"]), int(b["live"]),
+				"" if _end_tick < 0 or int(b["fired"]) < _end_tick
+					else " — AFTER THE RUN ENDED (%s at t%d)" % [_end_reason, _end_tick]])
 				if int(b["fired"]) >= 0 else "nothing — it never fired",
 			"ok": b["ok"],
 			"fails_the_run": b["fatal"],

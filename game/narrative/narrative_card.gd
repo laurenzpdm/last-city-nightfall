@@ -102,6 +102,10 @@ var _accum: float = 0.0
 ## `LcnHudStage` republishes this so [P17] can say so somewhere if it wants to;
 ## nothing else in the build depends on it.
 var deferred: bool = false
+## True while the flavour feed actually has a line in it. Published for
+## `LcnHudStage`, which owns where the plate goes and therefore also owns the
+## `visible` flag on it — see `_refresh_ticker()`.
+var ticker_has_lines: bool = false
 
 
 func _ready() -> void:
@@ -349,12 +353,27 @@ func _kicker_for(category: String, day: int, era: String) -> String:
 	return "DAY %d   REPORT" % day
 
 
+## AN EMPTY PLATE IS NOT A QUIET FEED, IT IS A BUG WITH A BORDER ON IT.
+##
+## The feed says nothing at all for the first minutes of a run and again in every
+## gap between lines, and the plate was drawn regardless: a 730 x 105 rounded
+## rectangle, rimmed and tinted, laid over the middle of the city with no text in
+## it (`artifacts/play_tour/shots/08_lens_5.png`, and again under the build
+## palette in `01_palette.png`). It reads as a panel that failed to load.
+##
+## `LcnHudStage` already treats a zero-height ticker as "do not draw" and places
+## the card against a taller stage when there is nothing here, so hiding the
+## plate costs nothing and gives the frame back to the world.
 func _refresh_ticker() -> void:
 	var lines: Array[Dictionary] = Narrative.feed(FEED_LINES)
 	var out: PackedStringArray = PackedStringArray()
 	for row: Dictionary in lines:
-		out.append(String(row.get("text", "")))
+		var text: String = String(row.get("text", "")).strip_edges()
+		if text != "":
+			out.append(text)
 	_ticker.text = "\n".join(out)
+	ticker_has_lines = not out.is_empty()
+	_ticker_plate.visible = ticker_has_lines
 
 
 ## True when the player has a surface open that they opened on purpose: any of
