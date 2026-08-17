@@ -190,13 +190,54 @@ static func _is_improvement(want: Dictionary, before: Dictionary, after: Diction
 	return true
 
 
+## ── `has_method` IS NOT `WILL ACCEPT THIS` ───────────────────────────────────
+##
+## This used to call the first of these four names the holder answered to, with
+## whatever shape the save had at that path. The search is a search: it aims a
+## value at a helper it merely SUSPECTS produced it, and it is meant to find out
+## by asking. But a typed GDScript parameter does not answer with `false` — it
+## raises:
+##
+##   SCRIPT ERROR: Invalid type in function 'deserialize (via call)' in base
+##   'RefCounted (BuildSystem)'. Cannot convert argument 2 from Array to
+##   Dictionary.
+##
+## Twice per load of a real save, straight to stderr, where `Log.errors` cannot
+## see it and `tools/scan_errors.py` grades it as BLOCKING. It never showed up
+## while the only door into the reconciler was the save layer's own fixtures;
+## the first real load from the menu found it in one run.
+##
+## So the declared parameter is read first and the call is only made when the
+## shape matches. An untyped parameter (TYPE_NIL) still takes anything, which is
+## the old behaviour for every helper that has not said otherwise. A helper that
+## cannot take this shape is not the variable this field came from, and a search
+## that has ruled one candidate out should move to the next one quietly.
 static func _apply_via_method(obj: Object, value: Variant) -> bool:
 	if typeof(value) != TYPE_DICTIONARY and typeof(value) != TYPE_ARRAY:
 		return false
 	for m: String in ["deserialize", "from_json", "from_dict", "restore"]:
-		if obj.has_method(m):
-			obj.call(m, value)
-			return true
+		if not obj.has_method(m):
+			continue
+		if not _accepts(obj, m, value):
+			continue
+		obj.call(m, value)
+		return true
+	return false
+
+
+## True when `obj.<method>` declares exactly one argument this value can be
+## passed as. Read off `get_method_list()` rather than guessed: a method with a
+## different arity is not the inverse of a serialize() either.
+static func _accepts(obj: Object, method: String, value: Variant) -> bool:
+	for entry: Dictionary in obj.get_method_list():
+		if String(entry.get("name", "")) != method:
+			continue
+		var args: Array = entry.get("args", []) as Array
+		var defaults: Array = entry.get("default_args", []) as Array
+		if args.is_empty() or args.size() - defaults.size() > 1:
+			return false
+		var want_type: int = int((args[0] as Dictionary).get("type", TYPE_NIL))
+		return want_type == TYPE_NIL or want_type == typeof(value)
 	return false
 
 
