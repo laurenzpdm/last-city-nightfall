@@ -101,6 +101,7 @@ var draw_agents: bool = true
 var _shadow: Node2D = null
 var _glow: Node2D = null
 var _main: Node2D = null
+var _halo: Node2D = null
 
 var _atlas: ImageTexture = null
 var _regions: Dictionary[StringName, Rect2] = {}
@@ -252,6 +253,16 @@ func setup(world_model: LcnWorldModel, sprite_factory: LcnSpriteFactory) -> void
 		Log.error("render", "silhouette shader missing at %s — shadows will be tinted" % SILHOUETTE_SHADER)
 	_glow = _make_pass("GlowPass", 1, -20, true)
 	_main = _make_pass("MainPass", 2, 0, false)
+	# NOTHING THE PLAYER BUILT MAY HIDE A MONSTER. [P03]'s belt overlay draws at
+	# z 1, its items at 3 and its machine plates at 4 — all of them ABOVE the
+	# figures — and in `artifacts/H1_v3/shots/assault.world.png` a drift hound
+	# standing on a conveyor was cut in half by it: lift 0.033 where its
+	# neighbours measured 0.30. So a hostile's cold light gets one small additive
+	# quad in a pass above the logistics layer and below [P14]'s effects. It is
+	# the same statement the rim pass makes about a fire — light reaches the
+	# camera past the things in front of it — and it is the difference between a
+	# threat you can see and a threat your own factory is standing in front of.
+	_halo = _make_pass("FoeHaloPass", 3, 5, true)
 
 
 ## Binds the ground's data fields so entities can be lit by the same numbers the
@@ -310,6 +321,7 @@ func refresh(day_grade: Dictionary, view: Rect2, interp: float, camera_zoom: flo
 	_shadow.queue_redraw()
 	_glow.queue_redraw()
 	_main.queue_redraw()
+	_halo.queue_redraw()
 
 
 ## Flattens the grade's light rig into scalars, once, for the frame. Entities are
@@ -642,6 +654,7 @@ func draw_pass(ci: CanvasItem, which: int) -> void:
 		0: _draw_shadows(ci)
 		1: _draw_glow(ci)
 		2: _draw_main(ci)
+		3: _draw_foe_halos(ci)
 	if which == 0:
 		_draw_us = 0
 	_draw_us += Time.get_ticks_usec() - t0
@@ -1288,9 +1301,14 @@ const DARK_RIM: Color = Color(0.055, 0.065, 0.110)
 ## the player at every zoom. A figure floor of 24 px means the pool is a little
 ## under twice the creature and reads as light around it rather than as a disc
 ## it is standing on top of.
-const FOE_POOL_PX: float = 21.0
+const FOE_POOL_PX: float = 22.0
 ## Peak alpha of the soft outer pool, additive.
-const FOE_POOL_A: float = 0.44
+const FOE_POOL_A: float = 0.46
+## The halo that draws OVER everything the city built. Small and soft: it is the
+## creature's own light reaching the camera, not a marker pinned to it, and at
+## more than this it starts to erase the silhouette it is there to advertise.
+const FOE_HALO_PX: float = 16.0
+const FOE_HALO_A: float = 0.26
 ## ...and of the tight core, which is what keeps a pool from reading as a smudge
 ## once the grade's bloom has had it.
 const FOE_CORE_A: float = 0.52
@@ -1372,6 +1390,28 @@ func _draw_foe_pools(ci: CanvasItem) -> void:
 		ci.draw_texture_rect_region(_atlas,
 			Rect2(at - Vector2(r_in, r_in), Vector2(r_in * 2.0, r_in * 2.0)),
 			_glow_r, Color(c.r, c.g, c.b, FOE_CORE_A * share))
+
+
+## The one mark in this renderer that draws above the city. See _make_pass.
+func _draw_foe_halos(ci: CanvasItem) -> void:
+	if _foes_in_view <= 0 or _glow_r.size.x <= 0.0 or _dark_share <= 0.02:
+		return
+	var r: float = FOE_HALO_PX / maxf(zoom, 0.01)
+	var c: Color = FOE_POOL_COL
+	var a: float = FOE_HALO_A * _dark_share
+	for ag: Dictionary in _vis_ag:
+		if not LcnSpriteFactory.is_enemy_kind(ag["kind"]):
+			continue
+		var dest: Rect2 = agent_dest(ag)
+		if dest.size.x <= 0.0:
+			continue
+		# The MASS of the figure, not its feet: a halo on the ground is what the
+		# pool already is, and stacking two of them in the same place buys one
+		# brighter smudge instead of a creature.
+		var at: Vector2 = dest.get_center()
+		ci.draw_texture_rect_region(_atlas,
+			Rect2(at - Vector2(r, r), Vector2(r * 2.0, r * 2.0)),
+			_glow_r, Color(c.r, c.g, c.b, a))
 
 
 ## Estimated luminance of the GROUND at a world point, in canvas space (i.e.

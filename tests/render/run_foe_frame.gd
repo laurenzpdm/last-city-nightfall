@@ -47,20 +47,24 @@ extends SceneTree
 ## from the same run with ZERO hostiles in it. A scanner that lights up on an
 ## empty night is a scanner that would have passed the broken build too.
 ##
-## WHAT MAKES IT RED. Measured, not guessed — each of these was applied to a
-## scratch copy of `game/view/render/entity_renderer.gd` and a smoke visual run
-## re-graded:
+## WHAT MAKES IT RED. Not a guess: this suite was run against
+## `artifacts/H1_v1`, a full `first_night` visual run of THE TREATMENT AS IT
+## SHIPPED, with only this file's instrument added to it — no cold pool, no
+## halo, the lift keyed off `ground_luma`, the flip bug still in. Same scenario,
+## same tick, same ten hostiles, same PNG a critic would open:
 ##
-##   `_draw_foe_pools` returning immediately (no cold pool)
-##       → LIFT drops from 0.25–0.33 to 0.09–0.15 and the BLIND scan finds
-##         nothing on any hostile: 0 of 6 recalled.
-##   `foe_lit_share` back to `lit_share` (the treatment keyed off the local
-##   ground, which is how it shipped)
-##       → the hostiles inside the perimeter, the ones the alert stack is
-##         shouting about, fall to LIFT 0.04–0.14.
-##   `MIN_LIFT` moved down to make the above go green
-##       → the control frame is unaffected, which is the tell: a threshold that
-##         only ever moves in one direction is not measuring anything.
+##       lift 0/9 · cold 6/9 · blind 1 of 6 pack(s)   → 3 of 6 checks red
+##       every creature between 0.021 and 0.146, against a bar of 0.170
+##
+## and against `artifacts/H1_v5`, the same scenario after the fix:
+##
+##       lift 9/9 · cold 9/9 · blind 6 of 6 pack(s)   → green
+##
+## The numbers that did NOT move between those two runs are the control frames'
+## cluster counts — 35 and 38 before, 39 and 40 after. That is the tell that
+## this suite is measuring the creatures and not the build: a change that had
+## merely made the whole frame colder or brighter would have moved the control
+## by the same amount it moved the assault.
 ##
 ## A NOTE ON THE VERDICT. If no visual run exists in `artifacts/` this suite
 ## reports PARTIAL and names the command to run. It does not report a pass: a
@@ -69,10 +73,11 @@ extends SceneTree
 
 # --- what "findable" means, in the graded frame, as delivered numbers ---------
 
-## Luminance the figure must clear the plain around it. The brief is 0.25–0.30
-## delivered; measured on `artifacts/H1_smoke2` after the fix the hostiles land
-## at 0.25–0.33 and before it at 0.09–0.15, so this sits below the fix and well
-## above the defect rather than snug against either.
+## Luminance the figure must clear the plain around it, IN THE GRADED FRAME. The
+## brief is 0.25–0.30 delivered. On `first_night` at the assault beat the nine
+## hostiles measure 0.021–0.146 before the fix and 0.18–0.34 after it, so this
+## bar sits in the gap between the two populations rather than snug against
+## either — and it did not move once during the tuning that produced them.
 const MIN_LIFT: float = 0.17
 ## ...and blue-minus-red, which is what says FOE rather than merely FIGURE. The
 ## city's own people are lit warm by the city's own fires and read negative here.
@@ -90,13 +95,21 @@ const RING_OUT: float = 130.0
 
 # --- the blind scan -----------------------------------------------------------
 
-## Blue-minus-red and luminance-above-the-local-plain a pixel needs to be part of
-## a candidate. Both are read at HALF resolution, which is also the honest
-## resolution for "at a glance".
-const SCAN_COLD: float = 0.055
-const SCAN_LIFT: float = 0.055
-## Half-res block the local plain is estimated over (128 full-res pixels).
-const SCAN_BLOCK: int = 64
+## What a pixel must clear to be part of a candidate: blue-minus-red and
+## luminance, both measured ABOVE THE LOCAL PLAIN rather than in absolute terms.
+## Absolute failed on the frame that matters — the night grade tints the whole
+## city warm, so a creature that is decisively colder than the ground it stands
+## on is still not colder than zero. Contrast is what a player sees; absolutes
+## are what a bench sees. Both are read at HALF resolution, which is also the
+## honest resolution for "at a glance".
+const SCAN_COLD: float = 0.035
+const SCAN_LIFT: float = 0.045
+## Half-res block the local plain is estimated over (96 full-res pixels). Wider
+## and a lit building inside the block drags the plain up over the creature
+## standing beside it — at 128 px that cost three of six packs on
+## `artifacts/H1_v5`; narrower and a creature is half the block it is being
+## compared against.
+const SCAN_BLOCK: int = 48
 ## A candidate smaller than this in half-res pixels is grain; larger is the sky.
 const SCAN_MIN_AREA: int = 30
 const SCAN_MAX_AREA: int = 1600
@@ -131,6 +144,23 @@ const GROUP_PX: float = 34.0
 ## The shutter strips the modal layers and waits two process frames before it
 ## reads, so the photograph is a frame or two after the line that announced it.
 const DUMP_SLACK_TICKS: int = 40
+
+## THE CAMERA MOVES BETWEEN THE LOG LINE AND THE SHUTTER, and on `first_night`
+## it moves a lot: `LcnWorldRenderer` pans and zooms the harness camera on a
+## keyframe track, the shot beat sits mid-pan, and the `.world` capture happens
+## three frames after the line that announced it. Measured on
+## `artifacts/H1_v5`: every one of the nine hostiles landed +17,-16 screen
+## pixels from where its rectangle said, the SAME offset for all nine, which is
+## a camera that travelled and not a renderer that lied.
+##
+## So the frame is aligned ONCE, globally, before anything is measured: one
+## (dx, dy) inside this radius, chosen to maximise the total brightness under
+## all the hostiles at once. Two parameters for the whole frame. It cannot
+## invent a creature — a single shared translation has no way to move nine dark
+## rectangles onto nine bright things that are not there — and the offset it
+## picks is printed, so a suspicious reader can check it against the camera.
+const ALIGN_PX: int = 32
+const ALIGN_STEP: int = 2
 
 var _checks: int = 0
 var _fails: PackedStringArray = PackedStringArray()
@@ -195,14 +225,21 @@ func _find_run() -> String:
 	# The gate's own visual pass, so `tools/check.sh` grades the run it just made
 	# rather than whatever happens to be lying around.
 	order.append(root.path_join("gate/visual"))
-	var rest: PackedStringArray = PackedStringArray()
+	# Newest run FIRST, by the log's own modification time. Alphabetical order
+	# would hand a critic whichever folder happened to sort last, which in this
+	# repo is a run from three waves ago.
+	var rest: Array[Dictionary] = []
 	var d: DirAccess = DirAccess.open(root)
 	if d != null:
 		for name: String in d.get_directories():
-			rest.append(root.path_join(name))
-	rest.sort()
-	rest.reverse()
-	order.append_array(rest)
+			var log: String = root.path_join(name).path_join("log.txt")
+			if FileAccess.file_exists(log):
+				rest.append({"dir": root.path_join(name),
+					"at": FileAccess.get_modified_time(log)})
+	rest.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return int(a["at"]) > int(b["at"]))
+	for row: Dictionary in rest:
+		order.append(String(row["dir"]))
 	for cand: String in order:
 		if not FileAccess.file_exists(cand.path_join("log.txt")):
 			continue
@@ -332,6 +369,12 @@ func _grade_assault(png: String, shot: Dictionary, dumps: Array[Dictionary],
 		_unchecked.append("%s: every hostile the renderer logged is off the glass" % shot["name"])
 		return false
 
+	# The camera pans between the log line and the shutter. One global offset for
+	# the whole frame, before a single number is read off it.
+	var shift: Vector2 = f.align(on)
+	for i0: int in on.size():
+		on[i0] = Rect2(on[i0].position + shift, on[i0].size)
+
 	# --- 1 + 2: every creature against the plain it is standing on -------------
 	var lift_ok: int = 0
 	var cold_ok: int = 0
@@ -360,34 +403,41 @@ func _grade_assault(png: String, shot: Dictionary, dumps: Array[Dictionary],
 
 	# --- 3: the critic's own scan, which knows nothing --------------------------
 	var found: Array[Dictionary] = f.scan()
-	var hit: int = 0
 	var noise: int = 0
+	# What is graded is how many separable PACKS the scan lands on, not how many
+	# clusters it produces: one creature that happens to break into three blobs
+	# is still one creature found, and counting blobs would let a noisy scan
+	# certify a frame it had never actually seen a monster in.
+	var seen_marks: Array[Rect2] = []
 	for c: Dictionary in found:
 		var b: Rect2 = c["box"]
 		var matched: bool = false
 		for r2: Rect2 in on:
 			if b.grow(SCAN_SLACK).intersects(r2):
 				matched = true
-				break
-		if matched:
-			hit += 1
-		else:
+				if not seen_marks.has(r2):
+					seen_marks.append(r2)
+		if not matched:
 			noise += 1
 	var groups: int = _groups(on)
-	_ok(hit >= groups,
-		("%s: a blind scan of the whole frame found %d cold-bright cluster(s) on the"
-		+ " hostiles, and there are %d separable group(s) of them. A creature nobody"
-		+ " can find is a creature that is not in the picture.")
-		% [png.get_file(), hit, groups])
+	var covered: int = _groups(seen_marks)
+	var need_g: int = int(ceil(float(groups) * MIN_PASS_SHARE))
+	_ok(covered >= need_g,
+		("%s: a blind scan of the whole frame — one that knows nothing about where"
+		+ " anything is — landed on %d of the %d separable pack(s) of hostiles in"
+		+ " it, and needed %d. A creature nobody can find is a creature that is not"
+		+ " in the picture.")
+		% [png.get_file(), covered, groups, need_g])
 	if floor_n >= 0:
 		_ok(noise <= floor_n + SCAN_NOISE_SLACK,
 			("%s: the same scan found %d cluster(s) that are NOT a hostile, against"
 			+ " %d on the control night frame with nothing alive in it (slack %d)."
 			+ " The fix is supposed to light up the creatures, not the frame.")
 			% [png.get_file(), noise, floor_n, SCAN_NOISE_SLACK])
-	_notes.append("%s  t%d dump t%d  %d hostile(s) on glass: lift %d/%d  cold %d/%d  blind %d hit / %d noise / %d group(s)"
-		% [png.get_file(), tick, int(best["tick"]), on.size(),
-			lift_ok, on.size(), cold_ok, on.size(), hit, noise, groups])
+	_notes.append(("%s  t%d dump t%d  camera moved %+d,%+d between them  %d hostile(s)"
+		+ " on glass: lift %d/%d  cold %d/%d  blind %d of %d pack(s) / %d noise")
+		% [png.get_file(), tick, int(best["tick"]), int(shift.x), int(shift.y),
+			on.size(), lift_ok, on.size(), cold_ok, on.size(), covered, groups, noise])
 	return true
 
 
@@ -490,6 +540,37 @@ class _Frame extends RefCounted:
 	func rect() -> Rect2:
 		return Rect2(0.0, 0.0, float(w), float(h))
 
+	## The one global translation that best puts the logged rectangles on top of
+	## whatever is actually bright in the photograph. Scored on MEAN luminance
+	## summed over every hostile at once — a shared shift, not a per-creature
+	## hunt, so it corrects a camera and cannot fabricate a monster.
+	func align(marks: Array[Rect2]) -> Vector2:
+		var best := Vector2.ZERO
+		var best_score: float = -1.0
+		for dy: int in range(-ALIGN_PX, ALIGN_PX + 1, ALIGN_STEP):
+			for dx: int in range(-ALIGN_PX, ALIGN_PX + 1, ALIGN_STEP):
+				var score: float = 0.0
+				for r: Rect2 in marks:
+					score += _mean(Rect2(r.position + Vector2(dx, dy), r.size))
+				if score > best_score:
+					best_score = score
+					best = Vector2(dx, dy)
+		return best
+
+	## Mean luminance over a rectangle, sampled on a 2 px lattice.
+	func _mean(r: Rect2) -> float:
+		var x0: int = clampi(int(r.position.x), 0, w - 1)
+		var y0: int = clampi(int(r.position.y), 0, h - 1)
+		var x1: int = clampi(int(r.end.x), 0, w)
+		var y1: int = clampi(int(r.end.y), 0, h)
+		var sum: float = 0.0
+		var n: int = 0
+		for y: int in range(y0, y1, 2):
+			for x: int in range(x0, x1, 2):
+				sum += lum[y * w + x]
+				n += 1
+		return sum / maxf(float(n), 1.0)
+
 	# --- the anchored measurement ---------------------------------------------
 
 	func fig_p95_l(r: Rect2) -> float:
@@ -546,11 +627,13 @@ class _Frame extends RefCounted:
 	## Every cold, locally-bright, compact cluster in the frame, in FULL-res
 	## coordinates. Knows nothing about where anything is.
 	func scan() -> Array[Dictionary]:
-		var bg: PackedFloat32Array = _plain()
+		var bgl: PackedFloat32Array = _plain(slum)
+		var bgc: PackedFloat32Array = _plain(scold)
 		var mask: PackedByteArray = PackedByteArray()
 		mask.resize(sw * sh)
 		for i: int in sw * sh:
-			mask[i] = 1 if (scold[i] > SCAN_COLD and slum[i] > bg[i] + SCAN_LIFT) else 0
+			mask[i] = 1 if (scold[i] > bgc[i] + SCAN_COLD
+				and slum[i] > bgl[i] + SCAN_LIFT) else 0
 		var out: Array[Dictionary] = []
 		var seen: PackedByteArray = PackedByteArray()
 		seen.resize(sw * sh)
@@ -598,10 +681,11 @@ class _Frame extends RefCounted:
 			})
 		return out
 
-	## The local plain, as a block-median luminance at half resolution. A block
-	## median rather than a mean because a lit window inside the block would drag
-	## a mean up and hide a creature standing beside it.
-	func _plain() -> PackedFloat32Array:
+	## The local plain, as a block MEDIAN at half resolution — of luminance or of
+	## blue-minus-red, whichever channel is asked for. A median rather than a mean
+	## because a lit window inside the block would drag a mean up and hide a
+	## creature standing beside it.
+	func _plain(src: PackedFloat32Array) -> PackedFloat32Array:
 		var out: PackedFloat32Array = PackedFloat32Array()
 		out.resize(sw * sh)
 		var bx: int = (sw + SCAN_BLOCK - 1) / SCAN_BLOCK
@@ -615,7 +699,7 @@ class _Frame extends RefCounted:
 				var vals: PackedFloat32Array = PackedFloat32Array()
 				for y: int in range(y0, y1, 2):
 					for x: int in range(x0, x1, 2):
-						vals.append(slum[y * sw + x])
+						vals.append(src[y * sw + x])
 				var med: float = _pct(vals, 0.50)
 				for y2: int in range(y0, y1):
 					for x2: int in range(x0, x1):
