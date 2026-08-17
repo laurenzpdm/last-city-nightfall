@@ -179,7 +179,12 @@ func _load_scenario(name: String) -> void:
 			"tick": int(shot.get("tick", 0)),
 			"claim": claim,
 			"fired": -1, "phase": "", "day": -1, "live": 0,
-			"ok": true, "why": "",
+			# `ok` is "this photograph is what its name says". `fatal` is "and
+			# that is THIS run's fault": a beat the scenario could have delivered
+			# and did not fails the run, while a beat whose scenario never
+			# reaches the moment it names is somebody else's one-line fix and is
+			# carried in tests/gate/screenshot_paths.json instead.
+			"ok": true, "fatal": true, "why": "",
 		})
 
 
@@ -329,6 +334,7 @@ func _aim_the_beats() -> void:
 				# these is `tests/gate/screenshot_paths.json` -> misnamed_beats,
 				# which is asserted, owned and not allowed to grow.
 				b["ok"] = false
+				b["fatal"] = false
 				b["why"] = ("claims %s, and this scenario never gets there in %d tick(s) "
 					+ "— no photograph was taken rather than one with a false name") % [
 					_claim_text(claim), _ticks]
@@ -396,21 +402,19 @@ static func _moment_text(f: ClimateForecast, tick: int) -> String:
 ## first night died at t6800, so the beat photographed an empty snowfield and a
 ## critic wrote "assault shows after the battle" — accurately.
 func _fire_live_beats(t: int) -> void:
-	if _beats.is_empty():
-		return
-	var pending: bool = false
+	var armed: Array[int] = []
 	for i: int in _beats.size():
 		var b: Dictionary = _beats[i]
-		if int(b["fired"]) >= 0 or not bool((b["claim"] as Dictionary)["live"]):
+		if int(b["fired"]) >= 0 or not bool(b["ok"]):
 			continue
-		if not bool(b["ok"]) or t < int(b["tick"]):
-			pending = pending or bool(b["ok"])
-			continue
-		pending = true
-		if _live_enemies() > 0:
-			await _shoot(i)
-	if not pending:
+		if bool((b["claim"] as Dictionary)["live"]) and t >= int(b["tick"]):
+			armed.append(i)
+	# Asked once, not once per beat, and not at all on the overwhelming majority
+	# of ticks where nothing is waiting: this runs 24000 times a run.
+	if armed.is_empty() or _live_enemies() <= 0:
 		return
+	for idx: int in armed:
+		await _shoot(idx)
 
 
 ## Enemies the player would see coming. Asked of [P07] first because that is
@@ -439,9 +443,10 @@ func _close_the_beats() -> void:
 				% [int(b["tick"]), _claim_text(b["claim"])])
 		_beats[i] = b
 	for b2: Dictionary in _beats:
-		if not bool(b2["ok"]):
-			_errors.append("beat '%s': %s" % [String(b2["name"]), String(b2["why"])])
-			Log.error("harness", "beat '%s': %s" % [String(b2["name"]), String(b2["why"])])
+		if bool(b2["ok"]) or not bool(b2["fatal"]):
+			continue
+		_errors.append("beat '%s': %s" % [String(b2["name"]), String(b2["why"])])
+		Log.error("harness", "beat '%s': %s" % [String(b2["name"]), String(b2["why"])])
 	if _shutter == null:
 		return
 	for g: String in _shutter.failures():
@@ -514,18 +519,26 @@ func _shoot(index: int) -> void:
 	# rule this whole harness exists to protect.
 	if not _anything_over_the_world():
 		return
+	# STRIP FIRST, THEN LET IT REDRAW, THEN READ. `visible = false` does not
+	# reach into a frame the GPU has already drawn, so hiding and reading in one
+	# breath produces the frame WITH the chrome still in it under a filename
+	# promising it was taken off. That is exactly what these eleven files were
+	# for a whole round of this wave — measured at 1 to 4 grey levels away from
+	# the shot they were supposed to differ from — and the DIFF guard is what
+	# noticed. Same shutter, lower ceiling: here the picture is the CITY, so
+	# everything from the story card up comes off. `forbidden` does not move; a
+	# stopped world is never in a harness frame either way.
+	var world_shot: String = name + ".world"
+	_shutter.ceiling = LcnLayers.NARRATIVE - 1
+	_shutter.strip(get_tree(), world_shot)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
-	# Same shutter, lower ceiling: for this variant the picture is the CITY, so
-	# everything from the story card up is chrome to be taken off. `forbidden`
-	# does not move — a stopped world is never in a harness frame either way.
-	_shutter.ceiling = LcnLayers.NARRATIVE - 1
-	var world_img: Image = _shutter.shoot(get_tree(), name + ".world")
+	var world_img: Image = _shutter.capture(get_tree(), world_shot)
 	_shutter.ceiling = SHOT_CEILING
 	_shutter.restore()
-	_save(world_img, name + ".world")
-	Log.info("harness", "shot %s.world — the city with the chrome taken off" % name)
+	_save(world_img, world_shot)
+	Log.info("harness", "shot %s — the city with the chrome taken off" % world_shot)
 
 
 func _anything_over_the_world() -> bool:
@@ -575,6 +588,11 @@ func _on_game_over(reason: String) -> void:
 ## where its own name put it, and what the running world says it photographed.
 func _beat_report() -> Array:
 	var out: Array = []
+	# A headless run photographs nothing, and a `shots` block full of rows that
+	# never fired reads like eleven failures rather than like a run with no
+	# camera in it.
+	if not visual:
+		return out
 	for b: Dictionary in _beats:
 		var claim: Dictionary = b["claim"]
 		out.append({
@@ -587,6 +605,7 @@ func _beat_report() -> Array:
 				String(b["phase"]), int(b["day"]), int(b["live"])])
 				if int(b["fired"]) >= 0 else "nothing — it never fired",
 			"ok": b["ok"],
+			"fails_the_run": b["fatal"],
 			"why": b["why"],
 		})
 	return out

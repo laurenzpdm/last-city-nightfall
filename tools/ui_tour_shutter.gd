@@ -95,15 +95,37 @@ func _init(top_layer: int = LcnLayers.POST, what: String = "the world",
 
 # ----------------------------------------------------------------- capture --
 
-## Strips, photographs, fingerprints and records — the whole shutter, once.
-## Returns null (and records the shot as UNCHECKED) when there is no framebuffer
-## to read, which is what a headless display server does. A check that cannot be
-## asked is never a pass and never a crash.
+## `strip` then `capture`, in one call, for a rig that photographs the frame AS
+## IT STANDS and only wants the assertion.
+##
+## ── WHEN NOT TO USE THIS, AND IT COST A ROUND TO LEARN ────────────────────────
+##
+## `strip` sets `visible = false`; `capture` reads pixels the GPU has ALREADY
+## drawn. In one call the hiding therefore has no effect on the image at all —
+## it takes a redraw for a hidden layer to leave the framebuffer. A rig that
+## actually wants the chrome OUT of the picture must call `strip`, then await
+## its frames, then `capture`. `LcnHarness` does exactly that for the `.world`
+## variant of every shot, and when it did not, all eleven of those "the city
+## with the chrome taken off" frames still had the whole HUD in them and were
+## within 1-4 grey levels of the shot they were supposed to differ from.
+##
+## The DIFF guard is what found it, on the first run after it was written, and
+## the first instinct was to widen the guard. That is how this project already
+## lost a check once.
+func shoot(tree: SceneTree, shot: String) -> Image:
+	strip(tree, shot)
+	return capture(tree, shot)
+
+
+## Reads the framebuffer, fingerprints it, and re-checks for chrome that arrived
+## since `strip` ran. Returns null — and records the shot as UNCHECKED — when
+## there is nothing to read, which is what a headless display server gives you.
+## A check that cannot be asked is never a pass and never a crash.
 ##
 ## The caller must already have awaited whatever its rig needs to settle;
 ## `RenderingServer.frame_post_draw` is the last thing every caller wants.
-func shoot(tree: SceneTree, shot: String) -> Image:
-	strip(tree, shot)
+func capture(tree: SceneTree, shot: String) -> Image:
+	_recheck(tree, shot)
 	var vp: Viewport = tree.root as Viewport
 	var tex: ViewportTexture = vp.get_texture() if vp != null else null
 	var img: Image = tex.get_image() if tex != null else null
@@ -115,12 +137,13 @@ func shoot(tree: SceneTree, shot: String) -> Image:
 	return img
 
 
-## The CHROME guard, on its own, for a caller that already holds an Image.
+## The CHROME guard. Call it BEFORE the frames that will be drawn if the point
+## is to keep the chrome out of the picture; see `shoot` above.
 ##
-## Hides every visible CanvasLayer above `ceiling` so the artifact is still worth
-## looking at, then records everything that was above `forbidden` — INCLUDING
-## what it just hid. Hiding is a courtesy to whoever opens the PNG; it is not an
-## excuse. A main menu that had to be hidden was in front of the lens.
+## Hides every visible CanvasLayer above `ceiling`, then records everything that
+## was above `forbidden` — INCLUDING what it just hid. Hiding is a courtesy to
+## whoever opens the PNG; it is not an excuse. A main menu that had to be hidden
+## was in front of the lens.
 func strip(tree: SceneTree, shot: String) -> void:
 	var found: PackedStringArray = PackedStringArray()
 	for cl: CanvasLayer in _layers(tree):
@@ -134,16 +157,29 @@ func strip(tree: SceneTree, shot: String) -> void:
 		# photographing is not measuring the build.
 		cl.visible = false
 		_hidden.append(cl)
-	# RE-SCAN. A strip that trusted its own first pass would miss a layer a
-	# deferred installer adds between the two, and a deferred installer is
-	# exactly how [P24]'s menu got in front of the frame lab.
-	for cl2: CanvasLayer in _layers(tree):
-		if cl2.layer >= forbidden and draws(cl2):
-			var tag: String = "%s (layer %d, could not be hidden)" % [cl2.name, cl2.layer]
-			if not found.has(tag):
-				found.append(tag)
 	if not found.is_empty():
-		_chrome[shot] = found
+		_chrome[shot] = _merge(_chrome.get(shot, PackedStringArray()), found)
+	_recheck(tree, shot)
+
+
+## RE-SCAN, at the shutter itself. A strip that trusted its own earlier pass
+## would miss anything a deferred installer added in between — and a deferred
+## installer is exactly how [P24]'s menu got in front of the frame lab.
+func _recheck(tree: SceneTree, shot: String) -> void:
+	var late: PackedStringArray = PackedStringArray()
+	for cl: CanvasLayer in _layers(tree):
+		if cl.layer >= forbidden and draws(cl):
+			late.append("%s (layer %d, still drawing at the shutter)" % [cl.name, cl.layer])
+	if not late.is_empty():
+		_chrome[shot] = _merge(_chrome.get(shot, PackedStringArray()), late)
+
+
+static func _merge(a: PackedStringArray, b: PackedStringArray) -> PackedStringArray:
+	var out: PackedStringArray = a.duplicate()
+	for s: String in b:
+		if not out.has(s):
+			out.append(s)
+	return out
 
 
 ## Puts back everything `strip` hid. A rig that keeps playing after a shot — the
@@ -274,6 +310,23 @@ static func delta(a: PackedFloat32Array, b: PackedFloat32Array) -> float:
 	for i: int in range(a.size()):
 		s += absf(a[i] - b[i])
 	return s / float(a.size())
+
+
+## ── THE EXEMPTION THAT IS NOT HERE, AND WHY ──────────────────────────────────
+##
+## The first run after DIFF was written reported `deep_night_zoomout` and
+## `deep_night_zoomout.world` as the same picture, and the first fix written was
+## an exemption: two views of one moment are not two subjects, so stop comparing
+## them. It was a page of good reasoning and it was wrong. The guard was right —
+## the harness was stripping the chrome and reading the framebuffer in the same
+## breath, so nothing was ever removed and all eleven "the city with the chrome
+## taken off" frames still had the entire HUD in them.
+##
+## Measured after the real fix, on `smoke` and `first_night`: every `.world`
+## frame now sits 0.005 to 0.08 from the shot it is a variant of, against a
+## threshold of 0.002. The exemption is not needed and would have hidden the
+## defect it was written to explain away. If a future frame trips this, that
+## frame is worth looking at.
 
 
 ## DOES THIS LAYER PUT ANYTHING ON THE SCREEN — which is not the same question
