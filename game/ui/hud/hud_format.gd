@@ -66,6 +66,29 @@ static func amount(value: float) -> String:
 	return "%.1f" % v
 
 
+## Days of something left, in the ONE wording the whole HUD uses.
+##
+## THE PANEL AND THE ALERT WERE ROUNDING THE SAME FLOAT DIFFERENTLY, in the same
+## frame, fifteen hundred pixels apart: `artifacts/play_careless_vis/shots/
+## assault.png` reads "FOOD 1.6 days" on the vitals panel and "Food runs out in
+## 1.5 days" in the ATTENTION list. A player who notices has to decide which
+## panel is lying, and the answer — neither, they snap to different grids — is
+## not available to them. Half-day steps, because nobody plans on a tenth of a
+## day and 1.6 pretends to a precision the food model does not have.
+static func days(value: float) -> String:
+	if value < 0.05:
+		return "nothing"
+	if value < 0.75:
+		return "half a day"
+	if value < 10.0:
+		var rounded: float = snappedf(value, 0.5)
+		if is_equal_approx(rounded, roundf(rounded)):
+			var whole: int = int(roundf(rounded))
+			return "%d day%s" % [whole, "" if whole == 1 else "s"]
+		return "%.1f days" % rounded
+	return "%d days" % int(roundf(value))
+
+
 ## "timber", "timber and stone", "timber, stone and coal". Oxford-free, because
 ## the HUD writes the way a person speaks.
 static func list_words(words: PackedStringArray) -> String:

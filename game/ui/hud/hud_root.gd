@@ -794,6 +794,26 @@ func _draw_footer() -> void:
 	# goes stale the first time another part adds a strip.
 	var ceiling: float = _footer_ceiling if _footer_ceiling > 0.0 else h - DESIGN_MARGIN
 	var y: float = minf(h - 52.0, ceiling - 14.0)
+	# ── AND ABOVE [P22]'s FLAVOUR FEED, WHICH IS NOT PART OF THE RAIL ────────
+	# `artifacts/play_careless_vis/shots/dawn.png`: four lines of ticker prose
+	# with two toasts laid straight across them — "The tarp over the east stack
+	# froze into one sheet" and "Right now the plain outside is lethal" sharing
+	# the same eighty pixels, both unreadable. The solver already keeps [P18]'s
+	# hotkey strip and [P19]'s legend out of this lane, and `LcnHudStage`
+	# publishes the ticker's rectangle for exactly this reason; nothing had ever
+	# asked it. Flavour yields to a card and toasts yield to flavour, so the
+	# bottom of the screen has one reading order instead of three.
+	if stage != null and stage.ticker_rect.size.y > 1.0:
+		y = minf(y, stage.ticker_rect.position.y / style.ui_scale - 8.0)
+	# And out of [P22]'s CARD, which is a question the player is being asked and
+	# is never the right thing to write a passing message across. Between a card
+	# and the feed under it there is usually no room for a plate at all, so the
+	# lane goes above the card rather than into the ten pixels between them.
+	if stage != null and stage.card_rect.size.y > 1.0:
+		var card: Rect2 = Rect2(stage.card_rect.position / style.ui_scale,
+			stage.card_rect.size / style.ui_scale)
+		if y + 4.0 > card.position.y and y - 20.0 < card.end.y:
+			y = card.position.y - 10.0
 	var toast_list: Array[Dictionary] = alerts.toasts()
 	for i: int in range(toast_list.size() - 1, -1, -1):
 		var t: Dictionary = toast_list[i]

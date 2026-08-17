@@ -64,7 +64,10 @@ func _draw_belts() -> void:
 		if not visible_rect(r):
 			continue
 		var load: float = float(b["load"])
-		var stuck: bool = bool(b["stalled"]) or bool(b["backed_up"])
+		# `stalled` is the probe's normalised key: it already folds the sim's
+		# `backed_up` and the at-capacity fallback into one bool. Reading
+		# `backed_up` here threw on every frame this lens drew.
+		var stuck: bool = bool(b["stalled"])
 		var c: Color = pal.good().lerp(pal.warn(), load)
 		if stuck:
 			c = pal.bad()

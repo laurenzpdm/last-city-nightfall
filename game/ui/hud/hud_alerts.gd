@@ -59,6 +59,9 @@ var _toasts: Array[Dictionary] = []
 var _deaths: Array[float] = []
 var _stall_keys: Dictionary[int, float] = {}
 var _now: float = 0.0
+## Set once, by `Bus.game_over`. A city that is over has no next hour, so it has
+## no advice worth giving.
+var _over: bool = false
 ## item -> the in-world second its drain was first seen. Cleared the moment the
 ## drain stops, which is what makes the confirmation window a window and not a
 ## delay that only ever runs once.
@@ -105,6 +108,22 @@ func refresh(probe: LcnHudProbe, now: float) -> void:
 		clear()
 	_now = now
 	var out: Array[Dictionary] = []
+	# ── THE PANEL WAS STILL GIVING ADVICE TO A CORPSE ────────────────────────
+	# `artifacts/play1/shots/third_day_city.png`: [P22]'s epilogue card — "The
+	# City Did Not Stand" — is open in the middle of the screen, and eighteen
+	# hundred pixels to its left the ATTENTION panel reads "Attack in 2 minutes
+	# · First Frost arrives in 20 seconds · Scrap runs out in 2 minutes · Add
+	# generation, or switch off what you can live without". Every one of those
+	# is a promise about an hour this city does not get, and the one row that
+	# was true — "The city is lost" — had already aged out of the bus lane on a
+	# 12 second TTL while the ending it announces was still on screen.
+	#
+	# So the panel says one thing after the end, and says it for as long as the
+	# run is on screen.
+	if _over:
+		entries = _carry_over_row(probe)
+		_toasts.clear()
+		return
 	_derive_heat(probe, out)
 	_derive_people(probe, out)
 	_derive_threat(probe, out)
@@ -170,6 +189,7 @@ func _cap_families(rows: Array[Dictionary]) -> Array[Dictionary]:
 
 
 func clear() -> void:
+	_over = false
 	entries.clear()
 	_bus.clear()
 	_toasts.clear()
@@ -337,18 +357,11 @@ func _derive_people(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 
 
 ## "half a day", "1.5 days", "3 days" — never "2.0 days", never "0.0 days".
+## Moved to `LcnHudFormat.days` so the vitals panel can round the same float the
+## same way this list does. Kept as a one-line forward: every call site here
+## reads better with the local name.
 static func _days_words(days: float) -> String:
-	if days < 0.05:
-		return "nothing"
-	if days < 0.75:
-		return "half a day"
-	if days < 10.0:
-		var rounded: float = snappedf(days, 0.5)
-		if is_equal_approx(rounded, roundf(rounded)):
-			var whole: int = int(roundf(rounded))
-			return "%d day%s" % [whole, "" if whole == 1 else "s"]
-		return "%.1f days" % rounded
-	return "%d days" % int(roundf(days))
+	return LcnHudFormat.days(days)
 
 
 func _derive_threat(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
@@ -359,15 +372,40 @@ func _derive_threat(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 	if where == Vector2.ZERO:
 		where = probe.core_focus()
 	if probe.wave_active and probe.enemies_alive > 0:
+		# THE FIX HAS TO BE A FIX THIS PLAYER CAN MAKE. `careless_night` has no
+		# turret standing when the hounds walk in, and the panel still advised
+		# "do not let the grid brown out now" — heat discipline, for guns that
+		# do not exist (`artifacts/play_careless_vis/shots/assault.png`). The
+		# probe has counted the mounts since it was written; the row simply
+		# never asked.
+		var fix: String = "Turrets burn heat to fire — do not let the grid brown out now."
+		if probe.turrets_total <= 0:
+			fix = "Nothing in this city can shoot back. They will keep walking until something stops them."
+		elif probe.turrets_online <= 0:
+			fix = "Every turret you own is cold — they need heat on the grid before they can fire."
 		out.append(_entry(&"wave_here", "wave", S.Sev.CRITICAL,
 			"%d in the city" % probe.enemies_alive,
 			"They are inside the perimeter.",
-			"Turrets burn heat to fire — do not let the grid brown out now.",
-			where, probe.enemies_alive))
+			fix, where, probe.enemies_alive))
 		return
 	if probe.wave_seconds >= 0.0 and probe.wave_seconds < 120.0:
-		var body: String = "Wave %d comes from the %s." % [maxi(1, probe.wave_number),
-			LcnHudFormat.compass(probe.wave_direction)]
+		# "WAVE 1 COMES FROM THE ALL SIDES." `LcnHudFormat.compass()` answers
+		# "all sides" for a direction vector of zero, which is the right words in
+		# the wrong slot: every other answer it gives ("south-east") wants a
+		# definite article and this one does not.
+		#
+		# A zero vector here also means the probe HAS no bearing, while the wave
+		# panel beside it was reading [P08]'s redacted preview and printing "wave
+		# 1 from the south-east" in the same frame
+		# (`artifacts/play_careless_v2/shots/midday.png`). Two panels, one wave,
+		# two answers. When there is no bearing this row now says so instead of
+		# inventing a compass rose.
+		var compass: String = LcnHudFormat.compass(probe.wave_direction)
+		var body: String = ""
+		if probe.wave_direction == Vector2.ZERO:
+			body = "Wave %d. The watch has not placed it yet." % maxi(1, probe.wave_number)
+		else:
+			body = "Wave %d comes from the %s." % [maxi(1, probe.wave_number), compass]
 		if not probe.wave_known:
 			body = "Wave %d. Nothing has been seen yet — the direction is not known." \
 				% maxi(1, probe.wave_number)
@@ -491,17 +529,36 @@ func _derive_supplies(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 		probe.core_focus(), 1))
 
 
-## [P04] may report its own stall count; the Bus signal covers the case where it
-## does not. Whichever number is larger is the one the player can see on the map.
+## [P04]'s own stall count when it has one, and the Bus signal only when it does
+## not.
+##
+## IT USED TO TAKE THE LARGER OF THE TWO, on the reasoning that the larger number
+## is "the one the player can see on the map". The opposite is true, and one
+## frame shows it: `artifacts/play_tour/shots/08_lens_5.png` has [P19]'s
+## logistics legend reading "1 machine stalled" — a live count, over a map with
+## one ring drawn on it — while this panel reads "2 machines stalled" nine
+## hundred pixels away. `_stall_keys` is a twenty-second MEMORY of
+## `Bus.machine_stalled`, so it keeps counting a machine that started again
+## fifteen seconds ago. A remembered stall is not a stall, and the map is the
+## thing the player can check.
 func _derive_build(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
-	var stalled: int = maxi(_live_stalls(), probe.stalled_machines)
+	var remembered: int = _live_stalls()
+	var stalled: int = probe.stalled_machines if probe.has_production else remembered
 	if stalled <= 0:
 		return
+	# "FOLLOW THE BELT" IN A CITY WITH NO BELTS. `artifacts/play_tour/shots/
+	# 10_build_ghost.png` has two stalled machines, this exact advice, and not
+	# one belt segment anywhere in the world — the whole run is hand-hauled.
+	# Which fix is true depends on whether the player has automated anything
+	# yet, and [P03] has been counting its lines the whole time.
+	var fix: String = "Follow the belt: it is empty at one end and full at the other."
+	if probe.belt_lines <= 0:
+		fix = "Nothing is being carried to them. Check what the recipe needs and "\
+			+ "whether the city has any of it."
 	out.append(_entry(&"stalled", "stalled", S.Sev.INFO,
 		"%d machine%s stalled" % [stalled, "" if stalled == 1 else "s"],
 		"They have nothing to work with, or nowhere to put what they make.",
-		"Follow the belt: it is empty at one end and full at the other.",
-		probe.stalled_focus(), stalled))
+		fix, probe.stalled_focus(), stalled))
 
 
 ## [P06] issues ultimatums with a deadline on them, and the ONLY answer to one is
@@ -662,11 +719,41 @@ func _on_wave_cleared(wave: int) -> void:
 
 
 func _on_game_over(reason: String) -> void:
+	if _over:
+		return   # the hearth falls and then the last citizen dies: one ending.
+	_over = true
 	_bus[&"game_over"] = {
 		"key": &"game_over", "family": "game_over", "sev": S.Sev.CRITICAL,
-		"head": "The city is lost", "body": reason, "fix": "",
+		"head": "The city is lost", "body": _ending_words(reason), "fix": "",
 		"focus": Vector2.ZERO, "count": 1, "at": _now,
 	}
+
+
+## The single row an ended run shows, rebuilt every refresh so it never ages out.
+func _carry_over_row(_probe: LcnHudProbe) -> Array[Dictionary]:
+	var row: Dictionary = _bus.get(&"game_over", {}).duplicate()
+	if row.is_empty():
+		return []
+	row["at"] = _now
+	return [row] as Array[Dictionary]
+
+
+## `Bus.game_over` carries a reason key, not a sentence: "exiled", "despair",
+## "the hearth was torn down". Printed raw under "The city is lost" the panel
+## read `exiled`, which is the same lower-case machine word the epilogue card
+## prints in its BECAUSE block. One of the two had to become English.
+func _ending_words(reason: String) -> String:
+	match reason.strip_edges():
+		"exiled":
+			return "The council was put out of its own gate."
+		"despair":
+			return "Nobody left here believes this city will hold."
+		"extinct":
+			return "There is nobody left alive in the caldera."
+		"":
+			return ""
+	var r: String = reason.strip_edges()
+	return _capitalise(r.trim_suffix(".")) + "."
 
 
 func _push_toast(text: String, sev: int) -> void:

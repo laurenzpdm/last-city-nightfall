@@ -121,6 +121,9 @@ var wave_band: String = ""
 var wave_known: bool = true
 var wave_precision: int = 3
 var wave_active: bool = false
+## Latched by `Bus.game_over`. Cleared only when the probe rebinds to a new
+## world, which is what a restart does.
+var run_over: bool = false
 var has_combat: bool = false
 var enemies_alive: int = 0
 var turrets_online: int = 0
@@ -132,7 +135,12 @@ var has_build: bool = false
 var sites_pending: int = 0
 var buildings_total: int = 0
 var buildings_frozen: int = 0
+var has_production: bool = false
 var stalled_machines: int = 0
+## Belt lines [P03] is running. Zero in a city where nothing has been automated
+## yet, which is most of the first hour — and the difference between advice a
+## player can follow and advice about equipment they do not own.
+var belt_lines: int = 0
 var stock: Dictionary[StringName, int] = {}
 var stock_order: Array[StringName] = []
 
@@ -179,6 +187,7 @@ func _init() -> void:
 			bus.connect(&"wave_incoming", _on_wave_incoming)
 			bus.connect(&"wave_started", _on_wave_started)
 			bus.connect(&"wave_cleared", _on_wave_cleared)
+			bus.connect(&"game_over", _on_game_over)
 
 
 ## Drops every Bus subscription. MUST be called when the owner goes away: an
@@ -191,7 +200,8 @@ func dispose() -> void:
 	for pair: Array in [[&"heat_shortfall", _on_heat_shortfall],
 			[&"wave_incoming", _on_wave_incoming],
 			[&"wave_started", _on_wave_started],
-			[&"wave_cleared", _on_wave_cleared]]:
+			[&"wave_cleared", _on_wave_cleared],
+			[&"game_over", _on_game_over]]:
 		if bus.is_connected(pair[0], pair[1]):
 			bus.disconnect(pair[0], pair[1])
 
@@ -238,6 +248,8 @@ func bind() -> void:
 		# last one's count over would leave its first wave suppressed.
 		_wave_finished = 0
 		_bus_wave = []
+		# A new seed is a new city. The last one's ending is not this one's.
+		run_over = false
 	_bound_tick = _tick()
 
 
@@ -262,12 +274,15 @@ func _forget() -> void:
 	has_threat = false
 	has_combat = false
 	has_research = false
+	has_production = false
+	stalled_machines = 0
 	short_networks.clear()
 	stock.clear()
 	stock_order.clear()
 	demands.clear()
 	ultimatum_active = false
 	sites_pending = 0
+	belt_lines = 0
 	research_title = ""
 	_shortfalls.clear()
 	_focus_cache.clear()
@@ -621,6 +636,16 @@ func _on_wave_cleared(wave: int) -> void:
 	_wave_finished = maxi(_wave_finished, wave)
 
 
+## The run is over. [P08] keeps composing waves afterwards — it has no reason
+## not to — and `artifacts/play1/shots/third_day_city.png` therefore shows [P22]'s
+## ending card with "NEXT WAVE 1:36 · wave 3 from the south-east, the south-west
+## and the north-east" beside it, a forecast for a night this city does not get.
+## The panel already stands itself down on `wave_seconds < 0`; it only needed to
+## be told.
+func _on_game_over(_reason: String) -> void:
+	run_over = true
+
+
 ## [P08]'s preview if it has one, the Bus countdown if it does not, nothing if
 ## neither. `wave_seconds` is negative when there is nothing to show.
 ##
@@ -689,6 +714,11 @@ func _read_threat(tick: int) -> void:
 	# The three existed; the wire between them did not.
 	if not wave_active and wave_number <= _wave_finished:
 		wave_seconds = -1.0
+	# And a city that is over has no next night at all. Same rule, one signal
+	# later: see `_on_game_over`.
+	if run_over:
+		wave_seconds = -1.0
+		wave_active = false
 
 
 ## The heaviest approach lane, and where it comes in. [P08] hands out a
@@ -747,8 +777,10 @@ func _read_build() -> void:
 		+ int(bm.get("queued", 0))
 	buildings_total = int(bm.get("buildings_total", 0))
 	buildings_frozen = int(bm.get("frozen", 0))
+	has_production = _production != null
 	if _production != null:
 		stalled_machines = int(_ask(_production, [], ["stalled"], 0.0))
+	belt_lines = int(_ask(_logistics, [], ["belt_lines"], 0.0))
 	_read_stock()
 
 

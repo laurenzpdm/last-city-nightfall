@@ -184,6 +184,13 @@ func _place_ticker(card: Rect2) -> void:
 	var blocked: bool = card.size.x > 1.0 \
 		and card.end.y + TICKER_CLEARANCE > grown.position.y \
 		and card.end.x > grown.position.x and card.position.x < grown.end.x
+	# A FEED WITH NOTHING IN IT IS NOT A FEED. This function owns `visible` on
+	# the plate, so [P22] hiding an empty one lasted exactly until the next
+	# frame — the plate came back as a rimmed 730 x 105 rectangle with no text
+	# in it, over the middle of the city. [P22] publishes whether it has a line;
+	# placing something empty is the one case where the answer is "nowhere".
+	if _presenter != null and not bool(_presenter.get(&"ticker_has_lines")):
+		blocked = true
 	_ticker.visible = not blocked
 	if not _ticker.visible:
 		ticker_rect = Rect2()
