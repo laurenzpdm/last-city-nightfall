@@ -21,7 +21,6 @@ demolish_time_ticks = 60
 refund_ratio = 0.7
 build_priority = 80
 workers_required = 1
-staff_capacity = 2
 heat_consumed = 5.0
 heat_buffer = 20.0
 heat_insulation = 0.6
