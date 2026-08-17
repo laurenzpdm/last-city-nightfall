@@ -21,6 +21,10 @@ extends RefCounted
 ## Get that order wrong and the failure is invisible: the city comes up, looks
 ## right, and diverges. `tests/meta/test_save_roundtrip.gd` is the check — it
 ## compares `Sim.serialize()` after a load against the bytes that were saved.
+##
+## Those four steps now live in exactly one place, `Sim.deserialize()`, and
+## `apply_world()` below calls it. See the comment there for what the second
+## copy cost while it existed.
 
 const AUTOSAVE_PREFIX: String = "autosave"
 const QUICKSAVE_SLOT: String = "quicksave"
@@ -301,43 +305,32 @@ static func load_slot(slot_id: String) -> bool:
 	return apply_world(world)
 
 
-## Rebuilds the live world from a `Sim.serialize()` payload. See the class
-## comment for why the four steps are in this order.
+## Rebuilds the live world from a `Sim.serialize()` payload.
+##
+## ── THERE WERE TWO DOORS INTO A LOAD AND ONLY ONE OF THEM WAS MAINTAINED ─────
+##
+## The class comment above says "nothing here re-implements any of that", and
+## until this wave that sentence was false about the function directly under it.
+## This body WAS the four steps, hand-written a second time — create_world, set
+## the tick, deserialize in sorted name order, restore the RNG — and it was
+## correct on the day it was written. Then `Sim.deserialize()` grew a second
+## restore pass and `LcnStateReconciler`, and this copy did not, because nothing
+## made the two move together.
+##
+## The price, measured by `tests/meta/test_save_roundtrip.gd` on a live world:
+## `Sim.deserialize` loses 8 fields, this door lost 40. The 32-field difference
+## was entirely on the door a PLAYER uses — the simulation's own loader was the
+## repaired one and the menu's was not.
+##
+## So it delegates now, and the delegation is the point: there is one loader, the
+## suite that grades it grades both doors at once, and the next pass that teaches
+## `Sim.deserialize()` something new cannot leave the player behind. Everything
+## this body used to do itself — the absent-pillar ERROR, the loaded line in the
+## log, `Bus.world_ready` — `Sim.deserialize()` already does, in the same order.
+## Changed by the INTEGRATOR: [P24] owns this file and the save layer measured
+## the gap, and neither of them may write in the other's folder.
 static func apply_world(world: Dictionary) -> bool:
-	var systems: Variant = world.get("systems", {})
-	if typeof(systems) != TYPE_DICTIONARY:
-		Log.error("meta", "load: the payload has no systems block")
-		return false
-	var seed_value: int = int(world.get("seed", 7))
-	Sim.create_world(seed_value)
-	SimClock.tick = int(world.get("tick", 0))
-	var by_name: Dictionary = systems
-	var names: Array = by_name.keys()
-	names.sort()
-	var restored: PackedStringArray = PackedStringArray()
-	var absent: PackedStringArray = PackedStringArray()
-	for n: String in names:
-		var sys: SimSystem = Sim.get_system(StringName(n))
-		if sys == null:
-			absent.append(n)
-			continue
-		var payload: Variant = by_name[n]
-		if typeof(payload) != TYPE_DICTIONARY:
-			continue
-		sys.deserialize(payload)
-		restored.append(n)
-	var rng: Variant = world.get("rng", {})
-	if typeof(rng) == TYPE_DICTIONARY:
-		Rng.restore(rng)
-	if not absent.is_empty():
-		# Not a warning. A save naming a pillar this build does not have means
-		# the player is loading a city that cannot come back the way it went in.
-		Log.error("meta", "load: this build has no %s system(s) — that state is LOST" % [
-			", ".join(absent)])
-	Log.info("meta", "loaded tick %d, seed %d, %d system(s): %s" % [
-		SimClock.tick, seed_value, restored.size(), " ".join(restored)])
-	Bus.world_ready.emit()
-	return true
+	return bool(Sim.deserialize(world)["ok"])
 
 
 # ================================================================== delete ===
