@@ -233,6 +233,30 @@ func test_a_repair_may_never_hand_a_system_a_shape_it_cannot_read() -> void:
 		"and the rule reaches all the way down")
 
 
+func test_a_loaded_city_keeps_running_at_all() -> void:
+	# Two hundred ticks past the load, and the point is not the assertions at the
+	# bottom — it is that the engine gets to raise. A repair that hands a system
+	# a shape it cannot read does not fail a comparison; it fails the NEXT thing
+	# that touches the value, which is why the narrative queue's projection bug
+	# survived every round-trip assertion in this file and only showed up as
+	# `Invalid access to property or key 'priority'` on tick 401. Nothing here
+	# counts engine errors — `tools/scan_errors.py` reads this suite's log and
+	# does, and it can only do that if something actually runs after a load.
+	var world: SimFixture = _fresh(23)
+	world.run(400)
+	var saved: Dictionary = Sim.serialize()
+	world.stop()
+
+	world = _fresh(999)
+	world.run(60)
+	assert_true(bool(Sim.deserialize(saved)["ok"]), "loaded")
+	var at: int = SimClock.tick
+	world.run(200)
+	assert_eq(SimClock.tick, at + 200, "and ran on for two hundred ticks")
+	assert_true(Sim.alive, "with a world still standing at the end of them")
+	world.stop()
+
+
 func test_a_payload_with_no_systems_block_is_refused_without_touching_the_world() -> void:
 	var world: SimFixture = _fresh(7)
 	world.run(100)
