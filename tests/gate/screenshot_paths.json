@@ -84,16 +84,10 @@
       "owner": "P24 meta",
       "photographs": "the save-slot thumbnail",
       "cost": "lower stakes and the same defect: the thumbnail is grabbed while a menu is open, so every save in the browser is a picture of the save browser"
-    },
-    {
-      "path": "res://game/play/ui_tour.gd",
-      "owner": "INTEGRATOR",
-      "photographs": "nothing any more — superseded by tools/ui_tour.gd, which boot loads by path",
-      "cost": "dead code with a live class_name. Delete it; this row goes with it."
     }
   ],
 
-  "max_blind": 10,
+  "max_blind": 9,
 
   "misnamed_beats_why": [
     "tests/gate/test_shot_beats.gd asserts that every photographic beat in every",
