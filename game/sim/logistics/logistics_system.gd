@@ -371,9 +371,28 @@ func _serve_fuel() -> void:
 					dry_lines, "" if dry_lines == 1 else "s"], Vector2.ZERO)
 			Log.info("logistics", "%d line-fed burners dry — the belt into them is empty" % dry_lines)
 		else:
-			Bus.alert_raised.emit(1, &"fuel_short",
-				"%d burner%s running dry — the city is out of %s" % [
-					short, "" if short == 1 else "s", what], Vector2.ZERO)
+			# "THE CITY IS OUT OF COAL" WHILE THE STORES RAIL SAYS 160 COAL.
+			# `haul.serve` returning nothing means nothing ARRIVED, which is
+			# three different situations: the city has none of the stuff, or it
+			# has it and no porter got there in time. Only the first one is
+			# "out of". The other one is the player's actual problem — a bunker
+			# too far from the stores for the crew it has — and naming it is the
+			# difference between an alert and a lie the resource rail contradicts
+			# in the same frame.
+			var in_store: int = 0
+			var st: BuildStock = _stock()
+			if st != null:
+				in_store = st.count(missing)
+			var sentence: String = ""
+			if in_store > 0:
+				sentence = ("%d burner%s running dry — there is %s in store and " +
+					"nobody is carrying it there") % [
+						short, "" if short == 1 else "s",
+						"%d %s" % [in_store, what]]
+			else:
+				sentence = "%d burner%s running dry — the city is out of %s" % [
+					short, "" if short == 1 else "s", what]
+			Bus.alert_raised.emit(1, &"fuel_short", sentence, Vector2.ZERO)
 			# The same sentence the alert two lines up says, in the same words.
 			# It used to read `1 burners short of waste_heat (0 of them on a
 			# dead line)` — a plural on a count of one, a content id where the
