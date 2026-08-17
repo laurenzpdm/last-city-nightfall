@@ -351,6 +351,141 @@ func serialize() -> Dictionary:
 	return out
 
 
+## Rebuilds this world from a `serialize()` payload — and checks its own work.
+##
+## The contract is one sentence: after `Sim.deserialize(w)` returns true,
+## `Sim.serialize()` equals `w`. Not "close enough to converge in a tick", not
+## "everything anybody remembered to write a reader for". Equal. Determinism is
+## §0.4's non-negotiable and a save is the one place a player leaves the
+## simulation and comes back to it, so a reload that lands somewhere else is the
+## same defect as a `randf()` in a step function, just slower to notice.
+##
+## The order is load-bearing and every step of it was paid for:
+##
+##   1. `create_world(seed)` first, so every cross-system reference is wired
+##      before a single value lands on it;
+##   2. `SimClock.tick` BEFORE the systems, because several of them stamp the
+##      current tick into what they rebuild;
+##   3. systems deserialize in SORTED name order, so a load is as replayable as
+##      the run that produced it;
+##   4. `LcnStateReconciler` puts back what step 3 dropped — every system's
+##      `serialize()` is compared against the payload it was handed and the
+##      difference is hunted down to the variable it came from, then ratified by
+##      re-serializing. See that file for why this is a measurement and not a
+##      hand-written mapping table;
+##   5. `Rng.restore()` LAST, because `create_world` reseeds every stream and
+##      because a `serialize()` call in step 4 may itself have drawn one.
+##
+## Returns `{ok, restored, absent, repaired, unrestored, systems_incomplete}`.
+## `unrestored` is the honest residue: fields that were in the save and are not
+## in the world. It is empty on this build and a test says so; if it ever is not,
+## it names the field and the part rather than being written down in a list of
+## exceptions somewhere.
+func deserialize(world: Dictionary) -> Dictionary:
+	var report: Dictionary = {
+		"ok": false, "restored": PackedStringArray(), "absent": PackedStringArray(),
+		"repaired": PackedStringArray(), "unrestored": PackedStringArray(),
+		"systems_incomplete": PackedStringArray(),
+	}
+	var blob: Variant = world.get("systems", {})
+	if typeof(blob) != TYPE_DICTIONARY or (blob as Dictionary).is_empty():
+		# A world with no systems in it is not a world. Refusing it here is what
+		# lets a caller hand this function a corrupt file without the running
+		# city being torn down before the problem is noticed.
+		Log.error("sim", "load: the payload carries no systems block — refusing it")
+		return report
+
+	var payloads: Dictionary = blob
+	var names: Array = payloads.keys()
+	names.sort()
+
+	create_world(int(world.get("seed", 7)))
+	SimClock.tick = int(world.get("tick", 0))
+
+	# PackedStringArray is a value type: appending through `report["x"]` appends
+	# to a copy. Collect locally, assign once.
+	var restored: PackedStringArray = PackedStringArray()
+	var absent: PackedStringArray = PackedStringArray()
+	var repaired: PackedStringArray = PackedStringArray()
+	var unrestored: PackedStringArray = PackedStringArray()
+	var incomplete: PackedStringArray = PackedStringArray()
+
+	# TWICE, and the second pass is not superstition. Systems are restored in name
+	# order, so `society` rebuilds its pressure ledger while `threat` is still the
+	# empty world `create_world` just made — and society samples the night the
+	# threat director has planned. Every `deserialize()` in this build clears what
+	# it rebuilds, so a second pass is a no-op for every system that does not read
+	# a neighbour, and the difference for the ones that do is measured:
+	# `$.systems.society.forces` comes back only on the second pass.
+	for _pass: int in LcnStateReconciler.RESTORE_PASSES:
+		for n: String in names:
+			var sys: SimSystem = get_system(StringName(n))
+			if sys == null:
+				if _pass == 0:
+					absent.append(n)
+				continue
+			if typeof(payloads[n]) != TYPE_DICTIONARY:
+				continue
+			sys.deserialize(payloads[n])
+			if _pass == 0:
+				restored.append(n)
+
+	# Then finish the job, until it stops getting better. One system's repair can
+	# unlock another's — putting a citizen's morale back changes the average the
+	# citizens system reports — so the sweep repeats while anything is still
+	# moving, and stops the moment it is not.
+	var mended: Dictionary[String, bool] = {}
+	var last_left: int = -1
+	for _round: int in LcnStateReconciler.RECONCILE_ROUNDS:
+		unrestored.clear()
+		incomplete.clear()
+		for n2: String in names:
+			var sys2: SimSystem = get_system(StringName(n2))
+			if sys2 == null or typeof(payloads[n2]) != TYPE_DICTIONARY:
+				continue
+			var rep: Dictionary = LcnStateReconciler.finish(sys2, payloads[n2])
+			for f: String in (rep["fixed"] as PackedStringArray):
+				mended["$.systems.%s%s" % [n2, f.substr(1)]] = true
+			var left: PackedStringArray = rep["left"]
+			if left.is_empty():
+				continue
+			incomplete.append(n2)
+			for f2: String in left:
+				unrestored.append("$.systems.%s%s" % [n2, f2.substr(1)])
+		if unrestored.size() == last_left:
+			break
+		last_left = unrestored.size()
+	var mended_keys: Array = mended.keys()
+	mended_keys.sort()
+	for k: String in mended_keys:
+		repaired.append(k)
+
+	report["restored"] = restored
+	report["absent"] = absent
+	report["repaired"] = repaired
+	report["unrestored"] = unrestored
+	report["systems_incomplete"] = incomplete
+
+	# Last, and after every serialize() this function performs.
+	var rng_blob: Variant = world.get("rng", {})
+	if typeof(rng_blob) == TYPE_DICTIONARY:
+		Rng.restore(rng_blob)
+
+	if not absent.is_empty():
+		# Not a warning. A save naming a pillar this build does not have means the
+		# player is loading a city that cannot come back the way it went in.
+		Log.error("sim", "load: this build has no %s system(s) — that state is LOST" % [
+			", ".join(absent)])
+	if not unrestored.is_empty():
+		Log.warn("sim", "load: %d field(s) did not come back: %s" % [
+			unrestored.size(), " ".join(unrestored)])
+	report["ok"] = true
+	Log.info("sim", "loaded tick %d, seed %d, %d system(s), %d field(s) repaired, %d lost" % [
+		SimClock.tick, Rng.seed_value, restored.size(), repaired.size(), unrestored.size()])
+	Bus.world_ready.emit()
+	return report
+
+
 func collect_metrics() -> Dictionary:
 	var out: Dictionary = {"tick": SimClock.tick}
 	for s: SimSystem in systems:

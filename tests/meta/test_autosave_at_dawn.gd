@@ -25,6 +25,19 @@ func requires_systems() -> PackedStringArray:
 	return PackedStringArray(["climate"])
 
 
+## The autosave writes FIXED slot ids (`autosave_1..3`) and one test counts every
+## autosave file on the machine. `user://saves/` is one directory per machine,
+## not one per process, so four agents running the gate at once each rotated the
+## same three files and the count came out anything but three. The lock makes
+## them take turns; it is broken automatically if a killed process leaves it.
+func before_all() -> void:
+	LcnSaveSlots.hold("tests/meta autosave rotation")
+
+
+func after_all() -> void:
+	LcnSaveSlots.drop()
+
+
 func setup() -> void:
 	world = SimFixture.new(7).start()
 	auto = LcnAutosave.new()

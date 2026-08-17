@@ -18,8 +18,8 @@ extends TestCase
 ## The suite restores the player's real settings file afterwards, byte for byte.
 
 const PROBE: String = "res://game/ui/meta/restart_probe.tscn"
-const SLOT: String = "restart_slot"
 
+var _slot: String = ""
 var _backup: PackedByteArray = PackedByteArray()
 var _had_backup: bool = false
 
@@ -28,7 +28,14 @@ func requires_files() -> PackedStringArray:
 	return PackedStringArray([PROBE])
 
 
+## `game/core/settings.cfg` and `user://saves/` are ONE path per machine. This
+## suite rewrites the first and counts the files in the second, and it starts a
+## SECOND Godot process that reads both — so a concurrent gate run on another
+## core was rewriting the config underneath the probe and adding saves between
+## the two counts. One suite at a time, and a scratch slot nobody else can pick.
 func before_all() -> void:
+	LcnSaveSlots.hold("tests/meta restart probe")
+	_slot = LcnSaveSlots.scratch("restart_slot")
 	_had_backup = FileAccess.file_exists(Settings.PATH)
 	if _had_backup:
 		_backup = FileAccess.get_file_as_bytes(Settings.PATH)
@@ -45,7 +52,9 @@ func after_all() -> void:
 		var _e: int = DirAccess.remove_absolute(ProjectSettings.globalize_path(Settings.PATH))
 	Settings.load_from_disk()
 	Keybinds.restore(Settings)
-	LcnSaveManager.delete(SLOT)
+	LcnSaveManager.delete(_slot)
+	LcnSaveSlots.purge()
+	LcnSaveSlots.drop()
 
 
 func test_a_rebound_key_is_still_rebound_in_a_new_process() -> void:
@@ -91,7 +100,7 @@ func test_a_save_written_now_is_on_disk_for_the_next_launch() -> void:
 	var world := SimFixture.new(7).start()
 	world.run(60)
 	var before: int = LcnSaveManager.slots().size()
-	assert_true(not LcnSaveManager.save(SLOT, "Cold start").is_empty(), "a save was written")
+	assert_true(not LcnSaveManager.save(_slot, "Cold start").is_empty(), "a save was written")
 	var out: PackedStringArray = _run_probe([])
 	assert_true(_contains(out, "PROBE saves=%d" % (before + 1)),
 		"a cold process finds %d save(s) — %s" % [before + 1, _joined(out, "saves")])
