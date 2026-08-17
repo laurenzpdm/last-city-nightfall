@@ -642,15 +642,35 @@ static func _unfuelled_burners(buildings: Array) -> PackedStringArray:
 
 # ================================================================= ui tour ==
 
+## Where the driver lives. Loaded BY PATH, like every other seam in this file,
+## so a broken or missing tool costs one logged line instead of a build that
+## will not compile.
+const UI_TOUR_SCRIPT: String = "res://tools/ui_tour.gd"
+
 ## `--ui-tour` presses every screen's hotkey against the real window and saves a
 ## PNG of each, so "a human can open it" is answered by a photograph instead of
 ## by a comment. Quits when the last shot is written.
+##
+## THE DRIVER MOVED OUT OF `game/play/` because it is a tool, not a session
+## shell, and because the defect it shipped with was a disagreement about how to
+## read a command line between two files that both thought they were right. See
+## the header of tools/ui_tour.gd: [P24]'s title screen reads `--ui-tour` off
+## `OS.get_cmdline_user_args()`, which is empty unless the command line carries a
+## bare `--`, and every documented invocation omits one — so boot started a tour
+## that the main menu then stood in front of for all eleven of its photographs.
+## `cli_args()` above exists precisely so THIS file cannot make that mistake; the
+## tour now shuts the menu itself and asserts it stayed shut.
 func _start_ui_tour() -> void:
-	var tour := LcnUiTour.new()
-	tour.build_menu = build_menu
-	tour.overlays = overlays
-	tour.router = router
+	if not ResourceLoader.exists(UI_TOUR_SCRIPT):
+		Log.error("boot", "--ui-tour asked for, but there is no driver at %s" % UI_TOUR_SCRIPT)
+		return
+	var driver: Script = load(UI_TOUR_SCRIPT) as Script
+	var tour := Node.new()
+	tour.set_script(driver)
+	tour.set(&"build_menu", build_menu)
+	tour.set(&"overlays", overlays)
+	tour.set(&"router", router)
 	for a: String in cli_args():
 		if a.begins_with("--out="):
-			tour.out_dir = a.substr(6)
+			tour.set(&"out_dir", a.substr(6))
 	add_child(tour)

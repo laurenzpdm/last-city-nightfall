@@ -470,12 +470,41 @@ func forecast(days: int = 3) -> Array[Dictionary]:
 # ==========================================================================
 
 ## Stable key of the escalation beat currently in force, e.g. &"bone_winter".
+## The CURVE's own name for where the campaign is, unaffected by the weather.
 func era_key() -> StringName:
 	return StringName(_profile.escalation_key[_era_idx])
 
 
-func era_title() -> String:
+## The escalation curve's title, verbatim. Used by `_check_era` for the alert
+## that announces crossing into a beat, where the curve is exactly the subject.
+func escalation_title() -> String:
 	return String(_profile.escalation_title[_era_idx])
+
+
+## ── THE ONE LINE UNDER THE DAY NUMBER, AND IT WAS TELLING A LIE ───────────────
+##
+## [P17] draws this under "Day 3" on the clock plate, and it is the whole of what
+## the interface says about where the city is in its story. In all eleven beats
+## of `first_night` it read **THE LULL** — while [P22]'s chapter had already
+## turned over to `the_great_frost` and the plain outside was a Great Frost.
+##
+## Both parts were reading a real thing and neither was wrong on its own terms.
+## The escalation curve is a schedule of DAYS: "The Lull" holds through day 3
+## because the baseline temperature has not sunk yet, and that is correct arithmetic
+## about a curve. But a player is not looking at a curve. They are looking at a
+## whiteout, being told the plain is quiet, on the frame where the game is
+## supposed to be at its most legible — and a HUD that contradicts the world
+## outside the window is worse than a HUD with nothing in that corner.
+##
+## So the title under the day number is now **the strongest true thing**: the
+## storm while a storm is blowing, the escalation beat the rest of the time. The
+## curve's own name is still available as `escalation_title()` for the places
+## that genuinely mean the curve, and `era_key()` is untouched, so nothing that
+## keys off the campaign beat changes behaviour.
+func era_title() -> String:
+	if _storm_active:
+		return _storm_title if _storm_title != "" else ClimateDefs.GREAT_FROST_LABEL
+	return escalation_title()
 
 
 func era_index() -> int:
@@ -629,14 +658,12 @@ func metrics() -> Dictionary:
 #  INTERNALS — clock and phases
 # ==========================================================================
 
+## ONE lookup, shared with `ClimateForecast`. It used to be a private copy here,
+## and a tool that wanted to know when deep night was had to guess — which is
+## how eleven screenshots ended up named for phases they were not showing. A
+## second implementation of this arithmetic is a second thing to get wrong.
 func _phase_index_at(tick_in_day: int) -> int:
-	var idx: int = 0
-	for i: int in ClimateDefs.PHASE_COUNT:
-		if tick_in_day >= _profile.phase_starts[i]:
-			idx = i
-		else:
-			break
-	return idx
+	return ClimateForecast.phase_index_at(_profile, tick_in_day)
 
 
 func _emit_phase_change(next_phase: int) -> void:
@@ -669,7 +696,7 @@ func _roll_to_day(new_day: int) -> void:
 	Bus.day_started.emit(new_day)
 	_check_era()
 	Log.info(TAG, "day %d — %s, forecast: %s" % [
-		new_day, era_title(), _plans[new_day].forecast_text(),
+		new_day, escalation_title(), _plans[new_day].forecast_text(),
 	])
 	_schedule_storm_warnings(_plans[new_day])
 	_schedule_storm_warnings(_plans[new_day + 1])
@@ -700,7 +727,10 @@ func _check_era() -> void:
 	if idx == _era_idx:
 		return
 	_era_idx = idx
-	var title: String = era_title()
+	# The CURVE's title, not `era_title()`: this alert announces crossing into an
+	# escalation beat, so the escalation beat is exactly what it must name — even
+	# on a day the weather has something louder to say.
+	var title: String = escalation_title()
 	var line: String = String(_profile.escalation_line[idx])
 	_alert(1, ClimateDefs.KEY_ERA, "%s — %s" % [title, line])
 	Bus.narrative_event.emit(&"climate_era", {
