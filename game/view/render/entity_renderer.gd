@@ -185,6 +185,11 @@ var _step_tick: int = -1
 var _vis_b: Array[Dictionary] = []
 ## Visible scenery, and six floats each: dest x, dest y, w, h, atlas x, atlas y.
 var _vis_s: Array[Dictionary] = []
+## Visible agents, y-sorted, collected ONCE per frame. Both the glow pass (the
+## cold pool under a hostile) and the main pass walk this list, and before it
+## existed the main pass called `model.agents(alpha)` — which interpolates every
+## body in the world — a second time for the same frame.
+var _vis_ag: Array[Dictionary] = []
 var _vis_s_src: PackedFloat32Array = PackedFloat32Array()
 var _vis_rect: PackedFloat32Array = PackedFloat32Array()
 var _vis_src: PackedFloat32Array = PackedFloat32Array()
@@ -321,7 +326,11 @@ func _cache_light_rig() -> void:
 	_l_fill = float(grade["sky_energy"]) * (0.70 + 0.30 * UP)
 	_l_bounce = float(grade["bounce"]) * 0.46
 	_l_wild = float(grade["wild"])
-	_want_emissive = float(grade["light_energy"]) > 0.30
+	var energy: float = float(grade["light_energy"])
+	_want_emissive = energy > 0.30
+	# `light_energy` is the multiplier on every warm light in the city, so it IS
+	# the hour: 1.30 at night, 0.60 at dusk, 0.14 at midday.
+	_dark_share = smoothstep(DAY_ENERGY, DARK_ENERGY, energy)
 
 
 ## One walk over the world per frame instead of three, with the sprite rect and
@@ -388,6 +397,7 @@ func _collect() -> void:
 				_vis_em.append(em.size.x)
 				_vis_em.append(em.size.y)
 	_visible_buildings = _vis_b.size()
+	_collect_agents()
 
 	_cull_us = Time.get_ticks_usec() - t0
 	var t1: int = Time.get_ticks_usec()
@@ -900,6 +910,7 @@ func _draw_glow(ci: CanvasItem) -> void:
 			ci.draw_texture_rect_region(_atlas, _rect_at(i, Vector2.ZERO), _em_at(i),
 				Color(1.0, 0.92, 0.80, clampf(lit * energy * 0.62 * fl, 0.0, 0.95)))
 
+	_draw_foe_pools(ci)
 	_draw_deaths(ci)
 
 	if zoom < RIM_ZOOM:
@@ -936,14 +947,7 @@ func _draw_glow(ci: CanvasItem) -> void:
 func _draw_main(ci: CanvasItem) -> void:
 	# model.buildings() is already ordered back-to-front; agents are merged into
 	# it linearly instead of re-sorting the whole world with a script lambda.
-	var ags: Array[Dictionary] = model.agents(alpha) if draw_agents else ([] as Array[Dictionary])
-	var vis_ag: Array[Dictionary] = []
-	var pad: Rect2 = view_rect.grow(32.0)
-	for ag: Dictionary in ags:
-		if pad.has_point(ag["pos"] as Vector2):
-			vis_ag.append(ag)
-	vis_ag.sort_custom(_agent_before)
-	_visible_agents = vis_ag.size()
+	var vis_ag: Array[Dictionary] = _vis_ag
 
 	# The plain first, under everything. Scenery is scattered where the city is
 	# not, so y-sorting it against the settlement buys nothing and costs a merge
@@ -990,23 +994,98 @@ func _draw_main(ci: CanvasItem) -> void:
 	while ai < vis_ag.size():
 		_draw_agent(ci, vis_ag[ai])
 		ai += 1
+	_log_foe_marks(ci)
 
 
 static func _agent_before(x: Dictionary, y: Dictionary) -> bool:
 	return float((x["pos"] as Vector2).y) < float((y["pos"] as Vector2).y)
 
 
-func _draw_agent(ci: CanvasItem, ag: Dictionary) -> void:
-	var kind: StringName = ag["kind"]
-	var art: StringName = kind
+## The frame's visible, y-sorted agents. Collected in `_collect` because TWO
+## passes need them now — the glow pass paints the cold pool a hostile stands in
+## before the main pass paints the hostile.
+func _collect_agents() -> void:
+	_vis_ag.clear()
+	_foes_in_view = 0
+	if model == null or not draw_agents:
+		_visible_agents = 0
+		return
+	# Grown by the pool radius, not by the sprite: a creature whose body is just
+	# off the edge still throws light onto ground that is on it.
+	var pad: Rect2 = view_rect.grow(FOE_POOL_PX / maxf(zoom, 0.01) + 32.0)
+	for ag: Dictionary in model.agents(alpha):
+		if not pad.has_point(ag["pos"] as Vector2):
+			continue
+		_vis_ag.append(ag)
+		if LcnSpriteFactory.is_enemy_kind(ag["kind"]):
+			_foes_in_view += 1
+	_vis_ag.sort_custom(_agent_before)
+	_visible_agents = _vis_ag.size()
+
+
+## WHERE THE HOSTILES ACTUALLY LANDED ON THE GLASS, in screen pixels, on the
+## frame the harness is about to photograph.
+##
+## THIS EXISTS BECAUSE FOUR ROUNDS OF CONTRAST WORK WERE GRADED IN A RIG. Every
+## previous instrument stood the renderer up on its own bench, measured a lovely
+## delta and shipped a frame in which a critic scanning the actual PNG found
+## `105 pixels, two clusters, both temperature labels — not one creature`. A rig
+## cannot be wrong about a picture it does not contain, and it did not contain
+## the post grade, the night vignette or the red "under attack" wash.
+##
+## So the renderer states, in the run's own `log.txt`, exactly which rectangle of
+## `shots/assault.world.png` each hostile occupies, and
+## `tests/render/run_foe_frame.gd` opens THAT PNG and measures THOSE rectangles.
+## The claim and the evidence are then in the same artifacts folder and a critic
+## can redo the arithmetic without running anything.
+##
+## Once a sim-second while anything hostile is on screen; silent otherwise.
+func _log_foe_marks(ci: CanvasItem) -> void:
+	if _foes_in_view <= 0:
+		return
+	var tick: int = SimClock.tick
+	if tick / FOE_LOG_EVERY == _foe_log_tick / FOE_LOG_EVERY and _foe_log_tick >= 0:
+		return
+	_foe_log_tick = tick
+	var xf: Transform2D = ci.get_global_transform_with_canvas()
+	var parts: PackedStringArray = PackedStringArray()
+	for ag: Dictionary in _vis_ag:
+		var kind: StringName = ag["kind"]
+		if not LcnSpriteFactory.is_enemy_kind(kind):
+			continue
+		var dest: Rect2 = agent_dest(ag)
+		var tl: Vector2 = xf * dest.position
+		var br: Vector2 = xf * dest.end
+		var gl: float = ground_luma(ag["pos"])
+		parts.append("%s@%d,%d,%d,%d,gl%.3f,lit%.2f" % [
+			String(kind), int(round(tl.x)), int(round(tl.y)),
+			int(round(br.x - tl.x)), int(round(br.y - tl.y)),
+			gl, foe_lit_share(gl)])
+	if parts.is_empty():
+		return
+	Log.info("render", "foemarks t%d zoom %.3f n%d | %s" % [
+		tick, zoom, parts.size(), " ".join(parts)])
+
+
+## The atlas region a kind is drawn from, falling back to its archetype.
+## An unknown kind used to draw NOTHING, so a mis-mapped enemy was an invisible
+## enemy. Returns `[art_name, region]`; region is empty when even that missed.
+func _agent_art(kind: StringName) -> Array:
 	var region: Rect2 = _regions.get(LcnSpriteFactory.agent_key(kind), Rect2())
+	if region.size.x > 0.0:
+		return [kind, region]
+	var art: StringName = LcnSpriteFactory.agent_arch(kind)
+	return [art, _regions.get(LcnSpriteFactory.agent_key(art), Rect2())]
+
+
+## Where an agent lands, in WORLD pixels. Always a positive rect, centred on the
+## figure's feet. Public because the foe-mark dump and any suite that wants to
+## check a figure against a photograph need the renderer's own answer rather than
+## a second implementation of it.
+func agent_dest(ag: Dictionary) -> Rect2:
+	var region: Rect2 = _agent_art(ag["kind"])[1]
 	if region.size.x <= 0.0:
-		# An unknown kind used to draw NOTHING, so a mis-mapped enemy was an
-		# invisible enemy. Fall back to the archetype rather than to silence.
-		art = LcnSpriteFactory.agent_arch(kind)
-		region = _regions.get(LcnSpriteFactory.agent_key(art), Rect2())
-		if region.size.x <= 0.0:
-			return
+		return Rect2()
 	var foot: Vector2 = ag["pos"]
 	var s: float = agent_scale(region.size.y, zoom)
 	var size: Vector2 = region.size * s
@@ -1014,19 +1093,49 @@ func _draw_agent(ci: CanvasItem, ag: Dictionary) -> void:
 	# so nothing drifts off the ground as the camera pulls back.
 	var pos: Vector2 = foot + Vector2(-size.x * 0.5, -size.y + 5.0 * s)
 	# Sub-pixel snapping keeps small figures from shimmering as they walk.
-	pos = Vector2(round(pos.x), round(pos.y))
+	return Rect2(Vector2(round(pos.x), round(pos.y)), size)
+
+
+## FACING, AND THE 41-PIXEL LIE IT TOLD FOR THREE ROUNDS.
+##
+## `model.agents()` has published a facing since the first pass and nothing read
+## it, so every enemy in the game walked at the city sideways. The fix for that
+## was a NEGATIVE DESTINATION WIDTH — and it is wrong, in a way no test in this
+## repo could see and one photograph shows immediately.
+##
+## `RendererCanvasCull::canvas_item_add_texture_rect_region` turns a negative
+## destination width into a flip flag by negating `rect.size.x` and LEAVING
+## `rect.position` where it is. The old code moved position to the right edge
+## first, expecting the rect to be read leftwards from there. It is not. So
+## every right-facing figure in this game — citizens included — was drawn ONE
+## FULL SPRITE WIDTH to the right of the tile the simulation had it standing on.
+## It was caught by putting a light pool at `ag["pos"]` and photographing the
+## result: `artifacts/H1_smoke/shots/night_perimeter.world.png` had four hounds
+## sitting 50 screen pixels to the right of their own light.
+##
+## Flipping the SOURCE region instead sets the same flag off the same code path
+## and leaves the destination — the thing that says where the creature IS —
+## alone. Its shadow, its light pool, its boot marks and its position in the
+## sim now agree with the picture.
+static func flip_src(region: Rect2, ag: Dictionary) -> Rect2:
+	if float(ag.get("facing", 0.0)) <= 0.0 or region.size.x <= 0.0:
+		return region
+	return Rect2(region.position, Vector2(-region.size.x, region.size.y))
+
+
+func _draw_agent(ci: CanvasItem, ag: Dictionary) -> void:
+	var kind: StringName = ag["kind"]
+	var art_r: Array = _agent_art(kind)
+	var art: StringName = art_r[0]
+	var region: Rect2 = art_r[1]
+	if region.size.x <= 0.0:
+		return
+	var foot: Vector2 = ag["pos"]
+	var dest: Rect2 = agent_dest(ag)
 	var lit: Color = _light_for(foot, 0.0)
-	# FACING. `model.agents()` has published a facing since the first pass and
-	# nothing read it, so every enemy in the game walked at the city sideways.
-	# A negative destination width is the whole implementation: same batch, same
-	# atlas, no extra sprite, and the pack now visibly comes FROM somewhere.
-	var w: float = size.x
-	if float(ag.get("facing", 0.0)) > 0.0:
-		pos.x += w
-		w = -w
-	var dest := Rect2(pos, Vector2(w, size.y))
-	ci.draw_texture_rect_region(_atlas, dest, region, Color(lit.r, lit.g, lit.b, 1.0))
-	_draw_agent_edge(ci, dest, art, foot, LcnSpriteFactory.is_enemy_kind(kind))
+	ci.draw_texture_rect_region(_atlas, dest, flip_src(region, ag),
+		Color(lit.r, lit.g, lit.b, 1.0))
+	_draw_agent_edge(ci, dest, art, foot, LcnSpriteFactory.is_enemy_kind(kind), ag)
 
 
 # ======================== THE FIGURE IS SEPARATED FROM THE GROUND IT STANDS ON ==
@@ -1121,8 +1230,8 @@ const MIN_RIM_PX: float = 9.0
 ## Cold, for the things that come out of the dark. DESATURATED on purpose: at
 ## full chroma an eighteen-strong wave reads as neon, and this game's night is
 ## meant to be moonlight, not a light show.
-const FOE_BODY: Color = Color(0.50, 0.57, 0.70)
-const FOE_RIM: Color = Color(0.80, 0.87, 0.98)
+const FOE_BODY: Color = Color(0.34, 0.48, 0.78)
+const FOE_RIM: Color = Color(0.62, 0.78, 1.00)
 ## Warm, for the people who live under the lamps. The city's own firelight, so
 ## friend and foe separate by HUE at the same moment they separate from the
 ## ground by VALUE.
@@ -1130,6 +1239,139 @@ const KIN_BODY: Color = Color(0.74, 0.65, 0.55)
 const KIN_RIM: Color = Color(1.00, 0.88, 0.72)
 ## What a figure is reduced to when the ground behind it is brighter than it is.
 const DARK_RIM: Color = Color(0.055, 0.065, 0.110)
+
+# ============================== A HOSTILE BRINGS ITS OWN GROUND TO STAND ON ===
+#
+# THE FRAME THAT FORCED THIS IS `artifacts/CRIT/shots/assault.world.png`, and it
+# is the ordinary output of `tools/run_visual.sh --scenario=first_night`. The
+# interface says UNDER ATTACK · 10 in the city · they are inside the perimeter.
+# The renderer drew 21 agents. A critic scanning that PNG for the foe rim colour
+# found 105 pixels in two clusters and both of them were the temperature labels
+# `41C` and `31C`. Not one creature. The contrast pass before this one measured
+# eleven of eleven enemies at delta-L 0.42 — on a bench that did not contain the
+# post grade, the night vignette, or the red screen wash the game paints over
+# everything the moment a wave lands.
+#
+# Three things were wrong and all three are answered here.
+#
+#  1. THE TREATMENT SWITCHED ITSELF OFF WHERE THE FIGHT IS. `lit_share` fades to
+#     nothing as the ground brightens, and the ground inside a city full of
+#     fires is exactly bright enough to halve it — while still being far too
+#     dark, after the grade, to carry a silhouette. The enemies that mattered
+#     were the ones already inside the perimeter, standing on the one ground the
+#     treatment had decided needed no help. `foe_lit_share` moves a HOSTILE's
+#     pivot out to daylight: a threat gets the full treatment on any ground a
+#     night has, and only stops being lit when the sun could silhouette it.
+#
+#  2. A RIM IS TWO PIXELS AND THE GRADE EATS PIXELS. Value contrast carried on a
+#     contour is the first thing lost to fog, vignette, grain and a wash — all
+#     of which are area operations. So the primary cue is now AREA: an additive
+#     cold pool of light on the ground the creature is standing on, forty screen
+#     pixels across, in the same idiom as the warm pools the city's own fires
+#     throw. The city is warm, the things out of the dark are cold, and at a
+#     glance the night now has cold spots moving through it.
+#
+#  3. THE WASH IS RED AND THE CUE WAS BLUE. A full-frame tint is a lerp toward
+#     one colour, so it costs a fixed FRACTION of every difference in the frame
+#     — which a two-pixel contour cannot afford and a bright area cue can. The
+#     pool is drawn ADDITIVELY and at chroma, so what survives the lerp is both
+#     luminance above the plain AND blue above red. `game/view/feel/screen_fx.gd`
+#     also stops painting the threat vignette across the middle of the playfield
+#     for the same reason; between them a hostile is now findable while the
+#     screen is red, which is the only condition under which finding one matters.
+#
+# The gate for all of this is `tests/render/run_foe_frame.gd`, and the one thing
+# it is not allowed to do is stand a bench up: it opens the harness's own
+# `shots/*.world.png` and measures the rectangles this file logged.
+
+## Radius of a hostile's pool, in SCREEN pixels, so the mark is the same size to
+## the player at every zoom. A figure floor of 24 px means the pool is a little
+## under twice the creature and reads as light around it rather than as a disc
+## it is standing on top of.
+const FOE_POOL_PX: float = 21.0
+## Peak alpha of the soft outer pool, additive.
+const FOE_POOL_A: float = 0.44
+## ...and of the tight core, which is what keeps a pool from reading as a smudge
+## once the grade's bloom has had it.
+const FOE_CORE_A: float = 0.52
+const FOE_CORE_PX: float = 8.5
+## The cold the pool is made of. MORE saturated than FOE_RIM on purpose: this is
+## the one cue that has to survive a lerp toward red, and the thing a lerp cannot
+## take away is the SIGN of blue-minus-red.
+const FOE_POOL_COL: Color = Color(0.40, 0.66, 1.00)
+## THE HOUR, NOT THE GROUND, DECIDES WHETHER A HOSTILE IS LIT — and this is the
+## measurement that settled it, straight out of a first_night visual run's own
+## `foemarks` line at the assault beat:
+##
+##   drift_hound gl0.502  drift_hound gl0.680  drift_hound gl0.367  ... gl0.101
+##
+## `ground_luma` returned HALF TO TWO THIRDS for six of nine hostiles, because
+## the six that mattered were the ones already inside the perimeter, standing in
+## the pools thrown by the city's own fires. Against GROUND_PIVOT = 0.34 that is
+## `lit_share` 0.05, 0.00, 0.49 — the treatment turned itself off for exactly the
+## creatures the alert stack was shouting about. And the ground it turned itself
+## off for is not bright: the same pixels in `assault.world.png` measure ~0.10
+## once the grade, the fog and the vignette have had them. `ground_luma` is an
+## illumination estimate and the frame is a graded photograph, and inside a city
+## full of fires those two numbers are not the same number.
+##
+## So a hostile's treatment is keyed to `light_energy`, which is the hour and
+## nothing else: full after dark, gone by midday, half at dusk. A creature that
+## walks into a hearth's light at night stays lit, which is the correct answer —
+## the reason to silhouette it against bright ground was that bright ground
+## exists, and at night it does not, whatever the light rig says about it.
+const DARK_ENERGY: float = 0.90
+const DAY_ENERGY: float = 0.35
+## CANVAS luminance a hostile's body and contour are painted at after dark, as
+## ABSOLUTE values rather than as a delta above `ground_luma` — for the reason
+## above: the delta was being measured from a number that does not describe the
+## frame. Capped short of 1.0 so `at_luma` never walks the cold all the way to
+## white; a white figure is a bright figure that is no longer telling you what
+## it is, and hue is half the read.
+const FOE_BODY_L: float = 0.62
+const FOE_RIM_L: float = 0.90
+## How often the foe-mark dump is written, in sim ticks. 20 Hz sim, so this is
+## twice a second while anything hostile is on screen and nothing otherwise.
+const FOE_LOG_EVERY: int = 10
+
+var _foes_in_view: int = 0
+var _foe_log_tick: int = -1
+## 1 after dark, 0 by midday. Flattened out of the grade once per frame.
+var _dark_share: float = 0.0
+
+
+## How much of the hostile treatment this hour gets. `lit_share` still counts:
+## on genuinely black ground at any hour a hostile is lit like anything else.
+func foe_lit_share(gl: float) -> float:
+	return maxf(lit_share(gl), _dark_share)
+
+
+## The cold pools, additive, one soft quad and one tight quad per hostile in
+## view. Bounded by the wave size, and inside the batch the glow pass was
+## already running — no new texture and no state change.
+func _draw_foe_pools(ci: CanvasItem) -> void:
+	if _foes_in_view <= 0 or _glow_r.size.x <= 0.0:
+		return
+	var z: float = maxf(zoom, 0.01)
+	var r_out: float = FOE_POOL_PX / z
+	var r_in: float = FOE_CORE_PX / z
+	for ag: Dictionary in _vis_ag:
+		if not LcnSpriteFactory.is_enemy_kind(ag["kind"]):
+			continue
+		var foot: Vector2 = ag["pos"]
+		var share: float = _dark_share
+		if share <= 0.02:
+			continue
+		# The pool sits a little above the feet, where the mass of the figure is,
+		# so a tall creature is not marked by a ring around its ankles.
+		var at: Vector2 = foot - Vector2(0.0, r_in * 0.35)
+		var c: Color = FOE_POOL_COL
+		ci.draw_texture_rect_region(_atlas,
+			Rect2(at - Vector2(r_out, r_out), Vector2(r_out * 2.0, r_out * 2.0)),
+			_glow_r, Color(c.r, c.g, c.b, FOE_POOL_A * share))
+		ci.draw_texture_rect_region(_atlas,
+			Rect2(at - Vector2(r_in, r_in), Vector2(r_in * 2.0, r_in * 2.0)),
+			_glow_r, Color(c.r, c.g, c.b, FOE_CORE_A * share))
 
 
 ## Estimated luminance of the GROUND at a world point, in canvas space (i.e.
@@ -1188,13 +1430,15 @@ static func at_luma(hue: Color, target: float) -> Color:
 ## destination rect as the figure — two more quads inside the batch that was
 ## already running, and no new state change at any zoom.
 func _draw_agent_edge(ci: CanvasItem, dest: Rect2, art: StringName, foot: Vector2,
-		hostile: bool) -> void:
+		hostile: bool, ag: Dictionary) -> void:
 	var rim_r: Rect2 = _regions.get(LcnSpriteFactory.rim_key(art), Rect2())
 	var fill_r: Rect2 = _regions.get(LcnSpriteFactory.fill_key(art), Rect2())
 	if rim_r.size.x <= 0.0 and fill_r.size.x <= 0.0:
 		return
 	var gl: float = ground_luma(foot)
-	var lit: float = lit_share(gl)
+	# A hostile does not get to fade out on ground the grade will crush back to
+	# black anyway — see the block above FOE_POOL_PX.
+	var lit: float = foe_lit_share(gl) if hostile else lit_share(gl)
 	var on_screen: float = absf(dest.size.y) * maxf(zoom, 0.01)
 
 	# THE BODY, lifted only while the ground is too dark to carry a silhouette.
@@ -1205,8 +1449,11 @@ func _draw_agent_edge(ci: CanvasItem, dest: Rect2, art: StringName, foot: Vector
 	if fill_r.size.x > 0.0 and mix > 0.02 and BODY_DELTA > 0.0:
 		# out = (1 - mix) * figure + mix * body, so the colour is asked for at
 		# target / BODY_MIX and the figure's own drawing survives underneath.
-		var body: float = (gl + BODY_DELTA / POST_KEEP) / BODY_MIX
-		ci.draw_texture_rect_region(_atlas, dest, fill_r, Color(
+		# A hostile is painted at an ABSOLUTE value; a citizen keeps the delta
+		# above its own ground, which is what makes the city read as lit by the
+		# city. See the DARK_ENERGY block for why those differ.
+		var body: float = (FOE_BODY_L if hostile else gl + BODY_DELTA / POST_KEEP) / BODY_MIX
+		ci.draw_texture_rect_region(_atlas, dest, flip_src(fill_r, ag), Color(
 			at_luma(FOE_BODY if hostile else KIN_BODY, minf(body, 1.0)), mix))
 
 	# THE CONTOUR, which always draws and simply changes sides. Above the pivot
@@ -1215,9 +1462,10 @@ func _draw_agent_edge(ci: CanvasItem, dest: Rect2, art: StringName, foot: Vector
 	if rim_r.size.x <= 0.0 or on_screen < MIN_RIM_PX or RIM_DELTA <= 0.0:
 		return
 	var d: float = RIM_DELTA / POST_KEEP
-	var bright: Color = at_luma(FOE_RIM if hostile else KIN_RIM, minf(gl + d, 1.0))
+	var bright: Color = at_luma(FOE_RIM, FOE_RIM_L) if hostile \
+		else at_luma(KIN_RIM, minf(gl + d, 1.0))
 	var dark: Color = at_luma(DARK_RIM, maxf(gl - d, 0.012))
-	ci.draw_texture_rect_region(_atlas, dest, rim_r, dark.lerp(bright, lit))
+	ci.draw_texture_rect_region(_atlas, dest, flip_src(rim_r, ag), dark.lerp(bright, lit))
 
 
 ## How much a figure of `sprite_h` world pixels is enlarged at camera `z`, so it
