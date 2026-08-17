@@ -3,7 +3,7 @@
   "part": "G3",
   "title": "A save comes back as the same city: 44 excused fields become 4, each named with its owner, its file and its fix — and two of them are disproved as excuses by a test that puts them back by hand",
   "verified": {
-    "tests/save/test_sim_roundtrip.gd (rewritten)": "11 passed, 0 failed, 47 asserts",
+    "tests/save/test_sim_roundtrip.gd (rewritten)": "12 passed, 0 failed",
     "tests/meta (4 suites)": "39 passed, 0 failed, 192 asserts",
     "Sim.deserialize residue at rest, seeds 7 / 23 / 5": "40-44 fields -> 8 leaves over 4 documented root causes; 9-11 fields repaired per load by LcnStateReconciler",
     "REVERT PROOF, reconciler pass removed from Sim.deserialize()": "40 fields differ, 31 of them undocumented, 4 tests RED (test_a_world_reloaded_is_the_world_that_was_saved, test_the_bytes_on_disk_are_the_same_world_too, test_the_first_tick_after_a_load..., test_the_reconciler_is_doing_the_work...)",
@@ -11,7 +11,10 @@
     "gap probe (tests/save/save_gaps.gd)": "putting [P06]'s standing forces and [P08]'s approach paths back by hand closes BOTH fields outright and leaves nothing else behind — the gap list is the whole of it, measured rather than asserted",
     "tools/determinism.sh": "DETERMINISM OK — smoke IDENTICAL sha256 cb03fec35508f687, determinism IDENTICAL sha256 a6ba7f017dae1a50. File unchanged (git status tools/ shows only another agent's untracked ui_tour*.gd)",
     "tools/lint_sim.sh": "0 fatal, 1 advisory (pre-existing, game/sim/grid/grid_system.gd)",
-    "two doors, measured in tests/meta/test_save_roundtrip.gd": "Sim.deserialize loses 8 leaves; LcnSaveManager.apply_world loses 40, i.e. 32 MORE — it re-implements the loader without the repair pass"
+    "two doors, measured in tests/meta/test_save_roundtrip.gd": "Sim.deserialize loses 8 leaves; LcnSaveManager.apply_world loses 40, i.e. 32 MORE — it re-implements the loader without the repair pass",
+    "REVERT PROOF, _is_improvement() forced to true": "the search keeps wrong guesses — $.systems.threat.siege.closest, a field that round-trips perfectly, breaks — and 3 tests go RED",
+    "CLAIM WITHDRAWN, Rng.restore() moved before the reconciler": "does NOT go red on this build. The inherited header line said it did. Replaced with test_serializing_the_world_does_not_draw_a_random_number, which asserts the invariant the ordering is actually insurance for",
+    "tests/meta/run_meta_ui.tscn --force-ui": "TESTS PASSED, PARTIAL — 82 checks, 0 failures, 2 unchecked (no display). Note: run it on a quiet box — with a concurrent gate on the same four cores the same suite reported 75 checks and 5 pause-menu failures, and passed again alone"
   },
   "open": [
     "[P24] game/ui/meta/save_manager.gd:apply_world() re-implements Sim.deserialize() minus the reconciler, and its own class comment already says 'nothing here re-implements any of that'. The body becomes `return bool(Sim.deserialize(world)[\"ok\"])` and 32 fields stop being lost on the player's door. This part may not write in game/ui/**; tests/meta/test_save_roundtrip.gd measures the delta on every run so it cannot go quiet.",
