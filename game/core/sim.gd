@@ -377,10 +377,22 @@ func serialize() -> Dictionary:
 ##      because a `serialize()` call in step 4 may itself have drawn one.
 ##
 ## Returns `{ok, restored, absent, repaired, unrestored, systems_incomplete}`.
+##
 ## `unrestored` is the honest residue: fields that were in the save and are not
-## in the world. It is empty on this build and a test says so; if it ever is not,
-## it names the field and the part rather than being written down in a list of
-## exceptions somewhere.
+## in the world afterwards. On this build it holds FOUR, each of them state the
+## file never carried or a system's own `deserialize()` declines to read, each in
+## a folder this loader may not write in, and each named with its owner and its
+## fix in `tests/save/save_gaps.gd`. It is a report, not a list of exceptions:
+## `tests/save/test_sim_roundtrip.gd` fails on any field that is not on it, and
+## puts two of the four back by hand to prove the list is the whole of it.
+##
+## One ceiling nothing here can lift: `serialize()` is a REPORT before it is a
+## save format, and every part snaps its floats on the way out
+## (`snappedf(hope_value, 0.001)`). A reload therefore starts up to half a grain
+## from where the running city was, and an integrator turns that into a visible
+## difference over a night. Byte-identical at rest, and a tick later nothing has
+## moved further than the file rounded away — that is the real contract, and it
+## is measured rather than assumed.
 func deserialize(world: Dictionary) -> Dictionary:
 	var report: Dictionary = {
 		"ok": false, "restored": PackedStringArray(), "absent": PackedStringArray(),

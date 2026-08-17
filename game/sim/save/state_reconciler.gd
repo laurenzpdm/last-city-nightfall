@@ -37,9 +37,13 @@ extends RefCounted
 ## WHAT IT WILL NOT TOUCH. It never walks into another `SimSystem` (a neighbour
 ## reference is not this system's state), never into a `Resource` (Registry owns
 ## those and they outlive the world), and never into a `Node`. It never assigns
-## a value of a different type than the variable already holds, and it never
-## puts objects into a typed container. Determinism: every walk and every key
-## iteration is sorted, and nothing here reads a clock or a random number.
+## a value of a different type than the variable already holds, it never puts
+## objects into a typed container, and — see `_congruent` — it never writes a
+## container that would cost the live object a key it depends on, because
+## `serialize()` is very often a PROJECTION and a repair verified only by
+## re-serializing cannot otherwise tell a value from its own shadow.
+## Determinism: every walk and every key iteration is sorted, and nothing here
+## reads a clock or a random number.
 
 ## How deep into a system's helper objects to look. `LogisticsSystem.haul.porters`
 ## and `SocietySystem._pressures.<field>` are depth 2; past that the search costs
