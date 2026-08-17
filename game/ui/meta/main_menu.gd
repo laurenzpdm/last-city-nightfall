@@ -14,6 +14,14 @@ extends LcnMetaScreen
 ##   * "Continue" is first and tells you what you are continuing — day, souls
 ##     and when you left it. A main menu that makes you open a browser to find
 ##     out which save is newest has failed at its only real job.
+##
+## AND ONE THING IT WILL NOT DO. It offered "Continue — Dawn of day 4 · 0 alive"
+## off a real autosave: a city with nobody in it, presented as somewhere to carry
+## on. Continue now resumes the most recent save that still HAS a city
+## ([LcnSaveManager.most_recent_playable]); an ended run is not hidden, it moves
+## to "Load a city", which says "no one left" in as many words. There is no
+## Continue row at all when every save on disk is a city that already fell — a
+## button that resumes nothing is worse than a button that is not there.
 
 ## Deliberately not chosen with Rng: this is the menu, and nothing here may
 ## touch a simulation stream. Picked from the wall clock, which the sim never
@@ -50,7 +58,7 @@ func _init() -> void:
 
 
 func refresh() -> void:
-	var recent: Dictionary = LcnSaveManager.most_recent()
+	var recent: Dictionary = LcnSaveManager.most_recent_playable()
 	_continue_slot = String(recent.get("slot", ""))
 	var rows: Array[Dictionary] = []
 	if _continue_slot != "":

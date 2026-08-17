@@ -74,9 +74,7 @@ func handle_key(event: InputEventKey) -> bool:
 			return true
 		request_screen.emit(&"confirm", {
 			"title": "Delete this city",
-			"body": "%s — day %d, %d alive." % [
-				String(head.get("name", "")), int(head.get("day", 1)),
-				int(head.get("population", 0))],
+			"body": _slot_sentence(head),
 			"detail": "There is no other copy of it.",
 			"confirm": "Delete", "cancel": "Keep",
 			"action": "delete_slot", "payload": {"slot": String(head.get("slot", ""))}})
@@ -97,12 +95,22 @@ func _on_row_activated(id: StringName) -> void:
 		return
 	request_screen.emit(&"confirm", {
 		"title": "Write over this save",
-		"body": "%s — day %d, %d alive." % [
-			String(head.get("name", "")), int(head.get("day", 1)),
-			int(head.get("population", 0))],
+		"body": _slot_sentence(head),
 		"detail": "What is in it now will be gone.",
 		"confirm": "Write over it", "cancel": "Keep it",
 		"action": "save_to", "payload": {"slot": slot, "name": String(head.get("name", ""))}})
+
+
+## One sentence naming a save, for a dialog that is about to destroy it. It
+## borrows [LcnSaveManager.souls_words] rather than formatting its own count, so
+## "0 alive" cannot come back here after being taken out of the title screen: a
+## save with no population figure says only the day, and an ended city says so.
+static func _slot_sentence(head: Dictionary) -> String:
+	var souls: String = LcnSaveManager.souls_words(head)
+	var tail: String = " — day %d" % int(head.get("day", 1))
+	if souls != "":
+		tail += ", " + souls
+	return String(head.get("name", "")) + tail + "."
 
 
 static func _size_text(bytes: int) -> String:

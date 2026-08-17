@@ -48,10 +48,21 @@ static func slots() -> Array[Dictionary]:
 			continue
 		head["slot"] = slot
 		out.append(head)
+	# NEWEST FIRST, COMPARED AS WHOLE SECONDS, AND THAT IS A FIX.
+	#
+	# This used to read `if not is_equal_approx(ta, tb): return ta > tb`, on two
+	# floats holding a Unix time. `is_equal_approx` is RELATIVE: its tolerance is
+	# CMP_EPSILON (1e-5) x the magnitude of the operand, and a Unix time in 2026
+	# is 1.79e9 — so anything written within about FIVE HOURS of anything else
+	# counted as the same instant and the list fell through to sorting by slot
+	# NAME. Every autosave this game writes is inside that window, so
+	# `autosave_1` was permanently "the most recent save" and the title screen
+	# offered whichever morning happened to land in slot 1. Continue is a claim
+	# about recency; it has to be sorted by the thing it claims.
 	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var ta: float = float(a.get("saved_unix", 0.0))
-		var tb: float = float(b.get("saved_unix", 0.0))
-		if not is_equal_approx(ta, tb):
+		var ta: int = int(a.get("saved_unix", 0))
+		var tb: int = int(b.get("saved_unix", 0))
+		if ta != tb:
 			return ta > tb
 		return String(a.get("slot", "")) < String(b.get("slot", "")))
 	return out
@@ -96,6 +107,49 @@ static func when_words(saved_unix: int, now_unix: int = 0) -> String:
 	return Time.get_date_string_from_unix_time(saved_unix)
 
 
+## How many souls a header is talking about, or -1 when it does not carry the
+## figure at all.
+##
+## THE DIFFERENCE BETWEEN "NOBODY" AND "I DO NOT KNOW" IS THE WHOLE POINT. A
+## header written by a build with no [P05] in it has no `population` key, and
+## `int({}.get("population", 0))` turned that into a confident zero — which is
+## how the title screen came to offer "Continue — Dawn of day 4 · 0 alive". The
+## default is -1 so the two cases can never collapse into each other again.
+static func souls_of(header: Dictionary) -> int:
+	if not header.has("population"):
+		return -1
+	return maxi(-1, int(header.get("population", -1)))
+
+
+## The souls clause for a header. Three cases and three different sentences:
+##
+##   no figure   ""              say nothing — the HUD's rule, applied here
+##   zero        "no one left"   a fact, in the words the rest of the game uses
+##   otherwise   "18 alive"
+##
+## Never "0 alive". A count of zero people is not a count, it is an ending, and
+## printing it as a tally next to a Continue button says the city is still there.
+static func souls_words(header: Dictionary) -> String:
+	var pop: int = souls_of(header)
+	if pop < 0:
+		return ""
+	if pop == 0:
+		return "no one left"
+	return "%d alive" % pop
+
+
+## Whether a save is a city a player can go back TO.
+##
+## A recorded population of zero is not: that run ended, and offering it under
+## "Continue" is the menu claiming a city exists that does not. A header with NO
+## population figure is still resumable — this build cannot prove it is dead, so
+## it does not get to say so.
+static func is_resumable(header: Dictionary) -> bool:
+	if header.is_empty():
+		return false
+	return souls_of(header) != 0
+
+
 ## The one-line description of a save, used by the browser and by Continue so
 ## the two cannot drift. The DAY is omitted when the save's own name already
 ## carries it — "Dawn of day 4 / day 4 · 0 alive" said day 4 twice.
@@ -105,16 +159,27 @@ static func describe_slot(header: Dictionary) -> String:
 	var name: String = String(header.get("name", ""))
 	if not name.to_lower().contains("day %d" % day):
 		parts.append("day %d" % day)
-	var pop: int = int(header.get("population", 0))
-	parts.append("%d alive" % pop)
+	var souls: String = souls_words(header)
+	if souls != "":
+		parts.append(souls)
 	parts.append(when_words(int(header.get("saved_unix", 0))))
 	return "  ·  ".join(parts)
 
 
-## The slot "Continue" resumes: the most recently written one.
+## The most recently written slot, whatever state its city is in.
 static func most_recent() -> Dictionary:
 	var all: Array[Dictionary] = slots()
 	return all[0] if not all.is_empty() else {}
+
+
+## The slot "Continue" resumes: the most recent one that still has a city in it.
+## Ended runs stay in the browser, where they are labelled honestly and can still
+## be loaded on purpose — they are simply not offered as somewhere to carry on.
+static func most_recent_playable() -> Dictionary:
+	for head: Dictionary in slots():
+		if is_resumable(head):
+			return head
+	return {}
 
 
 # ==================================================================== save ===
@@ -144,39 +209,42 @@ static func save(slot_id: String, display_name: String = "", thumbnail: PackedBy
 		return {}
 	header["slot"] = slot
 	header["world_bytes"] = var_to_bytes(world).size()
-	Log.info("meta", "saved '%s' — day %d, %d alive, tick %d" % [
-		slot, int(header.get("day", 0)), int(header.get("population", 0)),
+	var souls: String = souls_words(header)
+	Log.info("meta", "saved '%s' — day %d, %s, tick %d" % [
+		slot, int(header.get("day", 0)),
+		souls if souls != "" else "population not recorded",
 		int(header.get("tick", 0))])
 	return header
 
 
 ## Facts about the live world for a save header. Reads metrics, never state.
+##
+## **A FIGURE THIS BUILD CANNOT COMPUTE IS LEFT OUT, NOT SET TO ZERO.** The
+## previous version seeded `pop = 0` and `hope = 0.0` and wrote them whether or
+## not [P05] and [P06] were in the world, so every header taken without them
+## claimed a city of nobody with no hope — and the title screen read those back
+## and offered "Continue — Dawn of day 4 · 0 alive". Absent keys are what the
+## readers above are written against: `souls_of()` answers -1 and the menu says
+## nothing rather than something false.
 static func describe_world() -> Dictionary:
-	var day: int = 1
-	var phase: String = "dawn"
-	var pop: int = 0
-	var hope: float = 0.0
-	var climate: SimSystem = Sim.get_system(&"climate")
-	if climate != null:
-		var m: Dictionary = climate.metrics()
-		day = int(m.get("day", 1))
-		phase = String(m.get("phase", "dawn"))
-	var citizens: SimSystem = Sim.get_system(&"citizens")
-	if citizens != null:
-		pop = int(citizens.metrics().get("population", 0))
-	var society: SimSystem = Sim.get_system(&"society")
-	if society != null:
-		hope = float(society.metrics().get("hope", 0.0))
-	return {
-		"day": day,
-		"phase": phase,
-		"population": pop,
-		"hope": snappedf(hope, 0.001),
+	var out: Dictionary = {
 		"tick": SimClock.tick,
 		"seed": str(Rng.seed_value),
 		"playtime_s": snappedf(float(SimClock.tick) * SimClock.DT, 0.1),
 		"city": "Caldera Nine",
 	}
+	var climate: SimSystem = Sim.get_system(&"climate")
+	if climate != null:
+		var m: Dictionary = climate.metrics()
+		out["day"] = int(m.get("day", 1))
+		out["phase"] = String(m.get("phase", "dawn"))
+	var citizens: SimSystem = Sim.get_system(&"citizens")
+	if citizens != null:
+		out["population"] = int(citizens.metrics().get("population", 0))
+	var society: SimSystem = Sim.get_system(&"society")
+	if society != null:
+		out["hope"] = snappedf(float(society.metrics().get("hope", 0.0)), 0.001)
+	return out
 
 
 ## A PNG of what the player is looking at, scaled down. Empty with no renderer,

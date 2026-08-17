@@ -39,12 +39,26 @@ func refresh() -> void:
 	relayout()
 
 
+## Where the city is, in as many clauses as this build can actually answer.
+##
+## Every clause is conditional on purpose. The old line was a fixed
+## "day %d · %s · %d alive" filled from `.get(key, 0)`, so a world without [P09]
+## or [P05] in it read "day 1 ·  · 0 alive" — a subtitle stating three facts, two
+## of them invented. Nothing here prints a figure the header does not carry.
 func _where_we_are() -> String:
 	if not Sim.alive:
 		return "no city"
 	var head: Dictionary = LcnSaveManager.describe_world()
-	return "day %d · %s · %d alive" % [
-		int(head.get("day", 1)), String(head.get("phase", "")), int(head.get("population", 0))]
+	var parts: PackedStringArray = PackedStringArray()
+	if head.has("day"):
+		parts.append("day %d" % int(head["day"]))
+	var phase: String = String(head.get("phase", ""))
+	if phase != "":
+		parts.append(phase.replace("_", " "))
+	var souls: String = LcnSaveManager.souls_words(head)
+	if souls != "":
+		parts.append(souls)
+	return " · ".join(parts)
 
 
 func _on_row_activated(id: StringName) -> void:

@@ -35,6 +35,26 @@ systems deserialize in sorted name order → `Rng.restore()`. Several systems st
 the current tick into what they rebuild, and `create_world` reseeds every stream,
 so any other order loses something quietly.
 
+**A header does not carry a figure this build cannot compute, and no screen here
+prints a zero it was handed by a `.get(key, 0)`.** `describe_world()` used to
+seed `population = 0` and `hope = 0.0` and write them whether or not [P05] and
+[P06] were in the world, so "there is no citizens system" and "this city has
+nobody left" reached every reader as the same integer — and the title screen read
+it back and offered **"Continue — Dawn of day 4 · 0 alive"**. Absent keys now mean
+absent: `souls_of()` answers -1, `souls_words()` answers `""`, `"no one left"` or
+`"18 alive"`, and `most_recent_playable()` is what Continue resumes so an ended
+city is never offered as somewhere to carry on. This is the same rule [P17]'s
+`_draw_condition` already follows — "never a wall of zeroes" — and
+`tests/meta/test_the_menu_never_says_zero.gd` holds all four screens to it.
+
+**`slots()` sorts on whole seconds, and that is a fix, not a style.** It used to
+ask `is_equal_approx(ta, tb)` on two Unix times. That comparison is RELATIVE: its
+tolerance is 1e-5 × the magnitude, and a 2026 timestamp is 1.79e9, so any two
+saves written within about **five hours** of each other counted as simultaneous
+and the list fell through to sorting by slot NAME. Every autosave this game
+writes is inside that window, so `autosave_1` was permanently "the most recent
+save" and Continue offered whichever morning happened to land in slot 1.
+
 **A rebind asks `LcnLayers.key_is_reserved()`, not the InputMap.** The router
 takes 1/2/3 and 4/5/6 before any panel sees them, and the InputMap does not know
 that. Captured events are also normalised to their physical keycode: a real
