@@ -16,8 +16,6 @@ extends TestCase
 ##   * deleting the reconciler pass from `Sim.deserialize()` — 40 fields, FAIL
 ##   * `_is_improvement()` returning true unconditionally — the search keeps
 ##     wrong guesses, unrelated fields break, FAIL
-##   * `Rng.restore()` moved before the reconciler — the stream positions come
-##     back and are then walked by the reconciler's own `serialize()` calls, FAIL
 ##   * removing `LcnStateReconciler._congruent()` — the narrative queue is
 ##     refilled with six-key projections of eleven-key cards; this suite's
 ##     [method test_a_repair_may_never_hand_a_system_a_shape_it_cannot_read] goes
@@ -122,6 +120,28 @@ func test_the_clock_the_seed_and_every_rng_stream_come_back() -> void:
 	for n: String in names:
 		assert_eq(int(after.get(n, -1)), int(streams[n]),
 			"stream '%s' is back on the exact draw it was on" % n)
+	world.stop()
+
+
+func test_serializing_the_world_does_not_draw_a_random_number() -> void:
+	# `Sim.deserialize()` puts the RNG streams back LAST, after the reconciler,
+	# because the reconciler calls `sys.serialize()` dozens of times per load and
+	# a stream walked by those calls would come back off by that many draws.
+	#
+	# Moving `Rng.restore()` earlier turns NOTHING red on this build, and the
+	# reason is worth pinning down rather than leaving as a comment somebody has
+	# to trust: no `serialize()` in this build draws. That is the invariant the
+	# ordering is insurance for, so it is the invariant that gets a test — if a
+	# part ever reaches for `Rng.stream(...)` while describing itself, this names
+	# the stream instead of a save silently coming back a few draws along.
+	var world: SimFixture = _fresh(29)
+	world.run(200)
+	var before: Dictionary = Rng.snapshot()
+	assert_true(before.size() >= 1, "the run drew on %d stream(s)" % before.size())
+	for _i: int in 5:
+		var _s: Dictionary = Sim.serialize()
+	assert_eq(JsonCanon.canon(Rng.snapshot()), JsonCanon.canon(before),
+		"five full serializations later, every stream is on the same draw")
 	world.stop()
 
 
