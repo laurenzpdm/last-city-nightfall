@@ -3,7 +3,13 @@ extends Node
 ## THE STAGE DIRECTOR. Keeps the middle of the screen — where the city is — from
 ## being the least considered part of it. [D7 composition]
 ##
-## Two jobs, both of them composition and neither of them content:
+## Three jobs, all of them composition and none of them content. The third one
+## is new and it is the only one that is a RULE rather than a placement — see
+## THE GOVERNOR at the bottom of this file: a card that stops the world may not
+## be on screen while the world needs watching. Three rounds running, a story
+## card covered the thing the player needed to look at, and three times it was
+## moved instead of being governed. Moving a rectangle answers "where"; it has
+## never once answered "whether".
 ##
 ##   1. It PLACES [P22]'s dilemma card. The card is [P22]'s: its prose, its
 ##      options, its deadline and its buttons are none of this file's business.
@@ -50,10 +56,14 @@ extends Node
 ##      fix belongs in `_place_tooltip()`, which already computes `left_block()`
 ##      for this exact purpose and never applies it to the mouse-follow branch.
 ##
-## THE YIELDING THAT THIS WAVE ADDED runs the other way and is implemented, not
-## described: [P22]'s card stands itself down while a work surface is open
+## THE YIELDING runs the other way and is implemented, not described: [P22]'s
+## card stands itself down while a work surface is open
 ## (`narrative_card.gd::_work_surface_open`), and this file republishes that as
-## `card_deferred`.
+## `card_deferred`. It stands itself down for the night too
+## (`LcnWorldWatch`), and THAT one this file does not merely republish — it
+## enforces it, on whatever node holds the presenter group, because the group is
+## a seam and a rule that lives only inside the part it governs leaves when that
+## part is replaced.
 ##
 ## HOW IT REACHES THE CARD, AND WHY THAT IS NOT A FOLDER VIOLATION
 ##
@@ -97,6 +107,14 @@ var ticker_rect: Rect2 = Rect2()
 ## attention stack if it ever wants to; nothing reads it yet, and this comment
 ## says so rather than claiming a consumer that does not exist.
 var card_deferred: bool = false
+## THE RULE THIS FILE NOW ENFORCES, not merely reports. `LcnWorldWatch.Watch`,
+## and anything but `NONE` means no presenter gets the stage this frame.
+var withheld_watch: int = LcnWorldWatch.Watch.NONE
+## True on any frame this file took the stage away from a presenter that wanted
+## it. Distinct from `card_deferred`, which is [P22] standing down of its own
+## accord: this one is the governor firing, and a test that cannot tell those two
+## apart cannot tell a rule from a coincidence.
+var card_withheld: bool = false
 
 var _presenter: CanvasLayer = null
 var _panel: Control = null
@@ -124,6 +142,7 @@ const TICKER_CLEARANCE: float = 10.0
 func _process(_delta: float) -> void:
 	_find()
 	card_deferred = _presenter != null and bool(_presenter.get(&"deferred"))
+	_withhold()
 	if _panel == null or not _panel.visible:
 		card_size = Vector2.ZERO
 		card_rect = Rect2()
@@ -174,6 +193,8 @@ func _place_ticker(card: Rect2) -> void:
 		ticker_rect = Rect2()
 		return
 	var want: Rect2 = ticker_slot
+	if want.size.x <= 1.0 or want.size.y <= 1.0:
+		want = _fallback_ticker_slot()
 	if want.size.x <= 1.0 or want.size.y <= 1.0:
 		_ticker.visible = false
 		ticker_rect = Rect2()
@@ -266,3 +287,139 @@ func _named_control(from: Node) -> Control:
 		if found != null:
 			return found
 	return null
+
+
+# ==========================================================================
+#  THE GOVERNOR
+# ==========================================================================
+
+## A CARD THAT STOPS THE WORLD MAY NOT BE ON SCREEN WHILE THE WORLD NEEDS
+## WATCHING — enforced here, on whatever node holds `lcn_narrative_presenter`,
+## every frame, at priority 100.
+##
+## WHY IT IS HERE AS WELL AS IN [P22]. `narrative_card.gd` already stands itself
+## down for the same rule and that is the right place for the behaviour: it owns
+## the prose, it owns the feed the waiting line goes into, and it can be polite
+## about it. But the presenter group is a SEAM — its own header invites [P17] or
+## [P18] to take it over — and a rule that lives only inside the thing it governs
+## leaves with that thing. This file is the stage director; "what may stand on
+## the stage, and when" is the one question it exists to answer. So the rule is
+## asserted here against the rectangle, not against a part.
+##
+## It hides, it never draws and it never answers. `dismiss_current()` would take
+## the first option of a dilemma the player never read, and `queue_free()` would
+## destroy a decision with a deadline on it; `visible = false` costs the card
+## nothing and gives the stage back. The presenter's own 5 Hz `_refresh()` sets
+## `visible = true` again whenever it disagrees, and this runs after it every
+## frame, so the last write in the frame is this one — which is the same
+## priority-100 argument the placement above already rests on.
+##
+## THE CONSEQUENCE THAT MAKES IT VISIBLE IN THE SHIPPED FRAME, and it is worth
+## naming because it is what a critic actually sees: `card_size` goes to zero,
+## so [P17]'s solver stops reserving the stage centre, and `card_visible()` goes
+## false, so [P17]'s SCRIM — a 52% deep-blue wash over the whole city, drawn on
+## the HUD layer and therefore present in `*.world.png` as well as in the shipped
+## shot — comes off the city at the same instant. The card is stripped from the
+## world capture by the shutter; the scrim never was. Half of what was wrong with
+## `artifacts/CRIT/shots/assault.world.png` was the scrim, and nothing about
+## moving a rectangle would ever have touched it.
+##
+## `tests/d7/run_fight_frames.gd` is the gate, and it reads the PNGs an ordinary
+## `tools/run_visual.sh --scenario=first_night` writes. Not this member, not a
+## private scene, not a rig this file could flatter.
+func _withhold() -> void:
+	withheld_watch = LcnWorldWatch.watch()
+	card_withheld = false
+	var why: String = LcnWorldWatch.because(withheld_watch)
+	if why == "" and _grading():
+		why = "the night is being graded"
+	if why == "":
+		return
+	if _panel != null and _panel.visible:
+		_panel.visible = false
+		card_withheld = true
+		if not _said:
+			_said = true
+			Log.info("hud", ("the stage is the player's while %s — %s stands down "
+				+ "and comes back when the night is over")
+				% [why, _presenter.name if _presenter != null else "the story card"])
+	# The ticker is not a modal: it is one plate, low and left, off the stage,
+	# and it is where the waiting line lives. It keeps its slot.
+
+
+## Said once per session, not once per frame. A rule that fires forty times a
+## second is a rule nobody reads in a log.
+var _said: bool = false
+
+
+## WHERE THE FEED GOES WHEN THERE IS NO CARD TO PUT IT UNDER.
+##
+## [P17]'s solver emits a `ticker` rectangle only inside `if card_size != ZERO` —
+## the feed was written as the thing that lives UNDER a dilemma and yields to it,
+## so with no dilemma there was nothing to place it against and it was simply not
+## placed. That was harmless for as long as a card was up in every frame this
+## build ever produced, and it stopped being harmless the moment the rule above
+## started taking the card off the stage for whole nights: the waiting line that
+## explains where the decision went had nowhere to be drawn, so in
+## `artifacts/H3_fix/shots/dusk.png` the card was correctly gone and the player
+## was told nothing at all.
+##
+## So this file — which is the one that knows the card is not there — asks [P17]
+## for the STAGE and puts the feed on its floor, which is exactly where the
+## solver would have put it. Asked through the `lcn_hud_chrome` group and the
+## public `solved_rect`, the same seam [P18] uses, so it holds for any [P17].
+##
+## THE HEIGHT IS A FLOOR, NOT A MEASUREMENT, and that is why it is allowed to be
+## a fraction rather than the solver's `96 * ui_scale`: `_grow_up` immediately
+## refits the plate to its own prose between this and twice this. Getting it
+## wrong costs a few pixels of empty plate, never a line of text outside its box.
+func _fallback_ticker_slot() -> Rect2:
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		return Rect2()
+	var stage: Rect2 = Rect2()
+	for node: Node in tree.get_nodes_in_group(&"lcn_hud_chrome"):
+		if node.has_method(&"solved_rect"):
+			stage = node.call(&"solved_rect", &"stage") as Rect2
+			break
+	if stage.size.x <= 1.0 or stage.size.y <= 1.0:
+		return Rect2()
+	# A STRIP, NOT A BOX. The solver's own slot is a 96 px band because it was
+	# sized for four sentences of flavour under a dilemma; what stands here is
+	# ONE line with a deadline on it, and `_grow_up` will take exactly the height
+	# that line needs between this and twice it. Sized as a box instead, the
+	# first version of this put a 400 x 135 plate of prose in the lower middle of
+	# `artifacts/H3_fix2/shots/assault.png` — the card at a third of the height,
+	# which is the defect, not the fix.
+	var h: float = clampf(stage.size.y * 0.05, 40.0, 90.0)
+	return Rect2(Vector2(stage.position.x, stage.end.y - h),
+		Vector2(maxf(200.0, stage.size.x * 0.62), h))
+
+
+## THE AFTER-ACTION MOMENT, AND WHY IT IS THE SAME RULE.
+##
+## [P20]'s night report is the screen that says what the night cost: the verdict,
+## what the city made, what it lost, and the one thing that nearly ended it. It
+## is raised on its own at dawn. It is the second half of the same contract the
+## rule above enforces — a night the player cannot watch and cannot afterwards
+## READ is a night that happened to somebody else.
+##
+## [P22] already stands its card down for an open [P20] screen, politely, through
+## `_work_surface_open()`. This is the same enforcement argument as the watch: the
+## presenter group is a seam, the politeness leaves with the part that implements
+## it, and "what may stand on the stage" is this file's question. The layer table
+## puts STATS at 76 and NARRATIVE at 66, so the report is never literally covered
+## — what this stops is the SCRIM, which is drawn at 65 under both of them and
+## would otherwise sit a 52% deep-blue wash over the city behind a report about
+## that city, on the say-so of a card nobody can see.
+##
+## Asked by group and public method, never by node path: with [P20] absent this
+## is false and nothing changes.
+func _grading() -> bool:
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		return false
+	for stats: Node in tree.get_nodes_in_group(&"lcn_stats"):
+		if bool(stats.get(&"is_open")):
+			return true
+	return false

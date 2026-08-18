@@ -59,6 +59,27 @@ extends CanvasLayer
 ## exactly this. It was never measurable before, because in the audit's build
 ## state there was always a card up and the sheet was always hidden.
 ##
+## AND IT WAITS FOR THE NIGHT. THIS IS THE RULE, NOT A PLACEMENT.
+##
+## Three rounds running, this card sat over the middle of the screen at the exact
+## moment the middle of the screen was the thing to look at, and three times it
+## was MOVED rather than governed. `artifacts/CRIT/shots/assault.png`: "A Demand
+## With a Date On It", dead centre, over a city with ten hostiles inside the
+## perimeter. `artifacts/H3_base/shots/dusk.png` is the same defect one beat
+## earlier and reads worse — the ATTENTION stack says "Attack in 25 seconds: a
+## turret mount, on a pipe, on that side, before the number reaches zero" and
+## this card is drawn across the side it means.
+##
+## So `LcnWorldWatch` answers one question — is the world being watched — and
+## this presenter stands down for as long as the answer is yes, on the same
+## `deferred` path a work surface already uses. Nothing is answered, discarded or
+## expired: the deadline runs in the sim, and the card is back the frame the
+## night ends. The player is TOLD, in one line at the top of the flavour feed
+## (`_waiting_line`), which is low and left and out of the stage.
+##
+## `LcnHudStage` enforces the same rule over whatever presenter holds the group,
+## so this standing down is the polite half of it and not the load-bearing half.
+##
 ## INPUT. Mouse only, on real Buttons. Every key on the keyboard is claimed by
 ## somebody in `LcnLayers` and the number row is claimed twice, so a card that
 ## bound 1/2/3 to its options would silently fight the sim-speed keys.
@@ -106,6 +127,11 @@ var deferred: bool = false
 ## `LcnHudStage`, which owns where the plate goes and therefore also owns the
 ## `visible` flag on it — see `_refresh_ticker()`.
 var ticker_has_lines: bool = false
+## Why the world is being watched, as a `LcnWorldWatch.Watch`. `NONE` means a
+## card may stand. Published so `LcnHudStage` can say in one word why it is
+## holding a presenter down, and so a test can read the rule's answer instead of
+## inferring it from a hidden panel.
+var watch: int = LcnWorldWatch.Watch.NONE
 
 
 func _ready() -> void:
@@ -238,21 +264,33 @@ func _refresh() -> void:
 	if not Sim.alive:
 		_panel.visible = false
 		deferred = false
+		watch = LcnWorldWatch.Watch.NONE
 		return
 	_layout()
-	_refresh_ticker()
 	var card: Dictionary = Narrative.current()
-	if card.is_empty():
-		_panel.visible = false
-		deferred = false
-		_showing = ""
-		_signature = ""
-		return
+	# ASKED BEFORE THE FEED IS BUILT, because a held card puts a line INTO the
+	# feed and `_refresh_ticker()` is what writes it. This used to run the other
+	# way round and the waiting line was always one poll — 200 ms — stale.
+	watch = LcnWorldWatch.Watch.NONE if card.is_empty() else LcnWorldWatch.watch()
 	# THE STORY WAITS FOR A SURFACE THE PLAYER OPENED. Not answered, not
 	# discarded, not shrunk to a stub that would need a rectangle of its own in
 	# [P17]'s solver and in the overlap audit — just held, with the deadline still
 	# running in the sim where it belongs.
-	deferred = _work_surface_open()
+	#
+	# AND IT WAITS FOR THE NIGHT, which is the same yielding pointed at the one
+	# surface the player did NOT open on purpose. `LcnWorldWatch` is the rule and
+	# the whole of its argument is in that file; what belongs here is only that
+	# this presenter obeys it, and that the player is told rather than robbed —
+	# see the waiting line in `_refresh_ticker()`.
+	deferred = _work_surface_open() or watch != LcnWorldWatch.Watch.NONE
+	_refresh_ticker(card)
+	if card.is_empty():
+		_panel.visible = false
+		deferred = false
+		watch = LcnWorldWatch.Watch.NONE
+		_showing = ""
+		_signature = ""
+		return
 	if deferred:
 		_panel.visible = false
 		return
@@ -364,16 +402,44 @@ func _kicker_for(category: String, day: int, era: String) -> String:
 ## `LcnHudStage` already treats a zero-height ticker as "do not draw" and places
 ## the card against a taller stage when there is nothing here, so hiding the
 ## plate costs nothing and gives the frame back to the world.
-func _refresh_ticker() -> void:
-	var lines: Array[Dictionary] = Narrative.feed(FEED_LINES)
+func _refresh_ticker(card: Dictionary = {}) -> void:
 	var out: PackedStringArray = PackedStringArray()
-	for row: Dictionary in lines:
-		var text: String = String(row.get("text", "")).strip_edges()
-		if text != "":
-			out.append(text)
+	# THE WAITING LINE. A modal that vanishes with no trace is a bug the player
+	# reports; a modal that leaves a sentence behind is a rule they learn. It
+	# goes FIRST because it is the only line here with a deadline on it, and it
+	# is written only for the watch — a card held for a browser the player opened
+	# themselves needs no explanation, they are looking at the reason.
+	if watch != LcnWorldWatch.Watch.NONE and not card.is_empty():
+		out.append(_waiting_line(card))
+	# AND DURING A WATCH IT IS THAT LINE AND NOTHING ELSE. This is the "shrinks
+	# to a ticker" half of the rule and it has to be taken literally: four
+	# sentences about the kitchen, laid across the city while ten hostiles are
+	# inside the perimeter, is the same defect as the card at a third of the
+	# height. One line, because one line is the only thing here with a deadline
+	# on it. The feed comes back with the card, when the night is over.
+	if watch == LcnWorldWatch.Watch.NONE:
+		for row: Dictionary in Narrative.feed(FEED_LINES):
+			var text: String = String(row.get("text", "")).strip_edges()
+			if text != "":
+				out.append(text)
 	_ticker.text = "\n".join(out)
 	ticker_has_lines = not out.is_empty()
 	_ticker_plate.visible = ticker_has_lines
+
+
+## One sentence: what is waiting, how long it has, and why it is not on screen.
+## The hours come from the same `hours_left` the card's own countdown prints, so
+## a player who watched the number on the card sees it keep moving in the feed
+## rather than a decision that appears to have been taken away from them.
+func _waiting_line(card: Dictionary) -> String:
+	var title: String = String(card.get("title", "")).strip_edges()
+	if title == "":
+		title = "A decision"
+	var hours: float = float(card.get("hours_left", 0.0))
+	var has_options: bool = not (card.get("options", []) as Array).is_empty()
+	var when: String = " — %.1f h left" % hours if (hours > 0.0 and has_options) else ""
+	return "Waiting: \u201c%s\u201d%s. Held while %s." % [
+		title, when, LcnWorldWatch.because(watch)]
 
 
 ## True when the player has a surface open that they opened on purpose: any of
