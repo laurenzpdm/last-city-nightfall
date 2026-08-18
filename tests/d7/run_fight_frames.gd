@@ -1,4 +1,5 @@
 extends SceneTree
+## READS: visual-run
 ## NOTHING THAT STOPS THE WORLD IS IN A FRAME NAMED FOR A FIGHT. [D7]
 ##
 ##   xvfb-run -a tools/run_visual.sh --scenario=first_night --out=artifacts/mine
@@ -58,6 +59,13 @@ extends SceneTree
 ## There is a factor of eight between the two populations and `MAX_PLATED` sits
 ## in the middle of the gap. Nothing in the scenario lands between them.
 ##
+## THOSE TWO NUMBERS WERE MEASURED IN THE NARROW BOX — see `CX0` below, which the
+## integrator widened after the card stopped being the only thing that plates the
+## stage. Re-measured in the box this file now uses: watched beats 0.5 %, quiet
+## beats 30.4 – 38.2 %. Same shape, same verdicts, a factor of sixty instead of
+## eight, and the box now reaches the part of the screen where the defect that
+## replaced the card actually sits.
+##
 ## This reads the SHIPPED frame alone, which also closes the hole the pair
 ## measurement had: a world-stopping surface drawn at or below `LcnLayers.HUD`
 ## would have been in both exposures and invisible to a difference, and it is not
@@ -94,8 +102,33 @@ extends SceneTree
 ## [P17]'s left rail at x 390, the key rail starts at x 1760, and the clock panel
 ## stops at y 202 but never reaches x 576 — none of them touch this box in any
 ## shot of `first_night`. The card, at x 656..1316 y 212..670, sits inside it.
-const CX0: float = 0.30
-const CX1: float = 0.70
+##
+## X WIDENED 0.30..0.70 -> 0.17..0.83 BY THE INTEGRATOR, BECAUSE THE NARROW BOX
+## WAS DRAWN AROUND THE CARD AND THE CARD IS NO LONGER THE ONLY THING THAT PLATES
+## THE STAGE. With [P22]'s card correctly standing down for a watch, [P18]'s
+## world-inspection sheet took the space it left: a 382x385 opaque panel at
+## x 345..727 in the integrated tree's `shots/assault.png`, ten hostiles alive.
+## Only 151 px of it reached into x 576..1344, and the plate test needs a flat
+## run of 0.26 of the box — 199 px — so the sheet could not trip this suite at
+## any opacity. Measured on that frame: 5.8 % in the narrow box (PASS), 28.3 %
+## in this one (FAIL). The suite was passing a frame that carried exactly the
+## defect it exists to catch, one screen-eighth to the left of where it looked.
+##
+## THE WIDER BOX SEPARATES THE TWO POPULATIONS BETTER, NOT WORSE, AND IT CAN
+## STILL FAIL. Four beats of `artifacts/INT_ship` (the sheet suppressed) against
+## `artifacts/H4b_v6` (the same build with it up), narrow -> wide:
+##
+##     assault         5.8 -> 28.3 %  before      4.7 ->  0.5 %  after
+##     second_night    5.2 -> 28.3 %  before      5.2 ->  0.5 %  after
+##     third_day_city 60.2 -> 38.2 %  (quiet, card up — unchanged by the fix)
+##     midday         51.8 -> 30.4 %  (quiet, card up — unchanged by the fix)
+##
+## So a watched frame reads 0.5 % and a quiet one 30-38 %: MAX_PLATED 0.20 and
+## MIN_QUIET_PLATED 0.20 both still sit in the gap, and the box now reaches the
+## chrome that actually lands there. `deep_night` reads 0.0 % in the wide box,
+## which is the control that says the extra width is not picking up a rail.
+const CX0: float = 0.17
+const CX1: float = 0.83
 const CY0: float = 0.15
 const CY1: float = 0.68
 
@@ -285,9 +318,19 @@ func _find_run() -> String:
 	var root: String = ProjectSettings.globalize_path("res://artifacts")
 	var order: PackedStringArray = PackedStringArray()
 	var want: String = String(OS.get_environment("LCN_FRAME_DIR")).strip_edges()
+	# LCN_FRAME_DIR IS AN INSTRUCTION, NOT A FIRST GUESS. When it is set this
+	# search stops here: grade that run or report UNCHECKED. It used to be the
+	# head of a list that fell through to `artifacts/gate/visual` and then to
+	# every folder in `artifacts/` newest-first, which meant tools/check.sh —
+	# where this suite runs before the gate has photographed anything — graded
+	# whichever builder's scratch run happened to be newest. On this tree that
+	# was `artifacts/H4b_v6`; four rows down the same list sits
+	# `artifacts/H4b_nofloor`, an ablation with the night's light set to zero.
+	# A stage that cannot say which run it graded is not evidence.
 	if not want.is_empty():
-		order.append(want if want.begins_with("/") \
-			else ProjectSettings.globalize_path("res://" + want))
+		var pinned: String = want if want.begins_with("/") \
+			else ProjectSettings.globalize_path("res://" + want)
+		return pinned if _qualifies(pinned) else ""
 	var rest: Array[Dictionary] = []
 	var d: DirAccess = DirAccess.open(root)
 	if d != null:
@@ -301,11 +344,20 @@ func _find_run() -> String:
 	for row: Dictionary in rest:
 		order.append(String(row["dir"]))
 	for cand: String in order:
-		for b: Dictionary in _beats(cand):
-			if bool(b["fight"]) and FileAccess.file_exists(
-					cand.path_join("shots/%s.png" % String(b["name"]))):
-				return cand
+		if _qualifies(cand):
+			return cand
 	return ""
+
+
+## Can this run answer the question this file asks? One rule, used both by the
+## search and by the LCN_FRAME_DIR path, so a pinned run is held to exactly the
+## standard a discovered one is.
+func _qualifies(cand: String) -> bool:
+	for b: Dictionary in _beats(cand):
+		if bool(b["fight"]) and FileAccess.file_exists(
+				cand.path_join("shots/%s.png" % String(b["name"]))):
+			return true
+	return false
 
 
 # ------------------------------------------------------------------ plumbing --

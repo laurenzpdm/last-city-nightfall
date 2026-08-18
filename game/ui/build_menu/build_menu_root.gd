@@ -665,7 +665,7 @@ func _process(delta: float) -> void:
 	# at the opening beat of `first_night`: [P22]'s "The Column Stopped Here" and
 	# a 380 px inspection of the hearth, both drawn, in the frame a critic sees
 	# first. One group lookup per frame is the right price for that.
-	if tooltip != null and tooltip.visible and _card_up():
+	if tooltip != null and tooltip.visible and (_card_up() or LcnWorldWatch.needs_watching()):
 		tooltip.visible = false
 	if _accum < 1.0 / REFRESH_HZ:
 		return
@@ -802,7 +802,24 @@ func _place_tooltip() -> void:
 	# top of [P19]'s lens legend — the sheet had stopped covering one thing by
 	# covering another. There is no arrangement in which a mouse-follow panel and
 	# a modal question both belong on screen.
-	if _card_up():
+	#
+	# AND THE SAME RULE FOR THE NIGHT, WHICH IS WHAT THE CARD USED TO BUY BY
+	# ACCIDENT. [P22] now stands its card down whenever `LcnWorldWatch` says the
+	# world needs watching, which is right — but this sheet was suppressed by the
+	# CARD, not by the watch, so removing the card handed the stage straight to
+	# the inspection. Measured on the ordinary `first_night` visual run of the
+	# integrated tree, `shots/assault.png`, ten hostiles alive: a 382x385 opaque
+	# sheet about the Hearth at x 345..727, y 370..755, over the city, in a frame
+	# whose entire job is the fight. `tests/d7/run_fight_frames.gd` reads 5.8 %
+	# of its stage-centre box and PASSES, because that box is the middle 40 % of
+	# the screen — drawn around the 660 px card — and only 151 px of this sheet
+	# reaches into it. Widen the same measurement to the middle 66 % and the
+	# frame is 28.3 % plated.
+	#
+	# So the rule is stated against the watch and not against the card: an
+	# inspection is something the player asked about a building, and it does not
+	# outrank the thing that is currently walking into the city.
+	if _card_up() or LcnWorldWatch.needs_watching():
 		tooltip.visible = false
 		return
 	# It also stays out of the bottom rail. The stage is where the world is and
