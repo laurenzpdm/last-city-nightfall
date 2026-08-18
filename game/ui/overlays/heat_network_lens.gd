@@ -245,14 +245,28 @@ func _draw_badges() -> void:
 		var demand: float = float(stats.get("demand", 0.0))
 		var deficit: float = float(stats.get("deficit", 0.0))
 		var producers: int = int(stats.get("producers", 0))
-		var text: String = "%s GRID %d   %.0f/%.0f heat/s" % [
-			pal.network_mark(slot), nid2, float(stats.get("delivered", 0.0)), demand]
+		# THE SAME GRID, THE SAME TWO NUMBERS, THE SAME WORDS AS THE PANEL.
+		#
+		# This badge and [P17]'s heat panel are the two places a player reads a
+		# grid's balance, and they were reading two different measurements
+		# through two different formatters. The numerator here was `delivered` —
+		# every unit that left a pipe, including surplus charging a building's
+		# own mass — while the panel headlines `demand - deficit`, what a
+		# consumer asked for and got; and `%.0f` against `LcnHudFormat.rate()`
+		# printed the same margin as "spare 8" out here and "+7.8 spare" up
+		# there, in one frame (`artifacts/play1/shots/deep_night.png`). One
+		# quantity, one rendering, whichever surface a player happens to be
+		# looking at.
+		var met: float = maxf(0.0, demand - deficit)
+		var text: String = "%s GRID %d   %s/%s heat/s" % [
+			pal.network_mark(slot), nid2, LcnHudFormat.rate(met),
+			LcnHudFormat.rate(demand)]
 		if producers == 0:
 			text += "   NO SOURCE"
 		elif deficit > 0.5:
-			text += "   short %.0f" % deficit
+			text += "   short %s" % LcnHudFormat.shortfall(deficit)
 		elif supply > demand + 0.5:
-			text += "   spare %.0f" % (supply - demand)
+			text += "   spare %s" % LcnHudFormat.shortfall(supply - demand)
 		var tint: Color = pal.bad() if (producers == 0 or deficit > 0.5) else c
 		word(anchors[0], text, 15.0, tint, LcnLabelField.Rank.IDENTITY, 1,
 			"grid %d" % nid2, true, true, anchors.slice(1))

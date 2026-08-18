@@ -343,8 +343,13 @@ static func _title(kind: StringName) -> String:
 func _rows_summary() -> void:
 	var t: Dictionary = snap.totals
 	_row("%s on %s" % [_n(snap.node_count, "building"), _n(snap.nets.size(), "grid")])
-	_row("delivered %.0f of %.0f heat/s, loss %.0f" % [
-		float(t.get("delivered", 0.0)), float(t.get("demand", 0.0)), float(t.get("loss", 0.0))])
+	# `demand - deficit`, through `LcnHudFormat.rate`, because [P17]'s heat panel
+	# headlines exactly that and a legend is not a second opinion.
+	var demand_all: float = float(t.get("demand", 0.0))
+	var met_all: float = maxf(0.0, demand_all - float(t.get("deficit", 0.0)))
+	_row("delivered %s of %s heat/s, loss %s" % [
+		LcnHudFormat.rate(met_all), LcnHudFormat.rate(demand_all),
+		LcnHudFormat.rate(float(t.get("loss", 0.0)))])
 
 
 func _rows_networks() -> void:
@@ -355,19 +360,21 @@ func _rows_networks() -> void:
 		var slot: int = int(n.get("slot", 0))
 		var deficit: float = float(n.get("deficit", 0.0))
 		var producers: int = int(n.get("producers", 0))
-		var text: String = "%s GRID %d   %.0f/%.0f heat/s   %s" % [
+		var demand: float = float(n.get("demand", 0.0))
+		var met: float = maxf(0.0, demand - deficit)
+		var text: String = "%s GRID %d   %s/%s heat/s   %s" % [
 			pal.network_mark(slot), int(n.get("id", 0)),
-			float(n.get("delivered", 0.0)), float(n.get("demand", 0.0)),
+			LcnHudFormat.rate(met), LcnHudFormat.rate(demand),
 			_n(int(n.get("nodes", 0)), "node")]
 		var c: Color = LcnOverlayPalette.INK
 		if producers == 0:
 			text += "   NO SOURCE"
 			c = pal.bad()
 		elif deficit > 0.5:
-			text += "   short %.0f" % deficit
+			text += "   short %s" % LcnHudFormat.shortfall(deficit)
 			c = pal.bad()
 		elif float(n.get("buffer", 0.0)) > 0.0:
-			text += "   buffer %.0f" % float(n.get("buffer", 0.0))
+			text += "   buffer %s" % LcnHudFormat.rate(float(n.get("buffer", 0.0)))
 		_row(text, c, pal.network_color(slot))
 	if snap.nets.size() > 1:
 		_row("separate grids do not share heat", pal.warn())

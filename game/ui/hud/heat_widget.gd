@@ -130,14 +130,18 @@ func _draw() -> void:
 	x += style.draw_text(self, Vector2(x, _y_ratio),
 		"/ %s" % LcnHudFormat.rate(probe.heat_demand), style.fs(17), style.ink_dim()) + 6.0
 	style.draw_text(self, Vector2(x, _y_ratio), "heat/s", style.fs(12), style.ink_faint())
+	# Whole units, through `LcnHudFormat.shortfall`, because this chip is quoted
+	# against the pair to its left and a player checks it by subtracting them.
+	# "160 / 165 heat/s" beside "−5.4 short" is the panel marking its own
+	# homework wrong, and it is the same hole the lens legend was calling 5.
 	if probe.heat_deficit > 0.5:
 		var danger: Color = style.sev_colour(S.Sev.DANGER)
 		style.draw_text_right(self, WIDTH - 15.0, _y_ratio,
-			"−%s short" % LcnHudFormat.rate(probe.heat_deficit), style.fs(17),
+			"−%s short" % LcnHudFormat.shortfall(probe.heat_deficit), style.fs(17),
 			Color(danger.r, danger.g, danger.b, 0.78 + 0.22 * style.pulse(3.0)))
 	elif probe.heat_supply > probe.heat_demand + 0.5:
 		style.draw_text_right(self, WIDTH - 15.0, _y_ratio,
-			"+%s spare" % LcnHudFormat.rate(probe.heat_supply - probe.heat_demand),
+			"+%s spare" % LcnHudFormat.shortfall(probe.heat_supply - probe.heat_demand),
 			style.fs(14), style.health_colour(1.0))
 
 	var bar := Rect2(15.0, _y_bar, WIDTH - 30.0, 9.0)

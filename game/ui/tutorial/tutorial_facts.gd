@@ -455,10 +455,23 @@ func value_text(key: StringName, v: float) -> String:
 		return "%d%%" % int(roundf(v))
 	if SECONDS_KEYS.has(key):
 		return duration_text(v)
+	# TWO NUMBERS FOR THE SAME LARDER, TWELVE HUNDRED PIXELS APART.
+	# `artifacts/play_tour/shots/00_opening.png`: the guide's first card reads
+	# "5.3 days left in the larder" and [P17]'s people panel, in the same frame,
+	# reads "FOOD 5.5 days". Neither is wrong and a player cannot tell that —
+	# they snap to different grids. `LcnHudFormat.days()` is the ONE wording the
+	# rest of the interface uses (half-day steps, "half a day", "nothing"),
+	# written for exactly this collision between a panel and an alert; the guide
+	# is the third surface and it was quoting the raw float.
 	if key == &"food_days":
-		return "%.1f days" % v
-	if key == &"heat_deficit" or key == &"heat_supply" or key == &"heat_demand":
-		return "%.0f" % v
+		return LcnHudFormat.days(v)
+	# Same argument for the grid. The hole goes through `shortfall()` because
+	# that is the one rendering the heat panel, the attention row and [P19]'s
+	# legend all now use; supply and demand are throughputs and take `rate()`.
+	if key == &"heat_deficit":
+		return LcnHudFormat.shortfall(v)
+	if key == &"heat_supply" or key == &"heat_demand":
+		return LcnHudFormat.rate(v)
 	if key == &"turret_uptime":
 		return "%d%%" % int(roundf(v * 100.0))
 	return "%d" % int(roundf(v))

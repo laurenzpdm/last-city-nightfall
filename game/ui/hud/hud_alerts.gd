@@ -240,8 +240,12 @@ func _derive_heat(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 		var sev: int = S.Sev.WARN
 		if starved >= 3 or deficit > maxf(4.0, float(stats.get("demand", 1.0)) * 0.35):
 			sev = S.Sev.DANGER
+		# `shortfall()` and not `amount()`: this row and the heat panel are quoting
+		# the SAME hole three panels apart, and `amount()`'s decimal under ten made
+		# them "9.2 heat short" here and "−9 short" there in one frame
+		# (`artifacts/play2/shots/third_day_city.png`). One hole, one number.
 		var head: String = "%s is %s heat short" % [
-			_capitalise(title), LcnHudFormat.amount(deficit)]
+			_capitalise(title), LcnHudFormat.shortfall(deficit)]
 		if deficit < 0.5:
 			head = "%s is browning out" % _capitalise(title)
 		var fix: String = "Add generation, or switch off what you can live without."
@@ -632,22 +636,18 @@ func _on_alert(severity: int, key: StringName, text: String, pos: Vector2) -> vo
 	var family: String = _family_of(key)
 	var existing: Dictionary = _bus.get(key, {})
 	var count: int = int(existing.get("count", 0)) + 1
-	# `_headline()` returns the first sentence, and most parts raise alerts that
-	# ARE one sentence — so head and body came out byte-identical and the panel
-	# printed the line twice, once bright and once dim, one under the other:
+	# A claim and its reason, cut apart once and disjoint — see `_split_alert`.
+	# This lane used to publish the first sentence as the head and the WHOLE text
+	# as the body, so the panel printed the same line twice, bright and then dim:
 	#
 	#   ! 1 burner running dry — the city is out of coal
 	#     1 burner running dry — the city is out of coal
-	#
-	# (`artifacts/play_tour/shots/03_tech.png`). The rows the HUD derives itself
-	# already ship an empty body when the headline says everything, and the
-	# widget already draws that correctly; only the bus lane was echoing.
-	var head: String = _headline(text)
+	var split: PackedStringArray = _split_alert(text)
 	_bus[key] = {
 		"key": key, "family": family,
 		"sev": clampi(severity + 1, S.Sev.INFO, S.Sev.CRITICAL),
-		"head": head,
-		"body": "" if head == _capitalise(text.strip_edges().trim_suffix(".")) else text,
+		"head": split[0],
+		"body": split[1],
 		"fix": "", "focus": pos, "count": count, "at": _now,
 	}
 
@@ -840,14 +840,54 @@ static func _family_of(key: StringName) -> String:
 ## First sentence, capitalised, no trailing full stop — an alert headline is a
 ## label, not prose.
 static func _headline(text: String) -> String:
-	var t: String = text.strip_edges()
+	return _split_alert(text)[0]
+
+
+## THE BODY IS WHAT IS LEFT OF THE SENTENCE, NEVER THE SENTENCE AGAIN.
+##
+## `_headline()` cut at the first ". " and the body was the WHOLE text, so every
+## alert of two sentences printed its first one twice, bright and then dim. That
+## was noticed and half-fixed with `body = "" if head == text`, which catches
+## only the case where the alert is one short sentence — and misses the common
+## one, where the head had to be TRUNCATED and therefore can never equal the
+## text it came from:
+##
+##   ! 2 burners running dry — there is 200 coal in store…
+##     2 burners running dry — there is 200 coal in store and nobody is
+##     carrying it there
+##
+## (`artifacts/play_tour/shots/01_palette.png` and `03_tech.png`, the panel's
+## top row, on the first day of a fresh game.)
+##
+## So the split happens ONCE, here, and the two halves are disjoint by
+## construction. An em dash is a headline break as much as a full stop is —
+## which is what turns that alert into the shape the HUD's own derived rows
+## already use: a claim in bold, the reason under it. With neither break
+## available the head is cut at the last word inside the limit and the tail
+## becomes the body, so nothing is ever lost to an ellipsis.
+const HEAD_LIMIT: int = 64
+
+static func _split_alert(text: String) -> PackedStringArray:
+	var t: String = text.strip_edges().trim_suffix(".")
+	var cut: int = -1
 	var stop: int = t.find(". ")
 	if stop > 0:
-		t = t.substr(0, stop)
-	t = t.trim_suffix(".")
-	if t.length() > 64:
-		t = t.substr(0, 61) + "…"
-	return _capitalise(t)
+		cut = stop
+	var dash: int = t.find(" — ")
+	if dash > 0 and (cut < 0 or dash < cut):
+		cut = dash
+	var head: String = t if cut < 0 else t.substr(0, cut)
+	var body: String = "" if cut < 0 else t.substr(cut)
+	if head.length() > HEAD_LIMIT:
+		var brk: int = head.rfind(" ", HEAD_LIMIT - 3)
+		if brk > 16:
+			body = head.substr(brk) + " " + body
+			head = head.substr(0, brk)
+		else:
+			head = head.substr(0, HEAD_LIMIT - 3) + "…"
+	body = body.strip_edges().lstrip(".—- ").strip_edges()
+	return PackedStringArray([_capitalise(head.strip_edges()),
+		_capitalise(body.trim_suffix("."))])
 
 
 static func _capitalise(s: String) -> String:
