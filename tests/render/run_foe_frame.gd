@@ -1,4 +1,5 @@
 extends SceneTree
+## READS: visual-run
 ## CAN YOU FIND THE MONSTERS IN THE FRAME THE GAME ACTUALLY MAKES? [P13]
 ##
 ##   tools/run_visual.sh --scenario=first_night --out=artifacts/mine
@@ -219,9 +220,19 @@ func _find_run() -> String:
 	var root: String = ProjectSettings.globalize_path("res://artifacts")
 	var want: String = String(OS.get_environment("LCN_FRAME_DIR")).strip_edges()
 	var order: PackedStringArray = PackedStringArray()
+	# LCN_FRAME_DIR IS AN INSTRUCTION, NOT A FIRST GUESS. When it is set this
+	# search stops here: grade that run or report UNCHECKED. It used to be the
+	# head of a list that fell through to `artifacts/gate/visual` and then to
+	# every folder in `artifacts/` newest-first, which meant tools/check.sh —
+	# where this suite runs before the gate has photographed anything — graded
+	# whichever builder's scratch run happened to be newest. On this tree that
+	# was `artifacts/H4b_v6`; four rows down the same list sits
+	# `artifacts/H4b_nofloor`, an ablation with the night's light set to zero.
+	# A stage that cannot say which run it graded is not evidence.
 	if not want.is_empty():
-		order.append(want if want.begins_with("/") \
-			else ProjectSettings.globalize_path("res://" + want))
+		var pinned: String = want if want.begins_with("/") \
+			else ProjectSettings.globalize_path("res://" + want)
+		return pinned if _qualifies(pinned) else ""
 	# The gate's own visual pass, so `tools/check.sh` grades the run it just made
 	# rather than whatever happens to be lying around.
 	order.append(root.path_join("gate/visual"))
@@ -241,18 +252,27 @@ func _find_run() -> String:
 	for row: Dictionary in rest:
 		order.append(String(row["dir"]))
 	for cand: String in order:
-		if not FileAccess.file_exists(cand.path_join("log.txt")):
-			continue
-		# A run made before this file's instrument existed has the frames but not
-		# the rectangles, and grading it would report four UNCHECKED lines about a
-		# build nobody is looking at. Skip to the newest run that can answer.
-		if _dumps(cand).is_empty():
-			continue
-		for shot: Dictionary in _shots(cand):
-			if int(shot["hostiles"]) > 0 \
-					and FileAccess.file_exists(_world_png(cand, String(shot["name"]))):
-				return cand
+		if _qualifies(cand):
+			return cand
 	return ""
+
+
+## Can this run answer the question this file asks? One rule, used both by the
+## search and by the LCN_FRAME_DIR path, so a pinned run is held to exactly the
+## standard a discovered one is.
+func _qualifies(cand: String) -> bool:
+	if not FileAccess.file_exists(cand.path_join("log.txt")):
+		return false
+	# A run made before this file's instrument existed has the frames but not
+	# the rectangles, and grading it would report four UNCHECKED lines about a
+	# build nobody is looking at.
+	if _dumps(cand).is_empty():
+		return false
+	for shot: Dictionary in _shots(cand):
+		if int(shot["hostiles"]) > 0 \
+				and FileAccess.file_exists(_world_png(cand, String(shot["name"]))):
+			return true
+	return false
 
 
 static func _world_png(dir: String, shot_name: String) -> String:

@@ -227,6 +227,41 @@ suite_args() {   # suite_args <path> -> the user args that suite declares it nee
   grep -m1 '^## REQUIRES: ' "$src" 2>/dev/null | sed 's/^## REQUIRES: //'
 }
 
+# --- 4c. suites that grade a visual run's PNGs -----------------------------
+#
+# The same idea one step further. Three suites in this build do not test code
+# directly: they open the screenshots a harness run wrote and measure them.
+# They declare that, in the same one-line idiom:
+#
+#     ## READS: visual-run
+#
+# WHY THIS EXISTS, MEASURED. Standalone suites are stage 5 and the gate's visual
+# run is stage 8, so at the moment these three execute, `artifacts/gate/visual`
+# still holds the run the PREVIOUS check.sh made — and each of them, finding it
+# unsuitable, walks on to the newest folder in `artifacts/` that will answer.
+# On this tree that folder was `artifacts/H4b_v6`, a builder's private scratch
+# run; four folders further down the same list is `artifacts/H4b_nofloor`, an
+# ablation with the night's sun and sky energy deliberately set to zero. A gate
+# stage that grades an ablation somebody left lying around is not a gate.
+# `tests/render/run_ground_frame.gd` could never grade the gate's own run in any
+# case: it reads shots named midday/dusk/deep_night/third_day_city and the gate
+# photographs `smoke`, whose beats are named morning_industry/dusk_city/
+# night_perimeter/deep_night_zoomout. The two halves of the gate disagreed about
+# which run the build is, and the suites settled it by wandering.
+#
+# So they are deferred to after the visual run and pinned to it with
+# LCN_FRAME_DIR, which those suites now treat as "this run or nothing" rather
+# than as the first guess of a search.
+suite_reads() {   # suite_reads <path> -> what this suite needs to have been produced first
+  local rel="$1" src="$rel"
+  if [ "${rel##*.}" = "tscn" ]; then
+    src="$(grep -m1 -oE 'path="res://[^"]+\.gd"' "$rel" 2>/dev/null \
+           | sed 's|^path="res://||; s|"$||')"
+  fi
+  [ -n "$src" ] && [ -f "$src" ] || return 0
+  grep -m1 '^## READS: ' "$src" 2>/dev/null | sed 's/^## READS: //'
+}
+
 # One attempt at one standalone suite. Sets SUITE_CODE (0 pass, 1 fail, 2 could
 # not ask everything) and SUITE_NOTE. Split out of the loop below so a failing
 # suite can be READ AGAIN — see FLAKE_RETRIES.
@@ -308,6 +343,7 @@ suite_attempt() {   # suite_attempt <rel> <log>
 # is. Costs nothing on a green run: only a FAILING suite is read again.
 FLAKE_RETRIES="${LCN_FLAKE_RETRIES:-2}"
 
+DEFERRED_FRAME_SUITES=""
 STANDALONE="$("$GODOT" --headless --path "$ROOT" --script tests/run_tests.gd -- --list-standalone 2>/dev/null | grep '^res://' || true)"
 if [ -n "$STANDALONE" ]; then
   say ""
@@ -315,6 +351,11 @@ if [ -n "$STANDALONE" ]; then
   while IFS= read -r suite; do
     [ -z "$suite" ] && continue
     rel="${suite#res://}"
+    if [ "$(suite_reads "$rel")" = "visual-run" ]; then
+      DEFERRED_FRAME_SUITES="$DEFERRED_FRAME_SUITES$rel
+"
+      continue
+    fi
     log="$LOGDIR/standalone_$(echo "$rel" | tr '/' '_').log"
     suite_attempt "$rel" "$log"
     code=$SUITE_CODE
@@ -445,6 +486,43 @@ if [ "$RUN_GATE" -eq 1 ]; then
   fi
 else
   record_skip "gate" "reachability, scenario contracts and the visual run were all skipped" "gate"
+fi
+
+# --- 9. the suites that grade the frames the gate just photographed --------
+#
+# Deferred out of stage 5 by `suite_reads`. LCN_FRAME_DIR is exported, and these
+# suites read it as "grade THIS run or report UNCHECKED" — never as a hint they
+# may improve on by looking elsewhere. A suite that reports PARTIAL here is
+# telling the truth about the gate: the run it was given does not carry the
+# beats it measures. That is a SKIP in the summary, and it is strictly better
+# than the pass it used to report off another folder.
+if [ -n "$DEFERRED_FRAME_SUITES" ]; then
+  say ""
+  say "== frame suites (graded against the gate's own visual run) =="
+  vis_dir="artifacts/gate/visual"
+  if [ ! -f "$vis_dir/log.txt" ]; then
+    while IFS= read -r rel; do
+      [ -z "$rel" ] && continue
+      record_skip "$rel" "the gate wrote no visual run to grade ($vis_dir)" "frame suites"
+    done <<< "$DEFERRED_FRAME_SUITES"
+  else
+    while IFS= read -r rel; do
+      [ -z "$rel" ] && continue
+      log="$LOGDIR/frame_$(echo "$rel" | tr '/' '_').log"
+      # `export`, not a `VAR=x suite_attempt ...` prefix: suite_attempt is a
+      # FUNCTION, and a prefix assignment on a function call does not reach the
+      # Godot process the function starts. tools/gate.sh carries the same note
+      # over its own xvfb call, having been bitten by it once already.
+      export LCN_FRAME_DIR="$vis_dir"
+      suite_attempt "$rel" "$log"
+      unset LCN_FRAME_DIR
+      if [ "$SUITE_CODE" -eq 2 ]; then
+        record_skip "$rel" "$SUITE_NOTE" "frame suites"
+      else
+        record "$rel" "$log" "$SUITE_CODE" "$SUITE_NOTE" "frame suites"
+      fi
+    done <<< "$DEFERRED_FRAME_SUITES"
+  fi
 fi
 
 # --- summary ---------------------------------------------------------------

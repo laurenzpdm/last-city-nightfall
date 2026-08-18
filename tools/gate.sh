@@ -231,7 +231,20 @@ else
   # of a FUNCTION call is not exported to the processes that function starts, so
   # the prefix form would have silently stopped disabling the inner error gate
   # the moment this call was wrapped.
-  xvfb env LCN_NO_ERROR_GATE=1 tools/run_visual.sh --scenario=smoke --out="$vis" \
+  # first_night, NOT smoke. Three suites in this build grade the frames this
+  # pass writes — tests/render/run_foe_frame.gd, tests/render/run_ground_frame.gd
+  # and tests/d7/run_fight_frames.gd — and all three were written against
+  # `first_night`, whose beats are named opening/build/midday/dusk/assault/
+  # deep_night/dawn/second_*/third_day_city. `smoke` is 600 ticks of one day and
+  # names its beats morning_industry/dusk_city/night_perimeter/deep_night_zoomout.
+  # So run_ground_frame, which reads midday+dusk+deep_night+third_day_city, could
+  # never grade the gate's own run at all, and went looking for one that would —
+  # landing on whichever builder's scratch folder in artifacts/ was newest.
+  # smoke also has no night beat with ZERO hostiles, which is run_foe_frame's
+  # control, so that suite reported PARTIAL here on every green build.
+  # Measured on this box, alone: a full first_night visual run is 140 s, against
+  # a gate that already runs first_night headless twice for its contracts.
+  xvfb env LCN_NO_ERROR_GATE=1 tools/run_visual.sh --scenario=first_night --out="$vis" \
       > "$LOGDIR/visual.log" 2>&1
   vcode=$?
   shots=$(ls "$vis/shots" 2>/dev/null | wc -l | tr -d ' ')
