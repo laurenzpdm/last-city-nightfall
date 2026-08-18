@@ -262,7 +262,16 @@ func setup(world_model: LcnWorldModel, sprite_factory: LcnSpriteFactory) -> void
 	# the same statement the rim pass makes about a fire — light reaches the
 	# camera past the things in front of it — and it is the difference between a
 	# threat you can see and a threat your own factory is standing in front of.
-	_halo = _make_pass("FoeHaloPass", 3, 5, true)
+	#
+	# Z 7, NOT 5. This pass first shipped on z 5, which `game/core/ui_layers.gd`
+	# already allocates to [P15]'s world juice (`game/view/feel/world_fx.gd`
+	# const Z = 5). Two CanvasItems on one z_index are ordered by the order they
+	# reached the canvas — a tie-break neither part can see, state or test, and
+	# the exact failure the layer table was written to stop after [P21] and [P24]
+	# both came up on 80. 7 is the free rung that keeps every promise the comment
+	# above makes: above [P03]'s plates (4), above [P15]'s juice (5) and hover
+	# (6), still below [P14]'s decay (8) and its effects (20+).
+	_halo = _make_pass("FoeHaloPass", 3, 7, true)
 
 
 ## Binds the ground's data fields so entities can be lit by the same numbers the

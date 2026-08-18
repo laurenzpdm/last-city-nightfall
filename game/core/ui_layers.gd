@@ -104,6 +104,7 @@ extends RefCounted
 ##      4  inserters, splitters, tunnels   [D2] item_flow_root Z_MACHINES
 ##      5  world juice                     [P15] world_fx
 ##      6  hover feedback                  [P15] hover_fx
+##      7  hostile halo                    [P13] entity_renderer FoeHaloPass
 ##      8  decay                           [P14] vfx_decay
 ##     20+ particles, combat, weather      [P14] vfx_*
 ##
@@ -112,6 +113,18 @@ extends RefCounted
 ## a canvas layer above the HUD is not where the ground goes. The gap between the
 ## simulation paint (1–4) and the juice (5) is deliberate — juice reads as
 ## something happening TO the factory, so it goes over it.
+##
+## ROW 7 IS HERE BECAUSE THE LADDER'S OWN LESSON REPEATED ITSELF ONE RUNG LOWER.
+## [P13]'s hostile halo — the mark that exists so nothing the player built can
+## hide a monster — shipped on z 5, reading the rows at 1/3/4 above it and
+## stopping there. 5 is [P15]'s world juice. Neither part was wrong about its own
+## intent and neither could see the other, which is the same shape as [P21] and
+## [P24] both coming up on canvas layer 80: two CanvasItems on one z are ordered
+## by the order they reached the canvas, and a slot two parts share is not an
+## allocation. The halo is on 7 now — the free rung that still clears the
+## factory and still sits under [P14]. THIS LADDER IS THE ALLOCATION; a part
+## that picks a rung by reading only the rows it cares about will land on
+## somebody.
 ##
 ## ── HOTKEYS ──────────────────────────────────────────────────────────────────
 ##
