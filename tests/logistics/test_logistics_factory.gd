@@ -256,3 +256,40 @@ func test_the_buffer_a_belt_fills_is_bounded_so_nothing_can_vanish_into_it() -> 
 		"a machine buffer that overflows its own capacity is an item duplicator")
 	assert_eq(int(prod.call("produced_total", &"iron_plate")), 0,
 		"a smelter fed nothing but timber must not produce plate")
+
+
+func test_retooling_a_furnace_puts_what_the_belt_already_stacked_against_it_to_work() -> void:
+	var o: Vector2i = _area_of(Vector2i(12, 5))
+	if o == Vector2i.MAX:
+		skip("no clear ground on this seed")
+		return
+	var belt_from: Vector2i = o + Vector2i(0, 1)
+	var belt_to: Vector2i = o + Vector2i(5, 1)
+	var furnace: Vector2i = o + Vector2i(6, 0)
+	_drag("belt_mk1", belt_from, belt_to, 0)
+	_place("smelter", furnace)
+	_recipe(furnace, "copper_coil")                   # eats copper ore, not iron
+	world.run(4)
+	# The belt arrives with the wrong thing for the recipe that is loaded. It has
+	# to stack against the wall, not vanish and not be eaten.
+	_feed(belt_from, 200, "iron_ore")
+	var st: LogiStore = logi.world.stores.get(_building_at(furnace))
+	assert_not_null(st, "the furnace has no buffer store")
+	assert_gt(float(st.count(&"iron_ore")), 0.0,
+		("iron ore delivered to a furnace set to copper must sit on its dock. Anything "
+		+ "else is either an item that vanished or a recipe that ate the wrong thing"))
+	assert_eq(int(prod.call("produced_total", &"iron_plate")), 0,
+		"nothing should have been made out of it yet")
+	var stacked: int = st.count(&"iron_ore")
+
+	# Now the player right-clicks the furnace and picks the recipe that uses it.
+	_recipe(furnace, "iron_plate")
+	world.run(600)
+	# Not "empty": a machine's mouth only holds so much, so what is still on the
+	# dock is the queue behind a furnace that is eating as fast as it can. What
+	# must not happen is the stack sitting there untouched.
+	assert_lt(float(st.count(&"iron_ore")), float(stacked) * 0.5,
+		("the dock did not empty into the machine. A retool that strands everything "
+		+ "already delivered is a retool no player would ever risk making"))
+	assert_gt(float(int(prod.call("produced_total", &"iron_plate"))), 0.0,
+		"and the furnace made plate out of the ore that was standing there waiting")

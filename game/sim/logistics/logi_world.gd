@@ -109,6 +109,9 @@ var machine_fed: int = 0
 ## Finished goods taken OFF a machine into its own buffer because an arm was
 ## standing there to lift them. See [method LogisticsSystem.accept_output].
 var machine_taken: int = 0
+## Store owners holding goods a belt or an arm delivered that the machine could
+## not take at the time. Drained by [method LogisticsSystem._work_the_docks].
+var docks: Dictionary[int, bool] = {}
 
 
 func bind(heat: SimSystem, build: SimSystem) -> void:
@@ -915,6 +918,14 @@ func give_to_cell(cell: Vector2i, kind: StringName, amount: int, from_cell: Vect
 		if st2 != null:
 			var n2: int = st2.insert(kind, amount - fed)
 			delivered_to_stores += n2
+			if n2 > 0 and machine_input.is_valid():
+				# THE SHELF IS A LOADING DOCK, NOT AN OUBLIETTE. A belt delivering
+				# copper into a shop that is still cutting gears has to leave it
+				# somewhere the shop can reach the day its recipe changes;
+				# LogisticsSystem drains this set into the machine's mouth every
+				# tick, so retooling a machine puts what is already stacked
+				# against its wall to work instead of stranding it.
+				docks[owner] = true
 			return fed + n2
 		return fed
 	return 0

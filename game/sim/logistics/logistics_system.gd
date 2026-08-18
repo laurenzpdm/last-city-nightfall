@@ -316,6 +316,7 @@ func step(tick: int) -> void:
 	# the difference between a lit city and a dead one, and the loop is a handful
 	# of early-outs when every bunker is full.
 	_serve_fuel()
+	_work_the_docks()
 	if tick % REQUEST_EVERY == 0:
 		_serve_requests()
 	_check_dead_ends()
@@ -332,6 +333,36 @@ func step(tick: int) -> void:
 		_perf_us = 0
 		_perf_max_us = 0
 		_perf_steps = 0
+
+
+## Pushes what a belt stacked against a machine's wall into the machine's mouth.
+##
+## A delivery onto a machine goes to the recipe first and to the machine's buffer
+## store second, so a belt that arrives with copper while the shop is still
+## cutting gears does not lose the copper — it stacks. This drains that stack
+## the moment the machine can use it, which is what makes RETOOLING a machine a
+## real move rather than a way to strand everything already delivered to it.
+##
+## Ids are walked in sorted order and only stores that actually took a delivery
+## are in the set, so this is both deterministic and free in a city with no
+## belts on its factory.
+func _work_the_docks() -> void:
+	if world.docks.is_empty() or _production == null:
+		return
+	var ids: Array = world.docks.keys()
+	ids.sort()
+	for id: int in ids:
+		var st: LogiStore = world.stores.get(id)
+		if st == null or st.is_empty():
+			world.docks.erase(id)
+			continue
+		var moved: int = 0
+		for kind: StringName in st.kinds():
+			var took: int = int(_production.call("offer_input", id, kind, st.count(kind)))
+			if took > 0:
+				st.take(kind, took)
+				moved += took
+		world.machine_fed += moved
 
 
 ## Is there anywhere in this world an item could physically come from?
