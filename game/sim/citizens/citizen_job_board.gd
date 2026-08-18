@@ -80,6 +80,9 @@ var shelter_building: int = -1
 ## drops exactly the cached paths that crossed them, instead of the whole cache.
 var blocked_cells: Array[Vector2i] = []
 
+## How many employed citizens are on the night rotation after the last cut. The
+## price of a factory that runs in the dark, in bodies, for [P17] and the log.
+var night_crew: int = 0
 var total_required: int = 0
 var total_capacity: int = 0
 var total_beds: int = 0
@@ -569,25 +572,34 @@ func _deepen_pass(pool: CitizenPool, jobless: PackedInt32Array,
 
 
 ## Cuts the day and night rotations. **A shift belongs to a BUILDING, not to a
-## hire counter.**
+## hire counter — and no building in this city closes at sunset.**
 ##
-## The rule this replaces dealt every third hire to the night and never looked at
-## where that person worked — the same mistake `assign_jobs` used to make one
-## level up, a rule about crews that never reads what a crew is FOR, except that
-## its cost was total rather than occasional. The rotation was a property of the
-## person's hire ORDER and was never re-cut, so every building in the city was
-## permanently missing a third of its crew by day and two thirds of it by night:
-## in a twenty-minute reference run `citizens.staffed` never rose above 0.64 at
-## ANY hour. [P04] stalls a machine outright at `staffing <= 0`, so both rubble
-## sorters sat STALLED/`unstaffed` holding a full roster, the smelter downstream
-## of them starved on `missing_input: iron_ore`, and the crafting graph never
-## left depth two.
+## Two rules died here, in this order.
 ##
-## The rule now, in one sentence: **a crew works the hours its building is for.**
-## The wall is manned after dark, the workshops run in the light, and a crew with
-## the bodies to cover both rotations covers both — which is what makes hiring
-## past `required` worth doing, and turns `capacity` into the automation player's
-## night shift instead of a number on a tooltip.
+## The first dealt every third hire to the night and never looked at where that
+## person worked, so the rotation was a property of hire ORDER and was never
+## re-cut: every building was permanently missing a third of its crew by day and
+## two thirds by night, and `citizens.staffed` never rose above 0.64 at any hour.
+##
+## The second — the one this replaces — put a crew entirely on the rotation its
+## building was "for" and only bought a second rotation with surplus bodies. In a
+## city that is short of hands nothing ever HAS surplus, so in practice every
+## workshop was day-only and every gun was night-only. Measured over 24000 ticks:
+## `production.active_machines` 3.01 morning, 2.44 afternoon, then 0.34 / 0.44 /
+## 0.35 through the dark, all eight machines ending `unstaffed`, every belt line
+## at throughput 0.0. It also cost the DAY: the hearth's four stokers were all on
+## nights, so the city's main fire read `no crew` every morning.
+##
+## The rule now, in one sentence: **a crew works both rotations, weighted toward
+## the hours its building is for.** Primary is filled first; `skeleton_crew` says
+## how many hands are peeled off for the other rotation; surplus past `required`
+## still buys a full second crew, because depth should always beat policy. A
+## workshop of four is three by day and one after dark. A gun of one stays on the
+## wall at night, because one body cannot be in two places.
+##
+## The cost is deliberate and lands on the day: half a crew at the bench is half
+## the output, so daylight is no longer free and hiring past `required` is how
+## you buy it back. CitizenDefs.NIGHT_TRADES carries the rest of the reasoning.
 ##
 ## Re-cut from scratch on every pass rather than remembered, so somebody walked
 ## onto a new crew by `_reassign_surplus` takes that crew's hours with them
@@ -595,7 +607,7 @@ func _deepen_pass(pool: CitizenPool, jobless: PackedInt32Array,
 ##
 ## Deterministic twice over: `pool.alive` and `job_ids` are both sorted, and the
 ## one dictionary here is only ever read through `job_ids`, never iterated.
-func cut_shifts(pool: CitizenPool) -> void:
+func cut_shifts(pool: CitizenPool, law: StringName = CitizenDefs.LAW_STANDARD) -> void:
 	# One walk of the population buckets every crew. Asking each site who works
 	# there instead is O(sites x population), which is the shape this whole file
 	# is arranged to avoid.
@@ -614,6 +626,7 @@ func cut_shifts(pool: CitizenPool) -> void:
 		crew.append(s)
 		crews[j] = crew
 
+	night_crew = 0
 	for i: int in job_ids.size():
 		var id: int = job_ids[i]
 		if not crews.has(id):
@@ -625,26 +638,35 @@ func cut_shifts(pool: CitizenPool) -> void:
 			if CitizenDefs.is_night_trade(site.trade) else CitizenDefs.Shift.DAY
 		var other: int = CitizenDefs.Shift.DAY \
 			if primary == CitizenDefs.Shift.NIGHT else CitizenDefs.Shift.NIGHT
-		# Depth buys the second rotation, one body at a time. The primary rotation
-		# is filled to `need` FIRST and every hand past that goes to the other one,
-		# because a spare body adds nothing to a shift that is already at its
-		# requirement and is the whole difference between a building that is dark
-		# for half the day and one that is merely thin.
+		# Two claims on the other rotation, and the bigger one wins.
 		#
-		# The cliff version of this rule — cover both only with a full second crew
-		# — was measured over 24000 ticks and cost more than it bought: day
-		# staffing rose from 0.611 to 0.714 and `production.active_machines` at
-		# night fell from 2.05 to 0.00, because almost nothing in a city that is
-		# short of hands ever reaches twice its requirement.
+		#   policy  — the shift law's skeleton share of this crew, so a building
+		#             with exactly its requirement still has somebody in it at
+		#             the far end of the clock;
+		#   depth   — every hand past `required`, because a spare body adds
+		#             nothing to a rotation that is already at its requirement.
 		#
-		# What a crew of exactly `need` still cannot do is cover both, and it is
-		# not asked to: splitting it would leave the building short at BOTH ends of
-		# the day, which is the trade the old hire counter made for every building
-		# in the city, forever.
-		var to_other: int = clampi(crew2.size() - need, 0, need) if need > 0 else 0
+		# The cliff version of the depth rule — cover both ONLY with a full
+		# second crew — was measured over 24000 ticks and took
+		# `production.active_machines` at night to 0.00, because almost nothing
+		# in a city short of hands ever reaches twice its requirement. That is
+		# why policy exists underneath it and why it is not conditional on
+		# anything: the dark is the game.
+		var policy: int = CitizenDefs.skeleton_crew(law, crew2.size())
+		var depth: int = clampi(crew2.size() - need, 0, need) if need > 0 else 0
+		var to_other: int = clampi(maxi(policy, depth), 0, maxi(0, crew2.size() - 1))
+		# A curfew beats depth as well as policy. Without this the law is a lie
+		# in exactly the city that can afford to sign it: a crew twice its
+		# requirement would cover both rotations anyway, so the buildings that
+		# would actually keep working through a curfew are the well-staffed ones.
+		if not CitizenDefs.splits_the_clock(law):
+			to_other = 0
 		var keep: int = crew2.size() - to_other
 		for k: int in crew2.size():
-			pool.shift[crew2[k]] = primary if k < keep else other
+			var shift: int = primary if k < keep else other
+			pool.shift[crew2[k]] = shift
+			if shift == CitizenDefs.Shift.NIGHT:
+				night_crew += 1
 
 
 func _place(pool: CitizenPool, slot: int, site: Site) -> void:

@@ -187,6 +187,10 @@ var _rate_keys: Array[StringName] = []
 var _active: int = 0
 var _stalled: int = 0
 var _idle: int = 0
+## Stalls split by cause, recounted every tick alongside `_stalled`.
+var _stalled_unstaffed: int = 0
+var _stalled_cold: int = 0
+var _stalled_starved: int = 0
 var _crafts_total: int = 0
 var _fuel_served: float = 0.0
 var _fuel_denied: float = 0.0
@@ -283,6 +287,9 @@ func step(tick: int) -> void:
 	_active = 0
 	_stalled = 0
 	_idle = 0
+	_stalled_unstaffed = 0
+	_stalled_cold = 0
+	_stalled_starved = 0
 	var ids: PackedInt32Array = _sorted_ids()
 	for id: int in ids:
 		_advance(machines[id], tick)
@@ -915,6 +922,17 @@ func _park(m: ProdMachine, state: int, reason: StringName, item: StringName, tic
 		_idle += 1
 	else:
 		_stalled += 1
+		# Counted by cause, not just counted. "8 stalled" is a number; "8 stalled
+		# and every one of them says no crew" is a diagnosis, and it is the
+		# difference between a critic reading a factory as dead and reading it as
+		# starved of one specific thing. Written to metrics.csv so the answer is
+		# in the artifacts rather than in a builder's summary.
+		if reason == ProdMachine.REASON_UNSTAFFED:
+			_stalled_unstaffed += 1
+		elif reason == ProdMachine.REASON_NO_HEAT or reason == ProdMachine.REASON_TOO_COLD:
+			_stalled_cold += 1
+		elif reason == ProdMachine.REASON_MISSING_INPUT:
+			_stalled_starved += 1
 	var fresh: bool = m.announced_reason != reason
 	if not fresh and tick - m.announced_tick < STALL_REANNOUNCE_TICKS:
 		return
@@ -1404,6 +1422,9 @@ func metrics() -> Dictionary:
 		"machines": machines.size(),
 		"active_machines": _active,
 		"stalled": _stalled,
+		"stalled_unstaffed": _stalled_unstaffed,
+		"stalled_cold": _stalled_cold,
+		"stalled_starved": _stalled_starved,
 		"idle": _idle,
 		"crafts_total": _crafts_total,
 		"chain_depth": chain_depth_reached(),

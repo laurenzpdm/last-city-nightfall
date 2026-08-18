@@ -293,51 +293,145 @@ const CROWD_SPREAD: float = 0.34
 
 ## Phase bitmask per shift law: bit N set means "this shift works in phase N",
 ## indexed by ClimateDefs.Phase (dawn, morning, afternoon, dusk, night, deep).
+const LAW_CURFEW: StringName = &"curfew"
 const LAW_STANDARD: StringName = &"standard"
 const LAW_EXTENDED: StringName = &"extended"
 const LAW_EMERGENCY: StringName = &"emergency"
 
+## The player's lever over the dark, in four rungs. Each one is a choice with a
+## price, in the Frostpunk sense, and the ladder runs in BOTH directions from the
+## default — which is the whole reason `curfew` exists. Before this, the bottom
+## rung was the only rung and nobody had signed it.
+##
+##   curfew     the city sleeps after dark. Rested, calmer — and the factory
+##              stops at sunset, which is what this build used to do for free.
+##   standard   every crew posts a hand to the far rotation, so the line keeps
+##              moving all night. The default.
+##   extended   a bigger far rotation and the shifts overlap at dawn and dusk:
+##              more hands after dark, tired and sullen.
+##   emergency  everybody, every hour, until something breaks.
+##
+## `skeleton` is the share of every crew that works the rotation its building is
+## NOT for — the night watch on a workshop, the day watch on a gun. It is what
+## makes the law a lever over the DARK rather than only over the length of a
+## day: signing Extended does not open the factory at night, it makes the crew
+## that was already there bigger.
 const SHIFT_LAWS: Dictionary[StringName, Dictionary] = {
+	&"curfew": {
+		"day_mask": 0b000111, "night_mask": 0b111000,
+		"fatigue": 0.85, "output": 0.85, "morale": 5.0,
+		"skeleton": 0.0,
+		"label": "Night Curfew",
+	},
 	&"standard": {
 		"day_mask": 0b000111, "night_mask": 0b111000,
 		"fatigue": 1.0, "output": 1.0, "morale": 0.0,
+		"skeleton": 0.34,
 		"label": "Standard Shifts",
 	},
 	&"extended": {
 		"day_mask": 0b001111, "night_mask": 0b111001,
 		"fatigue": 1.45, "output": 1.22, "morale": -8.0,
+		"skeleton": 0.50,
 		"label": "Extended Shifts",
 	},
 	&"emergency": {
 		"day_mask": 0b111111, "night_mask": 0b111111,
 		"fatigue": 2.15, "output": 1.40, "morale": -20.0,
+		"skeleton": 0.50,
 		"label": "Emergency Shift",
 	},
 }
 
 ## The trades whose work IS the dark: the guns on the wall and the fires that
-## keep the wall worth defending. A gunner rostered to noon is a gun that is
-## manned in the daylight and cold at the hour it was built for, and a stoker
-## rostered to noon is a generator with nobody at it on the coldest night of the
-## week. Everything else a city does is better done in the light.
+## keep the wall worth defending. This is NOT the list of who is allowed to work
+## at night — nobody is forbidden, see `skeleton_crew` below. It is the list of
+## whose building is PRIMARILY a night building, so its crew is cut the other way
+## round: most hands on the dark rotation, a skeleton on the day one.
 ##
-## This is not "who may work nights". It is "whose building has no daytime", and
-## the list is short on purpose — every trade added to it is a building that goes
-## dark at noon instead.
+## THE DECISION THIS FILE USED TO MAKE, AND WHY IT WAS REVERSED.
+## This list used to be read as "these two trades work nights, everybody else
+## goes to bed", and every other crew in the city was rostered DAY-only. Measured
+## over 24000 ticks of `first_night`, that emptied the game at the hour the game
+## is named after: `production.active_machines` ran 3.01 in the morning and 2.44
+## in the afternoon and then 0.34 / 0.44 / 0.35 through dusk, night and deep
+## night — an 8.6x collapse — with all eight machines ending the run reading
+## `unstaffed`, all four belt lines at throughput 0.0, and 44 employed citizens
+## producing nothing between sunset and dawn. Two independent critics, and a
+## builder two waves earlier, each named this constant.
 ##
-## Measured rather than argued, over 24000 ticks of `first_night`: with the wall
-## alone on this list the city ended the night with 20 of 29 crewed buildings
-## reading `no crew`, WORSE than the 16 the hire counter left, because the
-## generators had all gone home. With the fires on it as well that falls to 10,
-## and the ten are the workshops — which is the city saying "the factory is shut
-## and the watch is on", rather than "nothing here works". The cost is real and
-## is not hidden: average morale over the run falls from 58.6 to 52.3, because
-## a third of the workforce now sleeps through the daylight.
+## The rule now: **a city on the edge of death does not shut its drills at
+## sunset; it thins them.** Every crew of two or more is split across both
+## rotations, primary first. A workshop of four runs three by day and one after
+## dark; a gun runs the other way round. The share is `skeleton` on the shift
+## law, so the player's lever over the dark is a law they sign, not a constant
+## they cannot see.
+##
+## It is not free, and none of the cost is hidden:
+##   * the day crew is smaller, so daylight output falls — a full day shift now
+##     has to be BOUGHT with hands hired past `required`, which is what makes
+##     `capacity` worth paying for;
+##   * a body working the dark tires faster (NIGHT_FATIGUE_MULT) and gets hurt
+##     more often (NIGHT_ACCIDENT_MULT);
+##   * standing the graveyard rotation costs morale every hour of the run
+##     (NIGHT_MORALE_PENALTY), whether you are at the bench or asleep at noon;
+##   * and the machines that are now awake at night are drawing off the same
+##     grid the turrets fire from, at exactly the hour the turrets fire.
 ##
 ## Read off the trade, which comes off tags and category, so a new .tres with a
 ## `defense` or `heat_source` tag joins the night watch without this file ever
 ## learning its name.
 const NIGHT_TRADES: Array[int] = [Trade.GUNNER, Trade.STOKER]
+
+## A crew smaller than this cannot be in two places at once and is not asked to.
+const MIN_CREW_TO_SPLIT: int = 2
+
+## What the dark takes out of the people who work it. Applied to anyone WORKING
+## during dusk, night or deep night, on top of whatever the shift law already
+## costs — the law says how many bodies, these say what a body pays.
+const NIGHT_FATIGUE_MULT: float = 1.35
+const NIGHT_ACCIDENT_MULT: float = 1.65
+## Paid by anyone ON the night rotation, at every hour, awake or asleep. Sleeping
+## through the daylight is its own misery and it does not stop at sunrise.
+const NIGHT_MORALE_PENALTY: float = 7.0
+
+
+## False when a shift law forbids the far rotation outright. Curfew is the only
+## one that does, and it has to beat DEPTH as well as policy: a crew twice its
+## requirement would otherwise cover both rotations anyway and the law the city
+## just signed would do nothing at all.
+static func splits_the_clock(law: StringName) -> bool:
+	return float(law_row(law).get("skeleton", 0.34)) > 0.0
+
+
+## How many of a crew of `crew` stand the rotation their building is NOT for.
+## Never empties the primary rotation, never splits a crew of one.
+static func skeleton_crew(law: StringName, crew: int) -> int:
+	var share: float = float(law_row(law).get("skeleton", 0.34))
+	if share <= 0.0 or crew < MIN_CREW_TO_SPLIT:
+		return 0
+	# ROUNDED UP, so a crew of two splits into one and one. Both roundings were
+	# measured over 24000 ticks of `first_night` and the choice is not close:
+	#
+	#   rounded down  only crews of three or more post a night hand, which in
+	#                 this city is the smelter, the drill and the workshop — the
+	#                 three most heat-hungry machines on the map, and the three
+	#                 the grid cannot feed at 3am. `active_machines` in deep
+	#                 night: 0.76. The pairs that CAN run cold — the sorters,
+	#                 the kitchen, the collector — all sat dark.
+	#   rounded up    every crew posts one. Deep night 2.80, night 1.17,
+	#                 dusk 0.69, against 0.35 / 0.44 / 0.34 for the old
+	#                 day-only roster.
+	#
+	# Rounding up costs a pair half its daylight, and that cost is real and is
+	# measured: the rubble sorter that feeds the smelter drops from 42 iron_ore
+	# to 29 over three days and the smelter's plates fall 20 to 14 with it. That
+	# is the bargain this whole file is about — a city that works the dark works
+	# the day thinner — and the way out of it is hands, not policy: the split is
+	# taken from SURPLUS first (see `cut_shifts`), so a crew hired past its
+	# requirement pays none of it.
+	return clampi(int(roundf(float(crew) * share)), 1, crew - 1)
+
 
 ## True when this trade's building is one the city needs manned after dark.
 static func is_night_trade(trade: int) -> bool:
