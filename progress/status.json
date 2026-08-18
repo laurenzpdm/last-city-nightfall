@@ -1,10 +1,10 @@
 {
- "round": 7,
- "phase": "G \u2014 judged. Four rounds in, the line is flat.",
- "state": "Four rounds of critics: 4.1, 4.1, 3.9, 3.6 on the critic mean \u2014 but those are four DIFFERENT critics and the numbers are not strictly comparable. The blind side-by-side is the comparable measure, same ten dimensions and same opponents every time: 1-1-8, then 0-2-8, then 0-2-8, now 1-2-7. Essentially flat, slightly better. Information design won outright again this round.",
+ "round": 8,
+ "phase": "H \u2014 judged. Five rounds flat, then the critics converged.",
+ "state": "Five rounds of blind comparison: 1-1-8, 0-2-8, 0-2-8, 1-2-7, 0-2-8. The tally has not moved. What changed this round is that the harsh critic and the blind judge, working separately, named the SAME root cause for the first time \u2014 and a builder had flagged that exact constant two waves earlier as a cost it chose not to hide.",
  "agents_live": 0,
- "critic_score": 3.6,
- "blind_wins": 1,
+ "critic_score": 3.7,
+ "blind_wins": 0,
  "blind_total": 10,
  "parts": [
   {
@@ -204,8 +204,8 @@
   "shots/opening.png"
  ],
  "verdict": {
-  "summary": "Critic 3.6/10 \u2014 first impression 4, world 3, legibility 4, automation 2, heat 7, night 2, onboarding 4, feel 4, coherence 3, keep-playing 3. Blind: OURS 1 (information design), EVEN 2 (pressure and consequence, onboarding), THEIRS 7. Heat and survival has held at 6-7 for four rounds and is the only pillar that has never wobbled.",
-  "biggest_gap": "Two gaps, and the second is a method failure. THE CRITIC: the automation pillar is OPTIONAL \u2014 logi_haul.gd HAUL_RANGE=96 covers the whole city and porters scale with population, so 19 porters move 19578 items while the belts move 2592. Belts carry 12% of goods and a player who never opens the Logistics tab loses nothing, in a game that invokes Factorio. THE BLIND JUDGE: the night still has no picture. It scanned the assault frame for the exact foe rim colour and found 105 pixels in two clusters \u2014 both were temperature labels. Ten hostiles alive, 21 agents drawn, zero findable. The builder that fixed contrast this round measured 11 of 11 enemies at deltaL 0.42 in its OWN test rig; in the shipped frame the under-attack red wash sits on top of the only cue that separates a foe from a citizen."
+  "summary": "Critic 3.7/10 \u2014 coherence rose to 6 (its best ever, up from 3), heat and survival fell to 5 (its worst), automation 2, night 2, keep-playing 2. Blind: OURS 0, EVEN 2 (information design, onboarding), THEIRS 8. Wave H landed real work verified in the shipped frame: hostiles went from 0 of 9 findable to 9 of 9, belts from 11.7% of goods to 61.9%, and an engine flip-flag bug was found that drew every right-facing figure a full sprite-width off its tile.",
+  "biggest_gap": "BOTH CRITICS, INDEPENDENTLY, NAMED THE SAME CAUSE. The critic: the automation pillar shuts down at night and the night is what the game is about \u2014 production.active_machines by phase reads 3.01 morning, 2.44 afternoon, then 0.34 dusk, 0.44 night, 0.35 deep night. An 8.6x collapse for the entire dark, caused by NIGHT_TRADES = [GUNNER, STOKER] at game/sim/citizens/citizen_defs.gd:340. The blind judge, separately: the factory never comes alive \u2014 341 buildings, 8 machines, 0 active, staffed 0.14-0.51 while 44 citizens are employed. It moves five dimensions at once, and it is why the world looks empty: there is no factory to look at."
  },
  "gate": {
   "label": "Gate (macOS CI)",
