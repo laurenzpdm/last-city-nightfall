@@ -500,10 +500,17 @@ if [ -n "$DEFERRED_FRAME_SUITES" ]; then
   say ""
   say "== frame suites (graded against the gate's own visual run) =="
   vis_dir="artifacts/gate/visual"
-  if [ ! -f "$vis_dir/log.txt" ]; then
+  # A visual run that THIS check did not make is not this check's evidence.
+  # Under --no-gate / --no-visual the folder may still be on disk from an
+  # earlier invocation, and grading it would report a verdict about a build
+  # that is not the one in the tree — the same mistake, one folder to the left,
+  # that deferring these suites exists to stop.
+  if [ "$RUN_GATE" -eq 0 ] || [ ! -f "$vis_dir/log.txt" ]; then
+    reason="the gate wrote no visual run to grade ($vis_dir)"
+    [ "$RUN_GATE" -eq 0 ] && reason="the gate was skipped, so there is no visual run from THIS check to grade"
     while IFS= read -r rel; do
       [ -z "$rel" ] && continue
-      record_skip "$rel" "the gate wrote no visual run to grade ($vis_dir)" "frame suites"
+      record_skip "$rel" "$reason" "frame suites"
     done <<< "$DEFERRED_FRAME_SUITES"
   else
     while IFS= read -r rel; do

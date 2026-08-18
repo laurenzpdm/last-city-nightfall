@@ -224,6 +224,11 @@ if [ "$RUN_VISUAL" -eq 0 ]; then
   echo " visual run — 68 String formatting errors and one refused add_child() in a"
   echo " single 30 second pass. A headless-only check has not looked at the UI."
   sect_skip "visual run" "the UI layer was never executed in this check"
+  # AND THE OLD FRAMES GO WITH IT. Three suites grade whatever is in this
+  # folder, and tools/check.sh treats its presence as "the gate photographed
+  # the build in the tree". Leaving last week's run here under --no-visual is
+  # how a stage reports a verdict about a build nobody is looking at.
+  rm -rf "$OUT_ROOT/visual"
 else
   vis="$OUT_ROOT/visual"
   rm -rf "$vis"
