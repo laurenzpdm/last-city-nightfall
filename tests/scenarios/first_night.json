@@ -1857,6 +1857,14 @@
       }
     },
     {
+      "tick": 12000,
+      "cmd": {
+        "system": "society",
+        "op": "sign",
+        "law": "snow_burial"
+      }
+    },
+    {
       "tick": 14600,
       "cmd": {
         "system": "heat",

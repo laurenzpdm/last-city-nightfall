@@ -1026,6 +1026,30 @@ def first_night(strip_workshop: bool = True):
     L.cmd(15400, {"system": "logistics", "op": "insert",
                   "cell": [CORE[0] - 14, CORE[1] - 7], "item": "coal", "count": 500})
 
+    # THE BOOK GETS OPENED. Two founders die on day 2 — one of injuries at the
+    # workshop, one child in the night — and at t11320 the Ember Congregation
+    # opens a grievance about the bodies stacked by the east wall. At t11800 it
+    # becomes a demand with a date on it: sign a law that says where the dead
+    # go. Every earlier version of this run answered it by doing nothing, twice,
+    # and this is what that cost:
+    #
+    #   t15400  demand failed, unrest stage 3, discontent 87.7
+    #   t16180  ultimatum
+    #   t20320  demand failed again, hope 30.4
+    #   t20980  RUN OVER (exiled) — and 3020 ticks of city still ticking after
+    #           it, including the `third_day_city` beat at t21600, which
+    #           photographs [P22]'s ending card over a HUD counting down to a
+    #           nightfall that is nobody's problem any more.
+    #
+    # The reference run is what the art, audio and UI parts screenshot against
+    # and what a critic is handed. It was a run that lost, on the one axis it
+    # never touched, and its own header called day 3 "a fragment". A city that
+    # answers a demand within its deadline is not a softer run — hope ends at
+    # 56.0 against 30.2 and discontent at 42.5 against 100.0, and nothing before
+    # t12000 moves by a single craft — it is the same city with the Book of Laws
+    # opened once, which is the pillar this run was silent about.
+    L.cmd(12000, {"system": "society", "op": "sign", "law": "snow_burial"})
+
     # === DAY THREE ==========================================================
     L.cmd(21000, {"system": "logistics", "op": "insert",
                   "cell": [CORE[0] - 14, CORE[1] - 7], "item": "coal", "count": 500})
@@ -1998,19 +2022,44 @@ def _steady_first_day(L):
     #    Warning 1 lands around t=2700. Everything below is finished before the
     #    countdown reaches zero, and all of it is on the city's own grid, so a
     #    brownout at the Hearth is felt at the guns.
-    L.line(2900, "heat_pipe", (2, -3), (6, -3))
-    L.line(2940, "heat_pipe", (2, 3), (4, 3))
-    L.line(2960, "heat_pipe", (-2, 3), (-4, 3))
+    #    EVERY METRE OF PIPE IS PLACED BEFORE ANYTHING THAT STANDS ON IT, AND
+    #    THAT IS NOT THE SAME AS PLACING IT FIRST IN THE SCRIPT.
+    #
+    #    `ConstructionQueue` serves (build_priority desc, placed_tick asc), and
+    #    the priorities are content: `turret_mount` is 90, `wall` is 85,
+    #    `heat_pipe` is 80. A gun therefore OUTRANKS the pipe that feeds it no
+    #    matter which was placed first, and a wall run outranks both. Measured on
+    #    the previous version of this run (`artifacts/play_steady_hand/log.txt`):
+    #
+    #      t3740  the west half of the y=95 spur is placed
+    #      t4000  the turret at (119, 96) is placed on the end of it
+    #      t5689  the TURRET completes — `registered #217 turret_mount (net 2)`
+    #      t6173  `#217 turret_mount froze (net 2, -11.6°C)`
+    #      t7214  the spur completes and finally joins net 1
+    #
+    #    So the run that exists to show a perimeter standing on the city's own
+    #    grid spent night 1 with two of its four wall guns on islands of one,
+    #    froze both, and tripped "The Grid Is in Pieces" and "Frozen Solid" — the
+    #    same two beats careless_night trips. An A/B pair whose good half makes
+    #    the bad half's mistake is not a pair.
+    #
+    #    The order below is the one the QUEUE will actually honour: the inner
+    #    ring's pipe first, then the north spur, then the walls that outrank both,
+    #    and only then the guns. Same seed, same buildings, same tiles, 52
+    #    commands either way — the run now measures the decision it claims to.
+    L.line(1500, "heat_pipe", (2, -3), (6, -3))
+    L.line(1520, "heat_pipe", (2, 3), (4, 3))
+    L.line(1540, "heat_pipe", (-2, 3), (-4, 3))
+    L.line(1560, "heat_pipe", (0, -3), (1, -18))
+    L.line(1600, "heat_pipe", (1, -18), (1, -33))
+    L.line(1640, "heat_pipe", (1, -33), (14, -33))
+    L.line(1680, "heat_pipe", (1, -33), (-13, -33))
     L.place(3000, "turret_mount", 5, -5)
     L.place(3040, "turret_mount", -5, -5)
     L.place(3080, "turret_mount", 3, 4)
     L.place(3120, "turret_mount", -4, 4)
     for i, dx in enumerate([-18, -9, 0, 9, 18]):
         L.line(3300 + i * 40, "wall", (dx - 4, -35), (dx + 4, -35))
-    L.line(3560, "heat_pipe", (0, -3), (1, -18))
-    L.line(3600, "heat_pipe", (1, -18), (1, -33))
-    L.line(3700, "heat_pipe", (1, -33), (14, -33))
-    L.line(3740, "heat_pipe", (1, -33), (-13, -33))
     L.place(3800, "watchtower", -12, -32)
     L.place(3900, "watchtower", 13, -32)
     L.place(4000, "turret_mount", -9, -32)

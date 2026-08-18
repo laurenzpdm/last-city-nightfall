@@ -346,6 +346,70 @@
       }
     },
     {
+      "tick": 1500,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          130,
+          125
+        ],
+        "to": [
+          134,
+          125
+        ]
+      }
+    },
+    {
+      "tick": 1520,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          130,
+          131
+        ],
+        "to": [
+          132,
+          131
+        ]
+      }
+    },
+    {
+      "tick": 1540,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          126,
+          131
+        ],
+        "to": [
+          124,
+          131
+        ]
+      }
+    },
+    {
+      "tick": 1560,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          128,
+          125
+        ],
+        "to": [
+          129,
+          110
+        ]
+      }
+    },
+    {
       "tick": 1600,
       "cmd": {
         "system": "build",
@@ -358,6 +422,54 @@
         "to": [
           125,
           117
+        ]
+      }
+    },
+    {
+      "tick": 1600,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          129,
+          110
+        ],
+        "to": [
+          129,
+          95
+        ]
+      }
+    },
+    {
+      "tick": 1640,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          129,
+          95
+        ],
+        "to": [
+          142,
+          95
+        ]
+      }
+    },
+    {
+      "tick": 1680,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          129,
+          95
+        ],
+        "to": [
+          115,
+          95
         ]
       }
     },
@@ -422,54 +534,6 @@
         "cell": [
           134,
           136
-        ]
-      }
-    },
-    {
-      "tick": 2900,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          130,
-          125
-        ],
-        "to": [
-          134,
-          125
-        ]
-      }
-    },
-    {
-      "tick": 2940,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          130,
-          131
-        ],
-        "to": [
-          132,
-          131
-        ]
-      }
-    },
-    {
-      "tick": 2960,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          126,
-          131
-        ],
-        "to": [
-          124,
-          131
         ]
       }
     },
@@ -598,70 +662,6 @@
         "to": [
           150,
           93
-        ]
-      }
-    },
-    {
-      "tick": 3560,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          128,
-          125
-        ],
-        "to": [
-          129,
-          110
-        ]
-      }
-    },
-    {
-      "tick": 3600,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          129,
-          110
-        ],
-        "to": [
-          129,
-          95
-        ]
-      }
-    },
-    {
-      "tick": 3700,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          129,
-          95
-        ],
-        "to": [
-          142,
-          95
-        ]
-      }
-    },
-    {
-      "tick": 3740,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          129,
-          95
-        ],
-        "to": [
-          115,
-          95
         ]
       }
     },
