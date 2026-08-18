@@ -146,6 +146,11 @@ const STAGE_FLOOR: Dictionary = {"lull": 0.30, "build": 0.18, "night": 0.24}
 
 var _checks: int = 0
 var _unchecked: PackedStringArray = PackedStringArray()
+
+## Every rect name any part published in any state of this run. See
+## `_audit_allowances`: an entry in ALLOWED naming something nothing ever draws
+## is a permission for a comparison that never happened.
+var _seen_names: PackedStringArray = PackedStringArray()
 var _failures: PackedStringArray = PackedStringArray()
 var _report: Array[Dictionary] = []
 var _out_dir: String = "artifacts/d7"
@@ -201,6 +206,8 @@ func _run() -> void:
 		for st: String in STATES:
 			await _audit(case, st)
 
+	_audit_allowances()
+
 	var verdict: String = "TESTS PASSED" if _failures.is_empty() else "TESTS FAILED"
 	if _failures.is_empty() and not _unchecked.is_empty():
 		verdict = "TESTS PASSED, PARTIAL"
@@ -215,6 +222,35 @@ func _run() -> void:
 		get_tree().quit(mini(_failures.size(), 120))
 		return
 	get_tree().quit(126 if not _unchecked.is_empty() else 0)
+
+
+## THE SAME BUG THIS FILE'S HEADER ALREADY FIXED ONCE, CAUGHT GENERALLY.
+##
+## The header records that `palette|ticker` and its four siblings were
+## "permissions for a comparison that never happened", because nothing in the
+## build published a `ticker` rect at all. It fixed that one name and left the
+## list unguarded, and `sheet` is the same bug still live: [P18] publishes
+## `sheet` only when `tooltip.visible`, the tooltip follows the pointer, and
+## under `--force-ui` on a headless runner there is no pointer. So every
+## `*|sheet` pair is silently absent, the overlap check counts a pass it never
+## earned, and the four `palette x sheet` failures E3 measured at a real
+## 1920x1080 cannot go red in the gate — which is how a 382x385 inspection sheet
+## reached a shipped `assault.png` with ten hostiles on the map.
+##
+## An allowance is a claim that two things can be on screen together. If one of
+## them was never on screen, the run did not test the claim and must not report
+## that it did. This is UNCHECKED rather than FAIL: the sheet's absence is a
+## property of the runner, not a defect in the build, and `tools/check.sh` grades
+## a PARTIAL as not-checked rather than as a pass.
+func _audit_allowances() -> void:
+	var missing: PackedStringArray = PackedStringArray()
+	for pair: String in ALLOWED:
+		for side: String in pair.split("|"):
+			if not _seen_names.has(side) and not missing.has(side):
+				missing.append(side)
+	for side: String in missing:
+		_unchecked.append(("no state of this run put `%s` on screen, so every "
+			+ "ALLOWED pair naming it permitted a comparison that never ran") % side)
 
 
 ## Drives the build into one of its three compositions using the same public
@@ -283,6 +319,8 @@ func _audit(case: Dictionary, st: String) -> void:
 			if rects.has(key):
 				key = "%s.%s" % [String(node.name), key]
 			rects[key] = owned[k] as Rect2
+			if not _seen_names.has(key):
+				_seen_names.append(key)
 	if sources == 0:
 		_unchecked.append("%s — nothing in the tree published chrome_rects()" % label)
 		return

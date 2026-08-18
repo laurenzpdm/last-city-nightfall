@@ -204,11 +204,11 @@
     },
     "logistics.fuel_by_machine": {
      "final_min": 700,
-     "why": "THE 96% FINDING, FROM THE SIDE THAT MATTERS. Fuel delivered into a bunker by an inserter: 51 units in the old run against 1362 carried by porters. Here it is 1040 against 1029 \u2014 the machines now carry more of this city's fuel than the people do, which is the whole of tutorial lesson 05 stated as a number. Read this band together with the porter ceiling below; either alone can be satisfied by a city that simply burns less."
+     "why": "THE 96% FINDING, FROM THE SIDE THAT MATTERS. Fuel delivered into a bunker BY AN INSERTER. Read this band together with the porter ceiling below; either alone can be satisfied by a city that simply burns less. THIS SENTENCE USED TO BE FALSE AND THE BAND USED TO BE GREEN ANYWAY \u2014 it read '1040 by machine against 1029 by porter, the machines now carry more of this city's fuel than the people do', and 1029 of that 1040 WERE the porters: the metric published logistics' any-route total (delivered_as_fuel) under a name that says by-machine, so it counted a porter's back as an inserter. The arms had carried eleven. [H2] repointed the key at world.fuel_by_arm, which is the quantity the name always claimed, and the band now measures 1245 by arm against 797 by porter \u2014 the claim is true for the first time. NOTE WHAT THAT MAKES THIS FLOOR: 700 was derived against the OLD quantity and it survived a change of meaning by luck rather than by design. A floor that stays green across a redefinition of what it counts has not been re-earned, so treat 700 as provisional until somebody re-derives it against the arms-only series."
     },
     "logistics.fuel_by_porter": {
      "final_max": 1400,
-     "why": "The other half of the same claim. 1029 measured. If porters ever carry more than 1400 while fuel_by_machine holds its floor, the city has grown a second hand-fed burner farm and the automation is decoration again."
+     "why": "The other half of the same claim. 797 measured after [H2] rebalanced the haul network (1029 before it). If porters ever carry more than 1400 while fuel_by_machine holds its floor, the city has grown a second hand-fed burner farm and the automation is decoration again."
     },
     "logistics.line_fed_burners": {
      "final_min": 4,
