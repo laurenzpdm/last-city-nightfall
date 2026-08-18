@@ -194,6 +194,26 @@ func _place_ticker(card: Rect2) -> void:
 		return
 	var want: Rect2 = ticker_slot
 	if want.size.x <= 1.0 or want.size.y <= 1.0:
+		# A ZERO-HEIGHT SLOT IS AN INSTRUCTION, NOT AN ABSENCE, and the two used
+		# to arrive here as the same empty rectangle.
+		#
+		# `LcnHudLayout.solve()` emits `ticker` ONLY inside `if card_size !=
+		# ZERO`, and when the card is tall enough to reach the stage floor it
+		# emits it with height 0 — the solver's own way of saying "flavour
+		# yields this frame". `_fallback_ticker_slot()` was added later for the
+		# opposite case, a run with no card at all, and it cannot see which of
+		# the two it is being asked about. So in exactly the frames the solver
+		# said YIELD, the feed was handed a fresh slot on the stage floor and
+		# drawn straight across the bottom of the card:
+		# `artifacts/play1/shots/third_day_city.png` — four lines about the
+		# sledway and the gate bar over the last paragraph, the BECAUSE block
+		# and the Read button of [P22]'s ENDING card.
+		#
+		# A card on screen answers the question the fallback exists to ask.
+		if card.size.x > 1.0:
+			_ticker.visible = false
+			ticker_rect = Rect2()
+			return
 		want = _fallback_ticker_slot()
 	if want.size.x <= 1.0 or want.size.y <= 1.0:
 		_ticker.visible = false
