@@ -75,6 +75,19 @@ var _heat: SimSystem = null
 var _build: SimSystem = null
 var _tick: int = 0
 
+## `(building_id, item, amount) -> accepted`, set by [LogisticsSystem] to
+## [P04]'s `offer_input`. Unset in a world with no production in it, and then a
+## delivery onto a machine falls back to that machine's buffer store exactly as
+## it did before this existed.
+##
+## THIS IS THE HALF OF THE INTERLOCK THAT MAKES A BELT WORTH LAYING. Without it
+## an arm could put ore ON a smelter's tile and the smelter would never see it:
+## the ore landed in the machine's [LogiStore], which production does not read,
+## and the smelter went on pulling the same ore out of the city stockpile at
+## unlimited range for free. Machines were fed by teleport and the whole
+## transport layer was a decoration bolted to a coal line.
+var machine_input: Callable = Callable()
+
 ## Items that could not be poured back onto a line after the player edited it.
 var spilled: int = 0
 var delivered_to_stores: int = 0
@@ -90,6 +103,12 @@ var fuel_by_arm: int = 0
 ## Items an arm or the end of a line put into a store or a machine buffer.
 var delivered_by_arm: int = 0
 var items_moved: int = 0
+## Ingredients this world put straight into a machine's mouth — the honest count
+## of "the belt fed the factory", as opposed to a plate landing on a shelf.
+var machine_fed: int = 0
+## Finished goods taken OFF a machine into its own buffer because an arm was
+## standing there to lift them. See [method LogisticsSystem.accept_output].
+var machine_taken: int = 0
 
 
 func bind(heat: SimSystem, build: SimSystem) -> void:
@@ -235,6 +254,29 @@ func line_fed_burners() -> Dictionary[int, bool]:
 		if arm == null or not arm.enabled:
 			continue
 		var owner: int = int(fuel_cells.get(arm.target_cell(), -1))
+		if owner >= 0:
+			out[owner] = true
+	return out
+
+
+## Store owners an enabled arm reaches INTO — "somebody is standing here to
+## carry what this makes away".
+##
+## The mirror of [method line_fed_burners], and it exists for the same reason:
+## [P03] only takes over a building's goods when the player has actually built
+## the thing that takes them over. A smelter with no arm on it keeps handing its
+## plate to the city stores the way it always has; put an arm on its face and the
+## plate starts coming out onto a belt instead. That is the whole opt-in, and it
+## is why turning this on cannot change a single existing run.
+func arm_drained_stores() -> Dictionary[int, bool]:
+	var out: Dictionary[int, bool] = {}
+	if store_cells.is_empty():
+		return out
+	for id: int in inserter_ids:
+		var arm: LogiInserter = entities.get(id)
+		if arm == null or not arm.enabled:
+			continue
+		var owner: int = int(store_cells.get(arm.source_cell(), -1))
 		if owner >= 0:
 			out[owner] = true
 	return out
@@ -839,11 +881,26 @@ func give_to_cell(cell: Vector2i, kind: StringName, amount: int, from_cell: Vect
 			return took
 	var owner: int = int(store_cells.get(cell, -1))
 	if owner >= 0:
+		# THE MACHINE'S OWN MOUTH FIRST, ITS SHELF SECOND. A recipe input goes
+		# straight into the machine's ingredient buffer, where production will
+		# actually consume it; anything the machine has no use for falls through
+		# to the buffer store and stays visible to the porters, exactly as
+		# before. An arm holding a plate a full smelter will not take keeps
+		# holding it, which is the back-pressure a player reads off the arm.
+		var fed: int = 0
+		if machine_input.is_valid():
+			fed = clampi(int(machine_input.call(owner, kind, amount)), 0, amount)
+			if fed > 0:
+				delivered_to_stores += fed
+				machine_fed += fed
+				if fed >= amount:
+					return fed
 		var st2: LogiStore = stores.get(owner)
 		if st2 != null:
-			var n2: int = st2.insert(kind, amount)
+			var n2: int = st2.insert(kind, amount - fed)
 			delivered_to_stores += n2
-			return n2
+			return fed + n2
+		return fed
 	return 0
 
 

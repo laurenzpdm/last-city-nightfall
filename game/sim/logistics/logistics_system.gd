@@ -102,6 +102,7 @@ var _build: SimSystem = null
 var _heat: SimSystem = null
 var _grid: SimSystem = null
 var _research: SimSystem = null
+var _production: SimSystem = null
 var _tech_tick: int = -100000
 var _yard_tick: int = -100000
 var _yard_logged: bool = false
@@ -138,6 +139,9 @@ var _prune_tick: int = -100000
 var _adopted_transport: Array[int] = []
 ## Burner id -> true while an arm is loading it. Recomputed on a slow timer.
 var _line_fed: Dictionary[int, bool] = {}
+## Store owner -> true while an arm is lifting goods off it. Same slow timer as
+## _line_fed, and the gate on accept_output().
+var _arm_drained: Dictionary[int, bool] = {}
 var _line_fed_tick: int = -100000
 var _line_dry: int = 0
 var _line_fed_logged: Dictionary[int, bool] = {}
@@ -191,7 +195,9 @@ func setup() -> void:
 	_roster_v = -1
 	_prune_tick = -100000
 	_adopted_transport = []
+	_production = null
 	_line_fed = {}
+	_arm_drained = {}
 	_line_fed_tick = -100000
 	_line_fed_logged = {}
 	_line_dry = 0
@@ -212,6 +218,9 @@ func post_setup() -> void:
 	_heat = Sim.get_system(&"heat")
 	_grid = Sim.get_system(&"grid")
 	_research = Sim.get_system(&"research")
+	_production = Sim.get_system(&"production")
+	if _production != null and _production.has_method("offer_input"):
+		world.machine_input = _offer_to_machine
 	_read_tech()
 	world.bind(_heat, _build)
 	_read_yard()
@@ -623,6 +632,7 @@ func _refresh_line_fed() -> void:
 		return
 	_line_fed_tick = _tick
 	_line_fed = world.line_fed_burners()
+	_arm_drained = world.arm_drained_stores()
 
 
 ## Says it once per burner, at INFO, the first time its line goes dry. A player
@@ -1172,6 +1182,57 @@ func request_items(building_id: int, item: StringName, amount: int) -> int:
 	return placed
 
 
+## [P04] offering a finished craft to the transport layer. Returns how much
+## [P03] took; whatever is left over production hands to the city stores exactly
+## as it always did, so this can never lose a plate.
+##
+## THE INTERLOCK THIS CLOSES, AND WHY IT WAS WORTH FINDING. `offer_input()` and
+## `take_output()` have been sitting on ProductionSystem since the first wave
+## with "[P03] logistics hands items to a machine's input buffer" written over
+## them, and NOTHING IN THIS FOLDER EVER CALLED THEM. `_has_accept_output` in
+## game/sim/production/production_system.gd resolved to false in every run this
+## project has ever made, so every machine took its ingredients out of the city
+## stockpile and put its output back into it — at unlimited range, at no cost, in
+## the same tick. Coal was the only thing on a belt in the reference run because
+## a burner's bunker is the one destination in the game that was actually wired
+## up. The factory could not be belt-fed because there was nothing to belt to.
+##
+## IT IS OPT-IN BY CONSTRUCTION AND THAT IS THE DESIGN, NOT A HEDGE. A machine
+## only hands its goods over while an ARM IS STANDING ON IT (see
+## [method LogiWorld.arm_drained_stores]) — the same rule as
+## `_line_fed`, which stands the porters down for a burner an arm is loading. A
+## city that has built no arms behaves to the item exactly as it did before this
+## function existed, which is what makes it safe to turn on under a run everyone
+## else screenshots against; a city that has built one gets its plate on a belt.
+func accept_output(building_id: int, item: StringName, amount: int) -> int:
+	if amount <= 0 or String(item) == "":
+		return 0
+	# Deliberately NOT refreshing the index here. [P04] calls this from inside
+	# its own step, which runs after ours in the same tick, so recomputing on
+	# demand moved WHEN _line_fed was rebuilt and with it when the porters stood
+	# down for a belt-fed burner: measured, it changed `crafts` 235 -> 247 on a
+	# reference run where not one arm touches a machine. A read-only accessor
+	# that quietly reschedules another system's cadence is not read-only.
+	if not _arm_drained.has(building_id):
+		return 0
+	var st: LogiStore = store_of(building_id)
+	if st == null:
+		return 0
+	var n: int = st.insert(item, amount)
+	if n > 0:
+		world.machine_taken += n
+	return n
+
+
+## [P03] putting an ingredient into a machine's mouth. Bound onto
+## [member LogiWorld.machine_input] so a belt or an arm delivering onto a
+## machine's footprint feeds the recipe instead of filling a shelf nobody reads.
+func _offer_to_machine(building_id: int, item: StringName, amount: int) -> int:
+	if _production == null or amount <= 0:
+		return 0
+	return int(_production.call("offer_input", building_id, item, amount))
+
+
 ## A building's own item buffer, or null. [P04] production reads and writes this
 ## one object rather than inventing a second inventory.
 func store_of(building_id: int) -> LogiStore:
@@ -1298,6 +1359,9 @@ func totals() -> Dictionary:
 		"items_moved_total": _items_moved_total,
 		"placed_by_player": _adopted_transport.size(),
 		"line_fed_burners": _line_fed.size(),
+		"belt_fed_machines": _arm_drained.size(),
+		"machine_fed": world.machine_fed,
+		"machine_taken": world.machine_taken,
 		"lines_dry": _line_dry,
 		"lines_to_nowhere": _lines_to_nowhere,
 		"arms_no_target": _arms_no_target,
@@ -1764,6 +1828,9 @@ func metrics() -> Dictionary:
 		"arms_no_target": _arms_no_target,
 		"stock_out_of_range": haul.stock_out_of_range,
 		"line_fed_burners": _line_fed.size(),
+		"belt_fed_machines": _arm_drained.size(),
+		"machine_fed": world.machine_fed,
+		"machine_taken": world.machine_taken,
 		"placed_by_player": _adopted_transport.size(),
 		"runs_dragged": link.runs_resolved,
 		"corners_turned": link.corners_turned,
