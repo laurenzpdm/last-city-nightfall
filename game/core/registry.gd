@@ -110,3 +110,51 @@ func categories() -> Array[String]:
 	for k: String in keys:
 		out.append(k)
 	return out
+
+
+## THE PLAYER-FACING NAME OF ANYTHING WITH AN ID, from content, once.
+##
+## Three parts each grew their own id-to-words helper and none of them ever
+## reached the content that carries the answer:
+##
+##   [P17] `LcnHudFormat.item_title` asked categories "items" and "resources".
+##         Neither folder exists — items live in `game/content/logistics/` — so
+##         every lookup missed and every caller got the titleized id.
+##   [P18] `LcnUiFormat.item_name` titleizes and says so in its own header:
+##         "nothing in content carries a display name for ITEMS yet — when [P04]
+##         ships ItemDefs this is the single place that has to learn to ask."
+##         [P04] shipped. Seventeen LogiItems carry `display_name`.
+##   [P20] `LcnStatsDefs.item_label` titleizes with no comment at all.
+##
+## Twenty-two ids in this build read differently the two ways, and the player
+## meets both: the build palette offers a **Slat Belt**, a **Sorting Table** and
+## a **Lagged Pipe**; the research tree that unlocks them, the recipe browser and
+## the statistics table call the same three things **Belt Mk1**, **Splitter Mk1**
+## and **Heat Pipe Insulated**. Nothing connects the node you finished to the
+## entry you are looking for.
+##
+## `CATEGORY` order is search order, and it is content-first with the widest
+## vocabulary last: a kind that is both a building and a carried item (a belt is
+## both) must resolve to the same words either way, and it does because both
+## files carry the same `display_name`.
+static var NAMED_CATEGORIES: PackedStringArray = PackedStringArray([
+	"buildings", "logistics", "recipes", "research", "laws", "enemies", "weapons",
+])
+
+
+## Display name for `id`, or "" when no content carries one. Callers keep their
+## own fallback — this function never invents words, because a titleized id is a
+## part's own house style and a wrong guess from here would be everybody's.
+func display_name(id: StringName, categories: PackedStringArray = NAMED_CATEGORIES) -> String:
+	if String(id) == "":
+		return ""
+	for category: String in categories:
+		var res: Resource = get_item(category, id)
+		if res == null:
+			continue
+		if not ("display_name" in res):
+			continue
+		var dn: String = String(res.get("display_name"))
+		if dn != "":
+			return dn
+	return ""

@@ -84,10 +84,34 @@ static func ticks_as_time(ticks: int) -> String:
 	return duration(float(ticks) * SECONDS_PER_TICK)
 
 
-## "iron_plate" -> "Iron Plate". Content ids are snake_case by convention and
-## nothing in content carries a display name for ITEMS yet — when [P04] ships
-## ItemDefs this is the single place that has to learn to ask.
+## "iron_plate" -> "Iron Plate", and "belt_mk1" -> "Slat Belt".
+##
+## THE DEPENDENCY THIS FUNCTION WAS WAITING FOR HAS LANDED. The line that stood
+## here said "nothing in content carries a display name for ITEMS yet — when
+## [P04] ships ItemDefs this is the single place that has to learn to ask", and
+## [P04] shipped: `game/content/logistics/*.tres` are LogiItems with
+## `display_name`, and `game/content/buildings/*.tres` have carried one since
+## the first wave. Twenty-two ids in this build read differently the two ways,
+## and this file is why the player met both of them. The palette this part draws
+## offers a **Slat Belt**, a **Sorting Table** and a **Lagged Pipe** — those are
+## `display_name`, read straight off BuildingDef by `build_catalog`. The tech
+## tree, the recipe browser, the blueprint library and the law book all came
+## through here instead, and called the same three things **Belt Mk1**,
+## **Splitter Mk1** and **Heat Pipe Insulated**: a player who finishes Pipe
+## Lagging cannot find what it unlocked in the list it unlocked it into.
+##
+## Content first, titleize second. The fallback stays because most of the 62
+## callers pass something that is NOT a content id at all — effect keys
+## ("heat demand"), branch names ("defence"), unlock tags — and a titleized id
+## is the right answer for those.
 static func item_name(id: StringName) -> String:
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	if tree != null and tree.root != null:
+		var reg: Node = tree.root.get_node_or_null(NodePath("Registry"))
+		if reg != null and reg.has_method("display_name"):
+			var dn: String = String(reg.call("display_name", id))
+			if dn != "":
+				return dn
 	return title_case(String(id).replace("_", " "))
 
 

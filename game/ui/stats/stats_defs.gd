@@ -209,10 +209,25 @@ static func item_of(key: StringName) -> StringName:
 	return key
 
 
-## "iron_plate" -> "Iron Plate". The item ids are the only human-readable names
-## the content ships, so the display name is derived rather than authored twice.
+## "iron_plate" -> "Iron Plate", and "ammo_shell" -> "Ammunition Shell".
+##
+## "THE ITEM IDS ARE THE ONLY HUMAN-READABLE NAMES THE CONTENT SHIPS" was the
+## reason written here, and it is not true of this build: every LogiItem and
+## every RecipeDef carries a `display_name`, and for twenty-two ids it is not
+## the titleized id. `artifacts/play_tour/shots/06_lcn_stats.png` lists **Ammo
+## Shell** and **Insulation Wool** in the item table while the recipe browser
+## behind it calls them **Ammunition Shell** and **Slag Wool**. Deriving a name
+## a second time is exactly how a name gets authored twice.
 static func item_label(key: StringName) -> String:
-	var raw: String = String(item_of(key)).replace("_", " ")
+	var id: StringName = item_of(key)
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	if tree != null and tree.root != null:
+		var reg: Node = tree.root.get_node_or_null(NodePath("Registry"))
+		if reg != null and reg.has_method("display_name"):
+			var dn: String = String(reg.call("display_name", id))
+			if dn != "":
+				return dn
+	var raw: String = String(id).replace("_", " ")
 	var parts: PackedStringArray = raw.split(" ", false)
 	var out: PackedStringArray = PackedStringArray()
 	for p: String in parts:
