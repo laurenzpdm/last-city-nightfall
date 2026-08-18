@@ -29,6 +29,57 @@ extends Node
 ##             that resolves into four blobs is four things happening, whatever
 ##             the agent counter says.
 ##
+## ── INTEGRATOR, SIX-BUILDER H WAVE: THIS SUITE IS RED AND IT DID NOT ARRIVE ──
+## ── RED. THREE PARTS MOVED ONE NUMBER AND NONE OF THEM COULD SEE THE OTHERS. ─
+##
+## [H4] reported this suite red and called it pre-existing, on the strength of
+## stashing their own three files and reading 0.5974 / 0.7990 on "the parent".
+## That parent already contained [H1] and [H3]. Run on 0e212fc, the commit this
+## wave started from, alone on the box under xvfb at 1920x1080:
+##
+##     tree        deep_night median deltaL   dusk    blobs at deep night
+##     0e212fc     0.3200  (ceiling 0.55)     0.4088   9 of 18   TESTS PASSED
+##     HEAD        0.6160                     0.7289  13 of 18   TESTS FAILED
+##
+## So the ceiling was met before this wave and is broken by it. BOTH halves of
+## that are real: the wave also took the night from 9 figures resolving to 13,
+## which is exactly what [H1] set out to do. What it bought that with is
+## over-drive, and this suite's own failure line says so in words — "the lift is
+## over-driving on ground that already carries some light of its own, and the
+## wave arrives as pale cut-outs".
+##
+## THE MECHANISM, MEASURED ON SHIPPED FRAMES RATHER THAN ON THIS STAGING. The
+## p90 luminance of the nine hostile rectangles the renderer logs for `assault`,
+## read out of the ordinary first_night `shots/assault.world.png`:
+##
+##     artifacts/H1_v5    hostiles 0.220..0.347 (med 0.312)   local plain 0.06..0.12
+##     artifacts/H1_final hostiles 0.226..0.348 (med 0.316)   local plain 0.07..0.12
+##     artifacts/H3_ship  hostiles 0.443..0.696 (med 0.654)   local plain 0.11..0.23
+##     artifacts/H4b_v6   hostiles 0.433..0.693 (med 0.643)   local plain 0.10..0.24
+##     artifacts/INT_ship hostiles 0.431..0.696 (med 0.646)   local plain 0.10..0.24
+##
+## The step is at [H3], not [H4]. [H1] tuned the hostile treatment against a
+## night with [P22]'s scrim in it and verified a delivered lift of 0.13..0.25.
+## [H3] then removed that scrim for exactly the frames with hostiles in them —
+## correctly, for composition — which is a 1.47x to 1.77x brightening of
+## precisely the frames [H1] tuned on. [H1]'s treatment paints at ABSOLUTE canvas
+## luminance and blends additively, so it did not scale down with the night: the
+## figures went to 0.43..0.70 and the lift doubled to 0.27..0.51. [H4]'s ground
+## then moved the median 0.654 -> 0.643, i.e. not at all.
+##
+## AND THE GATE COULD NOT HAVE CAUGHT IT. `tests/render/run_foe_frame.gd` grades
+## the same quantity with a FLOOR of 0.17 and no ceiling, so it reads 9 of 9
+## GREEN on figures that are twice as hot as the ones it was calibrated on. This
+## suite is the only thing in the build holding the other end, and it needs a
+## framebuffer: every `tools/check.sh` run records it UNCHECKED — "no display
+## server, so there is no framebuffer to photograph". A floor in a stage that
+## runs and a ceiling in a stage that cannot is not a band.
+##
+## Not retuned by the integrator. Pulling the lift back down is [P13]/[H1]'s
+## craft and the obvious risk is un-finding the monsters the wave just found —
+## the 9-of-18 column is what that costs. What is an integrator's is saying
+## which commit moved it, and that it is a regression rather than the weather.
+##
 ## ── WHY A BLOB AND NOT A DIFFERENCE ──────────────────────────────────────────
 ##
 ## `tests/render/frame_lab.gd`'s night beat already photographs the eleven

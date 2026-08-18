@@ -79,6 +79,22 @@ extends SceneTree
 ## hostiles measure 0.021–0.146 before the fix and 0.18–0.34 after it, so this
 ## bar sits in the gap between the two populations rather than snug against
 ## either — and it did not move once during the tuning that produced them.
+##
+## THIS IS A FLOOR AND THE BUILD'S CEILING IS IN ANOTHER FILE THAT THE GATE
+## CANNOT RUN. Integrator, six-builder H wave: the 0.18–0.34 above was measured
+## on `artifacts/H1_v5`, before [H3] took [P22]'s scrim off the night. With the
+## scrim gone the same nine hostiles in the same beat deliver 0.27–0.51 and sit
+## at 0.43–0.70 ABSOLUTE luminance on a plain of 0.10–0.24, because the
+## treatment paints at absolute canvas luminance and blends additively, so it
+## did not scale down when the night got 1.5x brighter underneath it. Every one
+## of them clears 0.17 by a wide margin and this suite reports 9 of 9 GREEN.
+## `tests/render/night_contrast.tscn` holds the other end — deep_night median
+## deltaL 0.6160 against a ceiling of 0.55, dusk 0.7289 against 0.48 — and it
+## PASSES on 0e212fc, the commit this wave started from. It needs a framebuffer,
+## so tools/check.sh records it UNCHECKED on every run. See that file's header
+## for the full A/B. A floor in a stage that runs and a ceiling in a stage that
+## cannot is not a band, and this comment exists so the next reader of a 9-of-9
+## green knows which half they are looking at.
 const MIN_LIFT: float = 0.17
 ## ...and blue-minus-red, which is what says FOE rather than merely FIGURE. The
 ## city's own people are lit warm by the city's own fires and read negative here.
