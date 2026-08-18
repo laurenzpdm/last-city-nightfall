@@ -737,7 +737,16 @@ func _check_ending() -> void:
 		"options": [],
 		"raised_tick": _tick,
 		"day": _day(),
-		"era": world.text.get(&"era", ""),
+		# NOT [P09]'s ERA, FOR THIS ONE CARD. A beat is stamped with the date
+		# line the clock is showing so the two do not argue — which is right for
+		# every beat except the last one. `escalation_title()` reads "The Lull"
+		# through day 3 because the baseline temperature has not sunk yet, and
+		# it is correct arithmetic about a curve; stamped across the top of the
+		# card that says the city is over it reads as the interface not having
+		# noticed. `artifacts/play1/shots/third_day_city.png`: **DAY 3   THE
+		# LULL** over "The City Did Not Stand". The ending is its own chapter and
+		# this is the one place in the run where nothing else can be true.
+		"era": "The Reckoning",
 		"deadline_tick": 0,
 		"priority": 1000,
 		"focus": [],

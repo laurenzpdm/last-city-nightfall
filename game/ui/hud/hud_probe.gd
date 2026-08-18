@@ -354,8 +354,20 @@ func _read_climate() -> void:
 
 ## Seconds until the thing that matters next: nightfall while it is day, dawn
 ## while it is night. Negative when climate is absent.
+##
+## AND A CITY THAT IS OVER HAS NO NEXT NIGHTFALL EITHER.
+##
+## `_on_game_over` already stands the wave panel down, and the clock — the
+## single most prominent number in the interface — kept counting.
+## `artifacts/play1/shots/third_day_city.png`: [P22]'s ending card in the middle
+## of the screen, "The council was put out of its own gate" in the attention
+## stack, and above both of them **NIGHTFALL IN 1:36** burning amber because the
+## countdown had dropped under two minutes. The clock was not wrong about the
+## sky; it was answering a question the run had stopped asking. Same latch, same
+## sentinel the widget already reads: negative seconds means "there is nothing
+## to count", and `LcnHudClock` prints "—:—" under whatever label it is given.
 func countdown_seconds() -> float:
-	if not has_climate:
+	if not has_climate or run_over:
 		return -1.0
 	return seconds_to_dawn if is_night else seconds_to_night
 
@@ -363,6 +375,8 @@ func countdown_seconds() -> float:
 func countdown_label() -> String:
 	if not has_climate:
 		return "—"
+	if run_over:
+		return "THE RUN IS OVER"
 	return "SUNRISE IN" if is_night else "NIGHTFALL IN"
 
 
