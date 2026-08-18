@@ -207,6 +207,11 @@ func register_store(owner: int, store: LogiStore, cells: Array[Vector2i], origin
 	store_origin[owner] = origin
 	for c: Vector2i in cells:
 		store_cells[c] = owner
+	# A smelter finishing at the nose of a belt that has been backed up for two
+	# days is the same event as a chest being placed there, and the lines have to
+	# be told. Without this the belt keeps its Sink.NONE from before the machine
+	# existed and stays jammed for the rest of the run.
+	sinks_dirty = true
 
 
 func unregister_store(owner: int) -> void:
@@ -217,6 +222,7 @@ func unregister_store(owner: int) -> void:
 			store_cells.erase(c)
 	stores.erase(owner)
 	store_origin.erase(owner)
+	sinks_dirty = true
 
 
 ## Registers a [P11] burner's bunker so an arm can shovel coal into it.
@@ -226,6 +232,7 @@ func register_burner(owner: int, fuel: StringName, cells: Array[Vector2i]) -> vo
 		fuel_cells[c] = owner
 	if not store_origin.has(owner) and not cells.is_empty():
 		store_origin[owner] = cells[0]
+	sinks_dirty = true
 
 
 func unregister_burner(owner: int) -> void:
@@ -435,8 +442,19 @@ func _resolve_sink(seg: LogiSegment) -> void:
 	seg.sink = LogiTypes.Sink.NONE
 	seg.sink_id = -1
 	var next: Vector2i = seg.exit_cell + seg.dir
+	seg.sink_cell = next
 	var e: LogiEntity = entity_at(next)
 	if e == null:
+		# A LINE THAT RUNS INTO A MACHINE FEEDS THE MACHINE. It did not, and
+		# that is why nothing but coal was ever on a belt in this game: only
+		# chests and other belts were sinks, so a belt laid nose-first against a
+		# smelter resolved to Sink.NONE, backed up, and was then reported as a
+		# "belt to nowhere". Every [P11] building with a buffer — a machine, a
+		# granary, a yard — and every burner's bunker is a destination, exactly
+		# as it already is for an arm swinging into it.
+		if int(store_cells.get(next, -1)) >= 0 or int(fuel_cells.get(next, -1)) >= 0:
+			seg.sink = LogiTypes.Sink.STORE
+			seg.sink_id = int(store_cells.get(next, int(fuel_cells.get(next, -1))))
 		return
 	match e.role():
 		LogiTypes.Role.SPLITTER:
@@ -594,13 +612,11 @@ func _push_out(seg: LogiSegment, lane: int, kind: int) -> bool:
 				return false
 			return side_target.lanes[seg.sink_lane].insert_at(kind, seg.sink_pos)
 		LogiTypes.Sink.STORE:
-			var st: LogiStore = stores.get(seg.sink_id)
-			if st == null:
-				return false
-			if st.insert(kind_name(kind), 1) <= 0:
-				return false
-			delivered_to_stores += 1
-			return true
+			# give_to_cell rather than a bare store insert, so the end of a belt
+			# and the end of an arm mean the same thing: a recipe input goes into
+			# the machine, coal goes into the bunker, and anything else lands on
+			# the shelf. It also counts the delivery once, in one place.
+			return give_to_cell(seg.sink_cell, kind_name(kind), 1, seg.exit_cell) > 0
 	return false
 
 
