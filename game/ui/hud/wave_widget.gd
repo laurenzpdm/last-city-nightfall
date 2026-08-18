@@ -112,7 +112,18 @@ func _draw() -> void:
 	else:
 		style.draw_text_right(self, right_x, _y_time,
 			LcnHudFormat.clock(maxf(0.0, _seconds)), style.fs(30), col)
-	style.draw_text_right(self, right_x, _y_where, _where_line(), style.fs(12),
+	# FITTED, NOT TRUSTED. [P08] names every lane it is willing to name, and on
+	# night 3 of the reference run that is "wave 3 from the south-east, the
+	# south-west and the north-east" — 380 px of caption right-aligned inside a
+	# 322 px panel, so it ran out of the left edge and across the city
+	# (`artifacts/play3/shots/third_day_city.png`). The dial beside it already
+	# says which side the weight is on; the caption only has to say how many
+	# there are.
+	var where: String = _where_line()
+	var room: float = right_x - (_dial.x + DIAL_RADIUS + 10.0)
+	if style.text_width(where, style.fs(12)) > room:
+		where = _where_line_short()
+	style.draw_text_right(self, right_x, _y_where, where, style.fs(12),
 		style.ink_faint())
 
 	# `wave_known` GATES THIS TOO. The strength bar below already honours the
@@ -147,6 +158,26 @@ func _where_line() -> String:
 		return "wave %d %s" % [maxi(1, probe.wave_number), phrase]
 	return "wave %d from the %s" % [maxi(1, probe.wave_number),
 		LcnHudFormat.compass(probe.wave_direction)]
+
+
+## The same news in the room a panel actually has: the count of lanes instead of
+## a list of them. Never invents a direction the player has not earned — an
+## unscouted wave has no long form to shorten and never reaches here.
+func _where_line_short() -> String:
+	var lanes: int = _lane_count()
+	if lanes >= 2:
+		return "wave %d from %d sides" % [maxi(1, probe.wave_number), lanes]
+	return "wave %d from the %s" % [maxi(1, probe.wave_number),
+		LcnHudFormat.compass(probe.wave_direction)]
+
+
+## How many places [P08] named. Its phrase is "the north" / "the north and the
+## east" / "the north, the east and the south-west", so the separators count.
+func _lane_count() -> int:
+	var phrase: String = probe.wave_phrase
+	if phrase == "":
+		return 1
+	return phrase.count(",") + phrase.count(" and ") + 1
 
 
 ## A compass with the approach lit. Eight ticks and a wedge; it only redraws
