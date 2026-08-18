@@ -65,6 +65,28 @@ const LOG_PERF_EVERY: int = 1000
 ## Ticks between recomputing which burners have an arm loading them. Cheap
 ## (it walks the arms, not the city), but there is no reason to pay it a tick.
 const LINE_FED_EVERY: int = 20
+## Ticks between research reads. A node finishes once a minute at best.
+const TECH_EVERY: int = 200
+## Ticks between re-finding the Hearth. It is unique and it does not move, but it
+## can be destroyed and rebuilt, and a yard at the wrong end of the map would
+## price every stockpile delivery in the city wrongly.
+const YARD_EVERY: int = 400
+## Ticks between sweeps for arms aimed at nothing and belts that feed no one.
+## Walks the arms and the lines, not the city; a player editing a factory should
+## be told within a second, not on the next autosave.
+const DEAD_END_EVERY: int = 20
+## Ticks a belt or an arm must sit in the broken state before anybody says so.
+## Twenty seconds: long past any drag, well short of a player wandering off.
+const DEAD_END_GRACE: int = 400
+## Ticks between re-raising the alert while the mistake is still there. Must stay
+## under [P17]'s twelve-second bus TTL or a standing fault leaves the panel.
+const DEAD_END_REPEAT: int = 160
+
+## What _settled() decides: nothing, the first word (log + panel), or the panel
+## alone (the alert has to be renewed; the log must not repeat itself).
+const SAY_NOTHING: int = 0
+const SAY_FIRST: int = 1
+const SAY_AGAIN: int = 2
 
 var world: LogiWorld = LogiWorld.new()
 var haul: LogiHaul = LogiHaul.new()
@@ -79,8 +101,10 @@ var _tick: int = 0
 var _build: SimSystem = null
 var _heat: SimSystem = null
 var _grid: SimSystem = null
-var _citizens: SimSystem = null
-var _m_haulers: String = ""
+var _research: SimSystem = null
+var _tech_tick: int = -100000
+var _yard_tick: int = -100000
+var _yard_logged: bool = false
 
 ## [P11] buildings we have taken an interest in, and the ones we never will.
 var _adopted: Dictionary[int, bool] = {}
@@ -118,6 +142,14 @@ var _line_fed_tick: int = -100000
 var _line_dry: int = 0
 var _line_fed_logged: Dictionary[int, bool] = {}
 var _items_moved_total: int = 0
+var _dead_end_tick: int = -100000
+var _arms_no_target: int = 0
+var _lines_to_nowhere: int = 0
+## Cell -> the tick it was first seen broken, and the cells already spoken for.
+var _dead_end_since: Dictionary[Vector2i, int] = {}
+var _dead_end_logged: Dictionary[Vector2i, bool] = {}
+## Cell -> the tick its alert was last renewed for the panel.
+var _dead_end_said: Dictionary[Vector2i, int] = {}
 
 
 func _init() -> void:
@@ -164,6 +196,14 @@ func setup() -> void:
 	_line_fed_logged = {}
 	_line_dry = 0
 	_items_moved_total = 0
+	_dead_end_tick = -100000
+	_arms_no_target = 0
+	_lines_to_nowhere = 0
+	_dead_end_since = {}
+	_dead_end_logged = {}
+	_dead_end_said = {}
+	_yard_tick = -100000
+	_yard_logged = false
 	_load_content()
 
 
@@ -171,16 +211,14 @@ func post_setup() -> void:
 	_build = Sim.get_system(&"build")
 	_heat = Sim.get_system(&"heat")
 	_grid = Sim.get_system(&"grid")
-	_citizens = Sim.get_system(&"citizens")
-	if _citizens != null:
-		for candidate: String in ["idle_haulers", "hauler_count", "available_haulers", "population"]:
-			if _citizens.has_method(candidate):
-				_m_haulers = candidate
-				break
+	_research = Sim.get_system(&"research")
+	_read_tech()
 	world.bind(_heat, _build)
-	Log.info("logistics", "ready — %d items, %d transport definitions, heat=%s build=%s haulers=%s" % [
+	_read_yard()
+	Log.info("logistics", ("ready — %d items, %d transport definitions, heat=%s build=%s; "
+		+ "haul crew %d, %.1f items/s citywide, range %d tiles, yard %s") % [
 		_items.size(), _defs.size(), str(_heat != null), str(_build != null),
-		_m_haulers if _m_haulers != "" else "base crew"])
+		LogiHaul.BASE_PORTERS, haul.capacity(), LogiHaul.HAUL_RANGE, _yard_words()])
 	_report_reachability()
 
 
@@ -255,6 +293,12 @@ func step(tick: int) -> void:
 	var t0: int = Time.get_ticks_usec()  # lint:allow profiling only; never serialized
 	_in_sim = true
 	_tick = tick
+	if tick - _tech_tick >= TECH_EVERY:
+		_tech_tick = tick
+		_read_tech()
+	if tick - _yard_tick >= YARD_EVERY:
+		_yard_tick = tick
+		_read_yard()
 	haul.begin_tick(tick, _crew())
 	_sync_from_build()
 	world.step(tick)
@@ -265,6 +309,7 @@ func step(tick: int) -> void:
 	_serve_fuel()
 	if tick % REQUEST_EVERY == 0:
 		_serve_requests()
+	_check_dead_ends()
 
 	_in_sim = false
 	var us: int = Time.get_ticks_usec() - t0  # lint:allow profiling only
@@ -299,13 +344,71 @@ func _bootstrap_note() -> void:
 		+ "burners are fuelled unmetered until an economy exists")
 
 
-## Porters available to the haul network. [P05] raises it once citizens exist.
+## Porters available to the haul network. A CONSTANT, and that is the design.
+##
+## This used to read `BASE_PORTERS + population / 4` and it was the largest
+## balance hole in the build: 18 founders became 59 people became 19 porters
+## became 76 items a second of free, unbuilt, unlimited-range throughput by day
+## three — five belt_mk1s' worth, growing on its own, for a player who never
+## opened the Logistics tab. Growth in a city builder must not silently buy you
+## out of the automation game; the city gets bigger, the sledge crew does not,
+## and the gap between them is the reason to lay a belt.
+##
+## The crew grows through `logistics.throughput_mult` research, which the player
+## pays for. See LogiHaul's header.
 func _crew() -> int:
-	if _citizens != null and _m_haulers != "":
-		var v: Variant = _citizens.call(_m_haulers)
-		if typeof(v) == TYPE_INT or typeof(v) == TYPE_FLOAT:
-			return LogiHaul.BASE_PORTERS + int(float(v) * 0.25)
 	return LogiHaul.BASE_PORTERS
+
+
+## Slow-timer read of [P10]. Applies to the crew that ALREADY exists, per §7 of
+## the architecture contract: Hand Carts makes today's porters quicker, it does
+## not unlock a porter.
+func _read_tech() -> void:
+	if _research == null or not _research.has_method("multiplier"):
+		haul.rate_mult = 1.0
+		return
+	var v: Variant = _research.call("multiplier", ResearchDefs.E_LOGI_THROUGHPUT_MULT)
+	if typeof(v) != TYPE_FLOAT and typeof(v) != TYPE_INT:
+		return
+	haul.rate_mult = clampf(float(v), 0.25, 8.0)
+
+
+## Where the construction stockpile is, for pricing a delivery out of it.
+##
+## THE STOCKPILE IS NOT NOWHERE. [P11]'s stock is a flat dictionary with no
+## position, so the haul network charged it 1.0 per item to anywhere on the map
+## and never refused it — 1211 of the 1980 items hauled in the reference run.
+## The yard is the Hearth, which is `unique`, which is why one building is the
+## whole answer; the day this city has two, the first by id wins and the log
+## says which.
+func _read_yard() -> void:
+	if _build == null or not _build.has_method("buildings_of_kind"):
+		return
+	var raw: Variant = _build.call("buildings_of_kind", &"the_hearth")
+	if typeof(raw) != TYPE_ARRAY:
+		return
+	var found: Array = raw
+	if found.is_empty():
+		if not _yard_logged:
+			_yard_logged = true
+			Log.info("logistics", ("no Hearth in this world, so the stockpile has no yard to "
+				+ "walk from — deliveries out of it are priced as if they were next door"))
+		return
+	var b: Object = found[0]
+	if b == null:
+		return
+	var raw_cell: Variant = b.get("cell")
+	if typeof(raw_cell) != TYPE_VECTOR2I:
+		return
+	var at: Vector2i = raw_cell
+	if haul.yard == at:
+		return
+	haul.yard = at
+	Log.info("logistics", "the city's yard is the Hearth at (%d,%d) — every stockpile delivery is priced from there" % [at.x, at.y])
+
+
+func _yard_words() -> String:
+	return "unplaced" if haul.yard.x == -2147483648 else "(%d,%d)" % [haul.yard.x, haul.yard.y]
 
 
 ## Keeps every burner [P02] owns above a floor of fuel, so a generator browns
@@ -404,6 +507,113 @@ func _serve_fuel() -> void:
 				tail = ", %d of them on a dead line" % dry_lines
 			Log.info("logistics", "%d burner%s short of %s%s" % [
 				short, "" if short == 1 else "s", what, tail])
+
+
+## Belt that cannot deliver anything to anything, named out loud.
+##
+## THE QUESTION THIS ANSWERS. A critic reading the reference run saw three lines
+## reporting `blocked` for 80% of it and two ending in `sink_id: -1`, and read
+## that as two belts going nowhere. It was not: lines 1-3 are ONE compressed
+## chain out of the coal yard whose last tile is bare ground behind the last arm,
+## and line 4 ends under the last of four arms on the Hearth's south face. All
+## four are working belts with more supply than demand, which is what a full belt
+## MEANS. But nothing in this build could say so, and a number a critic has to
+## guess at is a number that will be guessed wrong. So now the system answers it:
+## an arm aimed at snow, and a line with no sink and no arm on it, are counted,
+## published in state.json, and said once each in the log with their cell.
+##
+## THE GRACE PERIOD IS THE WHOLE DESIGN. Every belt is a belt to nowhere for the
+## second between laying the first tile and laying the second, and an assistant
+## that says so is worse than one that says nothing — the first draft of this
+## shouted at t261 about a nine-tile run that was four ticks old. So the state is
+## measured continuously and only SPOKEN after DEAD_END_GRACE ticks of it, keyed
+## on the cell rather than the entity id, because a line's id changes every time
+## the player extends it and its exit does not.
+func _check_dead_ends() -> void:
+	if _tick - _dead_end_tick < DEAD_END_EVERY:
+		return
+	_dead_end_tick = _tick
+	var seen: Dictionary[Vector2i, bool] = {}
+	var arms: int = 0
+	var lines: int = 0
+
+	for id: int in world.arms_with_no_target():
+		var arm: LogiInserter = world.entities.get(id)
+		if arm == null:
+			continue
+		arms += 1
+		var at: Vector2i = arm.target_cell()
+		seen[arm.cell] = true
+		var say: int = _settled(arm.cell)
+		if say == SAY_NOTHING:
+			continue
+		if say == SAY_FIRST:
+			Log.info("logistics", ("arm at (%d,%d) is aimed at (%d,%d) and there is nothing "
+				+ "there — it will never put anything down") % [arm.cell.x, arm.cell.y, at.x, at.y])
+		Bus.alert_raised.emit(1, &"build_arm_no_target",
+			"An arm is reaching into empty ground — nothing it picks up can be put down.",
+			Vector2(at) * LogiTypes.TILE)
+
+	for sid: int in world.lines_to_nowhere():
+		var seg: LogiSegment = world.segments.get(sid)
+		if seg == null:
+			continue
+		lines += 1
+		seen[seg.exit_cell] = true
+		var say2: int = _settled(seg.exit_cell)
+		if say2 == SAY_NOTHING:
+			continue
+		if say2 == SAY_FIRST:
+			Log.info("logistics", ("the line from (%d,%d) to (%d,%d) ends in nothing and no arm "
+				+ "reaches onto it — it moves goods to no one") % [
+				seg.entry_cell.x, seg.entry_cell.y, seg.exit_cell.x, seg.exit_cell.y])
+		Bus.alert_raised.emit(1, &"build_belt_to_nowhere",
+			"This belt ends in open ground and nothing takes anything off it.",
+			Vector2(seg.exit_cell) * LogiTypes.TILE)
+
+	_arms_no_target = arms
+	_lines_to_nowhere = lines
+	_forget_fixed(seen)
+
+
+## SAY_FIRST on the one sweep `where` crosses DEAD_END_GRACE, SAY_AGAIN every
+## DEAD_END_REPEAT ticks it is still broken after that, SAY_NOTHING otherwise.
+##
+## THE LOG AND THE PANEL WANT OPPOSITE THINGS AND THIS IS WHERE THAT IS DECIDED.
+## A log is a transcript: saying "this belt goes nowhere" a hundred times is how
+## log.txt becomes unreadable, so it is said once. The ATTENTION panel is a
+## STATUS, and [P17] ages a bus alert out after twelve seconds — so a standing
+## condition announced once is a condition that is not on screen thirty seconds
+## later. The first draft did the once-only thing for both, and the proof shot
+## `artifacts/H2_nowhere_vis/shots/named.world.png` came back with the belt
+## plainly visible, `lines_to_nowhere: 1` in state.json, and NOTHING IN THE
+## PANEL: raised at t441, expired by t681, photographed at t2200.
+func _settled(where: Vector2i) -> int:
+	if not _dead_end_since.has(where):
+		_dead_end_since[where] = _tick
+		return SAY_NOTHING
+	if _tick - int(_dead_end_since[where]) < DEAD_END_GRACE:
+		return SAY_NOTHING
+	if not _dead_end_logged.has(where):
+		_dead_end_logged[where] = true
+		_dead_end_said[where] = _tick
+		return SAY_FIRST
+	if _tick - int(_dead_end_said.get(where, -100000)) < DEAD_END_REPEAT:
+		return SAY_NOTHING
+	_dead_end_said[where] = _tick
+	return SAY_AGAIN
+
+
+## Drops the cells that are no longer broken, so fixing a belt and breaking it
+## again a day later is two warnings, not one.
+func _forget_fixed(seen: Dictionary[Vector2i, bool]) -> void:
+	var keys: Array = _dead_end_since.keys()
+	keys.sort()
+	for k: Vector2i in keys:
+		if not seen.has(k):
+			_dead_end_since.erase(k)
+			_dead_end_logged.erase(k)
+			_dead_end_said.erase(k)
 
 
 ## Which burners have an arm loading them, refreshed on a slow timer. Walks the
@@ -1082,11 +1292,16 @@ func totals() -> Dictionary:
 		"porters": haul.porters,
 		"hauled": haul.hauled_total,
 		"fuel_by_porter": haul.fuel_total,
-		"fuel_by_machine": int(world.delivered_as_fuel),
+		"fuel_by_machine": world.fuel_by_arm,
+		"fuel_delivered": int(world.delivered_as_fuel),
+		"delivered_by_arm": world.delivered_by_arm,
 		"items_moved_total": _items_moved_total,
 		"placed_by_player": _adopted_transport.size(),
 		"line_fed_burners": _line_fed.size(),
 		"lines_dry": _line_dry,
+		"lines_to_nowhere": _lines_to_nowhere,
+		"arms_no_target": _arms_no_target,
+		"stock_out_of_range": haul.stock_out_of_range,
 		"runs_dragged": link.runs_resolved,
 		"corners_turned": link.corners_turned,
 	}
@@ -1539,9 +1754,15 @@ func metrics() -> Dictionary:
 		"items_moved_total": _items_moved_total,
 		"hauled_total": haul.hauled_total,
 		"fuel_by_porter": haul.fuel_total,
-		"fuel_by_machine": int(world.delivered_as_fuel),
+		"fuel_by_machine": world.fuel_by_arm,
+		"fuel_delivered": int(world.delivered_as_fuel),
+		"delivered_by_arm": world.delivered_by_arm,
+		"haul_capacity": snappedf(haul.capacity(), 0.01),
 		"burners_short": _fuel_short,
 		"lines_dry": _line_dry,
+		"lines_to_nowhere": _lines_to_nowhere,
+		"arms_no_target": _arms_no_target,
+		"stock_out_of_range": haul.stock_out_of_range,
 		"line_fed_burners": _line_fed.size(),
 		"placed_by_player": _adopted_transport.size(),
 		"runs_dragged": link.runs_resolved,

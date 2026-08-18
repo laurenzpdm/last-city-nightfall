@@ -512,7 +512,14 @@ func test_a_requisition_post_is_kept_stocked_by_porters() -> void:
 		return
 	var id: int = _place("requester_post", O)
 	assert_true(logi.set_request(id, &"iron_plate", 120), "the post asks for a hundred and twenty")
-	world.run(400)
+	# 600 ticks, not 400. The haul crew moves LogiHaul.PORTER_RATE * BASE_PORTERS
+	# = 6 items a second now that the free tier no longer scales with population,
+	# so a hundred and twenty plates is twenty seconds of hauling and 400 ticks
+	# was exactly twenty seconds — a test standing on its own boundary. What this
+	# case asserts is that the post gets stocked AT ALL; how fast is
+	# test_the_rate_limit_is_what_actually_arrives, next door, and that one has a
+	# ceiling rather than a floor.
+	world.run(600)
 	var st: LogiStore = logi.world.stores[id]
 	assert_ge(float(st.count(&"iron_plate")), 120.0, "and the porters bring them")
 	assert_false(logi.is_starved(id), "a post that is being served is not starving")

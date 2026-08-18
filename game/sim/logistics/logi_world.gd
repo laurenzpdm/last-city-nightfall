@@ -78,7 +78,17 @@ var _tick: int = 0
 ## Items that could not be poured back onto a line after the player edited it.
 var spilled: int = 0
 var delivered_to_stores: int = 0
+## Fuel that reached a bunker BY ANY ROUTE — an arm swinging into it, or a
+## porter walking there. Do not read this as an automation number: for two waves
+## `logistics.fuel_by_machine` published exactly this counter under exactly that
+## name, and the gate band beside it read "1040 by machine against 1029 by
+## porter — the machines now carry more of this city's fuel than the people do".
+## 1029 of that 1040 WERE the porters. The arms had carried eleven units.
 var delivered_as_fuel: float = 0.0
+## The honest half: fuel an ARM put in a bunker. Nothing else touches it.
+var fuel_by_arm: int = 0
+## Items an arm or the end of a line put into a store or a machine buffer.
+var delivered_by_arm: int = 0
 var items_moved: int = 0
 
 
@@ -781,9 +791,16 @@ func _grab_from_belt(arm: LogiInserter, e: LogiEntity, cell: Vector2i, want: int
 func _arm_drop(arm: LogiInserter) -> bool:
 	if arm.held <= 0:
 		return true
+	# Which counters the drop lands in is decided by WHERE it lands, and only
+	# give_to_cell knows that. Reading the two totals either side of the call is
+	# how this stays true when a new kind of destination is added.
+	var fuel_before: float = delivered_as_fuel
+	var store_before: int = delivered_to_stores
 	var moved: int = give_to_cell(arm.target_cell(), arm.held_kind, arm.held, arm.cell)
 	if moved <= 0:
 		return false
+	fuel_by_arm += int(delivered_as_fuel - fuel_before)
+	delivered_by_arm += delivered_to_stores - store_before
 	arm.held -= moved
 	arm.moved += moved
 	items_moved += moved
@@ -984,6 +1001,86 @@ func idle_arms() -> int:
 		if arm != null and arm.idle_ticks >= IDLE_POLL_AFTER:
 			n += 1
 	return n
+
+
+## Could an item put on this cell ever be accepted by anything? The same
+## dispatch [method give_to_cell] uses, asked as a question — a belt, a chest, a
+## burner's bunker, or a machine's own buffer. Bare ground answers false.
+func accepts_delivery(cell: Vector2i) -> bool:
+	var e: LogiEntity = entity_at(cell)
+	if e != null and (e.is_transport() or e.role() == LogiTypes.Role.CHEST):
+		return true
+	if int(fuel_cells.get(cell, -1)) >= 0:
+		return true
+	return int(store_cells.get(cell, -1)) >= 0
+
+
+## Arms standing there holding goods they can never put down: the target cell is
+## bare ground with not even a construction site on it. Ascending, so the log
+## line is stable.
+##
+## THREE THINGS THIS DELIBERATELY IS NOT, each of which the first draft got wrong
+## and each of which would have made the warning wallpaper:
+##
+##   * NOT "idle". An idle arm is ambiguous — three of the four arms on the
+##     Hearth's south face are idle all day because the fourth, nearest the
+##     crate, takes everything off a four-tile belt first. That is a layout a
+##     player might want.
+##   * NOT "empty target". Every arm in the reference run points at empty ground
+##     at t761, because the burners under them are placed and not yet BUILT. An
+##     assistant that calls an unfinished factory a mistake is worse than none.
+##   * NOT "target is full". A full bunker accepts deliveries again in a second.
+##
+## An arm with something in its hand, aimed at snow, is none of those. It is
+## wrong, it stays wrong, and no amount of supply behind it will help.
+func arms_with_no_target() -> Array[int]:
+	var out: Array[int] = []
+	for id: int in inserter_ids:
+		var arm: LogiInserter = entities.get(id)
+		if arm == null or not arm.enabled or arm.held <= 0:
+			continue
+		var at: Vector2i = arm.target_cell()
+		if accepts_delivery(at) or _site_at(at):
+			continue
+		out.append(id)
+	out.sort()
+	return out
+
+
+## Is [P11] building something on this cell? A site is a promise, not a mistake.
+func _site_at(cell: Vector2i) -> bool:
+	if _build == null or not _build.has_method("building_at"):
+		return false
+	return _build.call("building_at", cell) != null
+
+
+## Lines that end in nothing AND have no arm reaching onto them anywhere: a run
+## of belt a player laid that cannot deliver a single item to anything, ever.
+##
+## Deliberately NOT the same question as "is it backed up". A saturated line
+## with a live consumer is a belt DOING ITS JOB with more supply than demand —
+## three of the four lines in the reference run are exactly that, one compressed
+## chain from the coal yard to the burner row, and reading their `blocked`
+## counters as a fault is how a healthy factory gets called broken.
+func lines_to_nowhere() -> Array[int]:
+	var drawn: Dictionary[int, bool] = {}
+	for id: int in inserter_ids:
+		var arm: LogiInserter = entities.get(id)
+		if arm == null:
+			continue
+		var sid: int = int(seg_at.get(arm.source_cell(), -1))
+		if sid >= 0:
+			drawn[sid] = true
+	var out: Array[int] = []
+	for sid2: int in segment_ids:
+		var seg: LogiSegment = segments[sid2]
+		if seg.sink != LogiTypes.Sink.NONE:
+			continue
+		if drawn.has(sid2):
+			continue
+		out.append(sid2)
+	out.sort()
+	return out
 
 
 func _sorted_store_ids() -> Array[int]:
