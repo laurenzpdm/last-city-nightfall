@@ -298,15 +298,29 @@ func _found(kind: StringName, offset: Vector2i) -> bool:
 var _thin: int = 0
 
 
-## A small city with more hands than requirements, so that anything left short is
-## short because of the rotation and not because the city is poor.
+## A city with BOTH shapes of crew in it, because the two rules can only be told
+## apart by having both:
+##
+##   * deep crews — a workshop hired past `required` — which the pre-wave cut
+##     already covered on both rotations, and which prove depth still works;
+##   * tight crews — a drill or a sorter sitting at exactly its requirement with
+##     nothing spare — which the pre-wave cut left dark for the whole night, and
+##     which are the only crews that can catch a regression to it.
+##
+## Measured while writing this: with three workshops and 24 hands the city had no
+## TIGHT crew at all and the "nobody is dark" assertion was passing against the
+## old roster. The extra drills, sorters and kitchens below are what soak the
+## labour pool back down to the shape the shipped run is actually in.
+const CITY_HANDS_TARGET: int = 24
+
+
 func _found_a_city() -> bool:
 	for _tries: int in 12:
-		if _employable() >= 24:
+		if _employable() >= CITY_HANDS_TARGET:
 			break
 		world.cmd_now({"system": &"citizens", "op": "add", "count": 8})
 		world.run(20)
-	if _employable() < 24:
+	if _employable() < CITY_HANDS_TARGET:
 		return false
 	if not _found(&"the_hearth", Vector2i(0, 0)):
 		return false
@@ -324,7 +338,9 @@ func _found_a_city() -> bool:
 	_thin = 0
 	for spot: Array in [[&"turret_mount", Vector2i(-6, 12)], [&"turret_mount", Vector2i(-3, 12)],
 			[&"turret_mount", Vector2i(0, 12)], [&"granary", Vector2i(4, 12)],
-			[&"ore_drill", Vector2i(9, 12)]]:
+			[&"ore_drill", Vector2i(9, 12)], [&"ore_drill", Vector2i(14, 12)],
+			[&"rubble_sorter", Vector2i(-6, 17)], [&"rubble_sorter", Vector2i(-1, 17)],
+			[&"field_kitchen", Vector2i(4, 17)], [&"smelter", Vector2i(9, 17)]]:
 		if _found(spot[0], spot[1]):
 			_thin += 1
 	world.run(1500)
@@ -368,6 +384,7 @@ func test_every_crew_leans_to_its_own_hours_and_none_is_dark() -> void:
 
 	var measured: int = 0
 	var pairs: int = 0
+	var tight: int = 0
 	var deep: int = 0
 	var lopsided: Array[String] = []
 	var dark: Array[String] = []
@@ -399,19 +416,32 @@ func test_every_crew_leans_to_its_own_hours_and_none_is_dark() -> void:
 					% [String(site.kind), id, crew, need, on_primary, on_far])
 		# 3. The half this suite was rewritten for: a crew big enough to be in
 		#    two places is in two places.
+		#
+		#    `pairs` counts crews that CAN split; `tight` counts the ones with no
+		#    surplus to do it out of, and only those tell the two rules apart —
+		#    the pre-wave cut covered both rotations perfectly well whenever a
+		#    building was overstaffed, so a fixture full of deep crews would go
+		#    green against the roster this whole suite exists to forbid.
 		if crew >= CitizenDefs.MIN_CREW_TO_SPLIT:
 			pairs += 1
+			if need > 0 and crew <= need:
+				tight += 1
 			if on_far <= 0:
-				dark.append("%s(%d) puts all %d of its crew on %s"
-					% [String(site.kind), id, crew, hours])
+				dark.append("%s(%d) puts all %d of its crew on %s (needs %d)"
+					% [String(site.kind), id, crew, hours, need])
 	assert_gt(float(measured), 4.0,
 		"precondition: the city has crewed buildings to measure (found %d)" % measured)
 	assert_gt(float(pairs), 2.0,
 		("precondition: some of them carry two or more people (found %d) — "
 		+ "without those this measures nothing") % pairs)
-	assert_gt(float(deep), 0.0,
-		("precondition: at least one crew is deep enough to cover both rotations "
-		+ "outright (found %d)") % deep)
+	# `deep` is not a precondition here — a city poor enough to have tight crews
+	# may have no deep ones, and depth has its own test above. When it does have
+	# one, `shallow` still holds it to account.
+	assert_gt(float(tight), 0.0,
+		("precondition: at least one crew of two or more has NO surplus to split "
+		+ "(found %d) — an overstaffed city covers both rotations under the old "
+		+ "rule too, so without one of these the last assertion measures nothing")
+		% tight)
 	assert_empty(lopsided,
 		("%d of %d crewed buildings no longer lean to the rotation they exist "
 		+ "for: %s") % [lopsided.size(), measured, ", ".join(lopsided)])

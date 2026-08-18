@@ -23,9 +23,17 @@ extends TestCase
 
 ## Ticks for [P04]'s throttled rescan of [P11] to notice a placement.
 const SYNC_GRACE: int = 40
-## How many bodies the fixture puts in town. Comfortably more than the crews
-## need, so anything left unstaffed is unstaffed because of the rotation.
-const CITY_HANDS: int = 40
+## How many bodies the fixture puts in town, on top of the founders.
+##
+## Tuned DOWN, deliberately, and this is the most important constant in the file.
+## A city with hands to spare gives every crew depth, and a deep crew covers both
+## rotations under the OLD rule as well as the new one — so a generous fixture
+## goes green against the very roster this suite exists to forbid. Measured: at
+## 40 extra hands three of these four tests passed against the pre-wave cut. The
+## shipped reference run has every building sitting at exactly its requirement
+## with nobody spare, and `_thin_crews()` below asserts this fixture is in that
+## same state before any of it means anything.
+const CITY_HANDS: int = 4
 
 var world: SimFixture = null
 var prod: ProductionSystem = null
@@ -104,9 +112,8 @@ func _factory() -> bool:
 	# Spread the machines out: a pad that is refused is simply not measured, and
 	# the preconditions below say how many were found.
 	_machines = PackedInt32Array()
-	for spot: Array in [["workshop", Vector2i(5, -3)], ["workshop", Vector2i(10, -3)],
-			["workshop", Vector2i(15, -3)], ["smelter", Vector2i(5, 2)],
-			["smelter", Vector2i(10, 2)], ["field_kitchen", Vector2i(15, 2)]]:
+	for spot: Array in [["workshop", Vector2i(5, -3)], ["smelter", Vector2i(10, -3)],
+			["rubble_sorter", Vector2i(5, 2)], ["field_kitchen", Vector2i(10, 2)]]:
 		var id: int = _place(String(spot[0]), core + (spot[1] as Vector2i))
 		if id > 0:
 			_machines.append(id)
@@ -114,7 +121,7 @@ func _factory() -> bool:
 	# Hands last, so the job board hires into buildings that already exist.
 	world.cmd_now({"system": &"citizens", "op": "add", "count": CITY_HANDS})
 	world.run(1200 + SYNC_GRACE)
-	return _machines.size() >= 4
+	return _machines.size() >= 3
 
 
 ## Skips to a phase and gives the city time to WALK. A shift change is people
@@ -150,37 +157,58 @@ func _phase(name: String) -> void:
 			+ "measurement is being taken at the wrong hour") % [name, SHIFT_WALK])
 
 
-## Crews standing in the machines this fixture placed, right now.
-func _crewed() -> int:
-	var n: int = 0
+## The machines the old roster sent to bed: everything whose trade is NOT one of
+## `CitizenDefs.NIGHT_TRADES`. A smelter or a kitchen may carry a `heat_source`
+## tag and be a night building already, and counting those as evidence would let
+## this whole suite pass on the strength of one machine that was never broken.
+func _day_trade() -> PackedInt32Array:
+	var board: CitizenJobBoard = cit.get("board")
+	var out := PackedInt32Array()
 	for i: int in _machines.size():
-		if float(cit.call("staffing_of", _machines[i])) > 0.0:
-			n += 1
-	return n
-
-
-## Machines of this fixture that are actually turning right now.
-func _running() -> int:
-	var n: int = 0
-	for i: int in _machines.size():
-		var m: ProdMachine = _machine(_machines[i])
-		if m != null and m.rate > 0.0:
-			n += 1
-	return n
-
-
-## What every machine says about itself, for a failure message that names the
-## cause instead of the symptom.
-func _why() -> String:
-	var bits: PackedStringArray = PackedStringArray()
-	for i: int in _machines.size():
-		var m: ProdMachine = _machine(_machines[i])
-		if m == null:
+		var site: CitizenJobBoard.Site = board.site_of(_machines[i])
+		if site == null or site.assigned <= 0:
 			continue
-		bits.append("%s: %s staff=%.2f power=%.2f cold=%.2f" % [String(m.kind),
-			"running" if String(m.reason) == "" else String(m.reason),
-			m.staffing, m.power, m.cold])
-	return "; ".join(bits)
+		if not CitizenDefs.is_night_trade(site.trade):
+			out.append(_machines[i])
+	return out
+
+
+## Day-trade machines that hold a roster and have nobody standing in them.
+func _abandoned() -> Array[String]:
+	var board: CitizenJobBoard = cit.get("board")
+	var out: Array[String] = []
+	var ids: PackedInt32Array = _day_trade()
+	for i: int in ids.size():
+		if float(cit.call("staffing_of", ids[i])) > 0.0:
+			continue
+		var site: CitizenJobBoard.Site = board.site_of(ids[i])
+		out.append("%s(%d) holds %d on its roster and has nobody in it"
+			% [String(site.kind), ids[i], site.assigned])
+	return out
+
+
+## Day-trade machines actually turning right now, by id.
+func _running_ids() -> PackedInt32Array:
+	var out := PackedInt32Array()
+	var ids: PackedInt32Array = _day_trade()
+	for i: int in ids.size():
+		var m: ProdMachine = _machine(ids[i])
+		if m != null and m.rate > 0.0:
+			out.append(ids[i])
+	return out
+
+
+## Machines whose roster is no deeper than the job needs — the state the whole
+## city is in in the shipped run, and the only state in which the rotation rule
+## is the thing being measured rather than the size of the labour pool.
+func _thin_crews() -> int:
+	var board: CitizenJobBoard = cit.get("board")
+	var n: int = 0
+	for i: int in _machines.size():
+		var site: CitizenJobBoard.Site = board.site_of(_machines[i])
+		if site != null and site.assigned > 0 and site.assigned <= site.required:
+			n += 1
+	return n
 
 
 func _employed() -> int:
@@ -203,19 +231,28 @@ func test_the_machines_have_crews_through_the_whole_dark() -> void:
 		return
 	assert_gt(float(_employed()), 8.0,
 		"precondition: the city employs somebody (%d)" % _employed())
-	assert_gt(float(_crewed()), 0.0,
-		"precondition: the machines are crewed in the daylight to begin with")
+	assert_gt(float(_thin_crews()), 1.0,
+		("precondition: the crews are AT their requirement with nothing spare "
+		+ "(%d of %d) — a deep crew covers both rotations under the old rule too, "
+		+ "so a generous fixture measures nothing")
+		% [_thin_crews(), _machines.size()])
+	assert_gt(float(_day_trade().size()), 1.0,
+		("precondition: at least two of these machines are ordinary day trades "
+		+ "(found %d) — those are the ones the old roster sent to bed")
+		% _day_trade().size())
+	_phase("afternoon")
+	assert_empty(_abandoned(),
+		"precondition: the factory is crewed in the daylight to begin with")
 
 	var empty: Array[String] = []
 	for name: String in ["dusk", "night", "deep_night"]:
 		_phase(name)
-		var crewed: int = _crewed()
-		if crewed <= 0:
-			empty.append("%s: 0 of %d machines have anybody in them (%d employed)"
-				% [name, _machines.size(), _employed()])
+		for line: String in _abandoned():
+			empty.append("%s — %s" % [name, line])
 	assert_empty(empty,
 		("the factory is abandoned after dark, which is the hour the game is named "
-		+ "after — %s") % ", ".join(empty))
+		+ "after, while %d citizens are employed: %s")
+		% [_employed(), ", ".join(empty)])
 
 
 ## The same claim in [P04]'s own words: no machine reports `unstaffed` in the
@@ -226,19 +263,25 @@ func test_no_machine_reports_no_crew_at_midnight() -> void:
 	if not _factory():
 		skip("this map would not take the factory fixture")
 		return
-	_phase("deep_night")
+	assert_gt(float(_thin_crews()), 1.0,
+		"precondition: the crews are at their requirement with nothing spare (%d of %d)"
+		% [_thin_crews(), _machines.size()])
+	var ids: PackedInt32Array = _day_trade()
+	assert_gt(float(ids.size()), 1.0,
+		"precondition: at least two ordinary day-trade machines to measure (%d)" % ids.size())
+	# Walked into, not jumped to. A city reaches midnight through dusk, and a
+	# measurement taken one skip after breakfast is measuring people still on
+	# the road rather than a rotation.
+	for name: String in ["dusk", "night", "deep_night"]:
+		_phase(name)
 	var says: Array[String] = []
-	for i: int in _machines.size():
-		var m: ProdMachine = prod.machine(_machines[i])
-		if m == null:
-			continue
-		if String(m.reason) == "unstaffed":
-			says.append("%s(%d)" % [String(m.kind), _machines[i]])
-	assert_lt(float(says.size()), float(_machines.size()),
-		("every machine in the city reads `unstaffed` in deep night while %d "
-		+ "citizens are employed: %s") % [_employed(), ", ".join(says)])
+	for i: int in ids.size():
+		var m: ProdMachine = _machine(ids[i])
+		if m != null and String(m.reason) == "unstaffed":
+			says.append("%s(%d)" % [String(m.kind), ids[i]])
 	assert_empty(says,
-		"machines with nobody in them at midnight: %s" % ", ".join(says))
+		("machines with nobody in them at midnight while %d citizens are "
+		+ "employed: %s") % [_employed(), ", ".join(says)])
 
 
 ## And they are RUNNING, not merely staffed.
@@ -251,21 +294,35 @@ func test_the_factory_turns_in_the_dark() -> void:
 	if not _factory():
 		skip("this map would not take the factory fixture")
 		return
+	assert_gt(float(_thin_crews()), 1.0,
+		"precondition: the crews are at their requirement with nothing spare (%d of %d)"
+		% [_thin_crews(), _machines.size()])
 	_phase("afternoon")
-	var by_day: int = _running()
-	assert_gt(float(by_day), 0.0,
-		("precondition: the factory turns in the daylight (%d of %d running) — "
-		+ "without that this test measures nothing") % [by_day, _machines.size()])
+	var by_day: PackedInt32Array = _running_ids()
+	assert_gt(float(by_day.size()), 1.0,
+		("precondition: at least two day-trade machines turn in the daylight "
+		+ "(%d of %d running) — without that this test measures nothing")
+		% [by_day.size(), _day_trade().size()])
 
-	var dead: Array[String] = []
+	# EVERY machine that turned in the daylight, not "at least one machine".
+	# A count would let the whole factory be carried by one bench whose crew
+	# happened to be deep enough to cover both rotations anyway, which is exactly
+	# how the old roster looked healthy in an over-staffed test city.
+	var seen: Dictionary[int, bool] = {}
 	for name: String in ["dusk", "night", "deep_night"]:
 		_phase(name)
-		var active: int = _running()
-		if active <= 0:
-			dead.append("%s: 0 of %d, against %d in the afternoon [%s]"
-				% [name, _machines.size(), by_day, _why()])
-	assert_empty(dead,
-		"nothing in the city is making anything after dark — %s" % ", ".join(dead))
+		var live: PackedInt32Array = _running_ids()
+		for i: int in live.size():
+			seen[live[i]] = true
+	var never: Array[String] = []
+	for i: int in by_day.size():
+		if not seen.has(by_day[i]):
+			var m: ProdMachine = _machine(by_day[i])
+			never.append("%s(%d): %s" % [String(m.kind), by_day[i],
+				"running" if String(m.reason) == "" else String(m.reason)])
+	assert_empty(never,
+		("%d of %d machines that turn in the daylight never turn once in dusk, "
+		+ "night or deep night: %s") % [never.size(), by_day.size(), ", ".join(never)])
 
 
 ## The lever, and the proof it is a lever and not a decoration: Night Curfew is
@@ -279,12 +336,15 @@ func test_night_curfew_shuts_the_works_and_says_so() -> void:
 	assert_true(bool(cit.call("set_shift_law", CitizenDefs.LAW_CURFEW)),
 		"the city may sign a curfew")
 	world.run(200)
-	_phase("deep_night")
-	assert_eq(_crewed(), 0,
+	for name: String in ["dusk", "night", "deep_night"]:
+		_phase(name)
+	var still_up: int = _day_trade().size() - _abandoned().size()
+	assert_eq(still_up, 0,
 		("under Night Curfew the works stop at dusk — that is what the law BUYS, "
-		+ "and %d machines still have somebody in them") % _crewed())
+		+ "and %d machines still have somebody in them") % still_up)
 	assert_true(bool(cit.call("set_shift_law", CitizenDefs.LAW_STANDARD)),
 		"and the city may repeal it")
 	_phase("deep_night")
-	assert_gt(float(_crewed()), 0.0,
-		"repealing it puts the night crew back on the floor")
+	assert_lt(float(_abandoned().size()), float(_day_trade().size()),
+		("repealing it puts the night crew back on the floor: %d of %d machines "
+		+ "are still empty") % [_abandoned().size(), _day_trade().size()])
