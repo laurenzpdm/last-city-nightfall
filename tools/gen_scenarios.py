@@ -1125,6 +1125,92 @@ def first_night(strip_workshop: bool = True):
     # opened once, which is the pillar this run was silent about.
     L.cmd(12000, {"system": "society", "op": "sign", "law": "snow_burial"})
 
+    # === THE COPPER LEG, AND IT IS A RETOOL AND NOT A QUARTER ===============
+    #
+    # THE PILLAR THIS RUN HAS NEVER SHOWN. `production.chain_depth` has read 3
+    # for four waves against content five transformations deep, and the reason
+    # is not [P04]: it is that nothing in this city ever made copper, and every
+    # recipe above gear needs it. Three separate attempts to fix that by
+    # building a factory QUARTER are written up above, and all three cost the
+    # run more than they bought, for one reason that is measurable and was never
+    # named: THIS CITY CANNOT CREW ANOTHER MACHINE. artifacts/J2_r5/state.json,
+    # citizens.totals: population 54, employed 38, jobs_required 45. Sixteen of
+    # the fifty-four are children and elders the job board will not take, so the
+    # city is already seven pairs of hands short of running what it has built,
+    # and a new machine is a machine at `assigned: 0` — which is exactly what
+    # artifacts/F5_v2 measured and what the reverted north rung repeated.
+    #
+    # So this buys depth with NO new building, NO new heat demand and NO new
+    # worker. It retools three machines that are already standing, already
+    # crewed and already on the grid, on the third day, in the order the graph
+    # needs them:
+    #
+    #   t16000  sorter #168   salvaged_stores -> salvaged_wire   scrap -> COPPER
+    #   t17200  smelter #228  iron_plate      -> copper_coil     depth 2
+    #   t18400  workshop #173 gear            -> pipe_segment    depth 4
+    #
+    # Each one gives something up and the run has to be able to afford it, so
+    # each is timed against the band it spends. By t16000 the grain sorter has
+    # made enough grain to clear `produced.grain min 30` and the kitchen still
+    # holds the founders' larder; by t17200 the smelter is past `iron_plate` and
+    # `slag` at 18; by t18400 the shop is past `gear` at 20. Those are
+    # cumulative totals, so a retool cannot take them back.
+    #
+    # WHY THE SMELTER AND NOT A NEW ONE. copper_coil is 25 ticks of work against
+    # iron_plate's 50 and costs 12 heat against 30, so the machine that has been
+    # sitting on `missing_input: iron_ore` all run — the sorter lifts 0.2 ore/s
+    # against the 0.8/s it draws — is the cheapest copper furnace in the city.
+    #
+    # ALL OF IT IS `strip_workshop` ONLY, i.e. first_night and not deep_chain.
+    # deep_chain builds its own foundry quarter on this same ground under
+    # `set_staffing_autarky` and retools these very machines on its own
+    # schedule; two owners of one smelter's recipe is not a deeper graph.
+    # EACH RETOOL IS TIMED AGAINST THE BAND IT SPENDS, and the first cut of this
+    # was not: artifacts/J2_r6 retooled at t16000/17200/18400 and ended with
+    # iron_plate 9, slag 9 and gear 11 against bands of 18, 18 and 20, because
+    # the cumulative totals in artifacts/J2_r5/state.json checkpoints do not
+    # clear those bands until t19600. The grain sorter can go at t15500 (grain
+    # reaches 30 at t15000); the smelter and the shop cannot go until day three.
+    if strip_workshop:
+        L.recipe(15500, (-11, -10), "salvaged_wire")        # scrap -> COPPER ORE
+        L.recipe(20600, (6, 8), "copper_coil")              # ore  -> COPPER COIL
+        L.recipe(20800, (7, -11), "pipe_segment")           # coil + steel -> PIPE
+
+    # === WHAT THE TIER BUYS, AND THE ONE THING IT CANNOT ====================
+    #
+    # `geothermal_tap` costs 10 pipe_segment (game/content/buildings/
+    # geothermal_tap.tres) and there is not one pipe segment in the founders'
+    # stock, so a city that cannot make a pipe cannot have the only heat source
+    # in this game that burns nothing. That is the tier gate, it is already in
+    # the shipped content, and after this retool the reference run clears it —
+    # `final.systems.production.produced.pipe_segment` is banded below at 10 for
+    # exactly that reason: the city has EARNED the tap.
+    #
+    # IT STILL CANNOT STAND ANYWHERE, AND THIS IS A MEASUREMENT, NOT AN OPINION.
+    # A tap declares `needs_flat` AND a vent deposit under its footprint. A
+    # sweep that tried to place one on every cell of x98..157 by y98..157 late
+    # in this run (artifacts/J2_probe2/log.txt, 631 sites evaluated before the
+    # command budget ran out) came back:
+    #
+    #     582  "Geothermal Tap needs level ground."
+    #      40  "The ground at (x, y) will not take a foundation."
+    #       9  "Geothermal Tap must cover vent."
+    #       0  placed
+    #
+    # `BuildWorldQuery.is_flat()` compares `Grid.elevation_at` for EQUALITY
+    # across the footprint, and elevation on this map is four octaves of noise
+    # in 0..255 (game/sim/grid/map_generator.gd, biome_profile.elevation_*), so
+    # a level 3x3 is a coincidence rather than a site. The five core vents are
+    # inside `core_radius` 7 of (128,128), which is under the Hearth, and the
+    # three outer vents are at `outer_vent_min_distance` 46 — off this map's
+    # playable quarter and forty tiles past the wall.
+    #
+    # So the tap is NOT placed here, and the run does not pretend to. It belongs
+    # to [P01] (a terrain-level `is_flat(cell)` flag, which BuildWorldQuery
+    # already prefers over the height compare when the grid offers one) and to
+    # [P11]. Faking it by dropping `needs_flat` from the def would be this
+    # project's oldest mistake in a new folder.
+
     # === DAY THREE ==========================================================
     L.cmd(21000, {"system": "logistics", "op": "insert",
                   "cell": [CORE[0] - 14, CORE[1] - 7], "item": "coal", "count": 500})

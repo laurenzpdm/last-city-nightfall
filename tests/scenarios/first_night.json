@@ -1957,6 +1957,18 @@
       }
     },
     {
+      "tick": 15500,
+      "cmd": {
+        "system": "production",
+        "op": "set_recipe",
+        "cell": [
+          117,
+          118
+        ],
+        "recipe": "salvaged_wire"
+      }
+    },
+    {
       "tick": 20200,
       "cmd": {
         "system": "build",
@@ -1966,6 +1978,30 @@
           137,
           136
         ]
+      }
+    },
+    {
+      "tick": 20600,
+      "cmd": {
+        "system": "production",
+        "op": "set_recipe",
+        "cell": [
+          134,
+          136
+        ],
+        "recipe": "copper_coil"
+      }
+    },
+    {
+      "tick": 20800,
+      "cmd": {
+        "system": "production",
+        "op": "set_recipe",
+        "cell": [
+          135,
+          117
+        ],
+        "recipe": "pipe_segment"
       }
     },
     {
