@@ -291,10 +291,19 @@ func step(tick: int, sys: Object, swarm: EnemySwarm, shells: ProjectilePool,
 		# --- target ------------------------------------------------------
 		var range_px: float = w.range_tiles * tech_range * TILE
 		if t.target_slot >= 0:
+			# `target_id` is dropped WITH the slot, not left behind. It is what
+			# to_dict() publishes, so a gun that lost its target used to be
+			# reported still aiming at it: artifacts/J3_base/state.json has
+			# turret #232 "target": 5000002 at tick 24000, an enemy that died on
+			# night one, and seven of nine mounts carrying an id they had not
+			# been able to shoot for two nights. Nothing downstream can tell that
+			# apart from a gun that is actually engaged.
 			if not swarm.alive_at(t.target_slot) or swarm.id_at(t.target_slot) != t.target_id:
 				t.target_slot = -1
+				t.target_id = -1
 			elif swarm.position_at(t.target_slot).distance_squared_to(t.centre) > range_px * range_px:
 				t.target_slot = -1
+				t.target_id = -1
 		if t.target_slot < 0 and (tick + id) % RETARGET_TICKS == 0:
 			_acquire(t, swarm, assault, range_px, w)
 		if t.target_slot < 0:
