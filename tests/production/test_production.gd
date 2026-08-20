@@ -646,12 +646,15 @@ func test_a_shop_coasts_on_the_bench_but_never_lies_about_its_crew() -> void:
 	assert_eq(prod._crew_of(m, ProductionSystem.STAFF_COAST_TICKS * 4), 0.0,
 		"a night off is not bench work")
 
-	# A shop that never had anybody does not get a free 900 ticks.
-	var fresh: ProdMachine = _machine(_place("workshop", _at("workshop")))
-	fresh.staffing = 0.0
-	fresh.staff_held = 0.0
-	fresh.staff_seen_tick = -1000000
-	assert_eq(prod._crew_of(fresh, 5), 0.0,
+	# A shop that never had anybody does not get a free 900 ticks. Wind THIS
+	# machine back to the state one is born in rather than placing a second one:
+	# the first cut placed a workshop here and read the machine straight off the
+	# id, which is null on any run where that tile is not free, and an unguarded
+	# null property write is a blocking engine error rather than a red check.
+	m.staffing = 0.0
+	m.staff_held = 0.0
+	m.staff_seen_tick = -1000000
+	assert_eq(prod._crew_of(m, 5), 0.0,
 		"a shop nobody has ever worked in has nothing on its bench")
 
 
