@@ -652,15 +652,7 @@ func cut_shifts(pool: CitizenPool, law: StringName = CitizenDefs.LAW_STANDARD) -
 		# in a city short of hands ever reaches twice its requirement. That is
 		# why policy exists underneath it and why it is not conditional on
 		# anything: the dark is the game.
-		# A crew that cannot even man ONE rotation does not get asked to man two.
-		# The policy split is a rota, not a rescue: peeling the last spare hand
-		# off a building that is already below `required` leaves it short at both
-		# ends of the clock and, with one body per rotation, reading `unstaffed`
-		# every time that body is walking, eating or ill. Measured on a tree with
-		# eleven machines and no spare hands: splitting the short crews as well
-		# cost 30% of the DAYLIGHT factory and bought almost nothing after dark.
-		var policy: int = CitizenDefs.skeleton_crew(law, crew2.size()) \
-			if crew2.size() >= need else 0
+		var policy: int = CitizenDefs.skeleton_crew(law, crew2.size())
 		var depth: int = clampi(crew2.size() - need, 0, need) if need > 0 else 0
 		var to_other: int = clampi(maxi(policy, depth), 0, maxi(0, crew2.size() - 1))
 		# A curfew beats depth as well as policy. Without this the law is a lie
