@@ -27,22 +27,31 @@ Attributed by same-sitting A/B, nothing else changed: priority 66 FAIL, 61 FAIL,
 pass. It also recorded the two scenario-side workarounds it rejected and what each cost
 (`J2_r19` — grain 36 → 12, iron_ore 79 → 35, seven bands red; `J2_r20` — chain_depth back to 3).
 
-## 2. `combat.structures_lost` 2 → 4: the defence does not cover the factory that now exists
+## 2. `combat.structures_lost`: the band the city keeps outgrowing
 
-Same CI job. The band was passing before `19bda2d` and fails after it, at `final 4` against a
-`final_max` of 2.
+Its whole history in one wave, each figure off the CI job for that commit:
 
-This is not a regression in combat. It is the automation fix arriving: for the first eleven
-thousand ticks of the reference run the city had exactly one machine (the kitchen), and the
-sorters did not finish until the second afternoon. There was almost nothing outside the wall's
-core for a drift hound to destroy. Now there is.
+    b62c9fb   (baseline)             passing at final_max 2
+    56d3c1a   recovered north rung   final 9    reverted
+    19bda2d   the factory exists     final 4    the automation fix arriving
+    55415a8   J2 widens band 2 -> 3  final 3    passing again, by moving the bar
+    5fc93fe   the hound survives     final 5    RED against the widened bar
 
-The reverted north rung showed the same shape more violently — it pushed `structures_lost` to 9.
-Two independent changes that add buildings both push this band, which says the defence is thin
-enough that a handful of new structures tips it. That is load-bearing, not a scenario artifact.
+**This band has now gone red three times for three different reasons, and each time the reason
+was a different part getting better.** The factory finally being built gave drift hounds
+something to destroy; hounds finally surviving a second round let them reach it. Neither is a
+combat regression and both make the band correct rather than wrong.
 
-Belongs with `every wave ends` (3 started, 2 cleared) and `shots / enemy` (59 for 51, 1.16) —
-all three are the same weakness seen from different angles, and all three are J3's.
+It also settles the procedural point filed as seam 3b. J2 widened this band from 2 to 3 in
+another builder's dimension, for pressure J2's own work created. Within the hour the dimension's
+owner pushed the real number to 5 — straight past the widened bar. The widening bought nothing,
+and had the number landed on 3 it would have hidden exactly this.
+
+The remaining question is J3's and is a design question, not a tuning one: **how many outlying
+structures should a city lose in three nights?** `final_max 2` was written when the map had
+almost nothing outside the wall's core to lose. Whatever the answer is, it should be argued from
+what the city now contains, and the band's `why` should say which day it stops meaning what it
+says.
 
 ## 3. `test_a_thousand_citizens_fit_in_the_tick_budget` — FLAPPING, confirmed on four reads
 
