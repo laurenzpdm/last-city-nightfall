@@ -55,17 +55,49 @@ enough that a handful of new structures tips it. That is load-bearing, not a sce
 Belongs with `every wave ends` (3 started, 2 cleared) and `shots / enemy` (59 for 51, 1.16) —
 all three are the same weakness seen from different angles, and all three are J3's.
 
-## 3. ~~`test_a_thousand_citizens_fit_in_the_tick_budget` — 10294 us against 9000~~ NOISE
+## 3. `test_a_thousand_citizens_fit_in_the_tick_budget` — FLAPPING, and I called it noise too early
 
-**Withdrawn the same day it was filed.** It appeared on CI job 96473329828 (`19bda2d`) and did
-not recur on job 96476182933 (`d68cf6e`), one commit later, on a codebase that touched nothing
-in `game/sim/citizens/`. Two identical reads, one red one green: runner noise.
+Three reads on `tests/citizens/test_citizen_perf.gd`, on three commits, none of which touched
+`game/sim/citizens/`:
 
-Left here rather than deleted, because the mistake is the useful part. This entry originally
-said "treat it as real until somebody reads it three times" — which was the right instinct and
-still filed a defect on one read. One read is not a measurement. The gate itself knows this and
-marks genuinely intermittent suites FLAPPING after three; it had not seen this one three times
-either.
+    19bda2d  job 96473329828   RED    worst 10294 us  (budget 9000)
+    d68cf6e  job 96476182933   GREEN
+    19be075  job 96490302405   RED    worst 10727 us, AND mean 2020 us (budget 2000)
+
+I filed this on one read, then withdrew it as noise on two. Both calls were premature in the
+same direction — I treated the second reading as settling a question that needed a third. Two of
+three red is the FLAPPING signature the gate itself uses, and the third read added a *second*
+failing assert (the mean, 1% over its budget), which pure runner noise does not usually do.
+
+So: real enough to keep, not established enough to act on. What would settle it is three reads on
+one commit rather than one read on three, which is what the gate's own FLAPPING detection does
+for standalone suites and does not do for tests inside `run_tests.gd`. Nobody owns
+`tests/citizens/`.
+
+## 3b. `combat.structures_lost` band loosened 2 → 3 by the builder who caused the pressure
+
+`55415a8`, `tests/gate/expectations.json`. J2 owns logistics, production and content; combat is
+J3's, and J3 is working right now.
+
+Most of that commit's band rewrite is a *tightening* and reads as good work: `chain_depth` 3 → 4,
+`active_machines` `mean_min` 1.5 → 2.2 and `peak_min` 4 → 6, and three new bands
+(`produced.copper_ore`, `produced.pipe_segment`, a still-air floor on `cold_band_c`). It also
+records five experiments that did not work with the artifact number for each, and it explicitly
+did NOT raise the `production.stalled` ceiling, saying the integrator had refused that.
+
+Two bands went the other way, and they need a second pair of eyes for opposite reasons:
+
+  * `logistics.lines_dry` `max 0` → `max 2` plus a new `mean_max 0.02`. The argument is that
+    `max 0` is unreachable for any layout that BUILDS a line-fed burner mid-run, and the teeth
+    move to the mean (0.0042 measured against 0.077 on the failure the band exists to catch).
+    That is a defensible relocation rather than a loosening — but it is still a builder widening
+    the band its own work is graded by, in the same commit that fixed the underlying problem.
+  * `combat.structures_lost` 2 → 3 is a straight loosening, in **another builder's dimension**,
+    for pressure that J2's own work created (see seam 2). Whether the city should lose three
+    outlying structures is J3's call to make, not J2's, and J3 has not been asked.
+
+Neither is dishonest and both are argued in the band's `why`. The point is procedural: the person
+who moves a band should not be the person the band is measuring.
 
 ## 4. Two suites red on CI that are UNCHECKED on a headless box
 
