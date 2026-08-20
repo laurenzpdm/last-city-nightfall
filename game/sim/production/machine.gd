@@ -46,6 +46,11 @@ var reason: StringName = REASON_NONE
 ## The specific item a REASON_MISSING_INPUT is about. Empty otherwise.
 var reason_item: StringName = &""
 ## Work done on the current craft, in ticks of recipe time.
+## The last crew this machine actually had, and when it was last seen. A shop
+## coasts on the work already on the bench for a few seconds after the last hand
+## steps out — see ProductionSystem.STAFF_COAST_TICKS.
+var staff_held: float = 0.0
+var staff_seen_tick: int = -1000000
 var progress: float = 0.0
 ## True once inputs have been consumed and the craft is genuinely under way.
 var committed: bool = false

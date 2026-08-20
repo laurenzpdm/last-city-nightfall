@@ -115,6 +115,9 @@ const STALL_REANNOUNCE_TICKS: int = 100
 const NOT_OURS_PRUNE_TICKS: int = 1200
 ## Below this the machine is treated as stopped rather than crawling.
 const MIN_RATE: float = 0.01
+## How long a shop keeps working on what is already on the bench after its last
+## hand walks out. Forty-five seconds at 20 Hz. See `_crew_of`.
+const STAFF_COAST_TICKS: int = 900
 ## Cap on the per-item rate columns in metrics.csv.
 const MAX_RATE_KEYS: int = 32
 ## Fraction of an input buffer a machine keeps topped up from the city store.
@@ -637,7 +640,7 @@ func _advance(m: ProdMachine, tick: int) -> void:
 	# Read the world BEFORE the frozen check, so a frozen machine still reports a
 	# live temperature and the overlay can show it thawing rather than stuck on
 	# whatever it happened to feel the moment it died.
-	_read_environment(m)
+	_read_environment(m, tick)
 	if _is_frozen(m.id):
 		_park(m, ProdMachine.State.FROZEN, ProdMachine.REASON_FROZEN, &"", tick)
 		return
@@ -823,7 +826,7 @@ func _cold_or_dark(m: ProdMachine) -> StringName:
 	return ProdMachine.REASON_NO_HEAT
 
 
-func _read_environment(m: ProdMachine) -> void:
+func _read_environment(m: ProdMachine, tick: int) -> void:
 	if _heat_autarky:
 		m.power = 1.0
 	else:
@@ -836,7 +839,33 @@ func _read_environment(m: ProdMachine) -> void:
 	m.felt_c = outside + m.def.insulation * SHELTER_C
 	m.staffing = 1.0
 	if not _staff_autarky and m.def.workers_required > 0:
-		m.staffing = clampf(_staffing_of(m.id), 0.0, 1.0)
+		m.staffing = _crew_of(m, tick)
+
+
+## Crew, read over a short window instead of this instant.
+##
+## [P05] reports crew PRESENT, which is the right number and a very twitchy one:
+## a two-person shop whose second hand is on the night rotation reads 0 every
+## time the remaining one walks to the larder, and a machine that stalls outright
+## at `staffing <= 0` therefore spends a large part of its day announcing `no
+## crew` about somebody who is coming back in four seconds. Measured on the
+## reference run, `production.stalled_unstaffed` averaged 1.9 machines in the
+## AFTERNOON, with the city's whole day crew on the clock.
+##
+## So a shop coasts: it keeps the crew it last had, ramped linearly to nothing
+## across STAFF_COAST_TICKS, and then reports the truth. Twenty seconds of work
+## already on the bench is a thing a workshop has; a night off is not, and after
+## the window this says `unstaffed` exactly as loudly as it did before.
+func _crew_of(m: ProdMachine, tick: int) -> float:
+	var raw: float = clampf(_staffing_of(m.id), 0.0, 1.0)
+	if raw > 0.0:
+		m.staff_held = raw
+		m.staff_seen_tick = tick
+		return raw
+	var gone: int = tick - m.staff_seen_tick
+	if gone >= STAFF_COAST_TICKS or m.staff_held <= 0.0:
+		return 0.0
+	return m.staff_held * (1.0 - float(gone) / float(STAFF_COAST_TICKS))
 
 
 ## [P05] publishes `staffing_of(id)` for exactly this call — crew PRESENT, not

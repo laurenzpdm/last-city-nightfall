@@ -389,11 +389,11 @@ const MIN_CREW_TO_SPLIT: int = 2
 ## What the dark takes out of the people who work it. Applied to anyone WORKING
 ## during dusk, night or deep night, on top of whatever the shift law already
 ## costs — the law says how many bodies, these say what a body pays.
-const NIGHT_FATIGUE_MULT: float = 1.35
-const NIGHT_ACCIDENT_MULT: float = 1.65
+const NIGHT_FATIGUE_MULT: float = 1.25
+const NIGHT_ACCIDENT_MULT: float = 1.45
 ## Paid by anyone ON the night rotation, at every hour, awake or asleep. Sleeping
 ## through the daylight is its own misery and it does not stop at sunrise.
-const NIGHT_MORALE_PENALTY: float = 7.0
+const NIGHT_MORALE_PENALTY: float = 4.0
 
 
 ## False when a shift law forbids the far rotation outright. Curfew is the only
@@ -410,27 +410,31 @@ static func skeleton_crew(law: StringName, crew: int) -> int:
 	var share: float = float(law_row(law).get("skeleton", 0.34))
 	if share <= 0.0 or crew < MIN_CREW_TO_SPLIT:
 		return 0
-	# ROUNDED UP, so a crew of two splits into one and one. Both roundings were
-	# measured over 24000 ticks of `first_night` and the choice is not close:
+	# ROUNDED UP, so a crew of two splits into one and one, and never past half
+	# the crew, so the rotation the building exists for always keeps the
+	# majority. Both roundings were measured over 24000 ticks of `first_night`
+	# and the choice is not close:
 	#
 	#   rounded down  only crews of three or more post a night hand, which in
 	#                 this city is the smelter, the drill and the workshop — the
 	#                 three most heat-hungry machines on the map, and the three
-	#                 the grid cannot feed at 3am. `active_machines` in deep
-	#                 night: 0.76. The pairs that CAN run cold — the sorters,
-	#                 the kitchen, the collector — all sat dark.
-	#   rounded up    every crew posts one. Deep night 2.80, night 1.17,
-	#                 dusk 0.69, against 0.35 / 0.44 / 0.34 for the old
-	#                 day-only roster.
+	#                 the grid cannot feed at 3am. `active_machines` in the dark
+	#                 came back to 0.32 / 0.44 / 0.50, which is the old roster's
+	#                 own number: the pairs that CAN run cold, the sorters and
+	#                 the kitchen, were the ones being sent to bed.
+	#   rounded up    every crew posts one, and the dark measures 0.67 / 1.15 /
+	#                 0.99 against 0.35 / 0.44 / 0.50.
 	#
-	# Rounding up costs a pair half its daylight, and that cost is real and is
-	# measured: the rubble sorter that feeds the smelter drops from 42 iron_ore
-	# to 29 over three days and the smelter's plates fall 20 to 14 with it. That
+	# Rounding up costs a pair half its daylight and that cost is real, measured
+	# and paid in goods: over three days of the reference run the city makes
+	# fewer of everything, because a body moved to the dark is a body that is not
+	# at the bench at noon and the daylight is the longer half of the clock. That
 	# is the bargain this whole file is about — a city that works the dark works
-	# the day thinner — and the way out of it is hands, not policy: the split is
-	# taken from SURPLUS first (see `cut_shifts`), so a crew hired past its
-	# requirement pays none of it.
-	return clampi(int(roundf(float(crew) * share)), 1, crew - 1)
+	# the day thinner — and the way out of it is HANDS, not policy: the split is
+	# taken from surplus first (see `cut_shifts`), so a crew hired past its
+	# requirement pays none of it, and a crew that is already short pays none of
+	# it either.
+	return clampi(int(roundf(float(crew) * share)), 1, crew / 2)
 
 
 ## True when this trade's building is one the city needs manned after dark.
