@@ -515,6 +515,18 @@
       }
     },
     {
+      "tick": 165,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "field_kitchen",
+        "cell": [
+          128,
+          118
+        ]
+      }
+    },
+    {
       "tick": 170,
       "cmd": {
         "system": "build",
@@ -572,18 +584,6 @@
           118
         ],
         "recipe": "sorted_rubble"
-      }
-    },
-    {
-      "tick": 200,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "field_kitchen",
-        "cell": [
-          128,
-          118
-        ]
       }
     },
     {
@@ -1024,10 +1024,82 @@
         "system": "build",
         "op": "set_priority",
         "cell": [
+          128,
+          118
+        ],
+        "priority": 78
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          120,
+          118
+        ],
+        "priority": 78
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          117,
+          118
+        ],
+        "priority": 78
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          122,
+          118
+        ],
+        "priority": 78
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          133,
+          118
+        ],
+        "priority": 78
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          131,
+          118
+        ],
+        "priority": 78
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
           135,
           117
         ],
-        "priority": 70
+        "priority": 78
       }
     },
     {
@@ -1055,7 +1127,7 @@
       }
     },
     {
-      "tick": 1200,
+      "tick": 960,
       "cmd": {
         "system": "logistics",
         "op": "insert",
@@ -1068,7 +1140,7 @@
       }
     },
     {
-      "tick": 1300,
+      "tick": 980,
       "cmd": {
         "system": "logistics",
         "op": "request",

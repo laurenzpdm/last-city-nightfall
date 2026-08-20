@@ -19,7 +19,7 @@ cost = Dictionary[StringName, int]({
 })
 build_time_ticks = 1800
 demolish_time_ticks = 200
-build_priority = 55
+build_priority = 66
 workers_required = 4
 staff_capacity = 8
 heat_consumed = 10.0

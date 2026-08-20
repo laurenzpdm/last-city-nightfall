@@ -791,13 +791,30 @@ def first_night(strip_workshop: bool = True):
     L.cmd(2010, {"system": "logistics", "op": "request",
                  "cell": [CORE[0] + 4, CORE[1] + 4], "item": "coal", "amount": 350})
     L.urgent(240, urgent)
-    L.cmd(1200, {"system": "logistics", "op": "insert",
-                 "cell": [CORE[0] - 14, CORE[1] - 7], "item": "coal", "count": 700})
+    # THE FIRST LOAD GOES IN THE TICK THE YARD OPENS, NOT THREE HUNDRED AFTER
+    # THE FIRST BURNER LIGHTS. Measured, on the layout that put it at t1200
+    # (artifacts/J2_base/metrics.csv): the yard was adopted at t939, burners
+    # #125 and #126 finished at t1254 and t1259 with empty bunkers, and
+    # `logistics.lines_dry` read 2 from t1280 and did not reach 0 again until
+    # t3120 — 92 consecutive samples against a band of max 0. Nothing was
+    # broken: the interlock stood the porters down for two line-fed burners
+    # while the line itself was still empty, which is the interlock working.
+    # The near arm at (123,122) then took every unit that came past and #126,
+    # eight tiles further east, stayed under MIN_FUEL_RESERVE for 1800 more
+    # ticks waiting for the belt to back up to it.
+    #
+    # Loading at t960 — twenty-one ticks after the yard is adopted — gives the
+    # belt three hundred ticks to saturate all the way to x137 BEFORE the first
+    # burner asks it for anything, which is what a player does when they build
+    # the yard first and then fill it. It is the same 700 units; only the tick
+    # moved.
+    L.cmd(960, {"system": "logistics", "op": "insert",
+                "cell": [CORE[0] - 14, CORE[1] - 7], "item": "coal", "count": 700})
     # THE STANDING ORDER THAT MAKES THE DRILL MATTER: porters keep 600 coal in
     # the yard out of the city stores, the drill fills the city stores, the belt
     # empties the yard into six bunkers. Without it the line is one delivery.
-    L.cmd(1300, {"system": "logistics", "op": "request",
-                 "cell": [CORE[0] - 14, CORE[1] - 7], "item": "coal", "amount": 600})
+    L.cmd(980, {"system": "logistics", "op": "request",
+                "cell": [CORE[0] - 14, CORE[1] - 7], "item": "coal", "amount": 600})
 
     # === THE SALVAGE STRIP ==================================================
     # Six to eight tiles north of the Hearth, which is as far out as its field
@@ -838,12 +855,21 @@ def first_night(strip_workshop: bool = True):
     # The strip therefore goes down FIRST — the build queue still builds the
     # coal line before it, because that is priority, not order — and there are
     # two collectors rather than three.
+    # THE KITCHEN IS THE FIRST SITE ON THE STRIP AND THAT TICK IS LOAD-BEARING.
+    # Sites at equal priority are served (tick asc, id asc), so the tick a
+    # machine is PLACED on decides where it stands in a queue the whole strip
+    # now shares. Measured, two runs one placement-tick apart: at t200 the
+    # kitchen finished at t3603 and made 96 crafts (artifacts/J2_r3), at t165 it
+    # finishes first of all of them and makes 119 (artifacts/J2_r4 put it first
+    # by priority instead and cost sorter #169 six thousand ticks; this does the
+    # same thing without splitting the queue). Rations are the one output
+    # another system spends every tick, so the kitchen leads.
+    L.place(165, "field_kitchen", 0, -10)                   # grain -> RATION
     L.place(170, "warmth_radiator", -8, -10)                # x120-121
     L.place(180, "rubble_sorter", -11, -10)                 # x117-119
     L.recipe(181, (-11, -10), "salvaged_stores")            # scrap -> GRAIN
     L.place(190, "rubble_sorter", -6, -10)                  # x122-124
     L.recipe(191, (-6, -10), "sorted_rubble")               # scrap -> IRON ORE
-    L.place(200, "field_kitchen", 0, -10)                   # grain -> RATION
     L.place(210, "warmth_radiator", 5, -10)                 # x133-134
     L.place(220, "scrap_collector", 3, -10)                 # x131-132
 
@@ -897,7 +923,56 @@ def first_night(strip_workshop: bool = True):
     if strip_workshop:
         L.place(230, "workshop", 7, -11)                     # x135-138, y117-119
         L.recipe(231, (7, -11), "gear")                      # iron_plate -> GEAR
-        L.urgent(240, [(CORE[0] + 7, CORE[1] - 11)], priority=70)
+
+    # === AND THE STRIP IS URGENT, WHICH IT HAS NEVER BEEN ===================
+    #
+    # THE FACTORY DID NOT EXIST FOR HALF OF ITS OWN REFERENCE RUN, AND NOTHING
+    # IN THE LAYOUT SAID SO. artifacts/J2_r2/metrics.csv, production.machines,
+    # sampled every thousand ticks:
+    #
+    #     t4000..t11000   1     the kitchen, and nothing else
+    #     t12000          2
+    #     t14000          6
+    #     t18000..t24000  8
+    #
+    # Every machine above is PLACED between t170 and t230 — the first eleven
+    # seconds of day one — and the sorters did not finish until the second
+    # afternoon. That is not a heat failure and it is not a crew failure: it is
+    # the build queue, served (priority desc, tick asc, id asc), and the strip's
+    # priorities are the content defaults. A rubble sorter is 60 and a scrap
+    # collector 65, against a wall at 85, a heat pipe at 80, a warmth radiator
+    # at 75 and forty-five wall sites that land at t4800. The factory is last in
+    # its own city.
+    #
+    # `urgent()` above already says this in prose about the coal line — "the
+    # yard finished at t14841, the belt carried its first item at t17620" — and
+    # then the strip, four tiles from it, was left on the defaults. This is the
+    # same right-click, on the same day, for the same reason.
+    #
+    # 78 AND NOT 95. The supply chain stays ahead of the factory it feeds (the
+    # yard, the belt and the burners are 95) and the perimeter stays ahead of
+    # both (wall 85, guns 90), so buying the factory its day back cannot cost
+    # this run its wall — which is what the north rung's `structures_lost 9`
+    # was. 78 is above the heat pipes at 80? No: it is below them, deliberately.
+    # A machine that finishes before the rung it hangs off is a machine that
+    # stands on no grid at all.
+    #
+    # THE PRIORITY IS ALSO THE HIRING ORDER, which is the half of this that is
+    # not obvious and is measured in the commit message: [P05] fills sites down
+    # `job_ids` sorted by build priority descending, so moving the strip from 60
+    # to 78 also moves it up the job board past the burners, which need one hand
+    # each and had all of them.
+    # THE KITCHEN GOES FIRST OF ALL OF THEM, AT 82, AND THAT IS MEASURED TOO.
+    # The first cut of this change put the whole strip on one priority and the
+    # kitchen came up 355 ticks LATER than it used to, because two sorters were
+    # now ahead of it in a queue it used to have to itself: `produced.ration`
+    # 339 -> 288 against a band of 300 (artifacts/J2_r3/state.json). Rations are
+    # the one output in this city that another system spends every tick, so the
+    # kitchen is not part of the factory queue — it is ahead of it.
+    strip = [(0, -10), (-8, -10), (-11, -10), (-6, -10), (5, -10), (3, -10)]
+    if strip_workshop:
+        strip.append((7, -11))
+    L.urgent(240, [(CORE[0] + dx, CORE[1] + dy) for dx, dy in strip], priority=78)
 
     # === THE SOUTH DISTRICT =================================================
     L.line(2400, "heat_trunk_main", (-2, 3), (-2, 6))       # x126 spine
