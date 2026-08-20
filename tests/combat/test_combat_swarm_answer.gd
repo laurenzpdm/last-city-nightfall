@@ -6,14 +6,24 @@ extends TestCase
 ## damage is the wrong answer". The shipped numbers said the opposite, and the
 ## reference run measured it exactly:
 ##
-##   artifacts/J3_base/metrics.csv, first_night 24000 ticks, night two —
-##   ticks 14040..14160 turned 10 shots into 10 kills, and 15220..15340 did the
-##   same again. Sixteen consecutive rounds, sixteen bodies. The general-purpose
-##   barrel put a drift hound down with one round because 26 base damage times
-##   the 1.18 damage rung is 30.68 against 30 points of health, and 30.68 > 30.
+##   artifacts/J3_pre/metrics.csv, first_night 24000 ticks, night two —
+##   ticks 14040..14160 turned 9 shots into 10 kills, and 15220..15340 did the
+##   same again. TWENTY bodies for eighteen rounds, across the two windows; the
+##   20-tick sample grid cannot resolve them finer than that, and it does not
+##   need to. The general-purpose barrel put a drift hound down with one round
+##   because 26 base damage times the 1.18 ballistics rung is 30.68 against 30
+##   points of health, and 30.68 > 30. Ballistics is not the ceiling: with
+##   incendiary_rounds (0.10) and armour_piercing (0.05) as well the tree reaches
+##   1.33x, or 34.58 — which is why `max_damage_mult` below is READ OFF THE
+##   REGISTRY rather than written down here, and why 42 health clears the real
+##   ceiling and not just the one rung this paragraph names.
 ##   (Independently: `final.systems.combat.turrets[0]` in
-##   artifacts/J3_base/state.json carries damage 92.04 over shots 3 — 30.68
+##   artifacts/J3_pre/state.json carries damage 92.04 over shots 3 — 30.68
 ##   each.)
+##
+##   Cited against J3_pre, not J3_base: the two hold byte-identical metrics.csv,
+##   but J3_base was probed after the content changed and had its gate.json
+##   removed for it, so J3_pre is the baseline with nothing taken out of it.
 ##
 ## Whichever way a later hand moves the numbers, this is the RULE the content
 ## was written to express, so it is asserted as a rule rather than as a constant:

@@ -293,11 +293,18 @@ func step(tick: int, sys: Object, swarm: EnemySwarm, shells: ProjectilePool,
 		if t.target_slot >= 0:
 			# `target_id` is dropped WITH the slot, not left behind. It is what
 			# to_dict() publishes, so a gun that lost its target used to be
-			# reported still aiming at it: artifacts/J3_base/state.json has
+			# reported still aiming at it: artifacts/J3_pre/state.json has
 			# turret #232 "target": 5000002 at tick 24000, an enemy that died on
-			# night one, and seven of nine mounts carrying an id they had not
-			# been able to shoot for two nights. Nothing downstream can tell that
-			# apart from a gun that is actually engaged.
+			# night one, and FOUR of nine mounts carrying an id they had not been
+			# able to shoot for two nights — three distinct ids over four mounts,
+			# because 5000044 is stuck on two of them. Nothing downstream can tell
+			# that apart from a gun that is actually engaged.
+			# (The count read "seven of nine" here when it landed; the run says
+			# four — [5000002, 5000046, -1, 5000044, 5000044, -1, -1, -1, -1] —
+			# and the fix is unaffected either way. Cited against J3_pre rather
+			# than J3_base: the two carry byte-identical metrics.csv, but J3_base
+			# was probed after the content changed and had its gate.json pulled
+			# for it, so J3_pre is the baseline with nothing removed from it.)
 			if not swarm.alive_at(t.target_slot) or swarm.id_at(t.target_slot) != t.target_id:
 				t.target_slot = -1
 				t.target_id = -1
