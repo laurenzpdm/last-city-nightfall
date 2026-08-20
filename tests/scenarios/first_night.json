@@ -359,6 +359,31 @@
       }
     },
     {
+      "tick": 57,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "crate",
+        "cell": [
+          130,
+          123
+        ]
+      }
+    },
+    {
+      "tick": 58,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "inserter_mk1",
+        "cell": [
+          130,
+          122
+        ],
+        "rot": 3
+      }
+    },
+    {
       "tick": 60,
       "cmd": {
         "system": "build",
@@ -892,6 +917,30 @@
         "system": "build",
         "op": "set_priority",
         "cell": [
+          130,
+          123
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          130,
+          122
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
           123,
           122
         ],
@@ -1112,6 +1161,32 @@
           119,
           123
         ]
+      }
+    },
+    {
+      "tick": 700,
+      "cmd": {
+        "system": "logistics",
+        "op": "insert",
+        "cell": [
+          130,
+          123
+        ],
+        "item": "coal",
+        "count": 60
+      }
+    },
+    {
+      "tick": 720,
+      "cmd": {
+        "system": "logistics",
+        "op": "request",
+        "cell": [
+          130,
+          123
+        ],
+        "item": "coal",
+        "amount": 60
       }
     },
     {
@@ -1796,18 +1871,6 @@
       }
     },
     {
-      "tick": 4820,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "turret_mount",
-        "cell": [
-          130,
-          139
-        ]
-      }
-    },
-    {
       "tick": 4840,
       "cmd": {
         "system": "build",
@@ -1978,18 +2041,6 @@
           137,
           136
         ]
-      }
-    },
-    {
-      "tick": 20600,
-      "cmd": {
-        "system": "production",
-        "op": "set_recipe",
-        "cell": [
-          134,
-          136
-        ],
-        "recipe": "copper_coil"
       }
     },
     {

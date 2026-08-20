@@ -739,6 +739,25 @@ def first_night(strip_workshop: bool = True):
     L.place(54, "underground_mk1", 1, -7, rot=0)            # x129, surfaces
     urgent += [(CORE[0] - 2, CORE[1] - 7), (CORE[0] + 1, CORE[1] - 7)]
     urgent += L.line(56, "belt_mk1", (2, -7), (9, -7))      # y121, x130 -> x137
+    # THE SECOND HEAD, AND THE MEASUREMENT THAT PUT IT THERE. One mk1 arm out of
+    # the yard is 0.83 items a second and that is the whole line: the two
+    # founding burners finish at t1254 and t1259 with empty bunkers, the near
+    # arm at (123,122) takes everything that comes past, and #126 eight tiles
+    # further east sits under MIN_FUEL_RESERVE — four units — until t3120.
+    # `logistics.lines_dry` reads 2 then 1 for 88 consecutive samples against a
+    # band of max 0 (artifacts/J2_r1/metrics.csv; it reads the same on the run
+    # this branch started from, artifacts/J2_base). Moving the first load 240
+    # ticks earlier closed four samples of it, which is how I know the belt was
+    # never the problem — the HEAD is.
+    #
+    # A crate on the far side of the sunken pair, kept full by a standing porter
+    # order and emptied onto the line by its own arm, gives the east half of the
+    # row a second source. It is the same shape as the Hearth's crate below,
+    # for the same reason, and it leaves the interlock intact: this is a store
+    # with an order on it, not a porter walking into a line-fed bunker.
+    L.place(57, "crate", 2, -5)                             # x130, y123
+    L.place(58, "inserter_mk1", 2, -6, rot=3)               # crate -> belt x130
+    urgent += [(CORE[0] + 2, CORE[1] - 5), (CORE[0] + 2, CORE[1] - 6)]
     # One arm per burner, every one of them dropping south into a bunker. There
     # is no burner in the x127-129 slot and there cannot be: its only conduit
     # neighbours are the three main tiles that also touch the Hearth, and
@@ -767,7 +786,6 @@ def first_night(strip_workshop: bool = True):
     urgent.append((CORE[0] - 12, CORE[1] + 3))
     L.place(1800, "coal_generator", 9, 3)                   # x137-139, y131-132
     urgent.append((CORE[0] + 9, CORE[1] + 3))
-
     # === AND THE HEARTH ITSELF GOES ON A LINE ==============================
     # This is the whole finding, in one place. The Hearth burns 0.83 coal a
     # second — more than every generator in the city put together — and in the
@@ -815,6 +833,10 @@ def first_night(strip_workshop: bool = True):
     # empties the yard into six bunkers. Without it the line is one delivery.
     L.cmd(980, {"system": "logistics", "op": "request",
                 "cell": [CORE[0] - 14, CORE[1] - 7], "item": "coal", "amount": 600})
+    L.cmd(700, {"system": "logistics", "op": "insert",
+                "cell": [CORE[0] + 2, CORE[1] - 5], "item": "coal", "count": 60})
+    L.cmd(720, {"system": "logistics", "op": "request",
+                "cell": [CORE[0] + 2, CORE[1] - 5], "item": "coal", "amount": 60})
 
     # === THE SALVAGE STRIP ==================================================
     # Six to eight tiles north of the Hearth, which is as far out as its field
@@ -983,6 +1005,65 @@ def first_night(strip_workshop: bool = True):
     L.place(3200, "smelter", 6, 8)                          # x134-136, y136-138
     L.recipe(3201, (6, 8), "iron_plate")                    # on the sorter's ore
     L.place(3400, "housing_block", -3, 8)                   # x125-128
+    # === AND THE SMELTER GETS A LOADING DOCK =================================
+    #
+    # THE SECOND LINK IN THE CHAIN IS THE FRAGILE ONE AND THIS IS WHY. The
+    # smelter at (134,136) is TWENTY-NINE TILES from the sorter that makes its
+    # ore and it has spent every run of this branch reading `missing_input:
+    # iron_ore` while thirty-odd units of ore sat unused in the city stores —
+    # artifacts/J2_r11/state.json: produced.iron_ore 79, produced.iron_plate 16
+    # against a band of 18, and the smelter is not slow, it is empty. Across
+    # four runs of this same layout the number came out 38, 21, 16 and 9: that
+    # is not a factory, it is a coin toss on whether a porter happened to walk
+    # south this hour.
+    #
+    # It is boxed in on three sides — the y135 heat rung to the north, two guns
+    # and the recuperator to the west, a housing block to the east — so its only
+    # free face is y139, and until the trunk above was shortened the row behind
+    # THAT was main as well. A crate on (135,140) under a standing porter order
+    # and an arm swinging north out of it into the machine's mouth is the
+    # shortest supply line this scenario can build, and it is the second thing
+    # in the game to use [P03]'s belt-feeds-machine hookup for something other
+    # than coal: every unit of it lands in `logistics.machine_fed`.
+    # NO LOADING DOCK ON THIS SMELTER, AND THAT IS A RESULT WITH TWO SIMS UNDER
+    # IT. The smelter at (134,136) is TWENTY-NINE TILES from the sorter that
+    # makes its ore and spends the run on `missing_input: iron_ore` while thirty
+    # units of ore sit unused in the city stores. Across four runs of this
+    # layout `produced.iron_plate` came out 38, 21, 16 and 9 against a band of
+    # 18 — the smelter is not slow, it is empty, and how empty depends on how
+    # many porters happened to walk south this hour.
+    #
+    # It is boxed in on four sides: the y135 heat rung north, a gun and the
+    # recuperator west, a housing block east, and its only free face (y139) has
+    # the y140 trunk main immediately behind it, so an arm swinging into its
+    # mouth has nowhere to stand. Both ways of opening one were measured and
+    # both are worse than the starvation:
+    #
+    #   cut the y140 main back to x134 to free the south row — artifacts/J2_r12:
+    #     the SMELTER froze at -13.66 C and the recuperator at -16.15,
+    #     `produced` lost iron_plate and slag entirely, waste_recovered flat 0.
+    #     A trunk main's 4 C of radiance along its own row is what keeps those
+    #     two alive at -38; it is not decoration.
+    #   move the gun off the west face to free x132-133 — the only free 2x2 on
+    #     this rung that still touches a conduit is (142,136), 14.5 tiles from
+    #     the Hearth, and the gun that stood at 11.2 froze in every run.
+    #
+    # A STANDING ORDER ON THE MACHINE ITSELF IS THE THIRD THING THAT DID NOT
+    # WORK, and it is the one that says what the problem actually is. [P11]
+    # buildings lend their store to [P03], so a machine's own footprint carries
+    # a request exactly like the coal yard does; `{"op":"request","cell":
+    # [134,136],"item":"iron_ore","amount":40}` at t17000 was ACCEPTED (no
+    # "nothing with a store" warning in artifacts/J2_r16/log.txt) and produced a
+    # run byte-identical to the one without it — iron_plate 18, slag 18, crafts
+    # 273. The smelter is not waiting on porters. It is heat priority 50 at the
+    # far end of a grid that spends both nights short, and ore it cannot smelt
+    # is ore it does not ask for.
+    #
+    # So this stays a porter-fed machine and the number stays soft. What the
+    # smelter actually needs is to stand ON the salvage strip beside its ore,
+    # and there is no free 3x3 up there that touches the y120 rung. That is a
+    # layout this file cannot reach without moving the strip, and moving the
+    # strip is a wave, not a line.
 
     # The inner ring, hanging straight off the founding rows: inside the
     # Hearth's field (15-26 C), and on the city's own grid, so a brownout at the
@@ -1081,7 +1162,29 @@ def first_night(strip_workshop: bool = True):
     # consumer and one producer and no route to anything, and `heat.networks`
     # ended at 2. Every metre of grid this city adds south of the founding rows
     # is twenty metres of 220-hp trunk in the lane [P08] actually uses.
-    L.place(4820, "turret_mount", 2, 11)                    # x130-131, y139-140
+    # AND NO GUN ON THIS RUNG, WHICH IS A REVERSAL AND HERE IS THE MEASUREMENT.
+    # A turret stood at (130,139) for four waves and ended EVERY run frozen:
+    # artifacts/J2_r7/state.json, heat.buildings #303, `frozen: true`, temp
+    # -21.77 C at tick 24000. It is the whole of `heat.frozen_buildings
+    # final_max 0` going red, in one building, and a frozen gun does not shoot —
+    # the run it was supposed to defend still lost four trunk mains through that
+    # lane. A turret is insulation 0.35 and eleven tiles past the Hearth on a
+    # night that bottoms out at -38; the recuperator two tiles east survives the
+    # same night at -3.0 C only because it is insulation 0.80.
+    #
+    # THE OBVIOUS FIX IS THE WRONG ONE AND IT WAS TRIED. A warmth radiator at
+    # (131,141), 6.5 radius, covering the gun and the recuperator both, made the
+    # run dramatically worse: artifacts/J2_r8, `heat.frozen_buildings final 2`,
+    # produced.iron_plate 21 -> 8, produced.coal 132 -> 68, produced.grain 32 ->
+    # 28. Twelve units of draw at build priority 75 sits ABOVE industry at 50 in
+    # [P02]'s shed order, so a radiator hung on a cold rung to save one gun
+    # takes its warmth straight out of the factory. That is the north rung's
+    # lesson in miniature and it cost one sim to learn instead of a wave.
+    #
+    # So the gun comes off the rung rather than the rung getting a radiator it
+    # cannot pay for. The two southern guns at (132,136) and (117,136) cover the
+    # same lane from inside the Hearth's field and neither of them has ever
+    # frozen.
 
     # The wall goes up before dusk. Forty-five sites at build priority 85 jump
     # the whole queue, which is why it waits until the yard, the belt and the
@@ -1173,7 +1276,6 @@ def first_night(strip_workshop: bool = True):
     # reaches 30 at t15000); the smelter and the shop cannot go until day three.
     if strip_workshop:
         L.recipe(15500, (-11, -10), "salvaged_wire")        # scrap -> COPPER ORE
-        L.recipe(20600, (6, 8), "copper_coil")              # ore  -> COPPER COIL
         L.recipe(20800, (7, -11), "pipe_segment")           # coil + steel -> PIPE
 
     # === WHAT THE TIER BUYS, AND THE ONE THING IT CANNOT ====================
