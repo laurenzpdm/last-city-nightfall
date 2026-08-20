@@ -522,7 +522,14 @@ void fragment() {
 	// drift, a stop below it, not a hole in it. At 0.50 against 0.80 a crust edge
 	// is still a step the eye catches across a room, and the plain stops reading
 	// as a black-and-white jigsaw at play zoom.
-	vec3 scoured = mix(low * 1.00, base * 1.02, 0.18 + 0.42 * strat);
+	// ...and the floor of it is the DARKEST TENTH OF THE DAYLIT PLAIN, which is
+	// one of the two numbers `run_ground_frame` uses to state the day-to-night
+	// arc. Putting the scoured lanes back into a third of the frame at 0.40
+	// luminance dropped that tenth to 0.141 against a night whose brightest tenth
+	// is 0.135 — the two distributions had met. Wind-stripped snowpack seen from
+	// above is not a hole; it is packed snow with the powder blown off it, and it
+	// belongs a stop under the drift rather than four.
+	vec3 scoured = mix(low * 1.34, base * 1.10, 0.20 + 0.42 * strat);
 	vec3 albedo = mix(rocky, scoured, windy);
 	// Fracture lines. Two contour sets at right angles read as a broken shelf.
 	float crack = max(
@@ -718,7 +725,30 @@ void fragment() {
 	// it is cut into, so it is forty pixels long and eight wide and no scanner
 	// that rejects things longer than three and a half times their width will
 	// ever see it. Contrast bought here is free of that collision.
-	float ao = (0.40 + 0.74 * smoothstep(0.10, 0.90, h)) * (1.0 - st.z * 0.30);
+	// AND THE FLOOR WAS SET WHEN THE PLAIN WAS ALL CRUST, WHICH IS THE HALF THAT
+	// BROKE WHEN THE CRUST STOPPED BEING ALL OF IT.
+	//
+	// `ao` is occlusion BY THE DRIFT WALL, so it is keyed to `h`: the bottom of a
+	// trough sees less sky than the crest above it. That was a fair model while
+	// `cover` was 1.0 in every pixel and the only thing separating a trough from a
+	// crest WAS this term. It stopped being fair the moment the coverage bar moved
+	// inside the drift field, because the low ground is now ALSO drawn in
+	// `scoured` — a tone a third of a stop under the crust — so the darkest tenth
+	// of the daylit plain started taking both penalties at once, on the same
+	// pixels, for the same reason. Measured on the shipped harness PNGs by
+	// `tests/render/run_ground_frame.gd`, which is not a rig and not mine: the
+	// midday plain's darkest tenth fell 0.236 -> 0.142 while the night's brightest
+	// tenth did not move (0.134 -> 0.136), and ARC_SEPARATION — the one number
+	// that says a day in this game is a different picture from a night — fell from
+	// 1.76 to 1.04 and went red. The day and the night had met.
+	//
+	// A wind-scoured lane is not a pit. It is the packed floor BETWEEN drifts and
+	// it is open to the whole sky; what shades it is its own albedo, which the
+	// crust boundary already draws. So the floor comes up and the gain comes down
+	// by the same amount: the crest keeps 1.14 to the third decimal, every crust
+	// edge in the frame keeps exactly the contrast it was drawn with, and the
+	// trough stops being darkened twice for being a trough once.
+	float ao = (0.64 + 0.50 * smoothstep(0.10, 0.90, h)) * (1.0 - st.z * 0.30);
 
 	// THE WILDERNESS LOSES ITS AMBIENT, NOT ITS MOON.
 	//
@@ -797,7 +827,18 @@ void fragment() {
 	// ABOVE the crust beside it instead of being the same white. Applied to
 	// luminance and scaled back onto the colour so the shoulder cannot shift a
 	// hue, which a per-channel curve would.
-	const float SHOULDER = 0.60;
+	// 0.86 IS WHERE THE CLIPPING ACTUALLY STARTS, AND THE FIRST TWO GUESSES WERE
+	// BOTH WRONG IN THE SAME DIRECTION. At 0.60 the shoulder is not a highlight
+	// roll-off, it is an exposure cut applied to the whole daylit plain, and
+	// `tests/render/run_ground_frame.gd` — which grades the SHIPPED harness PNGs
+	// and not a rig — said so immediately: the midday plain fell from 0.356 to
+	// 0.230 against its floor of 0.240, and the day-to-night separation fell from
+	// 1.76 to 1.04 against a bar of 1.45. That is the arc this whole game is
+	// about, closed from the wrong end, in exchange for a mean-luminance number
+	// in a lab frame. Here the curve is flat everywhere the shipped frame
+	// actually lives and only bends where the framebuffer was going to throw the
+	// value away anyway.
+	const float SHOULDER = 0.86;
 	float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
 	float over = max(lum - SHOULDER, 0.0);
 	float rolled = lum - over + over / (1.0 + over / (1.0 - SHOULDER));

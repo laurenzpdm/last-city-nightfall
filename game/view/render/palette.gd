@@ -309,9 +309,9 @@ static func _keyframes() -> Array[Dictionary]:
 			"lift": Color(0.004, 0.010, 0.026), "gain": Color(0.95, 0.99, 1.12),
 			"sat": 1.00, "fog": Color(0.200, 0.265, 0.410), "fog_amt": 0.28,
 			"light_energy": 0.60, "bloom": 0.50, "chroma": 0.55, "star_amt": 0.25,
-			"sun_dir": Vector2(0.90, -0.44), "sun_col": Color(1.00, 0.70, 0.52), "sun_energy": 1.02,
+			"sun_dir": Vector2(0.90, -0.44), "sun_col": Color(1.00, 0.70, 0.52), "sun_energy": 1.39,
 			"sun_height": 0.20,
-			"sky_col": Color(0.235, 0.330, 0.560), "sky_energy": 0.54,
+			"sky_col": Color(0.235, 0.330, 0.560), "sky_energy": 0.74,
 			"bounce": 0.34, "bounce_col": Color(1.00, 0.80, 0.60), "wild": 0.16,
 		},
 		{
@@ -322,9 +322,9 @@ static func _keyframes() -> Array[Dictionary]:
 			"lift": Color(0.002, 0.006, 0.018), "gain": Color(0.99, 1.00, 1.06),
 			"sat": 1.00, "fog": Color(0.330, 0.395, 0.520), "fog_amt": 0.15,
 			"light_energy": 0.26, "bloom": 0.34, "chroma": 0.35, "star_amt": 0.0,
-			"sun_dir": Vector2(0.58, -0.64), "sun_col": Color(1.00, 0.955, 0.900), "sun_energy": 1.26,
+			"sun_dir": Vector2(0.58, -0.64), "sun_col": Color(1.00, 0.955, 0.900), "sun_energy": 1.99,
 			"sun_height": 0.58,
-			"sky_col": Color(0.265, 0.380, 0.700), "sky_energy": 0.72,
+			"sky_col": Color(0.265, 0.380, 0.700), "sky_energy": 1.13,
 			"bounce": 0.10, "bounce_col": Color(1.00, 0.86, 0.68), "wild": 0.02,
 		},
 		{
@@ -335,25 +335,51 @@ static func _keyframes() -> Array[Dictionary]:
 			"lift": Color(0.000, 0.003, 0.012), "gain": Color(1.02, 1.02, 1.03),
 			"sat": 1.02, "fog": Color(0.400, 0.470, 0.610), "fog_amt": 0.10,
 			"light_energy": 0.14, "bloom": 0.30, "chroma": 0.22, "star_amt": 0.0,
-			# NOON WAS CLIPPING, AND A CLIPPED FRAME HAS NO ART IN IT. At a key of
-			# 1.40 against a fill of 0.80 the ground shader hands the crust
-			# `light` of about 1.7 before albedo, so every snow surface turned
-			# over more than one and came out as paper: `frame_lab` graded
-			# midday_play at 0.751 mean luma against its own 0.62 ceiling and
-			# called it a white field in four cells out of five, and the drift
-			# structure this wave exists to put back was being drawn INTO the
-			# clip. The hour keeps its shape — noon is still by a long way the
-			# brightest thing this game draws, and `run_ground_frame`'s absolute
-			# floor of 0.240 on the daylit plain still has room over it — but the
-			# top of the range is now inside the monitor. The cut here is small —
-			# most of the work is done by the HIGHLIGHT SHOULDER at the bottom of
-			# terrain.gdshader, because darkening the day is the one way to fix a
-			# clipped noon that also closes the day-to-night gap
-			# `tests/render/run_ground_frame.gd` measures as ARC_SEPARATION, and
-			# that gap is the thing this game is about.
-			"sun_dir": Vector2(0.10, -0.86), "sun_col": Color(1.00, 0.980, 0.945), "sun_energy": 1.30,
+			# THE DAYLIGHT LOBE PAYS FOR ITS OWN STRUCTURE, AND FOR ONE COMMIT IT
+			# DID NOT. Read this before touching `sun_energy` on any of the four
+			# daylit keyframes, because the mistake it records was made here.
+			#
+			# The note that used to stand in this slot cut noon 1.40 -> 1.30 and
+			# afternoon 1.36 -> 1.26 to stop the crust clipping, and it was right
+			# that the crust was clipping. What it did not do was re-grade the
+			# SHIPPED frames afterwards. In the same commit the ground's coverage
+			# bar moved inside the drift field for the first time, so roughly half
+			# the open plain stopped being crust and started being `scoured` — a
+			# darker tone, lying in the low ground, where `ao` was already darkest.
+			# Three darkenings landed on the same pixels at once: a smaller key, a
+			# highlight shoulder, and an albedo that had halved.
+			#
+			# What that cost, measured by `tests/render/run_ground_frame.gd`, which
+			# grades the harness PNGs and belongs to nobody:
+			#
+			#   artifacts/CRIT (2026-08-18, pre-commit)  midday p10 0.236 p50 0.356
+			#                                            ARC 1.76   15 checks, 0 fail
+			#   after the cut                            midday p10 0.142 p50 0.245
+			#                                            ARC 1.04   ARC RED
+			#
+			# ARC_SEPARATION is the darkest tenth of the daylit plain over the
+			# brightest tenth of the night plain. At 1.04 the day and the night had
+			# MET: the shadow side of a noon drift was the same value as a moonlit
+			# crest, which is the arc this whole game is about, closed. The commit's
+			# own text names that failure — it rejects a shoulder at 0.60 for
+			# causing exactly it — and then ships it anyway with the same numbers.
+			#
+			# So the key comes back, and further than it was, because the plain it
+			# is lighting is genuinely darker than the one those numbers were set
+			# for. The clipping the cut was aimed at is handled where it belongs,
+			# by the HIGHLIGHT SHOULDER at the bottom of terrain.gdshader: with the
+			# key at 2.05 the daylit plain's brightest tenth measures 0.436, and the
+			# shoulder does not begin until 0.86, so nothing in a midday frame is
+			# inside the roll-off at all — it is a guard rail against the crest of
+			# one lit drift, not an exposure cut on the whole day.
+			#
+			# The lift is proportional across dawn/morning/noon/afternoon so the
+			# hours keep their spacing, and it stops at dusk: dusk, twilight and
+			# both night keys are untouched, which is why deep_night grades
+			# bit-identical across every step of this change.
+			"sun_dir": Vector2(0.10, -0.86), "sun_col": Color(1.00, 0.980, 0.945), "sun_energy": 2.05,
 			"sun_height": 0.95,
-			"sky_col": Color(0.290, 0.420, 0.760), "sky_energy": 0.74,
+			"sky_col": Color(0.290, 0.420, 0.760), "sky_energy": 1.17,
 			"bounce": 0.0, "bounce_col": Color(1.00, 0.88, 0.70), "wild": 0.0,
 		},
 		{
@@ -364,11 +390,14 @@ static func _keyframes() -> Array[Dictionary]:
 			"lift": Color(0.002, 0.005, 0.016), "gain": Color(1.01, 1.00, 1.01),
 			"sat": 1.00, "fog": Color(0.380, 0.410, 0.510), "fog_amt": 0.13,
 			"light_energy": 0.44, "bloom": 0.40, "chroma": 0.30, "star_amt": 0.0,
-			# Same cut as noon, kept proportional so the two hours stay the same
-			# distance apart. See the note on the noon keyframe.
-			"sun_dir": Vector2(-0.50, -0.70), "sun_col": Color(1.00, 0.940, 0.858), "sun_energy": 1.26,
+			# Lifted with noon and by the same factor, so the two hours stay the
+			# same distance apart. This is the key `midday` and `third_day_city`
+			# are both photographed under, so it is the one the ARC check in
+			# `tests/render/run_ground_frame.gd` actually reads. See the note on
+			# the noon keyframe for what it cost when it was cut.
+			"sun_dir": Vector2(-0.50, -0.70), "sun_col": Color(1.00, 0.940, 0.858), "sun_energy": 1.99,
 			"sun_height": 0.52,
-			"sky_col": Color(0.255, 0.375, 0.720), "sky_energy": 0.70,
+			"sky_col": Color(0.255, 0.375, 0.720), "sky_energy": 1.11,
 			"bounce": 0.10, "bounce_col": Color(1.00, 0.86, 0.66), "wild": 0.03,
 		},
 		{
