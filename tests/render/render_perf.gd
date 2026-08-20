@@ -204,6 +204,23 @@ func _report() -> void:
 	var draw: float = _avg(_draw)
 	var ground: float = _avg(_ground)
 	var total: float = collect + draw + ground
+	# THE NUMBER THAT IS ACTUALLY GRADED, computed once and used for the verdict,
+	# the printout and the FAIL line alike. Headless, `draw` is not a measurement
+	# of anything — the line below has always said "(0 without a display)" — so
+	# the budget has always been applied to collect + ground there. What it did
+	# NOT do was print that figure: it printed `total`, draw included, and the
+	# summary line called that "under the 12 ms budget".
+	#
+	# On this box that gap is the whole budget. Headless reads collect 2509 +
+	# ground 718 = 3227 us graded against 12000 — a 73% cushion — while printing
+	# "renderer total 11279 us" and "11.28 ms/frame, under the 12 ms budget",
+	# which reads as a stage one bad commit away from red. A builder in wave J
+	# then A/B'd their commit on that printed number and reported an 11976 ->
+	# 11042 "improvement"; two back-to-back runs of the SAME binary on a quiet
+	# box read 11279 and 11868, so the drift alone is larger than the effect.
+	# A number nothing grades is not a budget, and it should not be printed as if
+	# it were one.
+	var graded: float = collect + ground + (0.0 if _headless else draw)
 	var fails: Array[String] = []
 
 	print("────────────────────────────────────────────────────────────────")
@@ -221,7 +238,12 @@ func _report() -> void:
 	print("  ground update       %7.0f us avg   %7.0f us p95" % [ground, _p95(_ground)])
 	print("  entity draw         %7.0f us avg   %7.0f us p95%s" % [
 		draw, _p95(_draw), "   (0 without a display)" if _headless else ""])
-	print("  renderer total      %7.0f us avg" % total)
+	if _headless:
+		print("  renderer total      %7.0f us avg   GRADED: %.0f us of %.0f, collect + ground only"
+			% [total, graded, BUDGET_TOTAL_US])
+	else:
+		print("  renderer total      %7.0f us avg   GRADED: %.0f us of %.0f"
+			% [total, graded, BUDGET_TOTAL_US])
 	if not _headless:
 		print("  draw calls          %d" % int(Performance.get_monitor(
 			Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)))
@@ -236,13 +258,26 @@ func _report() -> void:
 		fails.append("collect %.0f us over budget %.0f us" % [collect, BUDGET_COLLECT_US])
 	if ground > BUDGET_GROUND_US:
 		fails.append("ground update %.0f us over budget %.0f us" % [ground, BUDGET_GROUND_US])
-	if collect + ground + (0.0 if _headless else draw) > BUDGET_TOTAL_US:
-		fails.append("renderer total %.0f us over budget %.0f us" % [total, BUDGET_TOTAL_US])
+	if graded > BUDGET_TOTAL_US:
+		fails.append("renderer total %.0f us over budget %.0f us" % [graded, BUDGET_TOTAL_US])
 
 	print("────────────────────────────────────────────────────────────────")
 	if fails.is_empty():
-		print(" %d structure(s), renderer at %.2f ms/frame — under the %.0f ms budget" % [
-			_placed, total / 1000.0, BUDGET_TOTAL_US / 1000.0])
+		print(" %d structure(s), renderer at %.2f ms/frame graded — under the %.0f ms budget" % [
+			_placed, graded / 1000.0, BUDGET_TOTAL_US / 1000.0])
+		# SAY WHAT THIS GREEN DOES NOT COVER. tools/check.sh runs every standalone
+		# suite with --headless, so this stage has never once been graded with a
+		# display attached — and with one it FAILS, on this box, reproducibly and
+		# for reasons that predate wave J: collect 3298/3278 us against a 3000 us
+		# budget and a graded total of 15910/15906 against 12000, versus 16501/
+		# 16444 on the pre-wave tree. That gap is the box, not a regression, and
+		# moving the budgets to cover it is a decision about what this build
+		# promises rather than a stage-keeping one (see tools/perf_budget.json).
+		# But a stage that can only ever be green must not read as a stage that
+		# passed a test, so it says so here every time it runs.
+		if _headless:
+			print(" NOT GRADED HEADLESS: entity draw, and the display-side cost of collect and")
+			print(" ground. This suite FAILS with a display on this box, before and after wave J.")
 		print("TESTS PASSED")
 		_finish(0)
 		return
