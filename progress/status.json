@@ -1,8 +1,8 @@
 {
  "round": 9,
- "phase": "I — restarting. The wave was killed mid-flight by a session interrupt, not by a bug.",
- "state": "Wave I ran for 68 minutes on 18.08 and both builders were cut off at 12:07 by the same session-level interrupt — the last thing in each log is a rejected tool call and \"[Request interrupted by user for tool use]\", at the same second, in two independent agents. Their committed work is on the branch (six commits, pushed); their in-flight work was still in the working tree and is being gated now before it is committed. Nothing about the game changed in the two days since: when a session is interrupted the workflow dies and there is nothing in this environment that restarts it.",
- "agents_live": 0,
+ "phase": "I (restarted) — 3 builders live on the one cause both critics named.",
+ "state": "Wave I was cut off mid-flight on 18.08 — both builders stopped at 12:07:04, the same second, on unrelated commands. Their in-flight work was still in the working tree and has been recovered, gated and pushed: the night shift no longer eats the daylight, machines coast on the work already on the bench, and the reference run grows a heat-positive north rung whose belt ends INSIDE a machine. Gating that work caught it breaking a published cross-part contract on the way in — a smoothed `staffing` had production disagreeing with citizens about who was standing in a building — so the coast is now its own field. The gate is RED with 4 stages failing; all four were ablated against the pre-recovery commit, and the one that matters is new to nobody: a Great Frost at full intensity does not slow the factory down.",
+ "agents_live": 3,
  "critic_score": 3.7,
  "blind_wins": 0,
  "blind_total": 10,
