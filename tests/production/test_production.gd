@@ -603,9 +603,51 @@ func test_the_labour_market_is_actually_wired_in() -> void:
 	world.run(20)
 	assert_near(_machine(id).staffing, float(citizens.call("staffing_of", id)), 0.0001,
 		"the crew a machine runs on is the crew [P05] says is standing in it")
-	if _machine(id).staffing <= 0.0:
+	if _machine(id).bench <= 0.0:
 		assert_eq(String(_machine(id).reason), "unstaffed",
 			"and an empty shop says so rather than running on ghosts")
+
+
+## The bench coast, pinned at both ends. It exists because [P05] reports crew
+## PRESENT and a two-hand shop therefore read 0 every time the remaining hand
+## walked to the larder; it must NOT become a way for a machine to disagree with
+## [P05] about who is standing in it.
+func test_a_shop_coasts_on_the_bench_but_never_lies_about_its_crew() -> void:
+	_world()
+	var citizens: SimSystem = world.system(&"citizens")
+	if citizens == null or not citizens.has_method("staffing_of"):
+		skip("[P05] citizens is not built yet")
+		return
+	prod.set_staffing_autarky(false)
+	if not _city():
+		return
+	var id: int = _place("smelter", _at("smelter"))
+	world.run(20)
+	var m: ProdMachine = _machine(id)
+	assert_near(m.staffing, float(citizens.call("staffing_of", id)), 0.0001,
+		"`staffing` is [P05]'s number with nothing smoothed into it")
+
+	# Hand-drive the coast rather than waiting for a citizen to get hungry: the
+	# thing under test is the ramp, and the ramp is a function of two fields.
+	m.staffing = 0.0
+	m.staff_held = 1.0
+	m.staff_seen_tick = 0
+	assert_near(prod._crew_of(m, 0), 1.0, 0.0001,
+		"the tick the last hand steps out, the bench is still full")
+	assert_near(prod._crew_of(m, ProductionSystem.STAFF_COAST_TICKS / 2), 0.5, 0.01,
+		"and it is half gone half way through the window")
+	assert_eq(prod._crew_of(m, ProductionSystem.STAFF_COAST_TICKS), 0.0,
+		"and at the end of the window the shop says `unstaffed` as loudly as ever")
+	assert_eq(prod._crew_of(m, ProductionSystem.STAFF_COAST_TICKS * 4), 0.0,
+		"a night off is not bench work")
+
+	# A shop that never had anybody does not get a free 900 ticks.
+	var fresh: ProdMachine = _machine(_place("workshop", _at("workshop")))
+	fresh.staffing = 0.0
+	fresh.staff_held = 0.0
+	fresh.staff_seen_tick = -1000000
+	assert_eq(prod._crew_of(fresh, 5), 0.0,
+		"a shop nobody has ever worked in has nothing on its bench")
 
 
 func test_research_gates_a_recipe_and_says_so() -> void:

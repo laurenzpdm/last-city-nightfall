@@ -451,6 +451,7 @@ func stall_of(building_id: int) -> Dictionary:
 		"cold": snappedf(m.cold, 0.0001),
 		"heat_factor": snappedf(m.heat_factor, 0.0001),
 		"staffing": snappedf(m.staffing, 0.0001),
+		"bench": snappedf(m.bench, 0.0001),
 		"felt_c": snappedf(m.felt_c, 0.01),
 		"progress": snappedf(m.progress_ratio(), 0.001),
 	}
@@ -660,7 +661,7 @@ func _advance(m: ProdMachine, tick: int) -> void:
 			_park(m, ProdMachine.State.STALLED, ProdMachine.REASON_MISSING_INPUT, &"waste_heat", tick)
 		return
 
-	if m.staffing <= 0.0:
+	if m.bench <= 0.0:
 		_park(m, ProdMachine.State.STALLED, ProdMachine.REASON_UNSTAFFED, &"", tick)
 		return
 
@@ -815,7 +816,7 @@ func _work_rate(m: ProdMachine, r: RecipeDef) -> float:
 	else:
 		m.heat_factor = m.power
 
-	return m.staffing * m.cold * m.heat_factor * m.def.craft_speed * _tech_craft
+	return m.bench * m.cold * m.heat_factor * m.def.craft_speed * _tech_craft
 
 
 ## Which of the two soft failures actually stopped it — the player needs to know
@@ -838,8 +839,14 @@ func _read_environment(m: ProdMachine, tick: int) -> void:
 		outside = float(_heat.call("temperature_at", m.center_cell))
 	m.felt_c = outside + m.def.insulation * SHELTER_C
 	m.staffing = 1.0
+	m.bench = 1.0
 	if not _staff_autarky and m.def.workers_required > 0:
-		m.staffing = _crew_of(m, tick)
+		# TWO NUMBERS ON PURPOSE. `staffing` is [P05]'s answer, unsmoothed,
+		# because it is the published one and another part is entitled to
+		# compare it. `bench` is what this shop can get done, which is not zero
+		# the instant its one hand walks to the larder.
+		m.staffing = clampf(_staffing_of(m.id), 0.0, 1.0)
+		m.bench = _crew_of(m, tick)
 
 
 ## Crew, read over a short window instead of this instant.
@@ -856,8 +863,13 @@ func _read_environment(m: ProdMachine, tick: int) -> void:
 ## across STAFF_COAST_TICKS, and then reports the truth. Twenty seconds of work
 ## already on the bench is a thing a workshop has; a night off is not, and after
 ## the window this says `unstaffed` exactly as loudly as it did before.
+##
+## This is `m.bench` and it is NOT `m.staffing`. Smoothing the published number
+## would have made `production` quietly disagree with `citizens` about who is
+## standing in a building, which is the kind of drift this project has paid for
+## twice — so the two are separate fields and both are in the metrics dump.
 func _crew_of(m: ProdMachine, tick: int) -> float:
-	var raw: float = clampf(_staffing_of(m.id), 0.0, 1.0)
+	var raw: float = m.staffing
 	if raw > 0.0:
 		m.staff_held = raw
 		m.staff_seen_tick = tick
