@@ -86,9 +86,33 @@ const SYSTEM_ORDER: int = 40          ## after logistics (30), before citizens (
 ## Degrees a fully sealed shell adds to what the machine feels inside. A machine
 ## at insulation 0.35 works as if it stood 10.5 C warmer than the tile it is on.
 const SHELTER_C: float = 30.0
-## Degrees above a recipe's floor at which it reaches full speed. Inside the band
-## it runs proportionally — cold is a slope, not a switch.
+## Degrees above a recipe's floor at which it reaches full speed IN STILL AIR.
+## Inside the band it runs proportionally — cold is a slope, not a switch.
 const COLD_BAND_C: float = 14.0
+## How much wider that band gets at storm intensity 1.0. A GREAT FROST IS WIND,
+## NOT A LOWER THERMOMETER, and this constant is the difference between those
+## two sentences.
+##
+## THE DEFECT THIS FIXES, MEASURED. `test_a_great_frost_slows_the_factory_down`
+## forces a storm at intensity 1.0 for 6000 ticks over a shop running
+## pipe_segment — the second-coldest floor in the game at -18 C — and asserts
+## two things. The first, that the frost is felt inside the shop, passed:
+## `felt_c` fell by more than 4 C. The second, that the shop therefore slows
+## down, FAILED, because `cold` is a slope measured off the recipe's own floor
+## and a shop standing in the Hearth's field is thirty degrees above that floor.
+## The signature weather event of a game pitched against Frostpunk had no effect
+## on production anywhere except within fourteen degrees of a hard freeze.
+##
+## Widening the band rather than dropping the temperature is the honest model
+## and it is also the one that keeps every other contract. Wind chill is a
+## heat-transfer RATE, not an offset: the shop is the same temperature, and the
+## hands in it lose warmth to the draught faster than the stove puts it back, so
+## the same still-air margin above a floor buys less work. At intensity 1.0 the
+## band is 14 + 22.4 = 36.4 C, so a shop at +16 C felt runs pipe_segment
+## (floor -18) at 0.93 and gear (floor -25) at 1.00 — the delicate job is what
+## the wind takes first, which is exactly what the test's third assert says.
+## In still air `_storm_i` is 0 and this is arithmetically the code that shipped.
+const COLD_BAND_STORM_C: float = 22.4
 ## Fallback outdoor temperature when neither [P09] nor [P02] exists.
 const DEFAULT_AMBIENT_C: float = -18.0
 
@@ -162,6 +186,7 @@ var _has_power: bool = false
 var _has_served: bool = false
 var _has_frozen: bool = false
 var _has_ambient: bool = false
+var _has_storm: bool = false
 var _has_harvest: bool = false
 var _has_deliver_fuel: bool = false
 var _has_accept_output: bool = false
@@ -198,6 +223,10 @@ var _crafts_total: int = 0
 var _fuel_served: float = 0.0
 var _fuel_denied: float = 0.0
 var _tick: int = 0
+## [P09]'s storm envelope, read ONCE a tick and not once per machine: a thousand
+## machines calling into another system for the same scalar is the shape of
+## every perf hole this file has ever had.
+var _storm_i: float = 0.0
 
 
 func _init() -> void:
@@ -262,6 +291,7 @@ func post_setup() -> void:
 	_has_frozen = _heat != null and _heat.has_method("is_frozen")
 	_has_deliver_fuel = _heat != null and _heat.has_method("deliver_fuel")
 	_has_ambient = _climate != null and _climate.has_method("ambient_temperature")
+	_has_storm = _climate != null and _climate.has_method("storm_intensity")
 	_has_harvest = _grid != null and _grid.has_method("harvest")
 	_has_accept_output = _logistics != null and _logistics.has_method("accept_output")
 	_has_staffing_of = _citizens != null and _citizens.has_method("staffing_of")
@@ -286,6 +316,12 @@ func step(tick: int) -> void:
 		_unlock_checked = tick
 		_unlock_cache.clear()
 		_read_tech()
+
+	_storm_i = 0.0
+	if _has_storm:
+		var si: Variant = _climate.call("storm_intensity")
+		if typeof(si) == TYPE_FLOAT or typeof(si) == TYPE_INT:
+			_storm_i = clampf(float(si), 0.0, 1.0)
 
 	_active = 0
 	_stalled = 0
@@ -542,6 +578,15 @@ func chain_depth_max() -> int:
 	return book.max_depth
 
 
+## Degrees above a recipe's floor that buy full speed RIGHT NOW. Still air is
+## [constant COLD_BAND_C]; a Great Frost widens it. Published because a test and
+## a tooltip both have to be able to say the same number the solver used, and
+## because `m.cold` on its own cannot tell a player whether the shop is cold or
+## the weather is.
+func cold_band_c() -> float:
+	return COLD_BAND_C + COLD_BAND_STORM_C * _storm_i
+
+
 ## Recoverable heat per second currently being fed back into [P02]'s grid.
 func waste_recovered() -> float:
 	return waste.recovered_rate
@@ -578,6 +623,9 @@ func totals() -> Dictionary:
 		"recipes": book.size(),
 		"chain_depth": chain_depth_reached(),
 		"chain_depth_max": book.max_depth,
+		# The live cold band, so a state dump can prove a Great Frost reached the
+		# factory instead of the report claiming it did. Still air is 14.0.
+		"cold_band_c": snappedf(cold_band_c(), 0.01),
 		"waste_recovered": snappedf(waste.recovered_rate, 0.001),
 		"waste_vented": snappedf(waste.vented_rate, 0.001),
 		"fuel_served": snappedf(_fuel_served, 0.001),
@@ -802,7 +850,7 @@ func _read_tech() -> void:
 
 func _work_rate(m: ProdMachine, r: RecipeDef) -> float:
 	var floor_c: float = r.min_temperature_c if r != null else -30.0
-	m.cold = clampf((m.felt_c - floor_c) / COLD_BAND_C, 0.0, 1.0)
+	m.cold = clampf((m.felt_c - floor_c) / cold_band_c(), 0.0, 1.0)
 
 	# A machine that asks the grid for nothing cannot be browned out by it,
 	# whatever its recipe costs — hand-work does not stop when the pipes do.
@@ -1469,6 +1517,7 @@ func metrics() -> Dictionary:
 		"idle": _idle,
 		"crafts_total": _crafts_total,
 		"chain_depth": chain_depth_reached(),
+		"cold_band_c": snappedf(cold_band_c(), 0.01),
 		"recipes": book.size(),
 		"waste_recovered": snappedf(waste.recovered_rate, 0.001),
 		"waste_vented": snappedf(waste.vented_rate, 0.001),

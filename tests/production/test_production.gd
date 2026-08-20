@@ -505,8 +505,10 @@ func test_the_cold_factor_is_the_recipe_floor_read_off_the_warmth_field() -> voi
 	var id: int = _place("smelter", _at("smelter"))
 	world.run(20)
 	var m: ProdMachine = _machine(id)
+	assert_near(prod.cold_band_c(), ProductionSystem.COLD_BAND_C, 0.001,
+		"still air is the shipped band and nothing else")
 	var expected: float = clampf(
-		(m.felt_c - m.recipe.min_temperature_c) / ProductionSystem.COLD_BAND_C, 0.0, 1.0)
+		(m.felt_c - m.recipe.min_temperature_c) / prod.cold_band_c(), 0.0, 1.0)
 	assert_near(m.cold, expected, 0.001, "cold is a slope off the recipe's own floor")
 
 
@@ -526,10 +528,13 @@ func test_a_great_frost_slows_the_factory_down() -> void:
 	var felt_before: float = m.felt_c
 	assert_near(m.cold, 1.0, 0.001, "a warm shop is at full speed")
 
+	var still_band: float = prod.cold_band_c()
 	world.cmd_now({"system": &"climate", "op": "force_storm", "intensity": 1.0,
 		"duration_ticks": 6000})
 	world.run(1400)
 	assert_lt(m.felt_c, felt_before - 4.0, "the frost is felt inside the shop")
+	assert_gt(prod.cold_band_c(), still_band + 1.0,
+		"the wind widened the band a recipe has to climb out of")
 	assert_lt(m.cold, 1.0, "and it slows the delicate work down")
 	var chilled: float = m.cold
 
