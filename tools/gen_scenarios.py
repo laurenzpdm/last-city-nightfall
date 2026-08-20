@@ -633,7 +633,152 @@ def _retool(L):
     L.urgent(2 * 9600 + 700, [(CORE[0] + 12, CORE[1] - 14)])
 
 
-def first_night(strip_workshop: bool = True):
+# =============================================================== THE NORTH RUNG
+#
+# THE PILLAR THE REFERENCE RUN DID NOT HAVE, AND THE REASON IT IS SHAPED LIKE
+# THIS AND NOT LIKE THE THREE QUARTERS THAT FAILED.
+#
+# Measured before any of this: `production.chain_depth` 3 against a graph five
+# transformations deep, EIGHT machines in a city of 341 operational buildings,
+# and four belt lines carrying nothing but coal — 172 items frozen on them and
+# `logistics.throughput` flat at 0.0 for 6760 consecutive ticks. The belts were
+# not broken. They had nothing to carry, because until this wave a machine took
+# its ingredients out of the city stockpile and put its output back into it in
+# the same tick, at unlimited range, for nothing. A belt could not feed a
+# factory, so no scenario ever laid one at a factory, so the automation pillar
+# was a coal line and a counter.
+#
+# WHAT THIS ADDS, AND WHAT PAYS FOR IT. Three earlier attempts at a factory
+# quarter in this scenario are written up in first_night() below and every one
+# of them bought depth with capacity the grid did not have: nine machines and
+# 300 units of new demand against a delivery that never passed 283. This rung
+# is 58 units of demand against 67 units of new supply — two burners that go in
+# on day one, before anything that eats them, which is the lesson this file has
+# already had to learn twice. It is heat-POSITIVE on the day it is switched on.
+#
+# WHY y112..y117 AND NOWHERE ELSE. It is the only clear ground left that is
+# already inside somebody else's warmth. Both strip radiators reach it — the one
+# at x120-121 covers x114..x127 by y112..y125 and the one at x133-134 covers
+# x127..x140 — so a machine row on y113 is standing in cover the city already
+# pays for, and the row hangs off ONE new rung on y112 that crosses the outpost
+# pipe column at x127 and is therefore on the grid without a second connection.
+# Every attempt to put this east of the wall or south of y140 measured 0.0 C of
+# cover and froze on the second night, and a frozen machine radiates nothing,
+# draws nothing and therefore never thaws.
+#
+# THE ORDER IS THE WHOLE DESIGN: rung, radiators and burners on day one after
+# dark; the machines that eat them on day two; the retool that needs what they
+# make on day three. A tier the player can SEE is a tier whose materials had no
+# source in this city the day before.
+def _north_rung(L):
+    """Day one, after the wall: the grid, the cover and the fire. No machines.
+
+    A trunk main and not a heat_pipe for the reason the strip already learned:
+    the spur that used to carry that row measured `capacity 69.0, load 69.0`
+    with supply going spare on the other side of it, and a capacity bottleneck
+    reads from inside a machine as `no_heat`, which is indistinguishable from a
+    dead burner. This rung carries two furnaces, a sorter and a shop.
+
+    It crosses x127 at (127,112), which is already the outpost's heat pipe, so
+    build refuses that one cell and the two halves of the rung are one network
+    through it. That is deliberate and it is why this costs no second spur.
+    """
+    rung = []
+    rung += L.line(5000, "heat_trunk_main", (-15, -16), (13, -16))   # y112, x113-141
+    L.place(5060, "warmth_radiator", -5, -15)                        # x123-124, y113-114
+    L.place(5080, "warmth_radiator", 3, -15)                         # x131-132, y113-114
+    rung += [(CORE[0] - 5, CORE[1] - 15), (CORE[0] + 3, CORE[1] - 15)]
+    # SUPPLY BEFORE APPETITE. 67 units in, 58 out, and both of these stand on
+    # the rung they feed rather than eighteen tiles down a main: a burner at the
+    # cold end of a long run is heat spent to move heat.
+    L.place(5120, "coal_generator", -15, -15)                        # x113-115
+    L.place(5160, "coal_generator", 5, -15)                          # x133-135
+    rung += [(CORE[0] - 15, CORE[1] - 15), (CORE[0] + 5, CORE[1] - 15)]
+    L.urgent(5200, rung, priority=92)
+
+
+def _north_works(L):
+    """Day two: two furnaces, a wire sorter, and the first belt in this game
+    that carries something other than coal.
+
+    THE LINE, WEST TO EAST, WHICH IS ALSO THE CRAFTING GRAPH:
+
+        rubble sorter (x116-118)  scrap        -> COPPER ORE
+          one arm at x119 straight into the furnace beside it
+        copper furnace (x120-122) copper ore   -> COPPER COIL
+        steel furnace  (x128-130) plate + coal -> STEEL PLATE
+          an arm off each furnace's south face onto the belt on y117
+        belt y117 x121 -> x134, under the outpost pipe at x127 in a sunken pair
+        and INTO the shop on the end of the salvage strip, whose west face is
+        the tile the last belt runs at.
+
+    THE BELT ENDS IN A MACHINE ON PURPOSE. Until this wave a line laid nose-first
+    against a smelter resolved to `Sink.NONE`, backed up, and was then reported
+    by logistics itself as a belt to nowhere; game/sim/logistics/logi_world.gd
+    now makes every building buffer a sink and feeds the recipe through it. So
+    the shop on y117 is fed by the belt and not by teleport, and
+    `logistics.machine_fed` in state.json is the count of ingredients that
+    physically arrived.
+
+    AND THE COPPER IS THE KEYSTONE. `salvaged_wire` is the only source of copper
+    inside the walls, at 0.16 ore/s against the 0.80/s one drill lifts — a
+    deliberately bad ratio that is the tooltip telling the player, in numbers, to
+    go and take the copper field. Without it `pipe_segment` is unreachable and
+    this city stops at gears.
+    """
+    urgent = []
+    L.place(10000, "rubble_sorter", -12, -15)                        # x116-118, y113-114
+    L.recipe(10001, (-12, -15), "salvaged_wire")                     # scrap -> COPPER
+    urgent.append((CORE[0] - 12, CORE[1] - 15))
+    L.place(10040, "smelter", -8, -15)                               # x120-122, y113-115
+    L.recipe(10041, (-8, -15), "copper_coil")
+    urgent.append((CORE[0] - 8, CORE[1] - 15))
+    L.place(10080, "smelter", 0, -15)                                # x128-130, y113-115
+    L.recipe(10081, (0, -15), "steel_plate")                         # plate + coal -> STEEL
+    urgent.append((CORE[0], CORE[1] - 15))
+    # The arm between the sorter and the furnace it feeds. rot 0 is east: it
+    # reaches back into (118,113) and puts down in (120,113).
+    L.place(10120, "inserter_mk1", -9, -15, rot=0)                   # x119, y113
+    urgent.append((CORE[0] - 9, CORE[1] - 15))
+    # Two arms on y116, one under each furnace's south face, dropping onto the
+    # line. rot 1 is south: source (x,115), target (x,117).
+    L.place(10160, "inserter_mk1", -7, -12, rot=1)                   # x121, y116
+    L.place(10200, "inserter_mk1", 1, -12, rot=1)                    # x129, y116
+    urgent += [(CORE[0] - 7, CORE[1] - 12), (CORE[0] + 1, CORE[1] - 12)]
+    # THE LINE. It dives under the outpost pipe rather than stopping at it,
+    # exactly as the coal line does at x126/x129 — a heat conduit is a wall to a
+    # belt and a sunken pair is what a player builds when they meet one.
+    urgent += L.line(10240, "belt_mk1", (-7, -11), (-3, -11))        # y117, x121-125
+    L.place(10280, "underground_mk1", -2, -11, rot=0)                # x126, dives
+    L.place(10300, "underground_mk1", 0, -11, rot=0)                 # x128, surfaces
+    urgent += [(CORE[0] - 2, CORE[1] - 11), (CORE[0], CORE[1] - 11)]
+    urgent += L.line(10340, "belt_mk1", (1, -11), (6, -11))          # y117, x129-134
+    L.urgent(10400, urgent, priority=72)
+
+
+def _the_pipe_shift(L):
+    """Day three: one right-click, no building, and the tier the run is for.
+
+    The shop on the end of the salvage strip has been cutting gears out of plate
+    since the first night. Copper coil and steel plate have been arriving on its
+    west face by belt since day two — stacking on its dock, because a shop set to
+    `gear` has no use for either — and this is the tick the player changes what
+    it makes. game/sim/logistics/logistics_system.gd drains that dock into the
+    machine's mouth, so a retool puts what is ALREADY STANDING AGAINST THE WALL
+    to work rather than stranding it: the first pipe comes out in seconds, not
+    after a fresh delivery.
+
+    `pipe_segment` is chain depth FOUR and it is the first thing this city has
+    ever made that it could not have made on day one, because both of its
+    ingredients had no source inside these walls until the rung above was built.
+    What it unlocks is a BUILD, not a counter: heat_trunk_main is 2 steel a tile,
+    the recuperator is 20 coil and 10 steel, and geothermal_tap — the only heat
+    in this game that burns no coal — is ten pipe segments and nothing else.
+    """
+    L.recipe(20800, (7, -11), "pipe_segment")
+
+
+def first_night(strip_workshop: bool = True, north_works: bool = True):
     L = Layout()
     # Materials, not a cheat code: the old stock ran dry on day two and FOUR
     # placements were refused for cost, which is why the workshop and the
@@ -1013,6 +1158,15 @@ def first_night(strip_workshop: bool = True):
     # burners are standing.
     for i, dx in enumerate([-18, -9, 0, 9, 18]):
         L.line(4800 + i * 40, "wall", (dx - 4, -35), (dx + 4, -35))
+    # AND THE GRID, THE COVER AND THE FIRE THE FACTORY WILL STAND ON, before
+    # the first night and before one machine that eats them. See _north_rung.
+    #
+    # `north_works=False` is deep_chain and only deep_chain: its own foundry
+    # quarter stands on exactly this ground (y114-119 from x131 to x143) and two
+    # factories on one site is not a deeper graph, it is a placement the runtime
+    # would refuse.
+    if north_works:
+        _north_rung(L)
     L.place(5200, "heat_accumulator", 13, 1)                # x141-142
     L.cmd(6400, {"system": "heat", "op": "dump"})
     L.cmd(7800, {"system": "grid", "op": "melt",
@@ -1021,6 +1175,8 @@ def first_night(strip_workshop: bool = True):
     # === DAY TWO ============================================================
     L.cmd(10000, {"system": "logistics", "op": "insert",
                   "cell": [CORE[0] - 14, CORE[1] - 7], "item": "coal", "count": 500})
+    if north_works:
+        _north_works(L)
     L.place(10400, "housing_block", -15, 8)                 # x113-116
     L.cmd(14600, {"system": "heat", "op": "dump"})
     L.cmd(15400, {"system": "logistics", "op": "insert",
@@ -1059,6 +1215,8 @@ def first_night(strip_workshop: bool = True):
     # west founding row — a second buffer for the nights this run does not
     # reach, and the only structure in the city that is worth building AFTER
     # the grid is already in surplus.
+    if north_works:
+        _the_pipe_shift(L)
     L.cmd(22400, {"system": "heat", "op": "dump"})
     L.cmd(23000, {"system": "logistics", "op": "dump"})
     L.cmd(23200, {"system": "production", "op": "dump"})
@@ -1281,7 +1439,7 @@ def _east_road(L):
 
 
 def deep_chain():
-    sc = first_night(strip_workshop=False)
+    sc = first_night(strip_workshop=False, north_works=False)
     L = sc["_layout"]
     # SAID IN THE FIRST COMMAND OF THE RUN, not in a comment. See the header.
     L.cmd(1, {"system": "production", "op": "set_staffing_autarky", "on": True})
