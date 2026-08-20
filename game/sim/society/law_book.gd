@@ -361,9 +361,18 @@ func availability(id: StringName, day: int, tick: int) -> Dictionary:
 			"blocked_by": "",
 		}
 	if day < law.min_day:
+		# IT NAMED THE DAY THE PLAYER IS ALREADY LOOKING AT. Every other reason
+		# in this function names the thing standing in the way — "Foreclosed by
+		# Corpse Pits", "Requires Named Graves" — and this one said "Nobody
+		# would sign this on day 1" on day 1 and "on day 2" on day 2, which is
+		# the clock read back to them. `min_day` is the answer and it is right
+		# here (`artifacts/play_tour/shots/05_laws.png`).
+		var wait: int = law.min_day - day
 		return {
 			"ok": false,
-			"reason": "Nobody would sign this on day %d." % day,
+			"reason": "Nobody would sign this yet. Ask again on day %d — %s." % [
+				law.min_day,
+				"tomorrow" if wait <= 1 else "%d days from now" % wait],
 			"blocked_by": "",
 		}
 	for r: StringName in _sorted(law.requires):

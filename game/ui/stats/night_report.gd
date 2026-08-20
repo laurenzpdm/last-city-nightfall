@@ -253,12 +253,29 @@ static func _closest_call(report: Dictionary) -> String:
 	return best
 
 
+## ── "HELD, BARELY" WAS THE VERDICT ON A NIGHT NOBODY DEFENDED ────────────────
+##
+## `careless_night` is the badly-played half of an A/B pair, and its first night
+## went: six hounds walked in, nothing shot at them, they took a housing block
+## apart with somebody inside it, and all six walked back out. [P08] logged it
+## exactly — "6 spawned, 0 killed, 6 walked away | 0 shot(s) | 1 lost" — and the
+## after-action screen, the one surface whose entire job is telling a player how
+## the night went, graded it **HELD, BARELY**.
+##
+## Nothing was held. The word "held" means something was stopped, and the report
+## already has the two numbers that say whether anything was: it saw enemies and
+## it counted no kills. A night the city did not contest gets its own word.
 static func _verdict(report: Dictionary) -> String:
 	var soc: Dictionary = report["society"]
 	var com: Dictionary = report["combat"]
 	var heat: Dictionary = report["heat"]
+	var unopposed: bool = float(com["peak_enemies"]) > 0.0 and float(com["kills"]) <= 0.0
 	if float(soc["deaths"]) >= 5.0 or float(com["structures_lost"]) >= 3.0:
 		return "MAULED"
+	if unopposed and (float(com["structures_lost"]) > 0.0 or float(soc["deaths"]) > 0.0):
+		return "OVERRUN"
+	if unopposed:
+		return "WALKED THROUGH"
 	if float(soc["deaths"]) > 0.0 or float(com["structures_lost"]) > 0.0 \
 			or float(heat["peak_frozen"]) > 0.0:
 		return "HELD, BARELY"
@@ -275,8 +292,17 @@ static func _headline(report: Dictionary) -> String:
 		LcnStatsTheme.duration(float(report["seconds"]))])
 	if float(com["kills"]) > 0.0:
 		parts.append("%d killed" % int(com["kills"]))
+	elif float(com["peak_enemies"]) > 0.0:
+		# The headline read "Night 1, 2 min 43 s · 1 lost · 20 gear made" over a
+		# night in which six of them came in and none of them were stopped. A
+		# kill count of zero is the loudest number on this screen and it was the
+		# only one the summary line refused to print.
+		parts.append("%d of them, none stopped" % int(com["peak_enemies"]))
 	if float(soc["deaths"]) > 0.0:
 		parts.append("%d lost" % int(soc["deaths"]))
+	if float(com["structures_lost"]) > 0.0:
+		parts.append("%d building%s taken" % [int(com["structures_lost"]),
+			"" if int(com["structures_lost"]) == 1 else "s"])
 	var produced: Array = report["produced"]
 	if not produced.is_empty():
 		parts.append("%s %s made" % [

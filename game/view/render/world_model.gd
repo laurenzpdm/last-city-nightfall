@@ -24,6 +24,18 @@ extends RefCounted
 ##                                               {pos: Vector2, radius: float, intensity: float}
 ##   any     agents_for_view() -> Array[Dictionary]
 ##                                               {id: int, kind: StringName, pos: Vector2}
+##                                               optional: threat (enemy id),
+##                                               role (citizen/worker/porter/soldier)
+##
+## THE ROLE KEY, and why it is optional. [P13] now draws four different PEOPLE —
+## a hooded citizen, a worker with a bar, a porter bent under a crate and a
+## soldier — and they are four different SHAPES at play zoom, not four tints of
+## one shape (LcnSpriteFactory.PERSON_KINDS). [P05] currently publishes only
+## `kind`, worker-if-employed else citizen, so a real run puts two of the four on
+## the street. Any provider that adds a `role` to its rows lights the other two up
+## with no change here: a citizen carrying goods reads as a porter, one on the
+## wall reads as a soldier, and the difference is visible in a still frame at the
+## zoom a session is played at. Unknown roles fall back to `kind`.
 ##
 ## Anything the sim does not provide is synthesised here so the art direction is
 ## always fully visible — see LcnPreviewWorld. `using_preview()` reports it and
@@ -464,6 +476,8 @@ func ambient_temperature() -> float:
 	return lerpf(-48.0, -12.0, clampf(sin(d * TAU - PI * 0.5) * 0.5 + 0.5, 0.0, 1.0))
 
 
+## The GREAT FROST envelope alone, 0..1 — the scheduled campaign storm and
+## nothing else. What the ground is actually told is `ground_weather()`.
 func storm() -> float:
 	if _climate != null:
 		for m: String in ["storm_intensity", "storm", "blizzard"]:
@@ -472,6 +486,59 @@ func storm() -> float:
 		if _climate.has_method("weather_intensity"):
 			return clampf(float(_climate.call("weather_intensity")), 0.0, 1.0)
 	return 0.0
+
+
+## How much weather the GROUND shows, 0..1. Drives the spindrift in
+## terrain.gdshader, which is the only part of this game's weather that survives
+## being photographed.
+##
+## THE WEATHER WAS WIRED TO THE RAREST EVENT ON THE CALENDAR. The ground was
+## driven off `storm()`, which is [P09]'s Great Frost envelope: a scheduled
+## campaign storm, days apart. In `artifacts/F4b_probe` — first_night, seed 7,
+## 9000 ticks — `climate.storm_intensity` is 0.000 on every single row, while
+## `climate.weather` reads `snowfall` for roughly 7000 of them, visibility falls
+## to 0.83 and the wind blows at 0.22–0.31. So the plain was rendered dead calm
+## through an afternoon of snow, and "there is no visible weather in a still"
+## was not a missing effect but an effect connected to the one thing that never
+## happens in the hours a critic looks at.
+##
+## The ordinary weather layer is the same physical thing at a lower amplitude —
+## wind moving loose snow over the ground — so it drives the same term. The
+## frost is the TOP of that scale, not a separate switch, which is why this
+## returns the max: a Great Frost still looks like a Great Frost.
+const GROUND_WEATHER: Dictionary[StringName, float] = {
+	&"clear": 0.0,
+	&"overcast": 0.14,
+	&"snowfall": 0.52,
+	&"blizzard": 0.86,
+	&"great_frost": 1.0,
+}
+
+
+func ground_weather() -> float:
+	var frost: float = storm()
+	if _climate == null:
+		return frost
+	# The weather's KIND sets the ceiling: snow has to be falling (or lying
+	# loose) before the wind has anything to drive along the ground.
+	var base: float = -1.0
+	if _climate.has_method("weather"):
+		base = float(GROUND_WEATHER.get(StringName(str(_climate.call("weather"))), -1.0))
+	var inten: float = 0.6
+	if _climate.has_method("weather_intensity"):
+		inten = clampf(float(_climate.call("weather_intensity")), 0.0, 1.0)
+	if base < 0.0:
+		# A climate that reports an intensity but no kind we know: believe the
+		# intensity, at the amplitude of ordinary snowfall.
+		base = 0.52 * inten if _climate.has_method("weather_intensity") else 0.0
+	var gust: float = 0.35
+	if _climate.has_method("wind"):
+		gust = clampf(float(_climate.call("wind")), 0.0, 1.0)
+	# Spindrift is wind acting on snow: no wind, no tongues, however hard it is
+	# falling — and the flakes in the air are [P14]'s half of the same weather.
+	var drive: float = base * (0.55 + 0.45 * inten) \
+		* (0.45 + 0.55 * clampf(gust / 0.55, 0.0, 1.0))
+	return clampf(maxf(frost, drive), 0.0, 1.0)
 
 
 ## Temperature at a tile, taking every heat source into account. Drives the ice
@@ -594,9 +661,16 @@ func add_building(id: int, kind: StringName, cell: Vector2i) -> void:
 	]
 	# Heat output is the honest source of warmth. Buildings that make none still
 	# show a little window light if their archetype is a place people live.
-	var warm: float = float(sp["warm"]) * 0.35
+	# NOT throttled to a third any more. A previous pass cut every source to 0.35
+	# to stop radiators resolving as blown-out white discs; the actual fix for
+	# that was the falloff cookie and the amber-capped ramp in
+	# LcnPalette.heat_light_color, and the throttle it left behind is why a
+	# 1.0-warmth Hearth reached the ground shader as 0.35 and the deep-night
+	# frame contained no warm pixel at all. A fire is the brightest thing in this
+	# game and it is allowed to say so.
+	var warm: float = float(sp["warm"]) * 0.88
 	if heat_produced > 0.0:
-		warm = clampf(0.30 + heat_produced / 90.0, 0.0, 1.0)
+		warm = clampf(0.34 + heat_produced / 55.0, 0.0, 1.0)
 	var radius: float = float(sp["light_radius"])
 	if heat_radius_tiles > 0.0:
 		radius = maxf(radius, heat_radius_tiles * float(TILE) * 1.35)
@@ -606,6 +680,7 @@ func add_building(id: int, kind: StringName, cell: Vector2i) -> void:
 		"kind": kind,
 		"arch": arch,
 		"sprite": LcnSpriteFactory.sprite_key(arch, sp["tiles"]),
+		"sprite_em": LcnSpriteFactory.emissive_key(arch, sp["tiles"]),
 		"cell": cell,
 		"tiles": tiles,
 		"scale": scale,
@@ -774,6 +849,13 @@ func set_agent(id: int, kind: StringName, pos: Vector2) -> void:
 	a["cur"] = pos
 
 
+## The render kind of a live agent, or &"" once it is gone. The death effect
+## needs it at the moment the agent is removed.
+func agent_kind(id: int) -> StringName:
+	var a: Dictionary = _agents.get(id, {})
+	return a.get("kind", &"") as StringName
+
+
 func remove_agent(id: int) -> void:
 	_agents.erase(id)
 
@@ -802,8 +884,24 @@ func advance(tick: int) -> void:
 				var id: int = int(d2.get("id", -1))
 				if id < 0:
 					continue
+				# `kind` is the provider's coarse archetype; [P07] also hands
+				# over `threat`, which is the enemy's REAL id and the thing the
+				# player has been told about by name in the wave panel. Prefer
+				# it whenever [P13] has art for it, so the ten designed enemies
+				# arrive as ten creatures on the streaming path too and not only
+				# on the Bus.enemy_spawned one.
+				var rk: StringName = StringName(str(d2.get("kind", &"citizen")))
+				var real: StringName = StringName(str(d2.get("threat", "")))
+				if real != &"" and LcnSpriteFactory.ENEMY_KINDS.has(real):
+					rk = real
+				else:
+					# ...and a provider that knows what its people are DOING gets
+					# the figure that shows it. See the role contract at the top.
+					var role: StringName = StringName(str(d2.get("role", "")))
+					if role != &"" and LcnSpriteFactory.PERSON_KINDS.has(role):
+						rk = role
 				seen[id] = true
-				set_agent(id, StringName(str(d2.get("kind", &"citizen"))), d2.get("pos", Vector2.ZERO))
+				set_agent(id, rk, d2.get("pos", Vector2.ZERO))
 		for id2: int in _agents.keys():
 			if not seen.has(id2):
 				_agents.erase(id2)

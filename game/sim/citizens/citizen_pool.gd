@@ -114,6 +114,11 @@ class Ctx extends RefCounted:
 	var contagion: float = 0.0           ## 0..1 share of the city already ill
 	var fatigue_mult: float = 1.0        ## shift law
 	var morale_offset: float = 0.0       ## grief + [P06] hope, already summed
+	# --- the price of a city that does not close at sunset -----------------
+	var dark: bool = false               ## dusk, night or deep night right now
+	var night_fatigue: float = 1.0       ## extra wear on a body working the dark
+	var night_accident: float = 1.0      ## extra risk on a hazardous night bench
+	var night_morale: float = 0.0        ## standing cost of the graveyard rota
 	var rng: RandomNumberGenerator = null
 	# --- [P10] research modifiers, 1.0 in a build with no tech tree ---------
 	var exposure_resist: float = 1.0     ## >1 = the cold bites slower
@@ -404,7 +409,13 @@ func step_needs(phase: int, buckets: int, ctx: Ctx) -> void:
 			fa += (CitizenDefs.FATIGUE_SLEEP_PER_SEC if home[s] >= 0
 				else CitizenDefs.FATIGUE_ROUGH_PER_SEC) * dt
 		elif st == CitizenDefs.State.WORKING:
-			fa += CitizenDefs.FATIGUE_WORK_PER_SEC * ctx.fatigue_mult \
+			# Work done in the dark costs more than the same work done at noon.
+			# This is the per-body half of the night-shift bargain; the shift law
+			# decides how many bodies are standing in it.
+			var wear: float = ctx.fatigue_mult
+			if ctx.dark:
+				wear *= ctx.night_fatigue
+			fa += CitizenDefs.FATIGUE_WORK_PER_SEC * wear \
 				* CitizenDefs.TRAIT_WORK[t_id] * dt
 		elif st == CitizenDefs.State.SICK or st == CitizenDefs.State.INJURED:
 			fa += CitizenDefs.FATIGUE_ROUGH_PER_SEC * 0.5 * dt
@@ -485,6 +496,10 @@ func step_needs(phase: int, buckets: int, ctx: Ctx) -> void:
 			mt -= CitizenDefs.MORALE_INJURED_PENALTY
 		if job[s] < 0 and bracket == CitizenDefs.Age.ADULT:
 			mt -= CitizenDefs.MORALE_JOBLESS_PENALTY
+		# Sleeping through the daylight is its own misery, so this is charged at
+		# every hour and not only while the night crew is at the bench.
+		if shift[s] == CitizenDefs.Shift.NIGHT:
+			mt -= ctx.night_morale
 		mt += ctx.morale_offset
 		mt = clampf(mt, 0.0, 100.0)
 		var mo: float = morale[s]
@@ -496,6 +511,8 @@ func step_needs(phase: int, buckets: int, ctx: Ctx) -> void:
 		# --- accidents ---------------------------------------------------------
 		if hazard[s] == 1 and st == CitizenDefs.State.WORKING and rng != null:
 			var p: float = CitizenDefs.ACCIDENT_PER_SEC * dt
+			if ctx.dark:
+				p *= ctx.night_accident
 			p *= 1.0 + (fa * 0.01) * CitizenDefs.ACCIDENT_FATIGUE_MULT
 			p *= 1.0 + (1.0 - morale[s] * 0.01) * CitizenDefs.ACCIDENT_MORALE_MULT
 			if bracket != CitizenDefs.Age.ADULT:

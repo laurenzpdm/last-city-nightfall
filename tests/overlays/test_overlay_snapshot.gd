@@ -277,21 +277,55 @@ func test_warmth_sampling_is_budgeted_at_strategic_zoom() -> void:
 	assert_gt(float(snap.warm_step), 1.0, "which means the step grew")
 
 
+## SOMETHING HAS TO BE COOLING OR THIS TEST ASKS NOTHING.
+##
+## As written, this case fuelled the hearth and then looked for freeze ETAs.
+## With the hearth lit every building on the grid is WARMING, `freeze_eta`
+## returns -1 for all of them, and the loop below `continue`d out of every single
+## node. It ran green for a phase, was counted in "1125 passed", and there was no
+## edit anywhere in the build that could turn it red — `tools/check.sh` now fails
+## the whole tests stage on a test that asserted nothing, which is how it
+## surfaced. The fix is not to weaken the assertions: it is to put the world into
+## the state the test claims to be about. The hearth is switched OFF, the grid
+## loses its source, and the countdown the lens shows a player is measured while
+## the city is actually going cold.
 func test_freeze_eta_is_derived_from_the_measured_cooling_rate() -> void:
 	_one_grid(_core())
 	world.run(40)
 	snap.sample(world.tick(), SAMPLE_ALL)
+	_kill_every_source()
 	world.run(100)
 	snap.mark_dirty()
 	snap.sample(world.tick(), SAMPLE_ALL)
+	var with_a_countdown: int = 0
 	for i: int in snap.node_count:
 		var eta: float = snap.freeze_eta(i)
 		if eta < 0.0:
 			continue
+		if eta == 0.0:
+			# Already at or under its own line: there is nothing left to count
+			# down to, and the lens says "frozen" rather than a number.
+			assert_le(snap.node_temp[i], snap.node_freeze[i],
+				"a zero ETA means the building is already at its freeze line")
+			continue
+		with_a_countdown += 1
 		# A warming building must never report a countdown, and a cooling one
 		# must report a number consistent with its own margin and rate.
 		assert_gt(snap.node_cool[i], 0.0, "only a cooling building has an ETA")
 		assert_near(eta, (snap.node_temp[i] - snap.node_freeze[i]) / snap.node_cool[i], 0.01)
+	assert_gt(float(with_a_countdown), 0.0,
+		"at least one building must be counting down, or this case checked nothing")
+
+
+## Switches off every heat producer on the map. Nothing is left to warm the
+## grid, so the consumers on it start losing temperature.
+func _kill_every_source() -> void:
+	var heat: HeatSystem = _heat()
+	for id: int in heat.nodes.keys():
+		var n: HeatNode = heat.nodes[id]
+		if n.def.is_producer():
+			world.cmd({"system": &"heat", "op": "set_enabled", "id": id, "on": false})
+	world.run(1)
 
 
 func test_headline_says_the_worst_thing_first() -> void:

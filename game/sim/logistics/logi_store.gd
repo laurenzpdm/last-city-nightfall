@@ -125,6 +125,21 @@ func shortfall(kind: StringName) -> int:
 	return maxi(0, mini(want - count(kind), free_space()))
 
 
+## How many of `kind` the haul network is allowed to take OUT of this store.
+##
+## A store that asks the city to keep 600 coal in it is not a coal supplier at
+## 599: only what it holds ABOVE its own request is spare. Without this rule two
+## stores that both request the same item take it off each other forever — in the
+## reference run that was 17908 of 19578 hauled items, a coal yard and a crate
+## eighteen tiles apart trading the same coal back and forth for three days while
+## every real delivery in the city queued behind it.
+##
+## Arms are deliberately NOT subject to this: an inserter drains a requester
+## chest onto a belt, which is the whole point of putting one there.
+func spare(kind: StringName) -> int:
+	return maxi(0, count(kind) - int(requests.get(kind, 0)))
+
+
 func set_request(kind: StringName, amount: int) -> void:
 	if amount <= 0:
 		requests.erase(kind)

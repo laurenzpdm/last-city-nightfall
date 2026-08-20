@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="LcnTutorialLesson" format=3]
+
+[ext_resource type="Script" path="res://game/ui/tutorial/tutorial_lesson.gd" id="1_lesson"]
+
+[resource]
+resource_name = "Something comes at night"
+script = ExtResource("1_lesson")
+id = &"03_something_comes_at_night"
+order = 30
+kicker = "The dark"
+headline = "The wave clock was already running when you arrived."
+body = "They cross the ice in {wave_seconds}. Dark in {night_seconds}. A turret burns the grid's warmth to fire, so a gun that is not on a pipe is a post in the snow. Warm guns: {warm_turrets} of {turrets}."
+action = "Two guns on the grid before dusk. Press B, take Turret Mount, then run pipe to it the way you ran it to the tower."
+watch = Array[StringName]([&"wave_seconds", &"warm_turrets", &"turrets", &"night_seconds"])
+done_when = Array[String](["warm_turrets >= 2"])
+urgent_when = Array[String](["wave_seconds <= 45"])
+focus = &"turret"
+final_card = false

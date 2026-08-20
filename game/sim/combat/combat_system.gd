@@ -65,17 +65,25 @@ var battery: TurretBattery = null
 var shells: ProjectilePool = null
 var assault: AssaultField = null
 var director: AssaultDirector = null
+## What the night takes. See NightToll — nothing in this build cost the player
+## anything before it existed.
+var toll: NightToll = null
 
 var wave: int = 0
 var damage_taken: float = 0.0        ## structural damage the city has absorbed
 var structures_lost: int = 0
 var breaches: int = 0
+## Bodies that arrived on the field without any director composing them: a
+## boss's adds. Published so an artifact can say how many were on the map that
+## nobody's plan ever bought.
+var reinforcements: int = 0
 
 var _grid: SimSystem = null
 var _build: SimSystem = null
 var _heat: SimSystem = null
 var _climate: SimSystem = null
 var _society: SimSystem = null
+var _citizens: SimSystem = null
 ## [P10]. Null in a build without research; then every gun keeps its sheet value.
 var _research: SimSystem = null
 var _ammo_source: SimSystem = null
@@ -105,6 +113,20 @@ var _last_alert_tick: Dictionary[StringName, int] = {}
 var _defended: bool = false
 var _defended_tick: int = -100000
 var _index_tick: int = -100000
+## [P11]'s roster_version() at the last index rebuild. See _roster_version.
+var _index_count: int = -1
+## False until the turret battery has been filled from [P11]'s building list at
+## least once. THE OPENING SCREEN OF THE GAME DEPENDED ON THIS. The sync ran on
+## `tick % TURRET_SYNC_TICKS == 0`, `game/boot.gd` seeds the settlement and then
+## advances exactly ONE tick before the first frame is drawn, and 1 % 10 != 0 —
+## so the battery was still empty when the HUD read it. [P17]'s alert stack asks
+## `turret_count()` and printed "Nothing in this city can shoot back" over a city
+## that had a turret mount in it, while [P19]'s coverage legend, which counts the
+## same guns straight off the building list, printed the turret on the same
+## screen. Two panels contradicting each other before the player has touched
+## anything. Syncing on the first step costs one extra scan per world and makes
+## the two agree from frame one.
+var _turrets_synced: bool = false
 var _step_us: int = 0
 var _prof_total: int = 0
 var _prof_max: int = 0
@@ -141,14 +163,18 @@ func setup() -> void:
 	shells = ProjectilePool.new()
 	director = AssaultDirector.new()
 	assault = AssaultField.new()
+	toll = NightToll.new()
+	toll.reset()
 	wave = 0
 	damage_taken = 0.0
 	structures_lost = 0
 	breaches = 0
+	reinforcements = 0
 	_next_id = ENEMY_ID_BASE
 	_weakened.clear()
 	_target_index.clear()
 	_index_tick = -100000
+	_index_count = -1
 	_defended = false
 	_defended_tick = -100000
 	_tags_cache.clear()
@@ -176,6 +202,8 @@ func post_setup() -> void:
 	_heat = Sim.get_system(&"heat")
 	_climate = Sim.get_system(&"climate")
 	_society = Sim.get_system(&"society")
+	_citizens = Sim.get_system(&"citizens")
+	toll.bind(_citizens)
 	_has_heat = _heat != null and _heat.has_method("served_of") and _heat.has_method("has_building")
 	_has_night = _climate != null and _climate.has_method("is_night")
 
@@ -226,7 +254,8 @@ func post_setup() -> void:
 
 func step(tick: int) -> void:
 	var t0: int = Time.get_ticks_usec()   # lint:allow log + metrics-free profiling only
-	if tick % TURRET_SYNC_TICKS == 0:
+	if tick % TURRET_SYNC_TICKS == 0 or not _turrets_synced:
+		_turrets_synced = true
 		_sync_turrets()
 		_read_tech()
 	# Nothing on the field means nothing is seeking, and the index is rebuilt on
@@ -307,16 +336,19 @@ func spawn_group(spec: Dictionary) -> int:
 	var groups: Array = record["groups"]
 	groups.append({"enemy": String(kind), "count": made, "first_id": first,
 		"cell": [cell.x, cell.y], "compass": String(spec.get("compass", ""))})
+	_claim_ids(record, first, _next_id)
 	return first
 
 
 ## Single-body variant of the same handoff, for a director that has no groups.
 func spawn_enemy(kind: StringName, cell: Vector2i, wave_number: int = 0) -> int:
+	var first: int = _next_id
 	var made: int = spawn(kind, cell, 1)
 	if made > 0 and wave_number > 0:
 		wave = maxi(wave, wave_number)
 		var record: Dictionary = _wave_record(wave_number)
 		record["spawned"] = int(record["spawned"]) + made
+		_claim_ids(record, first, _next_id)
 	return made
 
 
@@ -353,19 +385,67 @@ func bodies_on_map() -> int:
 ## tomorrow. Returns how many turned around.
 func withdraw_wave(wave_number: int = -1) -> int:
 	var tick: int = SimClock.tick
-	var n: int = 0
-	if wave_number < 0:
-		n = swarm.withdraw_all(tick)
-	else:
-		var record: Dictionary = _waves.get(wave_number, {})
-		var lo: int = int(record.get("first_id", 0))
-		var hi: int = int(record.get("last_id", _next_id))
-		for i: int in range(swarm.count):
-			if swarm.e_id[i] >= lo and swarm.e_id[i] < hi and swarm.retreat(i, tick, &"dawn"):
-				n += 1
-	if n > 0:
-		Log.info(TAG, "dawn: %d body/bodies broke off and are walking back out" % n)
-	return n
+	var w: int = wave if wave_number < 0 else wave_number
+	var spans: Array = (_waves.get(w, {}) as Dictionary).get("spans", [])
+	var mine: int = 0
+	var others: int = 0
+	for i: int in range(swarm.count):
+		# EVERYTHING turns around when the argument is negative — that is what
+		# dawn means, and last night's leftovers are exactly the thing that must
+		# not survive into tomorrow. What is COUNTED is narrower, and that
+		# distinction is the whole of this function.
+		var belongs: bool = _id_in_spans(spans, swarm.e_id[i])
+		if wave_number >= 0 and not belongs:
+			continue
+		if not swarm.retreat(i, tick, &"dawn"):
+			continue
+		if belongs:
+			mine += 1
+		else:
+			others += 1
+	if mine + others > 0:
+		Log.info(TAG, "dawn: %d body/bodies broke off and are walking back out%s" % [
+			mine + others,
+			"" if others == 0 else " (%d of them belonged to no wave the director sent)" % others])
+	return mine
+
+
+## Is `id` one of the bodies a wave put on the field through [P08]'s own handoff?
+##
+## THE NUMBER THIS PROTECTS. [P08] closes a night with
+## `killed = spawned - withdrew`, where `spawned` is the count in its PLAN. The
+## old withdraw_wave(-1) answered with every body standing on the map, so a night
+## that also carried a boss's reinforcements, a scripted spawn or the previous
+## assault's leftovers reported more survivors than it ever sent and the
+## subtraction went to zero: `288 spawned, 0 killed, 319 walked away`, on a night
+## with 406 shots fired and three structures lost. A ledger that can report more
+## survivors than it sent cannot be used to grade anything.
+##
+## So only bodies from spawn_group()/spawn_enemy() are counted. Reinforcements a
+## boss makes on the field and anything a scenario spawns by hand are still
+## turned around, still shot at on the way out, and are named separately in the
+## dawn line — they are simply not survivors of a plan that never bought them.
+func _id_in_spans(spans: Array, id: int) -> bool:
+	for s: Variant in spans:
+		var pair: Array = s
+		if id >= int(pair[0]) and id < int(pair[1]):
+			return true
+	return false
+
+
+## Records the id range one handoff put on the field. Ranges are allocated
+## contiguously by _spawn_slot and appended in order, so the common case merges
+## into the last span and the list stays one entry per wave.
+func _claim_ids(record: Dictionary, first: int, last: int) -> void:
+	if last <= first:
+		return
+	if not record.has("spans"):
+		record["spans"] = []
+	var spans: Array = record["spans"]
+	if not spans.is_empty() and int((spans[-1] as Array)[1]) == first:
+		(spans[-1] as Array)[1] = last
+		return
+	spans.append([first, last])
 
 
 ## How one wave is going: how many were put on the field, how many are still on
@@ -378,10 +458,13 @@ func wave_status(wave_number: int) -> Dictionary:
 			"leaving": 0, "groups": []}
 	var live: int = 0
 	var leaving: int = 0
-	var lowest: int = int(record.get("first_id", 0))
-	var highest: int = int(record.get("last_id", _next_id))
+	# The wave's OWN id spans, not first_id..last_id: a reinforcement or a
+	# scripted spawn landing between two groups of the same night falls inside
+	# that span and would be counted as a body the director sent. See
+	# _id_in_spans.
+	var spans: Array = record.get("spans", [])
 	for i: int in range(swarm.count):
-		if swarm.e_id[i] < lowest or swarm.e_id[i] >= highest:
+		if not _id_in_spans(spans, swarm.e_id[i]):
 			continue
 		if swarm.e_state[i] == CombatTypes.EnemyState.RETREATING:
 			leaving += 1
@@ -441,6 +524,19 @@ func turret_readout() -> Array[Dictionary]:
 ## One-line state of the whole perimeter: how many guns exist, how many can
 ## actually put a round out this second, and what is stopping the rest. [P17] and
 ## [P19] can render this directly; the alert below is the same data, shouted.
+## What the city has lost since `since_tick`, one row per structure, each with
+## the names of anyone who was inside it. [P08] calls this at dawn and puts it in
+## the night's post-mortem; it is the only place a player learns that a night
+## cost them a person rather than a number.
+func night_toll(since_tick: int = 0) -> Array[Dictionary]:
+	return toll.since(since_tick)
+
+
+## The same thing as one sentence, or "" when the night cost nothing.
+func night_toll_line(since_tick: int = 0) -> String:
+	return toll.summary(toll.since(since_tick))
+
+
 func defence_report() -> Dictionary:
 	var armed: int = 0
 	var cold: int = 0
@@ -724,7 +820,8 @@ func _ammo_item_exists(item: StringName) -> bool:
 
 ## Building standing on a tile, biased toward whichever adjacent structure is
 ## already the weakest — an attacker walks into a wall and hits the cracked panel
-## next to it, not the one it happened to bump.
+## next to it, not the one it happened to bump. The hearth is the exception: see
+## _is_last_resort.
 func structure_at(cell: Vector2i) -> int:
 	if _build == null:
 		return 0
@@ -735,6 +832,7 @@ func structure_at(cell: Vector2i) -> int:
 		return 0
 	var best: Object = here
 	var best_score: float = _softness(here)
+	var best_last: bool = _is_last_resort(here)
 	for n: Vector2i in Grid.DIRS4:
 		var other: Object = _build.call("building_at", cell + n)
 		if other == null or int(other.get("id")) == int(here.get("id")):
@@ -742,10 +840,72 @@ func structure_at(cell: Vector2i) -> int:
 		if not bool(other.get("def").get("blocks_movement")):
 			continue
 		var s: float = _softness(other)
-		if s < best_score:
+		var last: bool = _is_last_resort(other)
+		# Anything at all beats the hearth; among equals, the softest wins.
+		if (best_last and not last) or (best_last == last and s < best_score):
 			best = other
 			best_score = s
+			best_last = last
 	return int(best.get("id"))
+
+
+## What an attacker walking into `cell` is allowed to CHEW ON. Everything
+## structure_at answers, except that the hearth answers 0 while the city is
+## still more than the hearth.
+##
+## THIS IS THE LINE THAT MADE EVERY NIGHT FREE. `enemy_attack` has always
+## refused to let a body demolish the fire and redirected it onto the nearest
+## real building instead — but the redirect never survived a tick, because the
+## next step's blocker probe asked "what is in front of me", was told "the
+## hearth", and set the target straight back. Attack, refuse, redirect, retarget,
+## forever, at zero damage a second. Measured on a 46-body assault with the wall
+## deliberately left out (tests/combat/night_takes_people_open.json): every body
+## that reached the fire ended the night pressed against it in state ATTACKING,
+## the hearth at 3000/3000, four housing blocks untouched at four tiles' range,
+## 252 points of structural damage in a hundred seconds and not one citizen hurt.
+## The rule meant to stop the fire being torn down was quietly disarming the
+## whole assault the moment it got inside.
+##
+## Answering 0 makes the body slide past the fire instead of gluing itself to it,
+## and its seek then finds the radiators, the mains and the houses around it —
+## which is what "they tear the city apart to get at the warmth" was supposed to
+## mean in the first place. When the hearth really is the last thing standing it
+## is chewable again, and the fire goes out.
+func blocker_at(cell: Vector2i) -> int:
+	var id: int = structure_at(cell)
+	if id == 0 or _build == null:
+		return id
+	var b: Object = _build.call("get_building", id)
+	if _is_last_resort(b) and _city_is_more_than_the_hearth():
+		return 0
+	return id
+
+
+## THE HEARTH FALLS LAST.
+##
+## A landmark is a target of last resort: nothing chooses it while anything else
+## of the player's is in reach. Losing it is `Bus.game_over`, and a run that ends
+## because eight hounds walked past a wall and stood on the fire is not pressure,
+## it is a coin flip — the reference run did exactly that on night three, at
+## t028680, and every night after it was a dead city being walked through.
+##
+## The fiction is the rule: they tear the city apart to get at the warmth. The
+## radiators, the mains, the housing and the guns all go first, in the order the
+## player left them exposed, and each one is a thing they can point at in the
+## morning. When the hearth is genuinely the only thing left, it burns.
+func _is_last_resort(b: Object) -> bool:
+	if b == null:
+		return false
+	var def: Object = b.get("def")
+	return def != null and bool(def.call("has_tag", &"landmark"))
+
+
+## Is there anything left to lose besides the fire? One cheap count off [P11];
+## the answer only matters at the moment something is standing on the hearth.
+func _city_is_more_than_the_hearth() -> bool:
+	if _build == null or not _build.has_method("building_count"):
+		return true
+	return int(_build.call("building_count")) > 1
 
 
 ## One enemy attack on one structure. Returns the damage that landed, or -1 when
@@ -756,9 +916,43 @@ func enemy_attack(slot: int, building_id: int, at: Vector2) -> float:
 	var b: Object = _build.call("get_building", building_id)
 	if b == null:
 		return -1.0
+	var def: Object = b.get("def")
+	# THE HEARTH IS NOT A WALL TO CHEW ON. A body that has got as far as the fire
+	# while the rest of the city still stands is INSIDE — it is past the line, it
+	# has taken what it came for, and it is gone by morning. It does not stand
+	# there demolishing the win condition at four damage a second, which is what
+	# ended the reference run on night three (`The Hearth #1 destroyed by
+	# frost_shade`, t027725) and turned the following thirty thousand ticks into
+	# a dead city being walked through.
+	#
+	# When the hearth really is the last thing left, this does not fire and the
+	# fire goes out, because at that point there is nothing else to lose.
+	if _is_last_resort(b) and _city_is_more_than_the_hearth():
+		# They tear the city apart to get at the warmth: whatever is standing
+		# nearest the fire becomes the target instead. _nearest_structure skips
+		# landmarks, so this can never point back at what it just refused.
+		var instead: Dictionary = _nearest_structure(at, SEEK_RING_MAX, false)
+		if not instead.is_empty():
+			swarm.e_target[slot] = int(instead["id"])
+			var p2: Vector2 = instead["pos"]
+			swarm.e_tx[slot] = p2.x
+			swarm.e_ty[slot] = p2.y
+			_alert(&"inside", 1, "They are in the hearth district.", at)
+			# ZERO, not -1. A negative return means "whatever you were chewing is
+			# gone, pick something else", and the swarm answers it by clearing
+			# e_target — which would throw away the target this line just set and
+			# leave the body orbiting the fire doing nothing until dawn. That is
+			# not a hypothetical: it is what the first cut of this rule did, and
+			# it read as `0 structural damage` on a 48-unit set piece.
+			return 0.0
+		# Nothing else within two dozen tiles of the fire. It is inside, it has
+		# taken what it came for, and it is gone by morning — counted as a leak
+		# rather than as the wall working. Absorbing it here rather than at the
+		# hearth's hit points is what stops a single body ending the run.
+		swarm.absorb(slot, SimClock.tick)
+		return -1.0
 	var d: int = swarm.e_def[slot]
 	var raw: float = swarm.d_damage[d]
-	var def: Object = b.get("def")
 	var pref: StringName = swarm.d_pref[d]
 	if pref != CombatTypes.PREF_ANY and bool(def.call("has_tag", pref)):
 		raw *= swarm.d_pref_mult[d]
@@ -791,6 +985,41 @@ func note_hit(_turret_id: int, _pos: Vector2, _amount: float) -> void:
 	pass
 
 
+## What a body that has walked into the hearth district turns on when it has run
+## out of things it is allowed to attack. Empty only when the city really is
+## nothing but its fire, in which case the swarm absorbs the body instead.
+##
+## HOUSING FIRST, and that is a design statement, not a heuristic. They come for
+## the warmth; inside the wall the warmest thing with a door in it is a house
+## with people asleep behind it. It is also the only rule in this part that makes
+## a BREACH cost what a breach should cost: before it, a body that reached the
+## fire with no legal target evaporated within a tile, or simply stood where the
+## hearth's footprint parked it until dawn — so the hole it came through was
+## free. A hole in the line now costs names, and the wall is the thing that
+## decides whether it does. See tests/combat/night_takes_people_{walled,open}.json.
+##
+## DO NOT REPEAT THE PREMISE THAT `combat.citizens_killed` READS 0. That was true
+## of [E1]'s build and is stale against this one — [P05]'s people landing switched
+## the toll on, and progress/parts/F2.json records twelve named dead at 60000
+## ticks on the PRE-CHANGE code at 535f1a8. It is also length-dependent: the
+## integrator measured `toll_dead` 0 at gate length (first_night, 24000) on this
+## build, so a run that stops at 24000 sees a toll of zero either way. Quote a
+## tick count with the number or do not quote the number.
+##
+## Never the fire itself: _nearest_structure skips landmarks, so this can never
+## hand back the target enemy_attack would refuse.
+func inside_target(at: Vector2) -> Dictionary:
+	var home: Dictionary = find_enemy_target(at, CombatTypes.PREF_HOUSING,
+		float(SEEK_RING_MAX) * TILE)
+	if not home.is_empty():
+		_alert(&"inside", 1, "They are in the hearth district.", at)
+		return home
+	var any: Dictionary = _nearest_structure(at, SEEK_RING_MAX, false)
+	if not any.is_empty():
+		_alert(&"inside", 1, "They are in the hearth district.", at)
+	return any
+
+
 ## Nearest structure worth diverting to. Tagged preferences use the maintained
 ## index; "any" walks rings outward off [P11]'s occupancy, which finds the
 ## nearest hit on the first ring that contains one.
@@ -802,7 +1031,14 @@ func find_enemy_target(from: Vector2, pref: StringName, radius_px: float) -> Dic
 		# a conduit must find NOTHING and keep walking, because "nearest structure"
 		# would quietly turn every specialist in the roster into a generic biter —
 		# which is exactly how a burrower ends up chewing on the first wall it meets.
-		if not _target_index.has(pref):
+		# Stale is as bad as missing. The timer in step() only turns over while
+		# there are bodies on the field, so a seek that asks a moment after the
+		# city changed shape gets a list with a demolished building still in it,
+		# or without the block that was finished this morning. The index is a
+		# cache of [P11]'s building list and it is invalidated by that list
+		# changing size, not only by the clock.
+		if not _target_index.has(pref) or _roster_version() != _index_count \
+				or SimClock.tick - _index_tick >= TARGET_INDEX_TICKS:
 			_rebuild_target_index()
 		if not _target_index.has(pref):
 			return {}
@@ -823,7 +1059,12 @@ func find_enemy_target(from: Vector2, pref: StringName, radius_px: float) -> Dic
 		if best >= 0:
 			return {"id": ids[best], "pos": Vector2(xs[best], ys[best])}
 		return {}
-	return _nearest_structure(from, mini(int(radius_px / TILE), SEEK_RING_MAX))
+	# A seeking body is not allowed to CHOOSE the fire either, for the same
+	# reason blocker_at will not hand it over: it would be refused on contact and
+	# the body would spend the night bouncing between the refusal and the
+	# redirect. When the hearth is the last thing left, it is fair game again.
+	return _nearest_structure(from, mini(int(radius_px / TILE), SEEK_RING_MAX),
+		not _city_is_more_than_the_hearth())
 
 
 # =========================================================================
@@ -982,7 +1223,8 @@ func _note_external_spawn() -> void:
 func _wave_record(wave_number: int) -> Dictionary:
 	var record: Dictionary = _waves.get(wave_number, {})
 	if record.is_empty():
-		record = {"spawned": 0, "first_id": _next_id, "last_id": _next_id, "groups": []}
+		record = {"spawned": 0, "first_id": _next_id, "last_id": _next_id,
+			"groups": [], "spans": []}
 		_waves[wave_number] = record
 	record["last_id"] = _next_id
 	return record
@@ -1008,7 +1250,12 @@ func _run_director(tick: int) -> void:
 func _drain_spawn_requests(tick: int) -> void:
 	var reqs: Array[Dictionary] = swarm.take_spawn_requests()
 	for r: Dictionary in reqs:
-		_spawn_slot(int(r["def"]), r["pos"], int(r["count"]), tick)
+		# Deliberately NOT booked to the running wave. A boss's adds are real
+		# bodies and they are counted here so the artifact says how many of them
+		# there were, but they are not part of any plan [P08] composed, and
+		# folding them into the wave's ledger is what let a night report more
+		# survivors than it sent. See _id_in_spans.
+		reinforcements += _spawn_slot(int(r["def"]), r["pos"], int(r["count"]), tick)
 
 
 ## Ticks between the aggregated watchdog line once the first few have been said
@@ -1030,7 +1277,7 @@ func _publish_watchdog() -> void:
 		var reason: String = String(r.get("reason", "stall"))
 		if _watchdog_seen <= WATCHDOG_LOUD:
 			var cell: Array = r.get("cell", [0, 0])
-			Log.warn(TAG, "watchdog: %s #%d (%s) at %d,%d made no progress for %d tick(s) — %s" % [
+			Log.warn(TAG, "watchdog: %s #%d (%s) at (%d, %d) made no progress for %d tick(s) — %s" % [
 				reason, int(r.get("id", 0)), String(r.get("kind", "?")),
 				int(cell[0]), int(cell[1]), int(r.get("age", 0)),
 				"pulled off its target (strike %d)" % int(r.get("strike", 0))
@@ -1197,9 +1444,21 @@ func _rebuild_target_index() -> void:
 		return
 	var tags: Array[StringName] = _indexed_tags()
 	_target_index.clear()
+	# ACCUMULATE INTO PLAIN ARRAYS, PACK AT THE END.
+	#
+	# THE BUG THIS REPLACES MADE EVERY SPECIALIST IN THE ROSTER A GENERIC BITER.
+	# A Packed*Array is a VALUE type: `(bucket["id"] as PackedInt32Array).append(x)`
+	# appends to a temporary copy and throws it away, so this index has been empty
+	# on every tick of every run since it was written. Every tagged preference
+	# resolves through it, and find_enemy_target is deliberately forbidden from
+	# falling through to the untagged search — so the pale stalker never looked
+	# for a turret, the cinder leech never looked for a heat main, the breaker
+	# never looked for a wall and the borer never looked for a generator. All four
+	# walked the flow field and chewed whatever happened to block the next step,
+	# which is exactly the behaviour that comment says must never happen. An
+	# ordinary Array is a REFERENCE type and appends where you think it does.
 	for tag: StringName in tags:
-		_target_index[tag] = {"id": PackedInt32Array(), "x": PackedFloat32Array(),
-			"y": PackedFloat32Array()}
+		_target_index[tag] = {"id": [], "x": [], "y": []}
 	for entry: Variant in (_build.call("all_buildings") as Array):
 		var b: Object = entry
 		if b == null or not bool(b.call("is_complete")):
@@ -1223,10 +1482,31 @@ func _rebuild_target_index() -> void:
 				c = b.call("world_center")
 				have_centre = true
 			var bucket: Dictionary = _target_index[tag2]
-			(bucket["id"] as PackedInt32Array).append(int(b.get("id")))
-			(bucket["x"] as PackedFloat32Array).append(c.x)
-			(bucket["y"] as PackedFloat32Array).append(c.y)
+			(bucket["id"] as Array).append(int(b.get("id")))
+			(bucket["x"] as Array).append(c.x)
+			(bucket["y"] as Array).append(c.y)
+	# Packed only now that nothing more is going in. See the note on the
+	# accumulator above: appending to a Packed array read out of a Dictionary
+	# appends to a COPY and is silently a no-op.
+	for tag3: StringName in tags:
+		var bucket2: Dictionary = _target_index[tag3]
+		bucket2["id"] = PackedInt32Array(bucket2["id"] as Array)
+		bucket2["x"] = PackedFloat32Array(bucket2["x"] as Array)
+		bucket2["y"] = PackedFloat32Array(bucket2["y"] as Array)
 	_index_tick = SimClock.tick
+	_index_count = _roster_version()
+
+
+## [P11]'s own monotonic "did anything move?" counter, or -1 when it cannot say.
+## The seek index is a snapshot of the building list and this is its cache key.
+##
+## Deliberately NOT building_count(): one placed and one removed between two
+## seeks leaves the count identical and the index holding a building that is not
+## there. roster_version() exists for exactly this and costs one integer.
+func _roster_version() -> int:
+	if _build == null or not _build.has_method("roster_version"):
+		return -1
+	return int(_build.call("roster_version"))
 
 
 ## The tags worth maintaining a list for: the standard set plus every preference
@@ -1255,12 +1535,13 @@ func _report_defence() -> void:
 	var dry: int = int(r["dry"])
 	if cold + off > 0:
 		var pos: Array = r["first_cold"]
-		_alert(&"turrets_cold", 1, "%d of %d turret(s) have no heat and cannot fire."
-			% [cold + off, int(r["turrets"])],
+		var n_cold: int = cold + off
+		_alert(&"turrets_cold", 1, "%d of %d guns %s no heat and cannot fire."
+			% [n_cold, int(r["turrets"]), "has" if n_cold == 1 else "have"],
 			Vector2(float(pos[0]), float(pos[1])))
 	elif dry > 0:
-		_alert(&"turrets_dry", 1, "%d of %d turret(s) are out of ammunition."
-			% [dry, int(r["turrets"])], Vector2.ZERO)
+		_alert(&"turrets_dry", 1, "%d of %d guns %s out of ammunition."
+			% [dry, int(r["turrets"]), "is" if dry == 1 else "are"], Vector2.ZERO)
 
 
 func _flush_discontent() -> void:
@@ -1288,6 +1569,10 @@ func _splash_structures(origin_id: int, at: Vector2, radius_px: float,
 		var b: Object = entry
 		if b == null or int(b.get("id")) == origin_id:
 			continue
+		# Splash does not get to do what a direct attack is forbidden to do. A
+		# sapper detonating against a pipe must not take the fire out with it.
+		if _is_last_resort(b) and _city_is_more_than_the_hearth():
+			continue
 		var c: Vector2 = b.call("world_center")
 		if c.distance_squared_to(at) > radius_px * radius_px:
 			continue
@@ -1308,6 +1593,10 @@ func _splash_structures(origin_id: int, at: Vector2, radius_px: float,
 
 func _on_structure_lost(building_id: int, def: Object, cells: Array) -> void:
 	structures_lost += 1
+	# The seek index now names a building that is not there. Drop the stamp so
+	# the next seeker rebuilds instead of walking to an empty lot.
+	_index_tick = -100000
+	_index_count = -1
 	_weakened.erase(building_id)
 	assault.forget(building_id)
 	battery.remove(building_id)
@@ -1316,7 +1605,18 @@ func _on_structure_lost(building_id: int, def: Object, cells: Array) -> void:
 	for c: Vector2i in cells:
 		typed.append(c)
 	assault.note_cells(_grid, typed)
+	# The bill, before anything else touches the footprint: whoever was standing
+	# in it is still standing in it for exactly this long.
+	var row: Dictionary = toll.structure_lost(SimClock.tick,
+		StringName(String(def.get("id"))) if def != null else &"",
+		String(def.get("display_name")) if def != null else "",
+		_tags_of(def), typed)
 	var pos: Vector2 = Grid.cell_to_world(typed[0]) if not typed.is_empty() else Vector2.ZERO
+	var dead: Array = row.get("dead", [])
+	if not dead.is_empty():
+		Log.warn(TAG, "%s came down on %d: %s" % [
+			String(row.get("label", "a structure")), dead.size(), ", ".join(PackedStringArray(
+				Array(dead).map(func(v: Variant) -> String: return String(v))))])
 	if def != null and bool(def.call("has_tag", &"wall")):
 		breaches += 1
 		_alert(&"breach", 1, "The wall is open.", pos)
@@ -1326,6 +1626,20 @@ func _on_structure_lost(building_id: int, def: Object, cells: Array) -> void:
 		_alert(&"hearth_lost", 1, "The hearth has gone out.", pos)
 	elif def != null and bool(def.call("has_tag", &"conduit")):
 		_alert(&"main_severed", 1, "A heat main has been severed.", pos)
+
+
+## A building's tags as plain strings, for the toll ledger. [P08] and [P22] read
+## it and neither of them may hold a reference to [P11]'s resource.
+func _tags_of(def: Object) -> PackedStringArray:
+	var out := PackedStringArray()
+	if def == null:
+		return out
+	var raw: Variant = def.get("tags")
+	if typeof(raw) != TYPE_ARRAY:
+		return out
+	for t: Variant in (raw as Array):
+		out.append(String(t))
+	return out
 
 
 func _maybe_weaken(building_id: int, b: Object, def: Object, cells: Array) -> void:
@@ -1353,10 +1667,13 @@ func _softness(b: Object) -> float:
 # world queries
 # =========================================================================
 
-func _nearest_structure(from: Vector2, max_r: int) -> Dictionary:
+func _nearest_structure(from: Vector2, max_r: int, allow_last_resort: bool = true) -> Dictionary:
 	if _build == null or max_r <= 0:
 		return {}
 	var centre := Vector2i(int(from.x / TILE), int(from.y / TILE))
+	# The hearth is remembered and only handed back once the whole search has
+	# found nothing else — see _is_last_resort.
+	var fallback: Dictionary = {}
 	for r: int in range(1, max_r + 1):
 		var found: int = 0
 		var best: Vector2i = Vector2i.ZERO
@@ -1366,12 +1683,21 @@ func _nearest_structure(from: Vector2, max_r: int) -> Dictionary:
 			var b: Object = _build.call("building_at", c)
 			if b == null or not bool(b.call("is_complete")):
 				continue
+			if _is_last_resort(b):
+				if fallback.is_empty():
+					fallback = {"id": int(b.get("id")), "pos": Grid.cell_to_world(c)}
+				continue
 			found = int(b.get("id"))
 			best = c
 			break
 		if found != 0:
 			return {"id": found, "pos": Grid.cell_to_world(best)}
-	return {}
+	# A caller that is redirecting something OFF the hearth must not be handed
+	# the hearth back as the nearest thing to it. Not a hypothetical: the first
+	# cut of this returned the fallback unconditionally, the attacker was
+	# "redirected" onto what it was already standing on, and a 48-unit set piece
+	# did 0 structural damage all night.
+	return fallback if allow_last_resort else {}
 
 
 ## Nearest cell an attacker can actually stand on. Spawning inside a ridge would
@@ -1530,6 +1856,10 @@ func serialize() -> Dictionary:
 		"enemy_damage": snappedf(swarm.damage_dealt, 0.01),
 		"structures_lost": structures_lost,
 		"breaches": breaches,
+		"toll_dead": toll.dead_total,
+		"toll_hurt": toll.hurt_total,
+		"toll_ledger": toll.ledger,
+		"reinforcements": reinforcements,
 		"shots_fired": battery.shots_fired,
 		"heat_spent": snappedf(battery.heat_spent, 0.01),
 		"heat_stolen": snappedf(battery.heat_stolen, 0.01),
@@ -1559,6 +1889,13 @@ func deserialize(data: Dictionary) -> void:
 	swarm.damage_dealt = float(data.get("enemy_damage", 0.0))
 	structures_lost = int(data.get("structures_lost", 0))
 	breaches = int(data.get("breaches", 0))
+	toll.dead_total = int(data.get("toll_dead", 0))
+	toll.hurt_total = int(data.get("toll_hurt", 0))
+	reinforcements = int(data.get("reinforcements", 0))
+	toll.ledger.clear()
+	for row: Variant in (data.get("toll_ledger", []) as Array):
+		if typeof(row) == TYPE_DICTIONARY:
+			toll.ledger.append(row)
 	battery.shots_fired = int(data.get("shots_fired", 0))
 	battery.heat_spent = float(data.get("heat_spent", 0.0))
 	battery.heat_stolen = float(data.get("heat_stolen", 0.0))
@@ -1600,6 +1937,9 @@ func metrics() -> Dictionary:
 		"projectiles": shells.count,
 		"structures_lost": structures_lost,
 		"breaches": breaches,
+		"citizens_killed": toll.dead_total,
+		"citizens_hurt": toll.hurt_total,
+		"reinforcements": reinforcements,
 		"wave": wave,
 	}
 

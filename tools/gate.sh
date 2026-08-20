@@ -59,6 +59,40 @@ fi
 
 mkdir -p artifacts && : > artifacts/.gdignore
 
+# ── A DISPLAY, OR THE NEAREST HONEST THING TO ONE ──────────────────────────
+#
+# Two sections below are WINDOWED on purpose: the reachability probe boots the
+# real game because a headless boot skips the whole view layer, and the visual
+# run is the only pass in this repo that executes game/ui/** and game/view/**.
+# `LCN_NO_DISPLAY=1` is the documented way to say "this box has none", and it
+# SKIPS them and calls the build unverified rather than pretending.
+#
+# What was neither documented nor skipped is the third case, which is what this
+# gate's own CI container actually is: no X11, no Wayland, and Xvfb sitting on
+# the PATH. Godot then fails to create a DisplayServer and exits before
+# `_ready`, so the reachability section reported "the probe wrote no dump — a
+# boot that produces no evidence is a boot that failed" and the visual section
+# reported "0 screenshots", and both of those read as DEFECTS IN THE BUILD.
+# Measured on 2026-08-17, same tree, same commit: under `xvfb-run` the probe
+# exits 0 with 15 pass / 0 FAIL / 0 unchecked and 0 blocking engine errors, and
+# the visual run exits 0 with 10 shots and 0 blocking errors. Four of twelve
+# red stages in that check run were this and nothing else.
+#
+# A gate that is red for reasons unrelated to the code gets ignored exactly like
+# one that is never red. So: if there is a real display, use it; if there is
+# none and Xvfb is here, run those two sections inside one; if neither, the
+# LCN_NO_DISPLAY path already says the honest thing.
+DISPLAY_WRAP=()
+if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ] \
+   && command -v xvfb-run >/dev/null 2>&1; then
+  DISPLAY_WRAP=(xvfb-run -a -s "-screen 0 1920x1080x24")
+  echo "gate: no DISPLAY and no WAYLAND_DISPLAY — the windowed sections run under xvfb-run"
+fi
+# `${a[@]+"${a[@]}"}`, not `"${a[@]}"`: this script runs under `set -u`, where
+# expanding an EMPTY array is an unbound-variable error on bash 3.2, which is
+# what the project's macOS job uses.
+xvfb() { "${DISPLAY_WRAP[@]+${DISPLAY_WRAP[@]}}" "$@"; }
+
 # TEN AGENTS SHARE THIS REPO AND ALL OF THEM RUN tools/check.sh. Two gate runs
 # in the same artifacts/gate/ delete each other's scenario directories between a
 # harness run and the assertion over it — which is exactly what happened the
@@ -123,7 +157,7 @@ if [ "${LCN_NO_DISPLAY:-0}" = "1" ]; then
   echo " reachable. The build is UNVERIFIED here, not green."
   sect_skip "reachability" "LCN_NO_DISPLAY=1 — the UI was never looked at"
 else
-  "$GODOT" --path "$ROOT" --resolution 1280x720 tools/reachability_scene.tscn -- \
+  xvfb "$GODOT" --path "$ROOT" --resolution 1280x720 tools/reachability_scene.tscn -- \
       --out="$REACH_OUT" --frames=50 > "$LOGDIR/reach.log" 2>&1
   rcode=$?
   if [ "$rcode" -ne 0 ]; then
@@ -190,10 +224,32 @@ if [ "$RUN_VISUAL" -eq 0 ]; then
   echo " visual run — 68 String formatting errors and one refused add_child() in a"
   echo " single 30 second pass. A headless-only check has not looked at the UI."
   sect_skip "visual run" "the UI layer was never executed in this check"
+  # AND THE OLD FRAMES GO WITH IT. Three suites grade whatever is in this
+  # folder, and tools/check.sh treats its presence as "the gate photographed
+  # the build in the tree". Leaving last week's run here under --no-visual is
+  # how a stage reports a verdict about a build nobody is looking at.
+  rm -rf "$OUT_ROOT/visual"
 else
   vis="$OUT_ROOT/visual"
   rm -rf "$vis"
-  LCN_NO_ERROR_GATE=1 tools/run_visual.sh --scenario=smoke --out="$vis" \
+  # `env` rather than a `VAR=1 xvfb ...` prefix: a variable assignment in front
+  # of a FUNCTION call is not exported to the processes that function starts, so
+  # the prefix form would have silently stopped disabling the inner error gate
+  # the moment this call was wrapped.
+  # first_night, NOT smoke. Three suites in this build grade the frames this
+  # pass writes — tests/render/run_foe_frame.gd, tests/render/run_ground_frame.gd
+  # and tests/d7/run_fight_frames.gd — and all three were written against
+  # `first_night`, whose beats are named opening/build/midday/dusk/assault/
+  # deep_night/dawn/second_*/third_day_city. `smoke` is 600 ticks of one day and
+  # names its beats morning_industry/dusk_city/night_perimeter/deep_night_zoomout.
+  # So run_ground_frame, which reads midday+dusk+deep_night+third_day_city, could
+  # never grade the gate's own run at all, and went looking for one that would —
+  # landing on whichever builder's scratch folder in artifacts/ was newest.
+  # smoke also has no night beat with ZERO hostiles, which is run_foe_frame's
+  # control, so that suite reported PARTIAL here on every green build.
+  # Measured on this box, alone: a full first_night visual run is 140 s, against
+  # a gate that already runs first_night headless twice for its contracts.
+  xvfb env LCN_NO_ERROR_GATE=1 tools/run_visual.sh --scenario=first_night --out="$vis" \
       > "$LOGDIR/visual.log" 2>&1
   vcode=$?
   shots=$(ls "$vis/shots" 2>/dev/null | wc -l | tr -d ' ')

@@ -13,9 +13,27 @@ extends LcnHudWidget
 const WIDTH: float = 400.0
 const LINE: float = 24.0
 
+## Design pixels this panel may occupy. Written by `LcnHud._place_panels`: the
+## selection panel now sits at the END OF THE RIGHT RAIL, under the people and
+## the wave, so its room is whatever those two left it. A citizen with eleven
+## rows used to be a panel that ran off the bottom of the screen; it is now a
+## panel that shows what fits and says how many rows it did not.
+## The floor is 0, not 90. A widget-side minimum that outranks the solver's
+## reservation is how the lens rail kept being drawn back through this panel at
+## ui 1.6: two guarantees, one set of pixels. When the column genuinely has no
+## room, this panel is not shown at all — see `should_show`.
+var max_height: float = 100000.0:
+	set(value):
+		var v: float = maxf(0.0, value)
+		if is_equal_approx(v, max_height):
+			return
+		max_height = v
+		invalidate()
+
 var _info: Dictionary = {}
 var _kind: StringName = &""
 var _height: float = 0.0
+var _clipped: int = 0
 var _lines: Array[Dictionary] = []
 var _problems: Array[String] = []
 var _status: String = ""
@@ -38,8 +56,15 @@ func clear_entity() -> void:
 	invalidate()
 
 
+## A sliver of a panel is worse than no panel: it shows a title with nothing
+## under it and steals the pixels from the thing that could have used them. Below
+## a title, a status line and two rows, this panel stands down and the column
+## closes up behind it.
+const MIN_USEFUL_HEIGHT: float = 118.0
+
+
 func should_show() -> bool:
-	return not _info.is_empty()
+	return not _info.is_empty() and max_height >= MIN_USEFUL_HEIGHT
 
 
 func signature() -> String:
@@ -65,12 +90,32 @@ func layout() -> void:
 	_y_status = _y_title + 10.0 + float(style.fs(10))
 	_y_first = _y_status + 12.0 + float(style.fs(13))
 
+	# The tail — problems, the build bar, the damage bar — is measured FIRST,
+	# because those are the lines a player needs and the stat rows are the ones
+	# that can wait. Whatever room is left after the tail is what the rows get.
+	var tail: float = 12.0
+	if not _problems.is_empty():
+		tail += 6.0
+		for p0: String in _problems:
+			tail += _wrap_height(p0, WIDTH - 40.0, style.fs(12)) + 10.0
+	if float(_info.get("progress", 1.0)) < 1.0:
+		tail += 18.0
+	if float(_info.get("hp", 1.0)) < maxf(1.0, float(_info.get("max_hp", 1.0))) - 0.5:
+		tail += 18.0
+	var row_room: float = max_height - _y_first - tail - float(style.fs(11)) - 6.0
+	var fits: int = maxi(1, int(floorf(row_room / LINE)))
+	_clipped = maxi(0, _lines.size() - fits)
+	if _clipped > 0:
+		_lines = (_lines as Array).slice(0, fits)
+
 	var y: float = _y_first
 	for i: int in _lines.size():
 		var l: Dictionary = _lines[i]
 		add_hot(Rect2(12.0, y - 16.0, WIDTH - 24.0, LINE - 2.0),
 			String(l.get("label", "")), String(l.get("tip", "")))
 		y += LINE
+	if _clipped > 0:
+		y += float(style.fs(11)) + 6.0
 	if not _problems.is_empty():
 		y += 6.0
 		var focus: Vector2 = _info.get("problem_focus", Vector2.ZERO)
@@ -87,7 +132,14 @@ func layout() -> void:
 	var max_hp: float = maxf(1.0, float(_info.get("max_hp", 1.0)))
 	if hp < max_hp - 0.5:
 		y += 18.0
-	_height = y + 12.0
+	# HARD clamp, and `clip_contents` so the pixels agree with the rectangle. The
+	# row-shedding above is the graceful path and handles almost every case; this
+	# is the guarantee. Without it the panel REPORTED the height it was allowed
+	# and DREW the height it wanted, and the lens rail underneath was placed
+	# against the number rather than against the pixels — 26,000 px² of overlap
+	# that the layout solver believed did not exist.
+	_height = minf(y + 12.0, max_height)
+	clip_contents = true
 	custom_minimum_size = Vector2(WIDTH, _height)
 	size = custom_minimum_size
 
@@ -144,6 +196,10 @@ func _draw() -> void:
 		style.draw_text(self, Vector2(15.0 + maxf(100.0, label_w + 12.0), y),
 			String(l.get("value", "")), style.fs(13), col)
 		y += LINE
+	if _clipped > 0:
+		style.draw_text(self, Vector2(15.0, y + float(style.fs(11))),
+			"and %d more — hover for the rest" % _clipped, style.fs(11), style.ink_faint())
+		y += float(style.fs(11)) + 6.0
 
 	if not _problems.is_empty():
 		y += 6.0

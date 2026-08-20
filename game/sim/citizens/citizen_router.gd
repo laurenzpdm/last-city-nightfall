@@ -7,20 +7,42 @@ extends RefCounted
 ## — [P01]'s A* — is done once per route and shared, and the cheap part —
 ## following it — is a couple of floats per citizen per tick.
 ##
-## Three cost controls, in the order they matter:
+## Four cost controls, in the order they matter:
 ##
 ##  * **Deduplication.** Routes are keyed by (from cell, to cell). A shift
 ##    change of 300 people is a handful of distinct searches.
-##  * **A budget.** At most REQUESTS_PER_TICK searches run per tick, so the
-##    surge at dusk is smeared across half a second instead of spiking one tick
-##    into the red. People visibly "work out where they are going".
+##  * **A budget per TICK, not per search.** At most NODES_PER_TICK nodes of A*
+##    are expanded per tick and at most REQUESTS_PER_TICK new searches are
+##    started, so the surge at dusk is smeared across half a second instead of
+##    spiking one tick into the red. People visibly "work out where they are
+##    going".
 ##  * **A cache with a lifetime.** Routes are reused until they go stale, and
 ##    evicted least-recently-used once the cache is full. A route is dropped
 ##    immediately when the city is built on, because a wall across a path is
 ##    exactly the case that must not silently keep working.
+##  * **A cooldown on failure**, because a "no" costs the full ceiling.
+##
+## ## Why the tick budget is a NODE budget
+##
+## Capping searches per tick caps the wrong quantity. Measured on the
+## shift-change fixture (`tests/citizens/test_citizen_perf.gd`), a tick holding
+## ONE search cost 10 499 µs, of which the search alone was 10 346 µs — the whole
+## spike, from a single request, inside the old cap of one request per tick. The
+## searches that found their goal cost 124–925 µs; the two that ran to the 1600
+## node ceiling and failed cost 10.3 ms and 10.0 ms, 88 % of all pathfinding time
+## in that run. A cap of one search per tick cannot see that difference, because
+## the unit it counts is not the unit that costs.
+##
+## So the ceiling on a search stays where it was — a walk still gets its full
+## MAX_NODES to be proven impossible, and no floor moves — but it may now be paid
+## over as many ticks as it takes. [CitizenPathSearch] holds the open set between
+## ticks; `step` spends NODES_PER_TICK on it and stops mid-search if it must.
 ##
 ## Determinism: requests are queued in slot order, served FIFO, and route ids
-## come from a counter. Nothing here iterates an unordered container.
+## come from a counter. Nothing here iterates an unordered container. A paused
+## search resumes at the exact heap state it was paused at, so it expands the
+## same nodes in the same order and returns the same path as an uninterrupted
+## one — asserted directly in `tests/citizens/test_citizen_paths.gd`.
 
 const MAX_ROUTES: int = 512
 ## Node ceiling for one A* search, scaled by distance — see _node_budget. The
@@ -33,7 +55,17 @@ const MAX_ROUTES: int = 512
 const MAX_NODES: int = 1600
 const NODES_PER_CELL2: int = 3
 const MIN_NODES: int = 700
+## New searches STARTED per tick. Unchanged: the queue is nowhere near saturated
+## (nine distinct searches across the 240 ticks of a whole-city shift change),
+## so this paces how fast a crowd works out where it is going, and never was the
+## thing bounding the cost.
 const REQUESTS_PER_TICK: int = 1
+## A* nodes the router may expand in one tick, across all searches. This is the
+## number that actually bounds the spike. At the measured ~6.5 µs per node of a
+## deep search, 192 nodes is ~1.2 ms — a seventh of the 9 ms the whole citizen
+## system is allowed for its worst tick, leaving the rest to the thousand people
+## the system is really for. Raising it buys nothing: the queue empties anyway.
+const NODES_PER_TICK: int = 768
 ## Ticks a cached route is trusted for. Half an in-world day: staleness is
 ## handled by invalidate_cells when the ground actually changes, so a route has
 ## no reason to expire while the city around it stands still.
@@ -49,9 +81,18 @@ const QUEUE_CAP: int = 512
 var searches: int = 0            ## diagnostic: A* runs since world creation
 var hits: int = 0                ## diagnostic: requests served from the cache
 var failures: int = 0
+## diagnostic: searches abandoned because the ground moved under them
+var aborted: int = 0
 
 var _grid: SimSystem = null
 var _has_find_path: bool = false
+## ONE search object for the life of the world, reused for every walk. It owns a
+## megabyte of flat scratch sized to the map (see CitizenPathSearch), and only one
+## search is ever in flight, so building a new one per request would be a
+## megabyte of allocation per request for no gain.
+var _search: CitizenPathSearch = null
+## Key of the search in flight, or -1 when there is none.
+var _active_key: int = -1
 var _routes: Dictionary[int, PackedInt32Array] = {}
 var _by_key: Dictionary[int, int] = {}
 var _key_of: Dictionary[int, int] = {}
@@ -98,17 +139,42 @@ func request(from: Vector2i, to: Vector2i, tick: int) -> int:
 
 
 ## Runs the search budget for this tick. Called once per tick by the system.
+##
+## Spends NODES_PER_TICK on the half-finished search first and only then looks at
+## the queue, so a hard walk is finished rather than abandoned and restarted.
 func step(tick: int) -> void:
 	if not _has_find_path:
 		_queue.clear()
 		_queued.clear()
 		return
-	var done: int = 0
-	while done < REQUESTS_PER_TICK and not _queue.is_empty():
-		var key: int = _queue.pop_front()
-		_queued.erase(key)
-		done += 1
-		_solve(key, tick)
+	var world: WorldGrid = _world_grid()
+	if world == null:
+		# [P01] is present but not the real grid — a stub in a sibling's test, or
+		# a build where WorldGrid moved. Fall back to the one-shot search, which
+		# is what this router did before it could pause: correct, and spiky.
+		var done: int = 0
+		while done < REQUESTS_PER_TICK and not _queue.is_empty():
+			var key: int = _queue.pop_front()
+			_queued.erase(key)
+			done += 1
+			_solve_oneshot(key, tick)
+		return
+	var budget: int = NODES_PER_TICK
+	var started: int = 0
+	while budget > 0:
+		if _active_key < 0:
+			if started >= REQUESTS_PER_TICK or _queue.is_empty():
+				return
+			var key2: int = _queue.pop_front()
+			_queued.erase(key2)
+			started += 1
+			if not _begin(world, key2, tick):
+				continue      # answered for free; the request slot is still spent
+		var state: int = _search.advance(budget)
+		budget -= _search.nodes_last
+		if state == CitizenPathSearch.RUNNING:
+			return
+		_finish(tick)
 
 
 ## Cell `step` along a route, or (-1, -1) past the end.
@@ -164,6 +230,11 @@ func invalidate_cells(cells: Array) -> void:
 			_drop(users[i])
 		_by_cell.erase(packed)
 	_failed.clear()
+	# A search that is only half done read the OLD ground for the half it has
+	# already expanded. Finishing it would hand back a path that is part before
+	# and part after the wall went up — the one thing this whole function exists
+	# to prevent — so it goes back on the queue and starts again on the new map.
+	_abort_active(true)
 
 
 ## Throws away every cached route. Save loading and tests only.
@@ -176,23 +247,27 @@ func invalidate() -> void:
 	_by_cell.clear()
 	_queue.clear()
 	_queued.clear()
+	_abort_active(false)
 
 
 func cached_routes() -> int:
 	return _routes.size()
 
 
+## Requests still waiting, including the one being worked on right now. A search
+## in progress is not a search that is done.
 func pending() -> int:
-	return _queue.size()
+	return _queue.size() + (1 if _active_key >= 0 else 0)
 
 
 func stats() -> Dictionary:
 	return {
 		"routes": _routes.size(),
-		"pending": _queue.size(),
+		"pending": pending(),
 		"searches": searches,
 		"hits": hits,
 		"failures": failures,
+		"aborted": aborted,
 	}
 
 
@@ -200,11 +275,71 @@ func stats() -> Dictionary:
 #  internals
 # =========================================================================
 
-func _solve(key: int, tick: int) -> void:
+## [P01]'s WorldGrid, or null when the bound system is not the real thing.
+## Re-read rather than cached: `Sim.create_world` builds a new grid per world and
+## a stale reference here would path across a map that no longer exists.
+func _world_grid() -> WorldGrid:
+	if _grid == null:
+		return null
+	var g: Variant = _grid.get("grid")
+	return g as WorldGrid
+
+
+## Opens a search on `key`. False means it was answered without expanding a
+## single node — same cell, out of bounds, or an endpoint standing in a wall —
+## and the verdict has already been recorded.
+func _begin(world: WorldGrid, key: int, tick: int) -> bool:
 	var from := Vector2i(key & 0xFFFF, (key >> 16) & 0xFFFF)
 	var to := Vector2i((key >> 32) & 0xFFFF, (key >> 48) & 0xFFFF)
 	searches += 1
-	var path: Array = _grid.call("find_path", from, to, _node_budget(from, to))
+	if _search == null:
+		_search = CitizenPathSearch.new()
+	_active_key = key
+	var state: int = _search.begin(world, from, to, _node_budget(from, to))
+	if state != CitizenPathSearch.RUNNING:
+		_finish(tick)
+		return false
+	return true
+
+
+## Files the finished search: a route in the cache, or a "no" with a cooldown.
+func _finish(tick: int) -> void:
+	var key: int = _active_key
+	_active_key = -1
+	var path: Array[Vector2i] = _search.path()
+	_search.release()
+	_commit(key, path, tick)
+
+
+## Drops the half-finished search. `requeue` puts its pair back at the head of
+## the queue: the request has not been answered, and the citizen who asked is
+## still walking in a straight line waiting for it.
+func _abort_active(requeue: bool) -> void:
+	if _active_key < 0:
+		return
+	var key: int = _active_key
+	_active_key = -1
+	if _search != null:
+		_search.release()
+	aborted += 1
+	if requeue and not _queued.has(key) and _queue.size() < QUEUE_CAP:
+		_queued[key] = true
+		_queue.push_front(key)
+
+
+## The pre-resumable search, kept for grids that are not a real WorldGrid.
+func _solve_oneshot(key: int, tick: int) -> void:
+	var from := Vector2i(key & 0xFFFF, (key >> 16) & 0xFFFF)
+	var to := Vector2i((key >> 32) & 0xFFFF, (key >> 48) & 0xFFFF)
+	searches += 1
+	var raw: Array = _grid.call("find_path", from, to, _node_budget(from, to))
+	var path: Array[Vector2i] = []
+	for c: Variant in raw:
+		path.append(c)
+	_commit(key, path, tick)
+
+
+func _commit(key: int, path: Array[Vector2i], tick: int) -> void:
 	if path.size() < 2:
 		failures += 1
 		_failed[key] = tick

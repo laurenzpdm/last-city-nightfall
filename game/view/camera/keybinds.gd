@@ -524,11 +524,18 @@ static func _build_defaults() -> void:
 	_register(&"speed_2", Ctx.TIME, "Fast forward", [_key(KEY_2)])
 	_register(&"speed_3", Ctx.TIME, "Very fast forward", [_key(KEY_3)])
 
-	_register(&"overlay_1", Ctx.OVERLAY, "Heat overlay", [_key(KEY_F1)])
-	_register(&"overlay_2", Ctx.OVERLAY, "Logistics overlay", [_key(KEY_F2)])
-	_register(&"overlay_3", Ctx.OVERLAY, "Defence overlay", [_key(KEY_F3)])
-	_register(&"overlay_4", Ctx.OVERLAY, "Citizens overlay", [_key(KEY_F4)])
-	_register(&"overlay_5", Ctx.OVERLAY, "Alerts overlay", [_key(KEY_F5)])
+	# These names are what the controls screen shows a player about to rebind a
+	# key, so they must be the names of the lenses that are actually on the other
+	# end of them — `LcnOverlayDefs.MODE_TITLES[1..5]`, in that order. They used
+	# to read Heat / Logistics / Defence / Citizens / Alerts, which was an
+	# earlier and shorter overlay set: F2 was labelled "Logistics overlay" and
+	# opened BOTTLENECKS, F5 was labelled "Alerts overlay" and opened LOGISTICS.
+	# Four of the five bindings in the settings screen named the wrong lens.
+	_register(&"overlay_1", Ctx.OVERLAY, "Heat network lens", [_key(KEY_F1)])
+	_register(&"overlay_2", Ctx.OVERLAY, "Bottlenecks lens", [_key(KEY_F2)])
+	_register(&"overlay_3", Ctx.OVERLAY, "Warmth lens", [_key(KEY_F3)])
+	_register(&"overlay_4", Ctx.OVERLAY, "Freeze & damage lens", [_key(KEY_F4)])
+	_register(&"overlay_5", Ctx.OVERLAY, "Logistics lens", [_key(KEY_F5)])
 
 	_register(&"quick_save", Ctx.SYSTEM, "Quick save", [_key(KEY_S, false, false, true)])
 	_register(&"quick_load", Ctx.SYSTEM, "Quick load", [_key(KEY_L, false, false, true)])

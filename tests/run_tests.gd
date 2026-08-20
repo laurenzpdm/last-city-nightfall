@@ -14,7 +14,9 @@ extends SceneTree
 ##   --list-suites          print only TestCase suites
 ##   --log                  do not silence Log below WARN
 ##
-## Exit code: 0 green, 1 red, 2 broken environment.
+## Exit code: 0 green, 1 red, 2 broken environment or a selection that executed
+## nothing (e.g. --part=tutorial, which holds only standalone suites — those are
+## run by tools/check.sh in their own process, never in this one).
 ##
 ## This file is compiled BEFORE the autoloads are registered, so it must not
 ## name Log/Sim/SimClock directly and must not preload anything that does.

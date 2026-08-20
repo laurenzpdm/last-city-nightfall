@@ -86,11 +86,15 @@ func setup() -> void:
 	_profile = _load_profile()
 	_day_ticks = _profile.day_ticks
 	_sim_tick = 0
-	_clock_tick = 0
-	_offset = 0
+	# A run does not begin at tick 0 of the day. `opening_tick` is where it begins
+	# — see ClimateProfile.opening_tick for why the first frame of a new game used
+	# to be 93% black under a HUD that said "Dawn". Everything downstream reads the
+	# climate clock, not the sim tick, so nothing else has to know.
+	_offset = clampi(_profile.opening_tick, 0, maxi(0, _day_ticks - 1))
+	_clock_tick = _offset
 	_day = 1
-	_tick_in_day = 0
-	_phase_idx = ClimateDefs.Phase.DAWN
+	_tick_in_day = _clock_tick
+	_phase_idx = _phase_index_at(_tick_in_day)
 	_era_idx = _profile.era_index_for_day(1)
 	_plans.clear()
 	_warnings.clear()
@@ -109,15 +113,19 @@ func setup() -> void:
 	_schedule_storm_warnings(_plans[1])
 	_schedule_storm_warnings(_plans[2])
 
-	# Seed the lagged accumulators at their steady-state value so the first
-	# minute of the game is not a thermal transient.
-	_sun = _profile.sun_at(0.0)
-	_update_weather(0)
+	# Seed the lagged accumulators at their steady-state value FOR THE OPENING
+	# TICK, not for midnight. Seeding at sun 0 while the run starts in the morning
+	# would open the game 12 C colder than the clock says and spend the first 42 s
+	# (the solar time constant) crawling back — a thermal transient nobody asked
+	# for, in the one minute a player is deciding whether the game is any good.
+	_sun = _profile.sun_at(day_progress())
+	_update_weather(_phase_idx)
 	_solar_c = lerpf(_profile.solar_cold_c, _profile.solar_warm_c, _sun)
-	_weather_c = _weather_target(false)
-	_ambient = _profile.base_temperature_for_day(1.0) + _solar_c + _weather_c
+	_weather_c = _weather_target(_phase_idx >= ClimateDefs.Phase.NIGHT)
+	_ambient = _profile.base_temperature_for_day(1.0 + day_progress()) + _solar_c + _weather_c
 
-	Log.info(TAG, "day 1 begins — %s, %.1f C, forecast: %s" % [
+	Log.info(TAG, "day 1 begins at %s (tick %d of %d) — %s, %.1f C, forecast: %s" % [
+		phase_of_day(), _tick_in_day, _day_ticks,
 		_profile.display_name, _ambient, _plans[1].forecast_text(),
 	])
 	Bus.day_started.emit(1)
@@ -193,6 +201,20 @@ func phase_progress() -> float:
 ## 1-based campaign day.
 func day() -> int:
 	return _day
+
+
+## The CLIMATE's own tick — sim tick plus the opening offset (and any commanded
+## jump). Storm schedules, day plans and `next_storm().start_tick` are all quoted
+## on this timeline, not on SimClock.tick, and since a run no longer begins at
+## tick 0 of day 1 the two are not the same number. Anything comparing against a
+## climate schedule must ask here.
+func clock_tick() -> int:
+	return _clock_tick
+
+
+## Tick within day 1 at which a new run begins. See ClimateProfile.opening_tick.
+func opening_tick() -> int:
+	return _profile.opening_tick if _profile != null else 0
 
 
 ## True through night and deep night.
@@ -448,12 +470,41 @@ func forecast(days: int = 3) -> Array[Dictionary]:
 # ==========================================================================
 
 ## Stable key of the escalation beat currently in force, e.g. &"bone_winter".
+## The CURVE's own name for where the campaign is, unaffected by the weather.
 func era_key() -> StringName:
 	return StringName(_profile.escalation_key[_era_idx])
 
 
-func era_title() -> String:
+## The escalation curve's title, verbatim. Used by `_check_era` for the alert
+## that announces crossing into a beat, where the curve is exactly the subject.
+func escalation_title() -> String:
 	return String(_profile.escalation_title[_era_idx])
+
+
+## ── THE ONE LINE UNDER THE DAY NUMBER, AND IT WAS TELLING A LIE ───────────────
+##
+## [P17] draws this under "Day 3" on the clock plate, and it is the whole of what
+## the interface says about where the city is in its story. In all eleven beats
+## of `first_night` it read **THE LULL** — while [P22]'s chapter had already
+## turned over to `the_great_frost` and the plain outside was a Great Frost.
+##
+## Both parts were reading a real thing and neither was wrong on its own terms.
+## The escalation curve is a schedule of DAYS: "The Lull" holds through day 3
+## because the baseline temperature has not sunk yet, and that is correct arithmetic
+## about a curve. But a player is not looking at a curve. They are looking at a
+## whiteout, being told the plain is quiet, on the frame where the game is
+## supposed to be at its most legible — and a HUD that contradicts the world
+## outside the window is worse than a HUD with nothing in that corner.
+##
+## So the title under the day number is now **the strongest true thing**: the
+## storm while a storm is blowing, the escalation beat the rest of the time. The
+## curve's own name is still available as `escalation_title()` for the places
+## that genuinely mean the curve, and `era_key()` is untouched, so nothing that
+## keys off the campaign beat changes behaviour.
+func era_title() -> String:
+	if _storm_active:
+		return _storm_title if _storm_title != "" else ClimateDefs.GREAT_FROST_LABEL
+	return escalation_title()
 
 
 func era_index() -> int:
@@ -607,14 +658,12 @@ func metrics() -> Dictionary:
 #  INTERNALS — clock and phases
 # ==========================================================================
 
+## ONE lookup, shared with `ClimateForecast`. It used to be a private copy here,
+## and a tool that wanted to know when deep night was had to guess — which is
+## how eleven screenshots ended up named for phases they were not showing. A
+## second implementation of this arithmetic is a second thing to get wrong.
 func _phase_index_at(tick_in_day: int) -> int:
-	var idx: int = 0
-	for i: int in ClimateDefs.PHASE_COUNT:
-		if tick_in_day >= _profile.phase_starts[i]:
-			idx = i
-		else:
-			break
-	return idx
+	return ClimateForecast.phase_index_at(_profile, tick_in_day)
 
 
 func _emit_phase_change(next_phase: int) -> void:
@@ -629,7 +678,7 @@ func _emit_phase_change(next_phase: int) -> void:
 					% ClimateDefs.format_clock(seconds_until_night()))
 		ClimateDefs.Phase.NIGHT:
 			Bus.night_started.emit(_day)
-			_alert(1, ClimateDefs.KEY_NIGHT, "Night has fallen on day %d. %.0f C outside."
+			_alert(1, ClimateDefs.KEY_NIGHT, "Night has fallen on day %d. %.0f°C outside."
 					% [_day, _ambient])
 		ClimateDefs.Phase.DEEP_NIGHT:
 			_alert(0, ClimateDefs.KEY_NIGHT, "Deep night. Dawn in %s."
@@ -647,7 +696,7 @@ func _roll_to_day(new_day: int) -> void:
 	Bus.day_started.emit(new_day)
 	_check_era()
 	Log.info(TAG, "day %d — %s, forecast: %s" % [
-		new_day, era_title(), _plans[new_day].forecast_text(),
+		new_day, escalation_title(), _plans[new_day].forecast_text(),
 	])
 	_schedule_storm_warnings(_plans[new_day])
 	_schedule_storm_warnings(_plans[new_day + 1])
@@ -678,7 +727,10 @@ func _check_era() -> void:
 	if idx == _era_idx:
 		return
 	_era_idx = idx
-	var title: String = era_title()
+	# The CURVE's title, not `era_title()`: this alert announces crossing into an
+	# escalation beat, so the escalation beat is exactly what it must name — even
+	# on a day the weather has something louder to say.
+	var title: String = escalation_title()
 	var line: String = String(_profile.escalation_line[idx])
 	_alert(1, ClimateDefs.KEY_ERA, "%s — %s" % [title, line])
 	Bus.narrative_event.emit(&"climate_era", {

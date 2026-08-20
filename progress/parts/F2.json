@@ -1,0 +1,51 @@
+{
+  "ts": "2026-08-16T10:05:00Z",
+  "part": "F2",
+  "title": "Two thirds of everything the plain ever sent walked away alive, because the guns were leading a target's intention instead of its motion",
+  "summary": "Two defects, both found by reading a run rather than the code. (1) EnemySwarm.velocity_at returned heading x TOP speed — a body's intention, not its motion — so every gunner led anything that had stopped moving by up to a tile and a half against a hit window of half a tile, and missed it totally rather than partially. (2) A body that walked into the city with nothing it was allowed to attack either evaporated or stood still until dawn, so getting inside cost the player nothing. The night-toll machinery, the obituary and the A/B scenario pair were all already correct; both defects sat upstream of them.",
+  "corrects_the_brief": "The brief and progress/parts/E1.json both state that combat.citizens_killed reads 0 across 60000 ticks of first_night. That was true of E1's build and is STALE against this one: measured on the pre-change code at HEAD 535f1a8, first_night @60000 already killed TWELVE named citizens and lost 29 structures including five housing blocks. [P05]'s people landing (1619f3a) switched the toll on. The night could already reach the people when I arrived. What it could not do was defend against them.",
+  "changed": [
+    "game/sim/combat/enemy_swarm.gd — velocity_at returns the displacement actually performed (new e_vx/e_vy, cleared before the movement block so a body that does not move says so); INSIDE_PX one tile -> four; the leak-and-evaporate replaced by the hearth-district rule; new e_inside so one body inside is one leak",
+    "game/sim/combat/combat_system.gd — new inside_target(): what a body that has run out of legal targets turns on. Housing first, never the fire.",
+    "tests/combat/test_combat_gunnery.gd — NEW, 3 tests / 12 asserts",
+    "tests/combat/test_combat_reaches_people.gd — new section 4b, 3 tests for the district rule and its guards",
+    "tests/combat/test_combat_watchdog.gd — the lifetime-ceiling test was skipping itself once the district got wider; spawn moved out, skip() turned into fail()"
+  ],
+  "verified": {
+    "THE HEADLINE — first_night @60000, six nights, before vs after": "294 spawned, 110 killed (37%), 184 WALKED AWAY, 2976 shots, 10714 heat  ->  434 spawned, 388 killed (89%), 46 walked away, 918 shots, 3305 heat.",
+    "cost of one dead attacker": "27.1 shots and 97.4 heat  ->  2.4 shots and 8.5 heat",
+    "the single worst night before the fix": "night 5 — 89 spawned, ZERO killed, 89 walked away. The city fired 183 shots at them and hit nothing. That is the anticipation layer bolted to nothing, in one line of the night report.",
+    "night 1, the first night a player ever sees": "6 spawned, 5 killed, 869 shot(s), 3128.4 heat  ->  6 spawned, 6 killed, 6 shot(s), 21.6 heat",
+    "why: combat.damage_dealt across t4400-t6800 of night 1": "0.0 for 566 consecutive shots. Three drift hounds stood at 128,131 — three tiles off the hearth — for 2600 ticks while the whole wall shot past them.",
+    "the lie, measured directly": "a body that covered NO ground was reported at 108.8 px/s; a body wading at a quarter speed covered 27.2 px/s and was reported at 108.8.",
+    "NIGHTS NOW VARY, which is the point": "verdicts before: held_at_dawn, costly, costly, costly, costly, costly — every night 'costly', including the one where nothing was killed and nothing was lost. After: held, costly, held_at_dawn, costly, held_at_dawn, costly. A good morning and a bad morning are now different mornings.",
+    "the difficulty curve climbs again": "because the city now holds, [P08]'s pressure loop escalates instead of stalling: night 6 goes from 53 bodies to 191. Total sent across six nights 294 -> 434.",
+    "THE A/B THE BRIEF ASKED FOR — same seed, one wall apart, AFTER": "walled: 12 wall panels, 1 housing block, 1 heat accumulator | combat.citizens_killed 1 (Ewa Zima), 10 hurt.  open: 2 housing blocks | combat.citizens_killed 4 (Radek Novak, Rurik Sandvik, Tomas Berg, Erik Grim), 18 hurt. The wall converts three named dead into twelve wall panels.",
+    "the same pair BEFORE": "walled: 6 wall panels | 0 killed, 0 hurt, 0 leaked. open: 2 housing blocks | 4 killed, 18 hurt. The walled night cost nothing because the bodies that got through stood still.",
+    "bodies that got inside and did something about it": "leaked 6 -> 22 across six nights; before, they arrived and stopped.",
+    "the morning line, first_night night 6, unedited": "Gone by morning: Coal Generator, Heat Pipe x3, Recuperator, Salvage Crate, Trunk Main x7. Malin Draska, Viktor Bielik did not come out. 10 hurt.",
+    "tests": "tests/combat — all suites green; the watchdog suite's silent skip is gone and the assertion it was hiding now runs.",
+    "determinism": "tools/determinism.sh first_night — IDENTICAL, sha256 023d66b9dc1da87b, four consecutive runs.",
+    "reachability": "tests/boot/run_reachability.tscn --force-ui — TESTS PASSED, 92 checks, 0 failures, 0 unchecked."
+  },
+  "red_against_the_old_code": {
+    "method": "production files reverted to 535f1a8 with the new tests left in place, both suites re-run, then restored. The 60000-tick baseline was run from a separate scratch copy so the shared tree was never left reverted — and the scratch copy was proven faithful by reproducing night 1's 869 shots / 3128.4 heat exactly.",
+    "a first attempt at that baseline was WRONG and was thrown away": "another agent committed between my commits, so HEAD~2 had moved onto my own change and the 'before' run reproduced the 'after' numbers. Caught because night 1 read 6 shots instead of 869. Redone against the explicit sha.",
+    "test_a_body_that_did_not_move_reports_no_velocity": "expected 0 +/- 0.01, actual 108.799995422363",
+    "test_reported_velocity_is_the_ground_actually_covered": "vx -21.78 reported against -5.45 observed; vy -106.60 against -26.65",
+    "test_a_body_that_reaches_the_fire_takes_the_district_apart": "'six hounds stood at the fire for 120 seconds with a housing block six tiles away and it is still standing at 900 of 900 hit points'; the toll billed nobody",
+    "test_a_body_inside_an_empty_district_is_absorbed_not_left_standing": "3 bodies still on the map after 400 ticks",
+    "deliberately still GREEN against the old code": "test_a_body_at_full_speed_still_reports_full_speed — the guard that the stationary-target fix was not bought by lying about a moving one."
+  },
+  "could_not_verify": [
+    "Perf. Four cores shared with three other agents all session; every number would be noise. Not measured, not touched.",
+    "How the district rule reads on screen. It raises a severity-1 ATTENTION alert, 'They are in the hearth district.', throttled to one per 100 ticks — a gain for the protected alert stack rather than a spend — but no human has looked at it.",
+    "Whether 89% killed is the right number. It is a consequence of the guns working, not a target I tuned to; the roster's threat values were implicitly balanced against guns that missed nearly two thirds of what they shot at."
+  ],
+  "another_part_must": {
+    "P08 threat — the big one": "EVERY BAND IN THIS BUILD WAS CALIBRATED AGAINST BROKEN GUNS. Kill rate goes 37% -> 89% and heat per kill 97.4 -> 8.5 on the same scenario and seed. comfort, pressure, the 0.80..1.25 band, the verdict thresholds and the heat_signature that sizes the next night are all reading a different game now. The pressure loop responds correctly on its own (night 6: 53 -> 191 bodies), but the curve wants re-reading.",
+    "P08 threat — the judge's actual ask": "combat.breaches is still 0 across all six nights: the reference city's perimeter is never opened. Night 2 costs three trunk mains and no people. The machinery to make a breach cost names is proven working in both halves of the A/B pair — what is missing is a budget curve that opens a perimeter early. Roster and behaviour are mine and are done; the size of night 2 is not mine.",
+    "P08 bookkeeping": "'288 spawned, 0 killed, 319 walked away' is fixed and stays fixed; test_dawn_counts_only_the_bodies_the_director_sent pins it. Six nights now report withdrew of 0, 3, 13, 4, 11, 15 against spawns of 6, 28, 62, 51, 96, 191.",
+    "integrator": "One determinism run out of five printed BROKEN; every diverging column was society.* or citizens.*, and game/sim/citizens/ was being edited by another agent in the same working tree at that moment. The other four are IDENTICAL on the same sha256. This is very likely the first_night replay flake F1 flagged and it is still unowned."
+  }
+}

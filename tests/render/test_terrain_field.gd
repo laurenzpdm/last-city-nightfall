@@ -38,12 +38,26 @@ func test_fields_are_allocated_at_their_declared_resolutions() -> void:
 ## The whole data plane for a full-size map has to be small enough that keeping
 ## all of it resident is obviously correct — that is what removed chunk streaming
 ## and with it the chunk seams.
+##
+## MEASURED PER TILE, not as one absolute number for one map size. The old form
+## was `< 512 KB at 512x512`, which is the same claim with the map size baked
+## into it: adding the wear field at one texel per tile took it to 716 KB and
+## turned a guard about STREAMING into a guard about the number six. The rule
+## being defended is that the plane is a couple of bytes per TILE — so it cannot
+## grow with resolution, cannot need paging, and a bigger map is a bigger number
+## and not a different architecture. The absolute ceiling stays as a second
+## backstop, an order of magnitude above where the fields sit.
 func test_the_whole_map_fits_in_a_trivial_amount_of_memory() -> void:
 	var big := LcnTerrainField.new()
 	big.setup(Vector2i(512, 512), 235.0)
-	var kb: int = int(big.stats()["bytes"]) / 1024
-	assert_lt(float(kb), 512.0, "a 512x512 world's whole ground data plane is %d KB" % kb)
-	assert_gt(float(kb), 0.0, "and it is actually allocated")
+	var bytes: int = int(big.stats()["bytes"])
+	var per_tile: float = float(bytes) / float(512 * 512)
+	assert_lt(per_tile, 3.5,
+		"the ground's whole data plane is %.2f bytes per tile (%d KB at 512x512)"
+			% [per_tile, bytes / 1024])
+	assert_lt(float(bytes) / 1024.0, 1024.0,
+		"and under a megabyte for the largest map the game ships (%d KB)" % (bytes / 1024))
+	assert_gt(float(bytes), 0.0, "and it is actually allocated")
 
 
 func test_kind_field_reads_terrain_and_survives_a_missing_grid() -> void:
@@ -226,3 +240,113 @@ func test_post_stack_uniforms_match_the_shader() -> void:
 		"shimmer defaults to off in the shader")
 	assert_true(code.contains("Image.FORMAT_RGBA8"), "and to a black 1x1 texture in the script")
 	assert_true(src.contains("heat_tex"), "the shimmer samples the ground's heat field")
+
+
+# ------------------------------------------------------------------- wear -----
+#
+# THE GROUND'S MEMORY. The shader used to draw "tracks" as contour lines of a
+# static noise field, revealed wherever the blurred city-presence texture was
+# high — paths that appeared the instant a building was placed, ran where nobody
+# had walked, and were pixel-identical at hour 3 and hour 1. The frame lab
+# measures the picture; these measure the data the picture is made from, which
+# is the half a headless gate can run.
+
+## A path exists where feet fell and nowhere else. This is the whole difference
+## between a real wear field and the contour lie it replaced.
+func test_wear_is_written_where_feet_fall_and_nowhere_else() -> void:
+	assert_eq(field.wear_at(Vector2i(40, 40)), 0.0, "a plain nobody has crossed is unmarked")
+	assert_near(field.wear_mean(), 0.0, 0.0001, "and its mean is zero")
+	for i: int in 6:
+		field.add_wear(Vector2(40.0 * 32.0 + 16.0, 40.0 * 32.0 + 16.0), 0.45, 12)
+	assert_gt(field.wear_at(Vector2i(40, 40)), 0.20,
+		"six footfalls on one tile wear it visibly (%.3f)" % field.wear_at(Vector2i(40, 40)))
+	assert_eq(field.wear_at(Vector2i(46, 40)), 0.0,
+		"and six tiles away, where nobody walked, the snow is untouched")
+	assert_gt(field.wear_mean(), 0.0, "the running mean tracks it without a full sum")
+
+
+## It ACCUMULATES. A route used all day has to end up deeper than a route used
+## once, or the field says the same thing at hour 3 that it said at hour 1.
+func test_wear_deepens_with_use_and_saturates() -> void:
+	var pos := Vector2(20.0 * 32.0 + 16.0, 20.0 * 32.0 + 16.0)
+	field.add_wear(pos, 0.45, 12)
+	var once: float = field.wear_at(Vector2i(20, 20))
+	for i: int in 8:
+		field.add_wear(pos, 0.45, 12)
+	var often: float = field.wear_at(Vector2i(20, 20))
+	assert_gt(often, once * 3.0,
+		"a route walked nine times is deeper than one walked once (%.3f vs %.3f)" % [often, once])
+	for i2: int in 200:
+		field.add_wear(pos, 0.45, 12)
+	assert_le(field.wear_at(Vector2i(20, 20)), 1.0, "and it cannot exceed the scale")
+	assert_gt(field.wear_at(Vector2i(20, 20)), 0.90, "but it does reach the bottom of it")
+
+
+## And it FORGETS, on the sim clock, so an abandoned quarter goes back under the
+## snow instead of scarring the map for the rest of the campaign.
+func test_wear_fades_on_the_sim_clock_and_faster_in_snow() -> void:
+	var pos := Vector2(10.0 * 32.0 + 16.0, 10.0 * 32.0 + 16.0)
+	for i: int in 12:
+		field.add_wear(pos, 0.45, 12)
+	var start: float = field.wear_at(Vector2i(10, 10))
+	assert_gt(start, 0.3, "there is a path here to lose")
+	# Enough sweeps that the round-robin certainly reaches row 10 several times.
+	var t: float = 0.0
+	for s: int in 400:
+		t += 0.2
+		field.decay_wear(t, 0.0)
+	var calm_left: float = field.wear_at(Vector2i(10, 10))
+	assert_lt(calm_left, start, "the path fades (%.3f -> %.3f)" % [start, calm_left])
+
+	# ...and the same elapsed time with snow falling buries more of it, because
+	# the decay period shortens with the weather.
+	var fresh := LcnTerrainField.new()
+	fresh.setup(Vector2i(128, 96), 235.0)
+	for i2: int in 12:
+		fresh.add_wear(pos, 0.45, 12)
+	var t2: float = 0.0
+	for s2: int in 400:
+		t2 += 0.2
+		fresh.decay_wear(t2, 1.0)
+	assert_lt(fresh.wear_at(Vector2i(10, 10)), calm_left,
+		"a blizzard buries a path faster than a clear afternoon (%.3f vs %.3f)"
+			% [fresh.wear_at(Vector2i(10, 10)), calm_left])
+
+
+## The sweep is round-robin and bounded, because it runs inside a frame. A decay
+## pass that walked the whole map would be 65 536 bytes every time it fired.
+func test_the_decay_sweep_is_bounded_per_call() -> void:
+	assert_le(float(LcnTerrainField.WEAR_ROWS_PER_SWEEP), 64.0,
+		"a sweep touches at most %d rows" % LcnTerrainField.WEAR_ROWS_PER_SWEEP)
+	# Two calls one microsecond apart must not both do work: the period gate is
+	# what keeps this off the frame budget on a fast machine.
+	field.add_wear(Vector2(60.0 * 32.0, 4.0 * 32.0), 0.45, 40)
+	field.decay_wear(100.0, 0.0)
+	var after_first: float = field.wear_mean()
+	field.decay_wear(100.0001, 0.0)
+	assert_eq(field.wear_mean(), after_first, "a second call in the same instant is a no-op")
+
+
+## The shader must never be handed an unbound wear sampler: an unset sampler2D
+## reads WHITE, and a white wear field is a plain trodden flat before anyone has
+## taken a step. Two independent guards, because this one is invisible when it
+## goes wrong — it looks like art.
+func test_an_unbound_wear_field_cannot_read_as_a_trodden_plain() -> void:
+	assert_not_null(field.wear_tex, "the field always publishes a wear texture")
+	assert_eq((field.wear_tex as ImageTexture).get_size(), Vector2i(128, 96),
+		"one texel per tile, because a worn path is about a tile wide")
+	var src: String = FileAccess.get_file_as_string(SHADER_PATH)
+	assert_true(src.contains("hint_default_black"),
+		"and the uniform declares hint_default_black, so an unbound sampler reads 0")
+	var code: String = FileAccess.get_file_as_string(RENDERER_PATH)
+	assert_true(code.contains("\"wear_tex\", field.wear_tex"),
+		"the renderer binds the real field to it")
+
+
+## The contour lie is GONE, not merely unused. Leaving it in the shader behind a
+## dead uniform is how a build ends up drawing both.
+func test_the_fake_contour_tracks_are_gone_from_the_shader() -> void:
+	var src: String = FileAccess.get_file_as_string(SHADER_PATH)
+	assert_true(src.contains("texture(wear_tex"), "the ground samples the wear field")
+	assert_false(src.contains("float lived = smoothstep"),
+		"and no longer derives a path from the building-presence blur")

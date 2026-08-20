@@ -168,11 +168,27 @@ func _return(amount: float, links: PackedInt32Array, machines: Dictionary[int, P
 
 
 ## Tile gap between two footprint boxes, 0 when they touch or overlap.
+##
+## `Rect2i.end` is position + size, so it is the cell PAST the last one the box
+## owns. The gap between a box starting at `ar.position.x` and one whose last
+## column is `br.end.x - 1` is therefore `ar.position.x - br.end.x`, and the
+## `+ 1` this line used to carry made every reading one tile too large: two
+## machines sharing a wall reported a gap of 1, and a recuperator's reach was
+## silently one tile shorter than `capture_radius` says everywhere in the game.
+##
+## MEASURED, not reasoned: tests/scenarios/first_night.json stands a recuperator
+## exactly four tiles off the south smelter's east face, which is exactly
+## `DEFAULT_CAPTURE_RADIUS`. The run before this fix reported
+## `waste.links {"278": []}` and `waste_recovered 0.000` — the one recuperator in
+## the reference city, linked to nothing, next to a smelter venting 0.364 u/s
+## into the sky. Both suites that cover this loop place their recuperator at two
+## tiles and their control at seven, so an error of one tile passed both of them
+## for as long as the loop has existed.
 func _chebyshev(a: ProdMachine, b: ProdMachine) -> int:
 	var ar: Rect2i = _box(a)
 	var br: Rect2i = _box(b)
-	var dx: int = maxi(0, maxi(ar.position.x - br.end.x + 1, br.position.x - ar.end.x + 1))
-	var dy: int = maxi(0, maxi(ar.position.y - br.end.y + 1, br.position.y - ar.end.y + 1))
+	var dx: int = maxi(0, maxi(ar.position.x - br.end.x, br.position.x - ar.end.x))
+	var dy: int = maxi(0, maxi(ar.position.y - br.end.y, br.position.y - ar.end.y))
 	return maxi(dx, dy)
 
 

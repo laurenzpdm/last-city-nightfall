@@ -242,12 +242,21 @@ static func plate_points(rect: Rect2, cut: float = CHAMFER) -> PackedVector2Arra
 ## lamp wash from the top-left and — only when things are going wrong — an
 ## ember rim. `lit` 0..1 is how much lamplight falls on this particular panel;
 ## `sev` raises the rim.
+## `alpha_floor` is for the one panel that must never be a window. The whole HUD
+## is translucent on purpose — a calm base should be almost invisible chrome —
+## but "translucent" and "the world reads through it" are the same sentence, and
+## in `artifacts/CRIT/shots/build.png` the world-space badge `= GRID 3 0/0 heat/s
+## NO SOURCE` reads across the top of the clock and `| GRID 1 47/47 heat/s`
+## crosses the "2:21" numeral. [P19] now keeps its words off the clock's
+## rectangle entirely, which is the real fix; this is the other half of it,
+## because the WORLD is still back there and the clock is the one thing on screen
+## a player checks in half a glance.
 func draw_plate(ci: CanvasItem, rect: Rect2, lit: float = 0.35, sev: int = Sev.CALM,
-		seed_value: int = 1) -> void:
+		seed_value: int = 1, alpha_floor: float = 0.0) -> void:
 	if rect.size.x <= 2.0 or rect.size.y <= 2.0:
 		return
 	var pts: PackedVector2Array = plate_points(rect)
-	var a: float = plate_alpha()
+	var a: float = maxf(plate_alpha(), alpha_floor)
 	var top: Color = P.COLD_MID.lerp(P.COLD_HIGH, clampf(lit, 0.0, 1.0) * 0.7)
 	var bottom: Color = P.COLD_ABYSS.lerp(P.COLD_DEEP, 0.55)
 	var cols := PackedColorArray()

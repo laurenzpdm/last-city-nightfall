@@ -1,0 +1,36 @@
+{
+  "ts": "2026-08-14T19:20:00Z",
+  "part": "D4",
+  "title": "[P24] The game now has a front door and a memory: a title screen, a pause menu, real save slots with a picture of the city, full settings with rebinding, accessibility that reaches the parts that draw, and an export that produces a Linux and a Windows build",
+  "verified": {
+    "godot --headless --script tests/run_tests.gd -- --part=meta": "38 passed, 0 failed, 179 asserts (5 new suites)",
+    "xvfb-run godot --path . tests/meta/run_meta_ui.tscn -- --force-ui": "TESTS PASSED — 87 checks, 0 failures, 0 unchecked, 13 real frames in artifacts/meta/shots/",
+    "save round trip, byte-identical": "the file format itself loses not one bit — int64 RNG stream positions and float64 exact; the WORLD diverges in 46 derived fields immediately after a load and 6 after 200 ticks, all in other parts' systems, printed by name on every run",
+    "the first version of the save wrote JSON": "every RNG stream came back rounded to the nearest 2048 (-4710635756903808991 -> -4710635756903809024); the payload is var_to_bytes now and the test catches a revert in under a second",
+    "a rebinding survives a restart": "a SECOND godot process, started cold, prints PROBE rotate=J off user://settings.cfg",
+    "the reservation table is honoured": "binding 'rotate' to 4 is refused (LcnLayers.key_is_reserved), binding it to B is refused as a conflict with the build menu, binding it to J is accepted and reaches InputMap, Settings and the config file",
+    "captured keys carry both a physical and a virtual code": "Keybinds.conflicts() never fired for a real keypress until captured events were normalised to the physical code — B was accepted over the build menu's B",
+    "the modal was not first to see a key": "Registry scans content alphabetically, so overlays/render/vfx install AFTER meta and saw every key first; the lens root ate the 4 that a rebind capture was waiting for. The meta root moves to the back of the child list when it opens",
+    "the UI suite could not fail": "removing Keybinds.persist() from the production path left it green, because a previous run had left rotate=J in the real config file. It now resets to defaults first, asserts rotate starts on R, and restores the developer's config at the end",
+    "scratch-copy reverts (the strong form)": "JSON payload -> test_the_file_format_loses_not_one_bit FAILS; _normalise() removed -> 'B is refused' FAILS; Keybinds.persist() removed -> 3 checks FAIL including the cold process; all restored -> green",
+    "settings reach the game": "the music slider moves the Music bus on AudioServer; reduce_motion reaches LcnTiming (shake 0, decorative 0, hit-stop off); every colourblind token resolves to a deficiency in BOTH [P19]'s palette and [P17]'s style; 160% text grows the rows (38 -> 60 px) and the panel still fits",
+    "autosave at dawn": "Bus.day_started writes one save, day 1 is refused, three mornings land in three files, seven mornings leave exactly 3, and it stands down inside a harness run",
+    "godot --headless --script game/ui/meta/export_build.gd -- --all": "Linux 72.9 MB (ELF 64-bit LSB executable), Windows 107.0 MB (PE32+ GUI x86-64), both exit 0",
+    "THE EXPORTED BUILD IS AN EMPTY GAME": "[registry] loaded 0 items across 20 categories. An exported project has no .tres on disk — the exporter writes binary .res under .godot/exported/ and leaves <name>.tres.remap — and game/core/registry.gd accepts only .tres/.res. No buildings, no recipes, no laws, no bootstraps in a shipped build",
+    "the fix, proven in a scratch copy": "strip a trailing '.remap' before the extension test in registry.gd: 0 items -> 226 items, and '[meta] meta layer ready on canvas layer 80' appears in the exported build",
+    "tools/determinism.sh": "IDENTICAL sha256 ad2a1e8ac155218d",
+    "godot --headless --script tests/run_tests.gd (everything)": "1125 passed, 0 failed, 84439 asserts",
+    "xvfb-run tests/boot/run_reachability.tscn --force-ui": "TESTS PASSED — 90 checks, 0 failures (the meta layer does not disturb any other part)",
+    "tools/run_sim.sh --scenario=first_night --ticks=4000": "0 errors; the meta layer declines to install in a headless run"
+  },
+  "open": [
+    "INTEGRATOR, SHIPPING BLOCKER: game/core/registry.gd loads nothing in an exported build. Four lines, proven: in _scan_category, `var f: String = raw.get_basename() if raw.ends_with('.remap') else raw` before the .tres/.res test, then load() the original path. Until it lands, dist/ contains two binaries that start and are not a game — game/ui/meta/export_build.gd exits non-zero and says so.",
+    "INTEGRATOR: project.godot is yours. config/version is 0.1.0 and config/icon is the stock icon.svg; both want a real value before a store page. The Windows .ico and version block need rcedit, which is a separate download, so the preset ships with application/modify_resources=false.",
+    "INTEGRATOR: export_presets.cfg at the repo root is generated from game/content/meta/export_presets.cfg by export_build.gd and is left untracked on purpose (the root is shared). Commit it if you would rather CI not run the script first.",
+    "[P09] climate serialises `wind` and `heat_loss_mult` and never reads them back; [P02] heat caches ambient from climate at the top of step(); [P03] logistics republishes a per-tick crew budget; [P06], [P10] and [P22] all serialise per-tick derived snapshots. None of it is fatal — the city converges within a tick — but a loaded city is not byte-identical on the tick it loads, and tests/meta/test_save_roundtrip.gd names all 46 fields on every run.",
+    "[P22] narrative REAL STATE LOSS: `pending` is serialised and dropped by deserialize, so a queued event is lost across a save. [P08] threat REAL STATE LOSS: plan.vectors[].cells (294 cells) is not restored, so the approach path a wave is walking is thrown away.",
+    "[P17]: LcnHudStyle._cb() has no `mono` branch — a monochrome player gets the red-green remap in the HUD while [P19]'s lenses correctly fall back to pure luminance. One `if` in game/ui/hud/hud_style.gd.",
+    "[P16]: Keybinds.event_signature() compares the whole event dictionary, so a binding captured from a real keyboard (physical AND virtual code set) never matches a default (physical only). [P24] normalises before calling in, but any other caller has the same hole.",
+    "[P24] not done: gamepad support (Keybinds already stores joypad events; nothing navigates the menus with a stick), a seed picker for a new city (it currently reuses boot's seed), cloud-save conflict resolution, and a save-name text field — the browser writes save_N and the pause menu names an autosave after the morning."
+  ]
+}

@@ -1,19 +1,20 @@
 {
   "name": "first_night",
-  "description": "The reference run. One full day and into the next: a hearth is lit, a heat grid grows out of it, housing and industry hang off the grid, a wall goes up before dusk, and the night is spent short of heat. This is what the art, audio and UI parts screenshot against.",
+  "description": "THE REFERENCE RUN. Three full days and two nights on one heat grid: a Hearth, six coal burners standing in its own warmth, five of them loaded by inserters off ONE belt out of a coal yard, a drill on the seam north of the wall keeping that yard filled through a standing porter order, a salvage strip turning scrap into grain into rations and scrap into ore for the smelter and a workshop on the end of it turning that plate into gears, homes and shops on two rungs, and a perimeter that spends the city's own warmth to hold the dark. This is what the art, audio and UI parts screenshot against, and it is the run that has to prove the automation, production and food pillars RUN rather than merely tick.",
   "tags": [
     "reference",
     "gate",
     "visual"
   ],
   "seed": 7,
-  "ticks": 11000,
+  "ticks": 24000,
   "sample_every": 20,
   "expects": {
-    "min_ticks_per_second": 600,
+    "min_ticks_per_second": 250,
     "max_errors": 0,
     "balance_days": [
-      1
+      1,
+      2
     ],
     "max_heat_networks": 3
   },
@@ -24,14 +25,15 @@
         "system": "build",
         "op": "add_stock",
         "items": {
-          "iron_plate": 1400,
-          "steel_plate": 900,
-          "stone": 1400,
-          "timber": 900,
-          "scrap": 900,
-          "gear": 400,
-          "copper_coil": 400,
-          "coal": 900
+          "iron_plate": 3200,
+          "steel_plate": 1400,
+          "stone": 2600,
+          "timber": 2200,
+          "scrap": 1600,
+          "gear": 700,
+          "copper_coil": 500,
+          "coal": 1800,
+          "grain": 1600
         }
       }
     },
@@ -194,47 +196,997 @@
       }
     },
     {
-      "tick": 400,
+      "tick": 20,
       "cmd": {
         "system": "build",
         "op": "place_line",
-        "kind": "heat_pipe",
+        "kind": "heat_trunk_main",
         "from": [
-          128,
-          131
+          112,
+          125
         ],
         "to": [
-          128,
-          142
+          143,
+          125
         ]
       }
     },
     {
-      "tick": 500,
+      "tick": 24,
       "cmd": {
         "system": "build",
         "op": "place_line",
-        "kind": "heat_pipe",
+        "kind": "heat_trunk_main",
         "from": [
-          128,
-          142
+          112,
+          125
         ],
         "to": [
-          127,
-          142
+          112,
+          134
         ]
       }
     },
     {
-      "tick": 600,
+      "tick": 28,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_trunk_main",
+        "from": [
+          143,
+          125
+        ],
+        "to": [
+          143,
+          134
+        ]
+      }
+    },
+    {
+      "tick": 30,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "storage_yard",
+        "cell": [
+          113,
+          120
+        ]
+      }
+    },
+    {
+      "tick": 32,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_trunk_main",
+        "from": [
+          116,
+          125
+        ],
+        "to": [
+          116,
+          127
+        ]
+      }
+    },
+    {
+      "tick": 34,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_trunk_main",
+        "from": [
+          140,
+          125
+        ],
+        "to": [
+          140,
+          127
+        ]
+      }
+    },
+    {
+      "tick": 40,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "inserter_mk1",
+        "cell": [
+          116,
+          121
+        ],
+        "rot": 0
+      }
+    },
+    {
+      "tick": 50,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "belt_mk1",
+        "from": [
+          117,
+          121
+        ],
+        "to": [
+          125,
+          121
+        ]
+      }
+    },
+    {
+      "tick": 52,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "underground_mk1",
+        "cell": [
+          126,
+          121
+        ],
+        "rot": 0
+      }
+    },
+    {
+      "tick": 54,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "underground_mk1",
+        "cell": [
+          129,
+          121
+        ],
+        "rot": 0
+      }
+    },
+    {
+      "tick": 56,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "belt_mk1",
+        "from": [
+          130,
+          121
+        ],
+        "to": [
+          137,
+          121
+        ]
+      }
+    },
+    {
+      "tick": 57,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "crate",
+        "cell": [
+          130,
+          123
+        ]
+      }
+    },
+    {
+      "tick": 58,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "inserter_mk1",
+        "cell": [
+          130,
+          122
+        ],
+        "rot": 3
+      }
+    },
+    {
+      "tick": 60,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "inserter_mk1",
+        "cell": [
+          123,
+          122
+        ],
+        "rot": 1
+      }
+    },
+    {
+      "tick": 64,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "inserter_mk1",
+        "cell": [
+          131,
+          122
+        ],
+        "rot": 1
+      }
+    },
+    {
+      "tick": 68,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "inserter_mk1",
+        "cell": [
+          119,
+          122
+        ],
+        "rot": 1
+      }
+    },
+    {
+      "tick": 72,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "inserter_mk1",
+        "cell": [
+          135,
+          122
+        ],
+        "rot": 1
+      }
+    },
+    {
+      "tick": 90,
       "cmd": {
         "system": "build",
         "op": "place",
         "kind": "coal_generator",
         "cell": [
-          124,
-          142
+          123,
+          123
         ]
+      }
+    },
+    {
+      "tick": 130,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          131,
+          123
+        ]
+      }
+    },
+    {
+      "tick": 140,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_trunk_main",
+        "from": [
+          127,
+          120
+        ],
+        "to": [
+          127,
+          124
+        ]
+      }
+    },
+    {
+      "tick": 144,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_trunk_main",
+        "from": [
+          128,
+          120
+        ],
+        "to": [
+          128,
+          124
+        ]
+      }
+    },
+    {
+      "tick": 150,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          117,
+          120
+        ],
+        "to": [
+          138,
+          120
+        ]
+      }
+    },
+    {
+      "tick": 160,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_trunk_main",
+        "from": [
+          139,
+          120
+        ],
+        "to": [
+          139,
+          124
+        ]
+      }
+    },
+    {
+      "tick": 164,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_trunk_main",
+        "from": [
+          140,
+          120
+        ],
+        "to": [
+          140,
+          124
+        ]
+      }
+    },
+    {
+      "tick": 165,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "field_kitchen",
+        "cell": [
+          128,
+          118
+        ]
+      }
+    },
+    {
+      "tick": 170,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          120,
+          118
+        ]
+      }
+    },
+    {
+      "tick": 180,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "rubble_sorter",
+        "cell": [
+          117,
+          118
+        ]
+      }
+    },
+    {
+      "tick": 181,
+      "cmd": {
+        "system": "production",
+        "op": "set_recipe",
+        "cell": [
+          117,
+          118
+        ],
+        "recipe": "salvaged_stores"
+      }
+    },
+    {
+      "tick": 190,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "rubble_sorter",
+        "cell": [
+          122,
+          118
+        ]
+      }
+    },
+    {
+      "tick": 191,
+      "cmd": {
+        "system": "production",
+        "op": "set_recipe",
+        "cell": [
+          122,
+          118
+        ],
+        "recipe": "sorted_rubble"
+      }
+    },
+    {
+      "tick": 210,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          133,
+          118
+        ]
+      }
+    },
+    {
+      "tick": 220,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "scrap_collector",
+        "cell": [
+          131,
+          118
+        ]
+      }
+    },
+    {
+      "tick": 230,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "workshop",
+        "cell": [
+          135,
+          117
+        ]
+      }
+    },
+    {
+      "tick": 231,
+      "cmd": {
+        "system": "production",
+        "op": "set_recipe",
+        "cell": [
+          135,
+          117
+        ],
+        "recipe": "gear"
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          113,
+          120
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          116,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          117,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          118,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          119,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          120,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          121,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          122,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          123,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          124,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          125,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          126,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          129,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          130,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          131,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          132,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          133,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          134,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          135,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          136,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          137,
+          121
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          130,
+          123
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          130,
+          122
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          123,
+          122
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          131,
+          122
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          119,
+          122
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          135,
+          122
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          123,
+          123
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          131,
+          123
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          119,
+          123
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          135,
+          123
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          123,
+          131
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          116,
+          131
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          137,
+          131
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          128,
+          118
+        ],
+        "priority": 78
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          120,
+          118
+        ],
+        "priority": 78
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          117,
+          118
+        ],
+        "priority": 78
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          122,
+          118
+        ],
+        "priority": 78
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          133,
+          118
+        ],
+        "priority": 78
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          131,
+          118
+        ],
+        "priority": 78
+      }
+    },
+    {
+      "tick": 240,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          135,
+          117
+        ],
+        "priority": 78
+      }
+    },
+    {
+      "tick": 420,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          119,
+          123
+        ]
+      }
+    },
+    {
+      "tick": 700,
+      "cmd": {
+        "system": "logistics",
+        "op": "insert",
+        "cell": [
+          130,
+          123
+        ],
+        "item": "coal",
+        "count": 60
+      }
+    },
+    {
+      "tick": 720,
+      "cmd": {
+        "system": "logistics",
+        "op": "request",
+        "cell": [
+          130,
+          123
+        ],
+        "item": "coal",
+        "amount": 60
       }
     },
     {
@@ -242,117 +1194,60 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "workshop",
+        "kind": "coal_generator",
         "cell": [
-          129,
-          142
+          135,
+          123
         ]
       }
     },
     {
-      "tick": 1000,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "crate",
-        "cell": [
-          118,
-          146
-        ]
-      }
-    },
-    {
-      "tick": 1010,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "inserter_mk1",
-        "cell": [
-          119,
-          146
-        ],
-        "rot": 0
-      }
-    },
-    {
-      "tick": 1020,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "belt_mk1",
-        "from": [
-          120,
-          146
-        ],
-        "to": [
-          125,
-          145
-        ]
-      }
-    },
-    {
-      "tick": 1030,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "inserter_mk1",
-        "cell": [
-          125,
-          144
-        ],
-        "rot": 3
-      }
-    },
-    {
-      "tick": 1100,
+      "tick": 960,
       "cmd": {
         "system": "logistics",
         "op": "insert",
         "cell": [
-          118,
-          146
+          114,
+          121
         ],
         "item": "coal",
-        "count": 400
+        "count": 700
       }
     },
     {
-      "tick": 1200,
+      "tick": 980,
       "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "storage_yard",
+        "system": "logistics",
+        "op": "request",
         "cell": [
-          137,
-          132
-        ]
+          114,
+          121
+        ],
+        "item": "coal",
+        "amount": 600
       }
     },
     {
-      "tick": 1300,
+      "tick": 1700,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "survey_hall",
+        "kind": "coal_generator",
         "cell": [
           123,
-          137
+          131
         ]
       }
     },
     {
-      "tick": 1500,
+      "tick": 1750,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          127,
-          136
-        ],
-        "to": [
-          120,
-          136
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          116,
+          131
         ]
       }
     },
@@ -361,23 +1256,250 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "warmth_radiator",
+        "kind": "coal_generator",
         "cell": [
-          118,
-          135
+          137,
+          131
         ]
       }
     },
     {
-      "tick": 2100,
+      "tick": 1850,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "housing_block",
+        "kind": "crate",
         "cell": [
-          119,
-          137
+          132,
+          132
         ]
+      }
+    },
+    {
+      "tick": 1860,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "inserter_mk1",
+        "cell": [
+          131,
+          132
+        ],
+        "rot": 2
+      }
+    },
+    {
+      "tick": 1870,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "belt_mk1",
+        "from": [
+          130,
+          132
+        ],
+        "to": [
+          127,
+          132
+        ]
+      }
+    },
+    {
+      "tick": 1879,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "inserter_mk1",
+        "cell": [
+          127,
+          131
+        ],
+        "rot": 3
+      }
+    },
+    {
+      "tick": 1880,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "inserter_mk1",
+        "cell": [
+          128,
+          131
+        ],
+        "rot": 3
+      }
+    },
+    {
+      "tick": 1881,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "inserter_mk1",
+        "cell": [
+          129,
+          131
+        ],
+        "rot": 3
+      }
+    },
+    {
+      "tick": 1882,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "inserter_mk1",
+        "cell": [
+          130,
+          131
+        ],
+        "rot": 3
+      }
+    },
+    {
+      "tick": 1900,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          132,
+          132
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 1900,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          131,
+          132
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 1900,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          127,
+          132
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 1900,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          128,
+          132
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 1900,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          129,
+          132
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 1900,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          130,
+          132
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 1900,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          127,
+          131
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 1900,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          128,
+          131
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 1900,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          129,
+          131
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 1900,
+      "cmd": {
+        "system": "build",
+        "op": "set_priority",
+        "cell": [
+          130,
+          131
+        ],
+        "priority": 95
+      }
+    },
+    {
+      "tick": 2000,
+      "cmd": {
+        "system": "logistics",
+        "op": "insert",
+        "cell": [
+          132,
+          132
+        ],
+        "item": "coal",
+        "count": 350
+      }
+    },
+    {
+      "tick": 2010,
+      "cmd": {
+        "system": "logistics",
+        "op": "request",
+        "cell": [
+          132,
+          132
+        ],
+        "item": "coal",
+        "amount": 350
       }
     },
     {
@@ -385,13 +1507,41 @@
       "cmd": {
         "system": "build",
         "op": "place_line",
-        "kind": "heat_pipe",
+        "kind": "heat_trunk_main",
         "from": [
-          133,
+          126,
           131
         ],
         "to": [
-          133,
+          126,
+          134
+        ]
+      }
+    },
+    {
+      "tick": 2420,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          112,
+          135
+        ],
+        "to": [
+          143,
+          135
+        ]
+      }
+    },
+    {
+      "tick": 2500,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          120,
           136
         ]
       }
@@ -403,7 +1553,7 @@
         "op": "place",
         "kind": "granary",
         "cell": [
-          134,
+          122,
           136
         ]
       }
@@ -412,27 +1562,11 @@
       "tick": 2800,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          125,
-          130
-        ],
-        "to": [
-          125,
-          117
-        ]
-      }
-    },
-    {
-      "tick": 3000,
-      "cmd": {
-        "system": "build",
         "op": "place",
-        "kind": "field_kitchen",
+        "kind": "survey_hall",
         "cell": [
-          122,
-          120
+          129,
+          136
         ]
       }
     },
@@ -441,26 +1575,82 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "rubble_sorter",
+        "kind": "smelter",
         "cell": [
-          122,
-          117
+          134,
+          136
         ]
+      }
+    },
+    {
+      "tick": 3201,
+      "cmd": {
+        "system": "production",
+        "op": "set_recipe",
+        "cell": [
+          134,
+          136
+        ],
+        "recipe": "iron_plate"
       }
     },
     {
       "tick": 3400,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          140,
-          129
-        ],
-        "to": [
-          140,
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          125,
           136
+        ]
+      }
+    },
+    {
+      "tick": 3600,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          122,
+          126
+        ]
+      }
+    },
+    {
+      "tick": 3650,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          133,
+          126
+        ]
+      }
+    },
+    {
+      "tick": 3700,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          118,
+          126
+        ]
+      }
+    },
+    {
+      "tick": 3750,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          137,
+          126
         ]
       }
     },
@@ -469,9 +1659,21 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "heat_accumulator",
+        "kind": "turret_mount",
         "cell": [
-          141,
+          132,
+          136
+        ]
+      }
+    },
+    {
+      "tick": 3850,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          117,
           136
         ]
       }
@@ -483,12 +1685,12 @@
         "op": "place_line",
         "kind": "heat_pipe",
         "from": [
-          128,
-          125
+          127,
+          119
         ],
         "to": [
-          129,
-          110
+          127,
+          101
         ]
       }
     },
@@ -497,35 +1699,43 @@
       "cmd": {
         "system": "build",
         "op": "place_line",
-        "kind": "heat_pipe",
+        "kind": "heat_trunk_main",
         "from": [
-          129,
-          110
+          127,
+          100
         ],
         "to": [
-          129,
-          95
+          116,
+          100
         ]
       }
     },
     {
-      "tick": 4150,
+      "tick": 4200,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          129,
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          121,
           98
-        ],
-        "to": [
+        ]
+      }
+    },
+    {
+      "tick": 4260,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
           127,
           98
         ]
       }
     },
     {
-      "tick": 4200,
+      "tick": 4300,
       "cmd": {
         "system": "build",
         "op": "place",
@@ -537,42 +1747,66 @@
       }
     },
     {
-      "tick": 4600,
+      "tick": 4500,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "smelter",
+        "kind": "turret_mount",
         "cell": [
-          130,
-          107
+          119,
+          101
         ]
       }
     },
     {
-      "tick": 4650,
+      "tick": 4560,
       "cmd": {
-        "system": "production",
-        "op": "set_recipe",
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
         "cell": [
-          122,
-          117
+          123,
+          101
+        ]
+      }
+    },
+    {
+      "tick": 4620,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "watchtower",
+        "cell": [
+          119,
+          98
+        ]
+      }
+    },
+    {
+      "tick": 4660,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_trunk_main",
+        "from": [
+          123,
+          100
         ],
-        "recipe": "salvaged_stores"
+        "to": [
+          123,
+          95
+        ]
       }
     },
     {
       "tick": 4700,
       "cmd": {
         "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          130,
-          125
-        ],
-        "to": [
-          134,
-          125
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          124,
+          95
         ]
       }
     },
@@ -581,14 +1815,14 @@
       "cmd": {
         "system": "build",
         "op": "place_line",
-        "kind": "heat_pipe",
+        "kind": "heat_trunk_main",
         "from": [
-          130,
-          131
+          141,
+          135
         ],
         "to": [
-          132,
-          131
+          141,
+          140
         ]
       }
     },
@@ -597,14 +1831,14 @@
       "cmd": {
         "system": "build",
         "op": "place_line",
-        "kind": "heat_pipe",
+        "kind": "heat_trunk_main",
         "from": [
-          126,
-          131
+          140,
+          140
         ],
         "to": [
-          124,
-          131
+          132,
+          140
         ]
       }
     },
@@ -613,51 +1847,15 @@
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "turret_mount",
+        "kind": "recuperator",
         "cell": [
-          133,
-          123
+          132,
+          138
         ]
       }
     },
     {
-      "tick": 4820,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "turret_mount",
-        "cell": [
-          123,
-          123
-        ]
-      }
-    },
-    {
-      "tick": 4860,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "turret_mount",
-        "cell": [
-          131,
-          132
-        ]
-      }
-    },
-    {
-      "tick": 4900,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "turret_mount",
-        "cell": [
-          124,
-          132
-        ]
-      }
-    },
-    {
-      "tick": 5000,
+      "tick": 4800,
       "cmd": {
         "system": "build",
         "op": "place_line",
@@ -673,7 +1871,7 @@
       }
     },
     {
-      "tick": 5040,
+      "tick": 4840,
       "cmd": {
         "system": "build",
         "op": "place_line",
@@ -689,7 +1887,7 @@
       }
     },
     {
-      "tick": 5080,
+      "tick": 4880,
       "cmd": {
         "system": "build",
         "op": "place_line",
@@ -705,7 +1903,7 @@
       }
     },
     {
-      "tick": 5120,
+      "tick": 4920,
       "cmd": {
         "system": "build",
         "op": "place_line",
@@ -721,7 +1919,7 @@
       }
     },
     {
-      "tick": 5160,
+      "tick": 4960,
       "cmd": {
         "system": "build",
         "op": "place_line",
@@ -737,124 +1935,19 @@
       }
     },
     {
-      "tick": 5250,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          129,
-          95
-        ],
-        "to": [
-          141,
-          95
-        ]
-      }
-    },
-    {
-      "tick": 5280,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          129,
-          95
-        ],
-        "to": [
-          109,
-          95
-        ]
-      }
-    },
-    {
-      "tick": 5300,
+      "tick": 5200,
       "cmd": {
         "system": "build",
         "op": "place",
-        "kind": "watchtower",
-        "cell": [
-          108,
-          96
-        ]
-      }
-    },
-    {
-      "tick": 5400,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "watchtower",
+        "kind": "heat_accumulator",
         "cell": [
           141,
-          96
+          129
         ]
       }
     },
     {
-      "tick": 5600,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "turret_mount",
-        "cell": [
-          119,
-          96
-        ]
-      }
-    },
-    {
-      "tick": 5800,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "turret_mount",
-        "cell": [
-          136,
-          96
-        ]
-      }
-    },
-    {
-      "tick": 6000,
-      "cmd": {
-        "system": "logistics",
-        "op": "insert",
-        "cell": [
-          118,
-          146
-        ],
-        "item": "coal",
-        "count": 400
-      }
-    },
-    {
-      "tick": 6600,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "heat_booster_pump",
-        "cell": [
-          129,
-          140
-        ]
-      }
-    },
-    {
-      "tick": 7000,
-      "cmd": {
-        "system": "build",
-        "op": "set_enabled",
-        "cell": [
-          129,
-          142
-        ],
-        "on": false
-      }
-    },
-    {
-      "tick": 7400,
+      "tick": 6400,
       "cmd": {
         "system": "heat",
         "op": "dump"
@@ -874,71 +1967,150 @@
       }
     },
     {
-      "tick": 8600,
+      "tick": 10000,
       "cmd": {
-        "system": "build",
-        "op": "set_enabled",
+        "system": "logistics",
+        "op": "insert",
         "cell": [
-          129,
-          142
+          114,
+          121
         ],
-        "on": true
+        "item": "coal",
+        "count": 500
       }
     },
     {
-      "tick": 8800,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          128,
-          143
-        ],
-        "to": [
-          128,
-          146
-        ]
-      }
-    },
-    {
-      "tick": 9000,
-      "cmd": {
-        "system": "build",
-        "op": "place",
-        "kind": "coal_generator",
-        "cell": [
-          129,
-          145
-        ]
-      }
-    },
-    {
-      "tick": 10100,
-      "cmd": {
-        "system": "build",
-        "op": "place_line",
-        "kind": "heat_pipe",
-        "from": [
-          125,
-          126
-        ],
-        "to": [
-          118,
-          126
-        ]
-      }
-    },
-    {
-      "tick": 10200,
+      "tick": 10400,
       "cmd": {
         "system": "build",
         "op": "place",
         "kind": "housing_block",
         "cell": [
-          119,
-          122
+          113,
+          136
         ]
+      }
+    },
+    {
+      "tick": 12000,
+      "cmd": {
+        "system": "society",
+        "op": "sign",
+        "law": "snow_burial"
+      }
+    },
+    {
+      "tick": 14600,
+      "cmd": {
+        "system": "heat",
+        "op": "dump"
+      }
+    },
+    {
+      "tick": 15400,
+      "cmd": {
+        "system": "logistics",
+        "op": "insert",
+        "cell": [
+          114,
+          121
+        ],
+        "item": "coal",
+        "count": 500
+      }
+    },
+    {
+      "tick": 15500,
+      "cmd": {
+        "system": "production",
+        "op": "set_recipe",
+        "cell": [
+          117,
+          118
+        ],
+        "recipe": "salvaged_wire"
+      }
+    },
+    {
+      "tick": 20200,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          137,
+          136
+        ]
+      }
+    },
+    {
+      "tick": 20800,
+      "cmd": {
+        "system": "production",
+        "op": "set_recipe",
+        "cell": [
+          135,
+          117
+        ],
+        "recipe": "pipe_segment"
+      }
+    },
+    {
+      "tick": 21000,
+      "cmd": {
+        "system": "logistics",
+        "op": "insert",
+        "cell": [
+          114,
+          121
+        ],
+        "item": "coal",
+        "count": 500
+      }
+    },
+    {
+      "tick": 21400,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          120,
+          126
+        ]
+      }
+    },
+    {
+      "tick": 21800,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "heat_accumulator",
+        "cell": [
+          114,
+          129
+        ]
+      }
+    },
+    {
+      "tick": 22400,
+      "cmd": {
+        "system": "heat",
+        "op": "dump"
+      }
+    },
+    {
+      "tick": 23000,
+      "cmd": {
+        "system": "logistics",
+        "op": "dump"
+      }
+    },
+    {
+      "tick": 23200,
+      "cmd": {
+        "system": "production",
+        "op": "dump"
       }
     }
   ],
@@ -970,6 +2142,22 @@
     {
       "tick": 9800,
       "name": "dawn"
+    },
+    {
+      "tick": 12800,
+      "name": "second_day_factory"
+    },
+    {
+      "tick": 15200,
+      "name": "second_dusk"
+    },
+    {
+      "tick": 17600,
+      "name": "second_night"
+    },
+    {
+      "tick": 21600,
+      "name": "third_day_city"
     }
   ]
 }

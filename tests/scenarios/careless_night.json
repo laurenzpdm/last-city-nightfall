@@ -1,0 +1,370 @@
+{
+  "name": "careless_night",
+  "description": "PLAYED BADLY ON PURPOSE, and the control for steady_hand. Same seed, same day, same opening settlement, same stock. This player adds four heated buildings and no generator, drops the one generator they own on bare ground where it joins no network, never builds a granary, a kitchen or a sorter, lays no belt, and answers the four wave warnings by placing a single turret after the attack has begun. Read it against steady_hand: every difference in the two state.json files was a decision, and the question this run asks is whether the interface said so at the time.",
+  "tags": [
+    "reference",
+    "visual"
+  ],
+  "seed": 7,
+  "ticks": 11000,
+  "sample_every": 20,
+  "expects": {
+    "min_ticks_per_second": 600,
+    "max_errors": 0,
+    "balance_days": [
+      1
+    ],
+    "max_heat_networks": 2
+  },
+  "script": [
+    {
+      "tick": 1,
+      "cmd": {
+        "system": "build",
+        "op": "add_stock",
+        "items": {
+          "iron_plate": 1400,
+          "steel_plate": 900,
+          "stone": 1400,
+          "timber": 900,
+          "scrap": 900,
+          "gear": 400,
+          "copper_coil": 400,
+          "coal": 900
+        }
+      }
+    },
+    {
+      "tick": 2,
+      "cmd": {
+        "system": "build",
+        "op": "grant_unlock",
+        "unlock": "thermal_storage"
+      }
+    },
+    {
+      "tick": 2,
+      "cmd": {
+        "system": "build",
+        "op": "grant_unlock",
+        "unlock": "pressurised_mains"
+      }
+    },
+    {
+      "tick": 3,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "the_hearth",
+        "cell": [
+          126,
+          126
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 4,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          131,
+          128
+        ],
+        "to": [
+          140,
+          128
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 5,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          125,
+          128
+        ],
+        "to": [
+          116,
+          128
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 6,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          131,
+          130
+        ],
+        "to": [
+          140,
+          130
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 7,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          125,
+          130
+        ],
+        "to": [
+          116,
+          130
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 8,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          141,
+          127
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 9,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          114,
+          127
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 10,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          133,
+          131
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 11,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          119,
+          131
+        ],
+        "free": true,
+        "instant": true
+      }
+    },
+    {
+      "tick": 600,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          128,
+          131
+        ],
+        "to": [
+          128,
+          142
+        ]
+      }
+    },
+    {
+      "tick": 900,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "workshop",
+        "cell": [
+          129,
+          142
+        ]
+      }
+    },
+    {
+      "tick": 1400,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          119,
+          137
+        ]
+      }
+    },
+    {
+      "tick": 1500,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          127,
+          136
+        ],
+        "to": [
+          120,
+          136
+        ]
+      }
+    },
+    {
+      "tick": 2800,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          128,
+          125
+        ],
+        "to": [
+          128,
+          112
+        ]
+      }
+    },
+    {
+      "tick": 3000,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "warmth_radiator",
+        "cell": [
+          127,
+          110
+        ]
+      }
+    },
+    {
+      "tick": 3500,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          133,
+          131
+        ],
+        "to": [
+          133,
+          135
+        ]
+      }
+    },
+    {
+      "tick": 3600,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "housing_block",
+        "cell": [
+          132,
+          136
+        ]
+      }
+    },
+    {
+      "tick": 4200,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "coal_generator",
+        "cell": [
+          108,
+          144
+        ]
+      }
+    },
+    {
+      "tick": 7000,
+      "cmd": {
+        "system": "build",
+        "op": "place_line",
+        "kind": "heat_pipe",
+        "from": [
+          130,
+          125
+        ],
+        "to": [
+          134,
+          125
+        ]
+      }
+    },
+    {
+      "tick": 7100,
+      "cmd": {
+        "system": "build",
+        "op": "place",
+        "kind": "turret_mount",
+        "cell": [
+          133,
+          123
+        ]
+      }
+    }
+  ],
+  "shots": [
+    {
+      "tick": 30,
+      "name": "opening"
+    },
+    {
+      "tick": 2200,
+      "name": "midday"
+    },
+    {
+      "tick": 3900,
+      "name": "dusk"
+    },
+    {
+      "tick": 6720,
+      "name": "assault"
+    },
+    {
+      "tick": 8000,
+      "name": "dawn"
+    }
+  ]
+}

@@ -99,15 +99,41 @@ func _draw() -> void:
 		if _urgent > 0.8:
 			col = col.lerp(style.ink_warm(), style.pulse(5.0) * 0.4)
 	if probe.wave_active:
-		style.draw_text_right(self, right_x, _y_time,
-			"%d in the city" % probe.enemies_alive, style.fs(22), col)
+		# "UNDER ATTACK / 0 in the city" is a headline arguing with its own
+		# number. The wave is live and nothing has crossed the line yet — which
+		# is a different and much better piece of news than "0", and it is the
+		# state the panel spends the first minute of every night in.
+		var body: String = "%d in the city" % probe.enemies_alive
+		var scale: int = 22
+		if probe.enemies_alive <= 0:
+			body = "still outside"
+			scale = 20
+		style.draw_text_right(self, right_x, _y_time, body, style.fs(scale), col)
 	else:
 		style.draw_text_right(self, right_x, _y_time,
 			LcnHudFormat.clock(maxf(0.0, _seconds)), style.fs(30), col)
-	style.draw_text_right(self, right_x, _y_where, _where_line(), style.fs(12),
+	# FITTED, NOT TRUSTED. [P08] names every lane it is willing to name, and on
+	# night 3 of the reference run that is "wave 3 from the south-east, the
+	# south-west and the north-east" — 380 px of caption right-aligned inside a
+	# 322 px panel, so it ran out of the left edge and across the city
+	# (`artifacts/play3/shots/third_day_city.png`). The dial beside it already
+	# says which side the weight is on; the caption only has to say how many
+	# there are.
+	var where: String = _where_line()
+	var room: float = right_x - (_dial.x + DIAL_RADIUS + 10.0)
+	if style.text_width(where, style.fs(12)) > room:
+		where = _where_line_short()
+	style.draw_text_right(self, right_x, _y_where, where, style.fs(12),
 		style.ink_faint())
 
-	if probe.wave_band != "":
+	# `wave_known` GATES THIS TOO. The strength bar below already honours the
+	# redaction and this caption did not, so the panel spent the whole first day
+	# printing "wave 1 · no word yet" and "A HANDFUL" one line apart
+	# (`artifacts/play_tour/shots/03_tech.png`) — telling the player the size of
+	# a thing it had just told them nothing is known about. [P08] hands the band
+	# out unconditionally; deciding how much of the preview a player has earned
+	# is this panel's stated job, and it has to apply to every line of it.
+	if probe.wave_band != "" and probe.wave_known:
 		style.draw_caps(self, Vector2(_dial.x + DIAL_RADIUS + 12.0, _y_force),
 			probe.wave_band, style.fs(9), style.sev_colour(S.Sev.WARN), 1.6)
 	if probe.wave_strength > 0.0 and probe.wave_known:
@@ -132,6 +158,26 @@ func _where_line() -> String:
 		return "wave %d %s" % [maxi(1, probe.wave_number), phrase]
 	return "wave %d from the %s" % [maxi(1, probe.wave_number),
 		LcnHudFormat.compass(probe.wave_direction)]
+
+
+## The same news in the room a panel actually has: the count of lanes instead of
+## a list of them. Never invents a direction the player has not earned — an
+## unscouted wave has no long form to shorten and never reaches here.
+func _where_line_short() -> String:
+	var lanes: int = _lane_count()
+	if lanes >= 2:
+		return "wave %d from %d sides" % [maxi(1, probe.wave_number), lanes]
+	return "wave %d from the %s" % [maxi(1, probe.wave_number),
+		LcnHudFormat.compass(probe.wave_direction)]
+
+
+## How many places [P08] named. Its phrase is "the north" / "the north and the
+## east" / "the north, the east and the south-west", so the separators count.
+func _lane_count() -> int:
+	var phrase: String = probe.wave_phrase
+	if phrase == "":
+		return 1
+	return phrase.count(",") + phrase.count(" and ") + 1
 
 
 ## A compass with the approach lit. Eight ticks and a wedge; it only redraws

@@ -45,6 +45,11 @@ var state: int = State.IDLE
 var reason: StringName = REASON_NONE
 ## The specific item a REASON_MISSING_INPUT is about. Empty otherwise.
 var reason_item: StringName = &""
+## The last crew this machine actually had, and the tick it was last seen. A
+## shop coasts on the work already on the bench for a few seconds after the last
+## hand steps out — see ProductionSystem.STAFF_COAST_TICKS and `bench`.
+var staff_held: float = 0.0
+var staff_seen_tick: int = -1000000
 ## Work done on the current craft, in ticks of recipe time.
 var progress: float = 0.0
 ## True once inputs have been consumed and the craft is genuinely under way.
@@ -61,8 +66,17 @@ var outputs: Dictionary[StringName, int] = {}
 var power: float = 1.0
 ## 0..1 from the warmth field: cold hands work slowly.
 var cold: float = 1.0
-## 0..1 from [P05]: a half-crewed shop runs at half speed.
+## 0..1 from [P05]: crew PRESENT, exactly as [P05] reports it, with nothing
+## smoothed into it. This is the published cross-part number and
+## tests/production asserts it against `citizens.staffing_of(id)` to the fourth
+## decimal — read it when you want the truth about who is standing here.
 var staffing: float = 1.0
+## 0..1, `staffing` with the bench coast applied: what the shop can actually get
+## done this tick, which is not zero the instant its one hand walks to the
+## larder. This is what drives `rate` and the UNSTAFFED stall. It equals
+## `staffing` whenever anybody is present, and decays to it within
+## ProductionSystem.STAFF_COAST_TICKS when nobody is.
+var bench: float = 1.0
 ## 0..1 heat-cost coupling: what fraction of the recipe's heat rate is available.
 var heat_factor: float = 1.0
 ## The temperature the machine actually feels, in degrees Celsius.
@@ -233,6 +247,9 @@ func to_json() -> Dictionary:
 		"cold": snappedf(cold, 0.0001),
 		"heat_factor": snappedf(heat_factor, 0.0001),
 		"staffing": snappedf(staffing, 0.0001),
+		"bench": snappedf(bench, 0.0001),
+		"staff_held": snappedf(staff_held, 0.0001),
+		"staff_seen_tick": staff_seen_tick,
 		"felt_c": snappedf(felt_c, 0.01),
 		"seam": [seam.x, seam.y],
 		"seam_item": String(seam_item),
@@ -261,6 +278,11 @@ func from_json(data: Dictionary) -> void:
 	cold = float(data.get("cold", 1.0))
 	heat_factor = float(data.get("heat_factor", 1.0))
 	staffing = float(data.get("staffing", 1.0))
+	# The coast is a clock, so it has to round-trip or a load hands every shop a
+	# fresh 900 ticks of bench work it never earned.
+	bench = float(data.get("bench", staffing))
+	staff_held = float(data.get("staff_held", 0.0))
+	staff_seen_tick = int(data.get("staff_seen_tick", -1000000))
 	felt_c = float(data.get("felt_c", 0.0))
 	waste_given = float(data.get("waste_given", 0.0))
 	waste_taken = float(data.get("waste_taken", 0.0))

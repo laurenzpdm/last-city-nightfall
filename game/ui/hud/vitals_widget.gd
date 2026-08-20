@@ -208,8 +208,17 @@ func _food(baseline: float) -> void:
 	var label_w: float = style.draw_caps(self, Vector2(15.0, baseline), "food",
 		style.fs(9), style.ink_faint(), 1.6)
 	var days: float = probe.food_days
-	var col: Color = style.health_colour(clampf(days / 3.0, 0.0, 1.0))
-	var text: String = "%.1f days" % days
+	# The same wording AND the same alarm threshold as the ATTENTION row that
+	# talks about this number (`LcnHudAlerts._derive_people`, food under two
+	# days). The panel used to snap to tenths and shade on a three-day ramp, so
+	# 1.6 days read green here while the alert list beside it called the same
+	# larder a DANGER at "1.5 days".
+	var col: Color = style.health_colour(clampf(days / 4.0, 0.0, 1.0))
+	if days < 0.5:
+		col = style.sev_colour(S.Sev.DANGER)
+	elif days < 2.0:
+		col = style.sev_colour(S.Sev.WARN)
+	var text: String = LcnHudFormat.days(days)
 	if days >= 100.0:
 		text = "plenty"
 		col = style.health_colour(1.0)

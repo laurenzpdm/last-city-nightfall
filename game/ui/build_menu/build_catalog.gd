@@ -48,6 +48,12 @@ class Entry extends RefCounted:
 	var sort_order: int = 0
 	var unlocked: bool = true
 	var unlock_id: StringName = &""
+	## The city already holds all of this kind it is allowed. Live, not indexed:
+	## it changes every time something is placed or destroyed, and it is refreshed
+	## by `refresh_caps()` on the same poll that feeds the rows their stock.
+	var capped: bool = false
+	## `max_count`, mirrored so the cap refresh does not re-read the resource.
+	var max_count: int = 0
 	var tags: Array[StringName] = []
 	## Lower-case searchable text: name, id, category and tags.
 	var haystack: String = ""
@@ -110,6 +116,7 @@ func rebuild(build_system: Object) -> void:
 		e.unlocked = true
 		if String(e.unlock_id) != "" and build_system.has_method(&"is_unlocked"):
 			e.unlocked = bool(build_system.call(&"is_unlocked", e.unlock_id))
+		e.max_count = LcnUiFormat.as_int(def.get(&"max_count"))
 		e.haystack = _haystack(e)
 		entries.append(e)
 		_by_id[e.id] = e
@@ -121,6 +128,31 @@ func rebuild(build_system: Object) -> void:
 		_by_category[e2.category] = bucket
 	_categories = _ordered_categories(_by_category.keys())
 	_prune_missing()
+
+
+## THE FIRST ROW OF THE BUILD MENU WAS A BUILDING NOBODY CAN EVER PLACE.
+##
+## `artifacts/play_tour/shots/01_palette.png`: press B on a fresh save and the
+## top of the "All" tab, under the cursor, is The Hearth — `max_count = 1`, and
+## the city was founded around one. Press Enter and [P11] refuses it, correctly
+## and out loud, in the first ten seconds of the first hour.
+##
+## Nothing here was missing. [P11] has answered `count_of` since it shipped;
+## [P18]'s sheet has said "The city already has its Hearth." since it shipped;
+## the rows have carried a dim-and-say-why treatment for locked entries since
+## they shipped. Nobody had joined the three, so the one state the list could not
+## show was the one a player meets first.
+##
+## Live rather than indexed, because a cap changes on placement and `rebuild()`
+## does not run on placement. Costs a `count_of` call per capped KIND — three
+## definitions in this build — on the panel's own 4 Hz poll.
+func refresh_caps(build_system: Object) -> void:
+	if build_system == null or not build_system.has_method(&"count_of"):
+		return
+	for e: Entry in entries:
+		if e.max_count <= 0:
+			continue
+		e.capped = int(build_system.call(&"count_of", e.id)) >= e.max_count
 
 
 ## Bumped on every rebuild. Panels compare it instead of rebuilding their rows

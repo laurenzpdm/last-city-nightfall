@@ -56,6 +56,8 @@ DEFS = {
     "splitter_mk1": (1, 2, False, False, False),
     "underground_mk1": (1, 1, False, False, False),
     # --------------------------------------------------------------------------
+    "assembly_hall": (4, 4, False, False, True),
+    "bunker_chest": (1, 1, False, False, False),
     "coal_generator": (3, 2, False, False, True),
     "field_kitchen": (3, 2, False, False, True),
     "geothermal_tap": (3, 3, False, False, True),
@@ -242,9 +244,43 @@ class Layout:
         if instant:
             cmd["instant"] = True
         self.script.append({"tick": tick, "cmd": cmd})
+        return laid
 
     def cmd(self, tick, payload):
         self.script.append({"tick": tick, "cmd": payload})
+
+    def urgent(self, tick, cells, priority=95):
+        """Marks finished-or-queued sites as the next thing the crew does.
+
+        THE QUEUE IS A DESIGN SURFACE AND IT IS ALSO A TRAP. Sites are served
+        (priority desc, tick asc, id asc) and the priorities are content: a wall
+        is 85, a heat pipe 80, a coal generator 60, a belt 55, an inserter 54
+        and a storage yard 40. So a city that lays its grid, its wall and its
+        housing in the first two hundred ticks has, by construction, put its
+        coal yard last — which is exactly what happened here: the yard finished
+        at t14841, the belt carried its first item at t17620, and every burner
+        in the run was starving on an empty line while 1114 units of coal went
+        past on somebody's back. Marking the supply chain urgent is what a
+        player does with a right-click, and it is the only reason the automation
+        in this scenario is running before the first night instead of after the
+        second.
+        """
+        for (x, y) in cells:
+            self.cmd(tick, {"system": "build", "op": "set_priority",
+                            "cell": [x, y], "priority": priority})
+
+    def recipe(self, tick, origin_delta, recipe_id):
+        """Names a machine's recipe by the offset it was PLACED at.
+
+        `set_recipe` on a cell holding a construction site is a standing order
+        (game/sim/production/production_system.gd), so the only correct tick to
+        name a recipe on is the tick the machine goes down. Waiting for the site
+        to finish is a guess about the build queue, and in the old first_night
+        that guess was 6400 ticks wrong.
+        """
+        self.cmd(tick, {"system": "production", "op": "set_recipe",
+                        "cell": [CORE[0] + origin_delta[0], CORE[1] + origin_delta[1]],
+                        "recipe": recipe_id})
 
     def stock(self, tick, items):
         self.cmd(tick, {"system": "build", "op": "add_stock", "items": items})
@@ -257,10 +293,67 @@ class Layout:
         return sorted(self.script, key=lambda e: e["tick"])
 
 
+def _cmd_cells(cmd):
+    """Every tile a place / place_line command would claim, in world cells."""
+    kind = cmd.get("kind")
+    if cmd.get("op") == "place":
+        w, h = DEFS[kind][0], DEFS[kind][1]
+        ox, oy = cmd["cell"]
+        return {(ox + x, oy + y) for y in range(h) for x in range(w)}
+    x0, y0 = cmd["from"]
+    x1, y1 = cmd["to"]
+    out = set()
+    cur = (x0, y0)
+    for _ in range(512):
+        out.add(cur)
+        if cur == (x1, y1):
+            break
+        if cur[0] != x1:
+            cur = (cur[0] + (1 if x1 > cur[0] else -1), cur[1])
+        elif cur[1] != y1:
+            cur = (cur[0], cur[1] + (1 if y1 > cur[1] else -1))
+        else:
+            break
+    return out
+
+
 def write(scenario):
     # Private keys the schema does not know about: consumed here, never written.
     layout = scenario.pop("_layout", None)
     allow_islands = scenario.pop("_allow_islands", 0)
+
+    # THE OCCUPANCY MODEL IS BUILT IN CALL ORDER AND THE RUN HAPPENS IN TICK
+    # ORDER, so the two have to be the same sequence or the model is checking a
+    # scenario nobody plays.
+    #
+    # careless_night had `L.place(3600, "housing_block", 5, 8)` written above
+    # `L.line(3500, "heat_pipe", (5, 3), (5, 8))`. `free()` was asked before the
+    # pipe existed and said yes; the sort below then put the pipe first, and at
+    # runtime build refused the block with "Heat Pipe is in the way at 133, 136".
+    # A scenario that claims to refuse to emit what the game would refuse, doing
+    # exactly that, silently, in the half of the A/B pair whose whole job is to
+    # be read against the other half.
+    #
+    # Only the commands that CLAIM GROUND matter, and only when an inverted pair
+    # actually shares a tile: a `set_priority` or a heat dump written out of
+    # sequence changes nothing the model tracks, and two placements that never
+    # touch cannot refuse each other however they are ordered.
+    claiming = [(i, e) for i, e in enumerate(scenario["script"])
+                if e["cmd"].get("op") in ("place", "place_line")]
+    for j, (cur_i, cur) in enumerate(claiming):
+        for prev_i, prev in claiming[:j]:
+            if cur["tick"] >= prev["tick"]:
+                continue
+            shared = _cmd_cells(cur["cmd"]) & _cmd_cells(prev["cmd"])
+            assert not shared, (
+                "%s: %s at tick %d (command %d) is WRITTEN after %s at tick %d "
+                "(command %d) and they share %s. The Layout claimed ground in "
+                "the order these were written and the harness runs them in tick "
+                "order, so the model said free and [P11] will say occupied. "
+                "Write the ones that claim ground in the order they happen."
+                % (scenario["name"], cur["cmd"].get("kind"), cur["tick"], cur_i,
+                   prev["cmd"].get("kind"), prev["tick"], prev_i,
+                   sorted(shared)[:3]))
     scenario["script"] = sorted(scenario["script"], key=lambda e: e["tick"])
     for e in scenario["script"]:
         assert 1 <= e["tick"] <= scenario["ticks"], (scenario["name"], e)
@@ -304,7 +397,7 @@ def smoke():
     L.place(12, "coal_generator", -3, 11, free=True, instant=True)
     L.place(13, "workshop", 1, 11, free=True, instant=True)
     L.place(14, "storage_yard", 9, 4, free=True, instant=True)
-    # The perimeter is on the city's grid, not beside it. A watchtower draws 1
+    # The perimeter is on the city's grid, not beside it. A watchtower draws 5
     # heat and a turret draws 6; off the network they are one-node islands that
     # freeze by deep night, which is the opposite of what these shots are for.
     L.line(15, "heat_pipe", (12, -1), (12, -9), free=True, instant=True)
@@ -337,12 +430,262 @@ def smoke():
 
 
 # --------------------------------------------------------------- first_night
-def first_night():
+#
+# THE REFERENCE RUN, AND WHAT IT USED TO BE.
+#
+# Driven to 24000 ticks, the old version of this scenario ended with 5 of 5
+# machines stalled, `production.ipm.ration` at 0.0 for three in-game days, half
+# rations declared at t15230, the population exiling the player at t22380, and
+# 96% of all fuel in the run (1362 of 1413 units) carried on a porter's back.
+# Tutorial lesson 05 is called "You cannot click fast enough". The run this
+# whole project screenshots against had not learned it.
+#
+# THREE MEASURED CAUSES, all of them in this file, none of them in [P02]/[P04]:
+#
+#  1. BOTH COAL GENERATORS WERE FROZEN AT THE FINAL TICK, WITH FULL BUNKERS.
+#     They stood at (124,142) and (129,145), 14 and 17 tiles from the Hearth's
+#     footprint, where its warmth field is worth about 3 C. A burner keeps
+#     itself at (ground + 11 C) and freezes at -10, so it survives only while
+#     the ground under it is warmer than about -21 C; this map's ambient bottoms
+#     out at -32.85. Once frozen its radiance goes to zero, which is why neither
+#     ever thawed: a dead burner needs +30 C of SOMEBODY ELSE's warmth to come
+#     back. economy_60min had this written down as THE WARMTH-COVER LAW and this
+#     scenario had never applied it. Every burner now stands within 5 tiles of
+#     the Hearth's own field, in a single row along its north face.
+#
+#  2. SO SUPPLY WAS THE HEARTH ALONE — 138.9 against a demand of 190.9 — and
+#     [P02] sheds by priority. Industry is tier 50 and housing is tier 90, so a
+#     27% shortfall does not brown the city out evenly: it takes EVERY unit away
+#     from the factory. `rubble_sorter` read `power 0.0000` at every single
+#     checkpoint of the run. It was not a production bug and not a heat bug; it
+#     was this file building 197 heat entities against one working generator.
+#
+#  3. AND THE FIELD KITCHEN READ `missing_input: grain` FOREVER, because grain
+#     comes from `salvaged_stores`, which is run by the sorter that never got a
+#     joule. One under-built grid, and the food chain, the ration counter, hope
+#     and the ending all fall out of it in that order.
+#
+# WHAT REPLACES IT: supply first and warm, then the chain that eats it.
+#   * five coal generators in one row along the Hearth's north face, every one
+#     of them inside its warmth field, each loaded by an inserter off ONE belt
+#     that runs the length of the row out of a coal yard. That belt is the
+#     automation pillar and it has teeth: [P03] stands the porters down for any
+#     burner an arm is feeding (`_line_fed`), so if the line runs dry the
+#     burners die and the run says so.
+#   * a coal drill on the seam at (124,97) — measured, not guessed: a probe
+#     placed a drill on every 3x3 site in the basin and read back `seam_item`,
+#     and coal is the field at 30 tiles due north, behind the wall line. It
+#     keeps the yard filled through a standing `request`, so the belt is fed by
+#     mining rather than by the founders' pile running out on day two.
+#   * the salvage strip: two rubble sorters, one on `salvaged_stores` for grain
+#     and one on `sorted_rubble` for the iron ore the smelter runs on, two scrap
+#     collectors keeping them in feedstock, and the field kitchen next to them.
+#     scrap -> grain -> ration, closed, on the same grid, and warm.
+#
+# WARMTH IS THE PLACEMENT RULE HERE, not proximity to a pipe. A building's
+# internal temperature is (ambient + radiated warmth + 1.6 C per unit of heat it
+# is actually served) and it freezes at -10 C. That means a thin consumer needs
+# somebody else's warmth to survive a -32 C night while a 9-unit housing block
+# needs none. The watchtower USED to be the worked example here at 1 unit and
+# +20 C of cover; it is 5 units and insulation 0.6 since c690b03, which lifts it
+# ~15 C on its own, so re-derive from the .tres rather than from this paragraph
+# — the numbers below were placed under the old figure and still hold only
+# because they are generous. Every position was checked against the smoothstep
+# falloff in game/sim/heat/warmth_field.gd at the coldest ambient the run
+# reaches, and anything thin is standing next to a radiator on purpose.
+def _more_fire(L):
+    """Day one, before anything that eats: two more burners in warm ground.
+
+    THE MEASUREMENT THAT PUT THIS FUNCTION FIRST IN THE FILE. A version of this
+    scenario added nine machines, two radiators and sixty tiles of new main to
+    the layout below without adding supply. `heat.total_demand` went from a peak
+    of 190 to a peak of 895 against a delivery that never once passed 283;
+    [P02] sheds by priority, so the ENTIRE factory went to power 0.00, 25
+    buildings froze, the population fell from 55 to 39 and hope from 72 to 30.
+    Not one of the new machines completed a single craft. The city did not fail
+    to build a factory — it failed to buy one, and the currency is heat.
+
+    So: supply first, and warm, and AIMED. All three stand inside the Hearth's
+    own 14-tile field — thirteen, six and eleven tiles out — and every one of
+    them touches a main along one face, which is the only reason they are on the
+    grid at all: a burner that touches nothing conducting is its own one-node
+    network and produces into a wall.
+
+    THE TWO ON y133 ARE AIMED AT THE SOUTH RUNG ON PURPOSE. A version of this
+    that put the second burner at (141,123) raised delivery and dropped
+    `produced.iron_plate` from 23 to 8, because the smelter at (134,136) hangs
+    off the y135 pipe at the far end of the grid on heat priority 50 and a
+    burner in the north-east does not reach it. These two feed that rung
+    directly and (137,133) radiates 3 tiles onto the smelter's own roof.
+    """
+    L.place(4400, "coal_generator", -13, -5)                # x115-117, y123-124
+    L.place(4440, "coal_generator", -5, 5)                  # x123-125, y133-134
+    L.place(4480, "coal_generator", 9, 5)                   # x137-139, y133-134
+    L.urgent(4520, [(CORE[0] - 13, CORE[1] - 5), (CORE[0] - 5, CORE[1] + 5),
+                    (CORE[0] + 9, CORE[1] + 5)])
+
+
+def _foundry_spine(L):
+    """Day one, after dark: eleven tiles of main, one radiator, no machines yet.
+
+    THE ORDER IS THE LESSON THIS FILE ALREADY LEARNED ONCE. The salvage strip
+    went in before the burner row in an earlier version and read `power 0.0000`
+    at every checkpoint of the run. So the foundry's grid and its radiator go
+    down on day one and the machines that eat them wait for day two.
+
+    WHERE, AND WHY IT IS OUT HERE AT ALL. The warm core of this city is FULL —
+    x112..x143 by y118..y140 has a building on almost every tile by t6000 — so
+    a factory quarter costs new ground, and new ground costs heat. This is the
+    cheapest new ground there is: one rung of main hung off the y120 salvage
+    rung by a two-tile column, eight tiles from the Hearth's face at its nearest
+    corner, with a single radiator covering the whole of it (6.5 tiles of reach
+    from x134-135 spans x128..x141).
+
+    A trunk main and not a heat_pipe. The strip's own spur measured
+    `capacity 69.0, load 69.0` — saturated — with supply going spare on the
+    other side of it, and a capacity bottleneck reads from inside a machine as
+    `no_heat`, which is indistinguishable from a dead burner.
+    """
+    spine = []
+    spine += L.line(5400, "heat_trunk_main", (3, -11), (15, -11))   # y117, x131-143
+    spine += L.line(5440, "heat_trunk_main", (11, -10), (11, -9))   # x139, y118-119
+    L.place(5600, "warmth_radiator", 6, -13)                        # x134-135
+    spine.append((CORE[0] + 6, CORE[1] - 13))
+    # AND ITS OWN FIRE, WHICH THE FIRST VERSION OF THIS QUARTER DID NOT HAVE AND
+    # PAID FOR IN THE ONE NUMBER THE WHOLE SCENARIO EXISTS TO MOVE. Every
+    # machine out here is heat priority 50 or 55 — the two tiers [P02] sheds
+    # first — and `pipe_segment` costs 50 heat over 5 s, which is EXACTLY a
+    # workshop's 10 u/s rating, so it is the one recipe in the game that needs
+    # full power to run at all. Measured without this burner: the shop read
+    # `power 0.0000, no_heat, felt -4.5` at the final tick, made 46 gears and
+    # zero pipe segments, the assembly hall sat on `missing_input: pipe_segment`
+    # with its circuits already made, and the run stopped at chain depth 3. One
+    # burner is 30 units delivered HERE instead of pushed eighteen tiles down a
+    # main, and it stands between the two rungs so both of its faces conduct.
+    L.place(5800, "coal_generator", 13, -10)                        # x141-143
+    spine.append((CORE[0] + 13, CORE[1] - 10))
+    L.urgent(5900, spine)
+
+
+def _foundry(L):
+    """Day two: three machines, and the two links the old run never made.
+
+    WHAT THIS QUARTER IS FOR, ITEM BY ITEM. The reference run reached chain
+    depth 2 — iron_ore out of a sorter, iron_plate and slag out of one smelter —
+    against a shipped graph that is five transformations deep. Everything above
+    plate wanted something the city had no source for:
+
+        gear          <- iron_plate
+        copper_coil   <- copper_ore      RAW, and the nearest field is 34 tiles
+                                          east, past the wall and the lanes
+        steel_plate   <- iron_plate + coal
+        pipe_segment  <- steel_plate + copper_coil
+
+    Three buildings close all four. `salvaged_wire` (game/content/recipes/) is
+    the new one and it is the keystone: it is the only source of copper inside
+    the walls, at 0.16 ore/s against the 0.80/s one drill lifts. Five sorters to
+    feed one copper smelter is a deliberately bad ratio — it is the tooltip
+    telling the player, in numbers, to go and take the copper field.
+
+    THREE MACHINES AND NOT NINE, FOR A REASON THAT IS WRITTEN DOWN IN THE RUN.
+    Nine cost 300 units of demand the grid did not have. These three cost 42
+    against the 60 the two burners above added, so the quarter pays for itself
+    the day it is switched on.
+    """
+    urgent = []
+    L.place(9800, "smelter", 3, -14)                                # x131-133
+    L.recipe(9801, (3, -14), "copper_coil")
+    urgent.append((CORE[0] + 3, CORE[1] - 14))
+    L.place(9900, "workshop", 8, -14)                               # x136-139
+    L.recipe(9901, (8, -14), "gear")
+    urgent.append((CORE[0] + 8, CORE[1] - 14))
+    # Under the same rung and over the y120 one, so both faces of it touch a
+    # conduit and it is never one dead tile from being an island.
+    L.place(10000, "rubble_sorter", 7, -10)                         # x135-137
+    L.recipe(10001, (7, -10), "salvaged_wire")                      # scrap -> COPPER
+    urgent.append((CORE[0] + 7, CORE[1] - 10))
+    L.urgent(10200, urgent)
+
+
+def _retool(L):
+    """Day three: one recipe change, no building, one more tier.
+
+    THE CHEAPEST PROGRESSION IN THIS RUN BECAUSE IT IS NOT CONSTRUCTION. The
+    build queue is the other budget this city does not have — a nine-machine
+    version of this quarter left the smelter placed at t3200 still a
+    CONSTRUCTION SITE at t13600, so its standing order landed on a hole in the
+    ground. A retool costs no materials, no crew and no queue: it is a player
+    right-clicking a machine that is already standing and already staffed.
+
+    The south smelter has been making iron_plate since t3200, so it moves up a
+    tier and starts turning plate and coal into steel. Depth 3 for nothing.
+
+    AND THE MACHINE THAT HAS TO REPLACE IT, WHICH THE FIRST VERSION OF THIS RUN
+    FORGOT. Steel EATS plate — two per bar — so retooling the city's only iron
+    smelter and putting nothing behind it is how that run ended with
+    `produced.iron_plate` 18, the steel smelter parked on
+    `missing_input: iron_plate`, and 194 of its 388 pipe segments quietly paid
+    for out of the founders' pile. A retool is free; the hole it leaves is not.
+    """
+    L.recipe(2 * 9600 + 400, (6, 8), "steel_plate")
+    L.place(2 * 9600 + 600, "smelter", 12, -14)                       # x140-142
+    L.recipe(2 * 9600 + 601, (12, -14), "iron_plate")
+    L.urgent(2 * 9600 + 700, [(CORE[0] + 12, CORE[1] - 14)])
+
+
+def first_night(strip_workshop: bool = True):
     L = Layout()
-    L.stock(1, {"iron_plate": 1400, "steel_plate": 900, "stone": 1400, "timber": 900,
-                "scrap": 900, "gear": 400, "copper_coil": 400, "coal": 900})
+    # Materials, not a cheat code: the old stock ran dry on day two and FOUR
+    # placements were refused for cost, which is why the workshop and the
+    # smelter are missing from that run's building list entirely. Coal is 1800
+    # because the Hearth alone burns 0.8/s and the drill does not land until the
+    # afternoon.
+    L.stock(1, {"iron_plate": 3200, "steel_plate": 1400, "stone": 2600,
+                "timber": 2200, "scrap": 1600, "gear": 700, "copper_coil": 500,
+                "coal": 1800, "grain": 1600})
+    # THE FACTORY THIS SCENARIO IS ALLOWED TO HAVE IS EXACTLY ONE BUILDING, AND
+    # THAT IS A RESULT, NOT AN OMISSION. Three separate attempts to put a
+    # factory QUARTER in here were measured against the bands in
+    # tests/gate/expectations.json and every one of them made the run WORSE:
+    #
+    #   nine machines + two burners  demand peak 190 -> 895 against a delivery
+    #                                that never passed 283; 25 buildings frozen,
+    #                                population 55 -> 39, hope 72 -> 30, zero
+    #                                crafts from any new machine.
+    #   three machines + two burners [P05] left all three at `assigned: 0` with
+    #                                eleven citizens unemployed and nine job
+    #                                slots unfilled. chain_depth still 2;
+    #                                rejected_total 4; hope floor 27.9 -> 15.8.
+    #   three MORE BURNERS ALONE     the good half: deficit peak 213 -> 100,
+    #                                hope floor 27.9 -> 46.9. And the bad half:
+    #                                three more porter-fed bunkers pulled the
+    #                                haulers off the belt — fuel_by_machine
+    #                                1078 -> 507, fuel_by_porter 1201 -> 2067,
+    #                                items_moved 2531 -> 1346 — and the south
+    #                                smelter, competing for the same coal, made
+    #                                0 plates against 23. Six bands red to buy
+    #                                one.
+    #
+    # What every one of those three bought its depth with was CAPACITY the grid
+    # and the job board did not have: nine machines, sixty tiles of new main and
+    # 300 units of demand. The single workshop on the end of the salvage strip
+    # (see "AND ONE SHOP ON THE END OF THE STRIP" above) buys the same tier for
+    # 10 units on ground that is already heated and already crewed, which is why
+    # it is in and the quarter is not. The full foundry experiment still lives in
+    # tests/scenarios/deep_chain.json, where the recipes above `gear` — steel,
+    # copper coil, pipe segment, circuit — are what is actually being graded.
+    # GRAIN IS SEED STOCK, NOT A CHEAT. The kitchen turns 2 grain into 3
+    # rations, so the founders' store is what feeds the city while the sorters
+    # are still being built — and [P05] gates arrivals on
+    # `food_days_remaining() >= 0.75`, which means a city that runs its larder
+    # down stops growing, stops crewing its machines, and cannot ever climb out.
+    # The old run hit food_days 0.09 and never took another arrival after t14000
+    # with 36 people and 49 job slots. What the band asserts is `produced.grain`
+    # AND `produced.ration`: the seed store proves nothing on its own, and the
+    # sorters making more grain than the kitchen eats is the actual claim.
     L.unlock(2, "thermal_storage", "pressurised_mains")
-    # The city that already stands when the day begins.
+    # The city that already stands when the day begins. UNCHANGED — the
+    # "opening" shot at t=30 is what every art and UI part screenshots against.
     L.place(3, "the_hearth", -2, -2, free=True, instant=True)
     L.line(4, "heat_pipe", (3, 0), (12, 0), free=True, instant=True)
     L.line(5, "heat_pipe", (-3, 0), (-12, 0), free=True, instant=True)
@@ -352,110 +695,662 @@ def first_night():
     L.place(9, "warmth_radiator", -14, -1, free=True, instant=True)
     L.place(10, "housing_block", 5, 3, free=True, instant=True)
     L.place(11, "housing_block", -9, 3, free=True, instant=True)
-    # Everything after this the player pays for, in build order.
-    L.line(400, "heat_pipe", (0, 3), (0, 14))
-    L.line(500, "heat_pipe", (0, 14), (-1, 14))
-    L.place(600, "coal_generator", -4, 14)
-    L.place(900, "workshop", 1, 14)
-    L.place(1200, "storage_yard", 9, 4)
-    L.line(1500, "heat_pipe", (-1, 8), (-8, 8))
-    L.place(1800, "warmth_radiator", -10, 7)
-    L.place(2100, "housing_block", -9, 9)
-    L.line(2400, "heat_pipe", (5, 3), (5, 8))
-    L.place(2600, "granary", 6, 8)
-    # The west column runs past the kitchen to the sorting yard. Without the
-    # sorter nothing in the shipped content turns scrap into grain, the kitchen
-    # reports missing_input for the whole run, and the city eats its founders'
-    # larder and starves on day four. This is the food chain, closed.
-    L.line(2800, "heat_pipe", (-3, 2), (-3, -11))
-    L.place(3000, "field_kitchen", -6, -8)
-    L.place(3200, "rubble_sorter", -6, -11)
-    # A sorter left alone picks sorted_rubble (sort_order 10) and makes building
-    # material the city already has. Say what it is for — AFTER it is standing,
-    # because set_recipe addresses a machine and a building site is not one yet.
-    L.cmd(4650, {"system": "production", "op": "set_recipe",
-                 "cell": [CORE[0] - 6, CORE[1] - 11], "recipe": "salvaged_stores"})
-    L.line(3400, "heat_pipe", (12, 1), (12, 8))
-    L.place(3800, "heat_accumulator", 13, 8)
-    # Industry reaches out to the coal seam north of the basin. One trunk runs
-    # all the way to the wall line, so the perimeter is on the same grid as the
-    # city and a brownout at the hearth is felt at the turrets.
-    L.line(4000, "heat_pipe", (0, -3), (1, -18))
-    L.line(4100, "heat_pipe", (1, -18), (1, -33))
-    L.line(4150, "heat_pipe", (1, -30), (-1, -30))
-    L.place(4200, "ore_drill", -4, -31)
-    L.place(4600, "smelter", 2, -21)
-    # THE AUTOMATION PILLAR. Everything above this line is carried on a
-    # porter's back, which is why the reference run reported belt_lines 0 and
-    # items_moved 0 for eleven thousand ticks: this generator had the vocabulary
-    # for a belt and never laid one. The founders' coal pile goes on a dragged
-    # run into the west generator's bunker, so line_fed_burners is earned by a
-    # belt instead of by a queue of people.
-    L.place(1000, "crate", -10, 18)
-    L.place(1010, "inserter_mk1", -9, 18, rot=0)
-    L.line(1020, "belt_mk1", (-8, 18), (-3, 17))
-    L.place(1030, "inserter_mk1", -3, 16, rot=3)
-    L.cmd(1100, {"system": "logistics", "op": "insert",
-                 "cell": [CORE[0] - 10, CORE[1] + 18], "item": "coal", "count": 400})
-    L.cmd(6000, {"system": "logistics", "op": "insert",
-                 "cell": [CORE[0] - 10, CORE[1] + 18], "item": "coal", "count": 400})
-    # THE INNER RING. The wall and its two mounts sit 35 tiles north of the
-    # hearth on one lane; [P08] picks the cheapest lane and in the reference run
-    # it picked another one, walked past all of it, and ate the Hearth at t=6336
-    # while both turrets read no_target. Four short spurs off the hearth carry
-    # four mounts at 5-7 tiles, which is inside a burner cannon's 11-tile reach
-    # of the core from every direction. They cost 24 u/s of heat to stand there,
-    # which is the trade the whole game is about.
-    L.line(4700, "heat_pipe", (2, -3), (6, -3))
-    L.line(4740, "heat_pipe", (2, 3), (4, 3))
-    L.line(4760, "heat_pipe", (-2, 3), (-4, 3))
-    L.place(4780, "turret_mount", 5, -5)
-    # The north-west mount hangs straight off the kitchen column; a spur here
-    # would sit where the last housing block goes at t=10200.
-    L.place(4820, "turret_mount", -5, -5)
-    L.place(4860, "turret_mount", 3, 4)
-    L.place(4900, "turret_mount", -4, 4)
-    # The wall goes up before dusk.
+
+    # === SUPPLY FIRST, AND WARM =============================================
+    # A main, not a pipe: five burners pushing 150 u/s past a Hearth that is not
+    # a conduit would saturate a 60-capacity heat_pipe. `heat_trunk_main`
+    # carries 220 and radiates its 4 C minimum along the row it makes.
+    L.line(20, "heat_trunk_main", (-16, -3), (15, -3))
+    # THE TWO BYPASSES, AND THE MEASUREMENT THAT PUT THEM THERE.
+    #
+    # The Hearth generates; it does not conduct, and [HeatFlow._route] only lets
+    # a non-conductor forward heat when it is ITSELF the source. So nothing —
+    # not one unit — routes through the Hearth from the burner row to the rest
+    # of the city. The version of this layout without these two columns measured
+    # exactly that: generator (127,123) sat at output 0.00 with a full bunker,
+    # (123,123) at 7.0, while 34 consumers browned out under a 102-unit deficit.
+    # The heat was real, the grid was one network, and there was no route.
+    #
+    # A `heat_pipe` carries 60 and a `heat_trunk_main` carries 220, so these are
+    # mains: everything the north row makes has to get south down one of two
+    # columns, and 2 x 60 would have stranded a third of it just as surely.
+    L.line(24, "heat_trunk_main", (-16, -3), (-16, 6))
+    L.line(28, "heat_trunk_main", (15, -3), (15, 6))
+    # Short elbows into the founding rows as well, so the west and east streets
+    # are fed from the burners and not only from the Hearth's own two faces.
+    L.line(32, "heat_trunk_main", (-12, -3), (-12, -1))
+    L.line(34, "heat_trunk_main", (12, -3), (12, -1))
+
+    urgent = []
+    # THE COAL YARD AND THE LINE OUT OF IT, before anything that burns: [P03]
+    # stands the porters down for a burner an arm is feeding, so a burner
+    # finished before its belt is a burner nobody is allowed to walk coal to.
+    L.place(30, "storage_yard", -15, -8)                    # x113-115, y120-122
+    urgent.append((CORE[0] - 15, CORE[1] - 8))
+    L.place(40, "inserter_mk1", -12, -7, rot=0)             # yard -> belt head
+    urgent.append((CORE[0] - 12, CORE[1] - 7))
+    # THE LINE RUNS UNDER THE SPUR, NOT ACROSS IT. A belt is a wall: it owns
+    # every tile of y121 and there is no square left for heat to cross from the
+    # rung above to the main below. A sunken pair at x126/x129 buys back two
+    # free tiles in the middle of the row, and the heat spur at x128 goes
+    # straight down through them into the burner main.
+    urgent += L.line(50, "belt_mk1", (-11, -7), (-3, -7))   # y121, x117 -> x125
+    L.place(52, "underground_mk1", -2, -7, rot=0)           # x126, dives
+    L.place(54, "underground_mk1", 1, -7, rot=0)            # x129, surfaces
+    urgent += [(CORE[0] - 2, CORE[1] - 7), (CORE[0] + 1, CORE[1] - 7)]
+    urgent += L.line(56, "belt_mk1", (2, -7), (9, -7))      # y121, x130 -> x137
+    # THE SECOND HEAD, AND THE MEASUREMENT THAT PUT IT THERE. One mk1 arm out of
+    # the yard is 0.83 items a second and that is the whole line: the two
+    # founding burners finish at t1254 and t1259 with empty bunkers, the near
+    # arm at (123,122) takes everything that comes past, and #126 eight tiles
+    # further east sits under MIN_FUEL_RESERVE — four units — until t3120.
+    # `logistics.lines_dry` reads 2 then 1 for 88 consecutive samples against a
+    # band of max 0 (artifacts/J2_r1/metrics.csv; it reads the same on the run
+    # this branch started from, artifacts/J2_base). Moving the first load 240
+    # ticks earlier closed four samples of it, which is how I know the belt was
+    # never the problem — the HEAD is.
+    #
+    # A crate on the far side of the sunken pair, kept full by a standing porter
+    # order and emptied onto the line by its own arm, gives the east half of the
+    # row a second source. It is the same shape as the Hearth's crate below,
+    # for the same reason, and it leaves the interlock intact: this is a store
+    # with an order on it, not a porter walking into a line-fed bunker.
+    L.place(57, "crate", 2, -5)                             # x130, y123
+    L.place(58, "inserter_mk1", 2, -6, rot=3)               # crate -> belt x130
+    urgent += [(CORE[0] + 2, CORE[1] - 5), (CORE[0] + 2, CORE[1] - 6)]
+    # One arm per burner, every one of them dropping south into a bunker. There
+    # is no burner in the x127-129 slot and there cannot be: its only conduit
+    # neighbours are the three main tiles that also touch the Hearth, and
+    # [HeatFlow._route] breaks a distance tie on the LOWER building id — which
+    # the Hearth wins for the rest of the game. A generator placed there
+    # measured output 0.00, permanently, with a full bunker and a 41-unit
+    # deficit on its own network. See the report note on [P02].
+    burners = [-5, 3, -9, 7]
+    for i, dx in enumerate(burners):
+        L.place(60 + i * 4, "inserter_mk1", dx, -6, rot=1)
+        urgent.append((CORE[0] + dx, CORE[1] - 6))
+    # THE BURNER ROW. Two to three tiles off the Hearth's north face, where its
+    # field is still worth 20-28 C. A burner keeps itself at (ground + 11 C) and
+    # freezes at -10; this map bottoms out at -32.85, and a frozen burner stops
+    # radiating, which is why the two that froze in the old run never thawed.
+    # Every one of these survives a dead bunker on borrowed warmth alone.
+    for i, (tick, dx) in enumerate(zip([90, 130, 420, 900], burners)):
+        L.place(tick, "coal_generator", dx, -5)
+        urgent.append((CORE[0] + dx, CORE[1] - 5))
+    # A sixth, off the founding row on the Hearth's SOUTH face, fed by porters
+    # out of the city stores. Not every burner in a real base is on the line,
+    # and having one that is not is how the belt's contribution stays legible.
+    L.place(1700, "coal_generator", -5, 3)                  # x123-125, y131-132
+    urgent.append((CORE[0] - 5, CORE[1] + 3))
+    L.place(1750, "coal_generator", -12, 3)                 # x116-118, y131-132
+    urgent.append((CORE[0] - 12, CORE[1] + 3))
+    L.place(1800, "coal_generator", 9, 3)                   # x137-139, y131-132
+    urgent.append((CORE[0] + 9, CORE[1] + 3))
+    # === AND THE HEARTH ITSELF GOES ON A LINE ==============================
+    # This is the whole finding, in one place. The Hearth burns 0.83 coal a
+    # second — more than every generator in the city put together — and in the
+    # old run every unit of it was carried by hand: fuel_by_porter 1362 against
+    # fuel_by_machine 51, which is 96% of the fuel in this game moving at
+    # walking pace. Four arms off its south face and a crate the porters keep
+    # topped up turn that around, and [P03]'s interlock makes it a real bet:
+    # once an arm swings into a bunker the porters stand down for it, so if this
+    # crate ever empties, the Hearth goes out and the run says so in
+    # `logistics.lines_dry` rather than quietly covering for the mistake.
+    L.place(1850, "crate", 4, 4)                            # x132, y132
+    L.place(1860, "inserter_mk1", 3, 4, rot=2)              # crate -> belt
+    L.line(1870, "belt_mk1", (2, 4), (-1, 4))               # y132, x130 -> x127
+    for dx in (-1, 0, 1, 2):
+        L.place(1880 + dx, "inserter_mk1", dx, 3, rot=3)    # belt -> the Hearth
+    L.urgent(1900, [(CORE[0] + 4, CORE[1] + 4), (CORE[0] + 3, CORE[1] + 4)]
+             + [(CORE[0] + dx, CORE[1] + 4) for dx in (-1, 0, 1, 2)]
+             + [(CORE[0] + dx, CORE[1] + 3) for dx in (-1, 0, 1, 2)])
+    L.cmd(2000, {"system": "logistics", "op": "insert",
+                 "cell": [CORE[0] + 4, CORE[1] + 4], "item": "coal", "count": 350})
+    L.cmd(2010, {"system": "logistics", "op": "request",
+                 "cell": [CORE[0] + 4, CORE[1] + 4], "item": "coal", "amount": 350})
+    L.urgent(240, urgent)
+    # THE FIRST LOAD GOES IN THE TICK THE YARD OPENS, NOT THREE HUNDRED AFTER
+    # THE FIRST BURNER LIGHTS. Measured, on the layout that put it at t1200
+    # (artifacts/J2_base/metrics.csv): the yard was adopted at t939, burners
+    # #125 and #126 finished at t1254 and t1259 with empty bunkers, and
+    # `logistics.lines_dry` read 2 from t1280 and did not reach 0 again until
+    # t3120 — 92 consecutive samples against a band of max 0. Nothing was
+    # broken: the interlock stood the porters down for two line-fed burners
+    # while the line itself was still empty, which is the interlock working.
+    # The near arm at (123,122) then took every unit that came past and #126,
+    # eight tiles further east, stayed under MIN_FUEL_RESERVE for 1800 more
+    # ticks waiting for the belt to back up to it.
+    #
+    # Loading at t960 — twenty-one ticks after the yard is adopted — gives the
+    # belt three hundred ticks to saturate all the way to x137 BEFORE the first
+    # burner asks it for anything, which is what a player does when they build
+    # the yard first and then fill it. It is the same 700 units; only the tick
+    # moved.
+    L.cmd(960, {"system": "logistics", "op": "insert",
+                "cell": [CORE[0] - 14, CORE[1] - 7], "item": "coal", "count": 700})
+    # THE STANDING ORDER THAT MAKES THE DRILL MATTER: porters keep 600 coal in
+    # the yard out of the city stores, the drill fills the city stores, the belt
+    # empties the yard into six bunkers. Without it the line is one delivery.
+    L.cmd(980, {"system": "logistics", "op": "request",
+                "cell": [CORE[0] - 14, CORE[1] - 7], "item": "coal", "amount": 600})
+    L.cmd(700, {"system": "logistics", "op": "insert",
+                "cell": [CORE[0] + 2, CORE[1] - 5], "item": "coal", "count": 60})
+    L.cmd(720, {"system": "logistics", "op": "request",
+                "cell": [CORE[0] + 2, CORE[1] - 5], "item": "coal", "amount": 60})
+
+    # === THE SALVAGE STRIP ==================================================
+    # Six to eight tiles north of the Hearth, which is as far out as its field
+    # is still worth 12 C. Every machine here is heat priority 50 — the tier
+    # [P02] sheds FIRST — so it exists only because the burner row above went in
+    # before it did. In the old run this whole strip read `power 0.0000` at
+    # every checkpoint.
+    L.line(140, "heat_trunk_main", (-1, -8), (-1, -4))      # x127, under the
+    L.line(144, "heat_trunk_main", (0, -8), (0, -4))        # x128, sunken belt
+    L.line(150, "heat_pipe", (-11, -8), (10, -8))           # y120 rung
+    # Two mains down to the burner row, not one. The single spur that used to
+    # carry the whole strip measured `capacity 69.0, load 69.0` — a heat_pipe
+    # at 60 x 1.15 of research, saturated, with supply going spare on the other
+    # side of it. A capacity bottleneck reads exactly like a supply shortage
+    # from inside a machine: `no_heat`.
+    L.line(160, "heat_trunk_main", (11, -8), (11, -4))      # x139
+    L.line(164, "heat_trunk_main", (12, -8), (12, -4))      # x140
+    # And two more through the sunken belt, which is what gives the middle of
+    # the burner row a customer of its own. Mains, again for a measured reason:
+    # a single heat_pipe here read `capacity 69.0, load 69.0` with five burners
+    # idling on the other side of it at 7 to 14 units of a possible 33.6.
+    # THE ROW IS LAID OUT RADIATOR-FIRST, NOT LEFT TO RIGHT. A 2-unit collector
+    # makes 3 C of its own heat and a 6-unit sorter 15; at -32.85 C ambient they
+    # need 18 and 8 more respectively, and one tile off a radiator's face is
+    # worth 17.7 while four tiles is worth 6.3. Move any machine in this row two
+    # tiles and it freezes on the second night — and a frozen machine radiates
+    # nothing, draws nothing and therefore never thaws. That is not a soft
+    # failure: it is permanent, and it is what took the westmost sorter out of
+    # the previous version of this layout.
+    # THE PLACEMENT TICK IS ALSO THE HIRING ORDER, AND THAT IS NOT OBVIOUS.
+    # [P05] hires down `job_ids`, sorted by BUILD PRIORITY descending and then
+    # by building id — and a site is filled to its staff CAPACITY, not to what
+    # it requires. A scrap collector needs 2 and holds 4. So three collectors
+    # placed before the sorters take twelve of the city's workers to do the work
+    # of six, and a rubble sorter (build priority 60) that went down after them
+    # gets nobody at all: measured, three sorters at staffing 0.00 and zero
+    # crafts for a whole run while the collectors beside them ran at 1.00.
+    # The strip therefore goes down FIRST — the build queue still builds the
+    # coal line before it, because that is priority, not order — and there are
+    # two collectors rather than three.
+    # THE KITCHEN IS THE FIRST SITE ON THE STRIP AND THAT TICK IS LOAD-BEARING.
+    # Sites at equal priority are served (tick asc, id asc), so the tick a
+    # machine is PLACED on decides where it stands in a queue the whole strip
+    # now shares. Measured, two runs one placement-tick apart: at t200 the
+    # kitchen finished at t3603 and made 96 crafts (artifacts/J2_r3), at t165 it
+    # finishes first of all of them and makes 119 (artifacts/J2_r4 put it first
+    # by priority instead and cost sorter #169 six thousand ticks; this does the
+    # same thing without splitting the queue). Rations are the one output
+    # another system spends every tick, so the kitchen leads.
+    L.place(165, "field_kitchen", 0, -10)                   # grain -> RATION
+    L.place(170, "warmth_radiator", -8, -10)                # x120-121
+    L.place(180, "rubble_sorter", -11, -10)                 # x117-119
+    L.recipe(181, (-11, -10), "salvaged_stores")            # scrap -> GRAIN
+    L.place(190, "rubble_sorter", -6, -10)                  # x122-124
+    L.recipe(191, (-6, -10), "sorted_rubble")               # scrap -> IRON ORE
+    L.place(210, "warmth_radiator", 5, -10)                 # x133-134
+    L.place(220, "scrap_collector", 3, -10)                 # x131-132
+
+    # === AND ONE SHOP ON THE END OF THE STRIP ===============================
+    #
+    # THE PILLAR THAT WAS NOT IN THE REFERENCE RUN. `gear` and `circuit` both
+    # declare `machines [workshop, assembly_hall]` and this scenario placed
+    # NEITHER, so the flagship run reached chain depth 2 — ore, plate, slag —
+    # against a shipped graph five transformations deep, and the automation
+    # pillar was graded on a city that could not make a part. That is not a
+    # [P04] hole: production makes gears the moment something is standing that
+    # can. It is this file's hole, and it is one building wide.
+    #
+    # ONE SHOP AND NOT A QUARTER, WHICH IS THE WHOLE FINDING. Three earlier
+    # attempts put a foundry in here and every one made the run worse (see the
+    # measured list in first_night() below); all three bought their depth with
+    # nine machines, sixty tiles of new main and 300 units of demand this grid
+    # has never had. A workshop is 10 units — one third of ONE burner — it eats
+    # a stock the city already carries and it sits on ground the strip already
+    # heats. Nothing else in this scenario moved.
+    #
+    # WHY x135-138 AND NOWHERE ELSE. Modelled against the smoothstep falloff in
+    # game/sim/heat/warmth_field.gd over every radiating source in this layout,
+    # at the coldest ambient the run reaches (-32.85):
+    #
+    #   centre cell (137,118)   warmth 15.1 C  — the radiator at x133-134 is
+    #                           worth 10.7 of it, the Hearth 4.4
+    #   internal temp           ambient + 15.1 + 1.6 x 10 x (1 + 0.35 x 1.5)
+    #                           = -32.85 + 15.1 + 24.4 = +6.6 C, against a
+    #                           freezing point of -10
+    #
+    # and its whole south face sits on the y120 rung, so it is on the grid
+    # without one new tile of conduit. Every other free 4x3 on this map is
+    # colder: (117,138) is 16.7 but touches no conductor at all, (141,122) is
+    # 5.8, and anything south of y140 is 0.0 and freezes on the first night.
+    # The shop carries no `heat_radius` of its own, so unlike the kitchen it
+    # gets no warmth back from itself — it is living entirely on the strip's
+    # radiator, which is why it goes at the radiator's shoulder and not past it.
+    #
+    # PRIORITY 70 AND NOT 95. The supply chain above is marked 95 because a
+    # burner with no belt is a burner that dies; a shop is not that. 70 puts it
+    # ahead of its own build_priority of 55 and ahead of the belts and the
+    # bunkers it does not compete with, and behind the wall (85) and the guns
+    # (90), so buying chain depth cannot cost this run its perimeter.
+    #
+    # `strip_workshop=False` is deep_chain and ONLY deep_chain: its foundry
+    # quarter stands on exactly this ground — (135,118) is the copper sorter and
+    # y117 x131-143 is the rung that feeds the machine row above it — and it
+    # already builds a workshop of its own at (136,114). Two shops on one site
+    # is not a deeper graph, it is a placement the runtime would refuse.
+    if strip_workshop:
+        L.place(230, "workshop", 7, -11)                     # x135-138, y117-119
+        L.recipe(231, (7, -11), "gear")                      # iron_plate -> GEAR
+
+    # === AND THE STRIP IS URGENT, WHICH IT HAS NEVER BEEN ===================
+    #
+    # THE FACTORY DID NOT EXIST FOR HALF OF ITS OWN REFERENCE RUN, AND NOTHING
+    # IN THE LAYOUT SAID SO. artifacts/J2_r2/metrics.csv, production.machines,
+    # sampled every thousand ticks:
+    #
+    #     t4000..t11000   1     the kitchen, and nothing else
+    #     t12000          2
+    #     t14000          6
+    #     t18000..t24000  8
+    #
+    # Every machine above is PLACED between t170 and t230 — the first eleven
+    # seconds of day one — and the sorters did not finish until the second
+    # afternoon. That is not a heat failure and it is not a crew failure: it is
+    # the build queue, served (priority desc, tick asc, id asc), and the strip's
+    # priorities are the content defaults. A rubble sorter is 60 and a scrap
+    # collector 65, against a wall at 85, a heat pipe at 80, a warmth radiator
+    # at 75 and forty-five wall sites that land at t4800. The factory is last in
+    # its own city.
+    #
+    # `urgent()` above already says this in prose about the coal line — "the
+    # yard finished at t14841, the belt carried its first item at t17620" — and
+    # then the strip, four tiles from it, was left on the defaults. This is the
+    # same right-click, on the same day, for the same reason.
+    #
+    # 78 AND NOT 95. The supply chain stays ahead of the factory it feeds (the
+    # yard, the belt and the burners are 95) and the perimeter stays ahead of
+    # both (wall 85, guns 90), so buying the factory its day back cannot cost
+    # this run its wall — which is what the north rung's `structures_lost 9`
+    # was. 78 is above the heat pipes at 80? No: it is below them, deliberately.
+    # A machine that finishes before the rung it hangs off is a machine that
+    # stands on no grid at all.
+    #
+    # THE PRIORITY IS ALSO THE HIRING ORDER, which is the half of this that is
+    # not obvious and is measured in the commit message: [P05] fills sites down
+    # `job_ids` sorted by build priority descending, so moving the strip from 60
+    # to 78 also moves it up the job board past the burners, which need one hand
+    # each and had all of them.
+    # THE KITCHEN GOES FIRST OF ALL OF THEM, AT 82, AND THAT IS MEASURED TOO.
+    # The first cut of this change put the whole strip on one priority and the
+    # kitchen came up 355 ticks LATER than it used to, because two sorters were
+    # now ahead of it in a queue it used to have to itself: `produced.ration`
+    # 339 -> 288 against a band of 300 (artifacts/J2_r3/state.json). Rations are
+    # the one output in this city that another system spends every tick, so the
+    # kitchen is not part of the factory queue — it is ahead of it.
+    strip = [(0, -10), (-8, -10), (-11, -10), (-6, -10), (5, -10), (3, -10)]
+    if strip_workshop:
+        strip.append((7, -11))
+    L.urgent(240, [(CORE[0] + dx, CORE[1] + dy) for dx, dy in strip], priority=78)
+
+    # === THE SOUTH DISTRICT =================================================
+    L.line(2400, "heat_trunk_main", (-2, 3), (-2, 6))       # x126 spine
+    L.line(2420, "heat_pipe", (-16, 7), (15, 7))            # y135 rung
+    L.place(2500, "warmth_radiator", -8, 8)                 # x120-121
+    L.place(2600, "granary", -6, 8)                         # x122-124
+    L.place(2800, "survey_hall", 1, 8)                      # research is spend
+    L.place(3200, "smelter", 6, 8)                          # x134-136, y136-138
+    L.recipe(3201, (6, 8), "iron_plate")                    # on the sorter's ore
+    L.place(3400, "housing_block", -3, 8)                   # x125-128
+    # === AND THE SMELTER GETS A LOADING DOCK =================================
+    #
+    # THE SECOND LINK IN THE CHAIN IS THE FRAGILE ONE AND THIS IS WHY. The
+    # smelter at (134,136) is TWENTY-NINE TILES from the sorter that makes its
+    # ore and it has spent every run of this branch reading `missing_input:
+    # iron_ore` while thirty-odd units of ore sat unused in the city stores —
+    # artifacts/J2_r11/state.json: produced.iron_ore 79, produced.iron_plate 16
+    # against a band of 18, and the smelter is not slow, it is empty. Across
+    # four runs of this same layout the number came out 38, 21, 16 and 9: that
+    # is not a factory, it is a coin toss on whether a porter happened to walk
+    # south this hour.
+    #
+    # It is boxed in on three sides — the y135 heat rung to the north, two guns
+    # and the recuperator to the west, a housing block to the east — so its only
+    # free face is y139, and until the trunk above was shortened the row behind
+    # THAT was main as well. A crate on (135,140) under a standing porter order
+    # and an arm swinging north out of it into the machine's mouth is the
+    # shortest supply line this scenario can build, and it is the second thing
+    # in the game to use [P03]'s belt-feeds-machine hookup for something other
+    # than coal: every unit of it lands in `logistics.machine_fed`.
+    # NO LOADING DOCK ON THIS SMELTER, AND THAT IS A RESULT WITH TWO SIMS UNDER
+    # IT. The smelter at (134,136) is TWENTY-NINE TILES from the sorter that
+    # makes its ore and spends the run on `missing_input: iron_ore` while thirty
+    # units of ore sit unused in the city stores. Across four runs of this
+    # layout `produced.iron_plate` came out 38, 21, 16 and 9 against a band of
+    # 18 — the smelter is not slow, it is empty, and how empty depends on how
+    # many porters happened to walk south this hour.
+    #
+    # It is boxed in on four sides: the y135 heat rung north, a gun and the
+    # recuperator west, a housing block east, and its only free face (y139) has
+    # the y140 trunk main immediately behind it, so an arm swinging into its
+    # mouth has nowhere to stand. Both ways of opening one were measured and
+    # both are worse than the starvation:
+    #
+    #   cut the y140 main back to x134 to free the south row — artifacts/J2_r12:
+    #     the SMELTER froze at -13.66 C and the recuperator at -16.15,
+    #     `produced` lost iron_plate and slag entirely, waste_recovered flat 0.
+    #     A trunk main's 4 C of radiance along its own row is what keeps those
+    #     two alive at -38; it is not decoration.
+    #   move the gun off the west face to free x132-133 — the only free 2x2 on
+    #     this rung that still touches a conduit is (142,136), 14.5 tiles from
+    #     the Hearth, and the gun that stood at 11.2 froze in every run.
+    #
+    # A STANDING ORDER ON THE MACHINE ITSELF IS THE THIRD THING THAT DID NOT
+    # WORK, and it is the one that says what the problem actually is. [P11]
+    # buildings lend their store to [P03], so a machine's own footprint carries
+    # a request exactly like the coal yard does; `{"op":"request","cell":
+    # [134,136],"item":"iron_ore","amount":40}` at t17000 was ACCEPTED (no
+    # "nothing with a store" warning in artifacts/J2_r16/log.txt) and produced a
+    # run byte-identical to the one without it — iron_plate 18, slag 18, crafts
+    # 273. The smelter is not waiting on porters. It is heat priority 50 at the
+    # far end of a grid that spends both nights short, and ore it cannot smelt
+    # is ore it does not ask for.
+    #
+    # So this stays a porter-fed machine and the number stays soft. What the
+    # smelter actually needs is to stand ON the salvage strip beside its ore,
+    # and there is no free 3x3 up there that touches the y120 rung. That is a
+    # layout this file cannot reach without moving the strip, and moving the
+    # strip is a wave, not a line.
+
+    # The inner ring, hanging straight off the founding rows: inside the
+    # Hearth's field (15-26 C), and on the city's own grid, so a brownout at the
+    # Hearth is felt at the guns.
+    L.place(3600, "turret_mount", -6, -2)
+    L.place(3650, "turret_mount", 5, -2)
+    L.place(3700, "turret_mount", -10, -2)
+    L.place(3750, "turret_mount", 9, -2)
+    # AND TWO FACING THE SOUTH, WHICH THE FIRST VERSION OF THIS LAYOUT DID NOT
+    # HAVE. Every gun stood on the north side, the wall is thirty tiles north,
+    # and [P08] came up the south-east lane: drift hounds ate all four arms
+    # loading the Hearth between t8951 and t9193 and the city spent the rest of
+    # the run back on hand-carried coal. A supply chain is a structure with
+    # hit points, and the automation pillar has to be defended like one.
+    L.place(3800, "turret_mount", 4, 8)                     # x132-133, y136-137
+    L.place(3850, "turret_mount", -11, 8)                   # x117-118, y136-137
+
+    # === THE COAL OUTPOST ===================================================
+    # The seam is at (124,97). That is measured, not guessed: a probe placed an
+    # ore drill on every 3x3 site in the basin and read `seam_item` back off
+    # each one. Coal is the field thirty tiles due north, behind the wall line;
+    # iron is thirty-six tiles east, which is why the smelter here runs on the
+    # sorter's byproduct instead. The two radiators are not decoration — a drill
+    # is 8 units and the drill is what they are really for. They were sized when
+    # a watchtower was 1 unit and needed twenty degrees of somebody else's
+    # warmth; the tower is 5 units and insulation 0.6 since c690b03 and now
+    # largely carries itself, so the cover here is surplus for the tower and
+    # load-bearing for the drill.
+    # heat_pipe, not a main: a pipe is insulation 0.8 and loses 0.6% a tile, a
+    # trunk main is 0.6 and loses 1.2%. Over nineteen tiles that is 11% against
+    # 20%, and this arm never carries more than 41 of a pipe's 60.
+    L.line(4000, "heat_pipe", (-1, -9), (-1, -27))
+    # The outpost rung IS a main, for its 4 C of radiance rather than its
+    # throughput: it is the last few degrees the watchtower needs.
+    L.line(4100, "heat_trunk_main", (-1, -28), (-12, -28))
+    L.place(4200, "warmth_radiator", -7, -30)               # x121-122
+    L.place(4260, "warmth_radiator", -1, -30)               # x127-128
+    # A drill draws 9 and is heat priority 55 — the tier [P02] sheds SECOND. The
+    # instant it is shed it makes no heat of its own, and out here that is -18 C
+    # inside a shell that freezes at -10. One radiator on one face was not
+    # enough: measured, the drill froze on the third night, and a frozen machine
+    # radiates nothing, draws nothing and therefore never thaws. Two radiators,
+    # one either side, is 32 C of cover and the difference between an extraction
+    # pillar and an ornament.
+    L.place(4300, "ore_drill", -4, -31)                     # x124-126: COAL
+    L.place(4500, "turret_mount", -9, -27)
+    L.place(4560, "turret_mount", -5, -27)
+    L.place(4620, "watchtower", -9, -30)                    # x119-120
+    # THE OUTPOST CARRIES ITS OWN FIRE, AND IT IS THE ONLY THING THAT MADE THIS
+    # DRILL WORK. Measured on the layout without it: `power 0.0000, reason
+    # no_heat` at every single checkpoint, 35 coal in three days against a band
+    # of 60. The drill is heat priority 55 — the second tier [P02] sheds — and it
+    # hangs off nineteen tiles of pipe at the far end of a grid that spends the
+    # third night 236 units short. The city was spending heat to dig the fuel
+    # that makes the heat, and losing on the trade.
+    #
+    # A burner standing ON the seam inverts that: 30 units of supply appear at
+    # the cold end of the pipe instead of being pushed down it, heat_radius 3.0
+    # covers the drill's own footprint so the two radiators stop being the only
+    # thing between it and a permanent freeze, and it burns 0.35 coal/s of the
+    # 0.80/s the drill lifts. The outpost is net positive in both currencies.
+    # The stub is a trunk main and not a pipe because it is also this burner's
+    # only route onto the grid.
+    L.line(4660, "heat_trunk_main", (-5, -28), (-5, -33))   # x123, y95-100
+    L.place(4700, "coal_generator", -4, -33)                # x124-126, y95-96
+
+    # THE HEAT-RECOVERY LOOP, RUN FOR THE FIRST TIME. game/sim/production/
+    # waste_heat.gd has shipped since the first wave and `waste.links` was `{}`
+    # and `waste_recovered` 0.000 in EVERY reference run to date, because no
+    # scenario had ever placed a recuperator. The smelter on the south rung
+    # throws off 2.4 units/s of recoverable waste; this stands one tile off the
+    # y135 main and exactly four tiles off the smelter's east face, which is the
+    # edge of `capture_radius`, and turns 3.0 of that into 15 units of grid
+    # supply for 2 of draw. It is the only heat source in this city that burns
+    # no coal — and it is the reason a player packs machines together instead of
+    # spreading them out.
+    #
+    # AND IT STANDS INSIDE THE HEARTH'S FIELD, WHICH TOOK TWO RUNS TO LEARN. The
+    # first version of this hung a recuperator straight off the y135 main at
+    # (141,136), one tile of pipe and no new trunk — and it FROZE. A recuperator
+    # is insulation 0.80, so it feels ambient + 24 and this map bottoms out at
+    # -34.88; at eleven tiles past the Hearth's radius that is -10.9 against a
+    # freezing point of -10. It spent the run as its own one-node heat network
+    # (`heat.networks` 2, `id: 7`, one consumer, one producer, delivering
+    # nothing) because a frozen node is not a node. Thirteen tiles of trunk buy
+    # a spot 10.8 tiles from the Hearth, which is inside its 14, and the rung
+    # itself radiates its 4 C minimum along the row the smelter's south face is
+    # on. Warmth is a placement problem in this game and this is what it costs.
+    L.line(4740, "heat_trunk_main", (13, 7), (13, 12))      # x141, y135-140
+    L.line(4760, "heat_trunk_main", (12, 12), (4, 12))      # y140, x140-132
+    L.place(4780, "recuperator", 4, 10)                     # x132-133, y138-139
+    # AND A GUN ON THE RUNG, FOR THE SAME REASON THE HEARTH'S BELT HAS ONE. The
+    # version before this one had none: at t16465 a cinder leech came up the
+    # south-east lane and ate SEVEN trunk mains in three hundred ticks, the
+    # recuperator spent the rest of the run as heat network `id: 7` with one
+    # consumer and one producer and no route to anything, and `heat.networks`
+    # ended at 2. Every metre of grid this city adds south of the founding rows
+    # is twenty metres of 220-hp trunk in the lane [P08] actually uses.
+    # AND NO GUN ON THIS RUNG, WHICH IS A REVERSAL AND HERE IS THE MEASUREMENT.
+    # A turret stood at (130,139) for four waves and ended EVERY run frozen:
+    # artifacts/J2_r7/state.json, heat.buildings #303, `frozen: true`, temp
+    # -21.77 C at tick 24000. It is the whole of `heat.frozen_buildings
+    # final_max 0` going red, in one building, and a frozen gun does not shoot —
+    # the run it was supposed to defend still lost four trunk mains through that
+    # lane. A turret is insulation 0.35 and eleven tiles past the Hearth on a
+    # night that bottoms out at -38; the recuperator two tiles east survives the
+    # same night at -3.0 C only because it is insulation 0.80.
+    #
+    # THE OBVIOUS FIX IS THE WRONG ONE AND IT WAS TRIED. A warmth radiator at
+    # (131,141), 6.5 radius, covering the gun and the recuperator both, made the
+    # run dramatically worse: artifacts/J2_r8, `heat.frozen_buildings final 2`,
+    # produced.iron_plate 21 -> 8, produced.coal 132 -> 68, produced.grain 32 ->
+    # 28. Twelve units of draw at build priority 75 sits ABOVE industry at 50 in
+    # [P02]'s shed order, so a radiator hung on a cold rung to save one gun
+    # takes its warmth straight out of the factory. That is the north rung's
+    # lesson in miniature and it cost one sim to learn instead of a wave.
+    #
+    # So the gun comes off the rung rather than the rung getting a radiator it
+    # cannot pay for. The two southern guns at (132,136) and (117,136) cover the
+    # same lane from inside the Hearth's field and neither of them has ever
+    # frozen.
+
+    # The wall goes up before dusk. Forty-five sites at build priority 85 jump
+    # the whole queue, which is why it waits until the yard, the belt and the
+    # burners are standing.
     for i, dx in enumerate([-18, -9, 0, 9, 18]):
-        L.line(5000 + i * 40, "wall", (dx - 4, -35), (dx + 4, -35))
-    L.line(5250, "heat_pipe", (1, -33), (13, -33))
-    L.line(5280, "heat_pipe", (1, -33), (-19, -33))
-    L.place(5300, "watchtower", -20, -32)
-    L.place(5400, "watchtower", 13, -32)
-    L.place(5600, "turret_mount", -9, -32)
-    L.place(5800, "turret_mount", 8, -32)
-    # Night: the grid is under load and the player reacts to it.
-    # Research is 1.5 base + 0.7 per running workshop until something tagged
-    # &"research" stands up; the survey hall is what makes the tech tree a thing
-    # you INVEST in rather than a clock that runs on its own.
-    L.place(1300, "survey_hall", -5, 9)
-    L.place(6600, "heat_booster_pump", 1, 12)
-    L.cmd(7000, {"system": "build", "op": "set_enabled", "cell": [CORE[0] + 1, CORE[1] + 14], "on": False})
-    L.cmd(7400, {"system": "heat", "op": "dump"})
-    L.cmd(7800, {"system": "grid", "op": "melt", "cell": [CORE[0], CORE[1]], "radius": 6, "amount": 90})
-    L.cmd(8600, {"system": "build", "op": "set_enabled", "cell": [CORE[0] + 1, CORE[1] + 14], "on": True})
-    # The second generator and the last housing block both need a spur before
-    # they are worth anything: a producer or a home that touches no conduit is
-    # its own one-node network, and this run is what the whole project
-    # screenshots against.
-    L.line(8800, "heat_pipe", (0, 15), (0, 18))
-    L.place(9000, "coal_generator", 1, 17)
-    L.line(10100, "heat_pipe", (-3, -2), (-10, -2))
-    L.place(10200, "housing_block", -9, -6)
+        L.line(4800 + i * 40, "wall", (dx - 4, -35), (dx + 4, -35))
+    L.place(5200, "heat_accumulator", 13, 1)                # x141-142
+    L.cmd(6400, {"system": "heat", "op": "dump"})
+    L.cmd(7800, {"system": "grid", "op": "melt",
+                 "cell": [CORE[0], CORE[1]], "radius": 6, "amount": 90})
+
+    # === DAY TWO ============================================================
+    L.cmd(10000, {"system": "logistics", "op": "insert",
+                  "cell": [CORE[0] - 14, CORE[1] - 7], "item": "coal", "count": 500})
+    L.place(10400, "housing_block", -15, 8)                 # x113-116
+    L.cmd(14600, {"system": "heat", "op": "dump"})
+    L.cmd(15400, {"system": "logistics", "op": "insert",
+                  "cell": [CORE[0] - 14, CORE[1] - 7], "item": "coal", "count": 500})
+
+    # THE BOOK GETS OPENED. Two founders die on day 2 — one of injuries at the
+    # workshop, one child in the night — and at t11320 the Ember Congregation
+    # opens a grievance about the bodies stacked by the east wall. At t11800 it
+    # becomes a demand with a date on it: sign a law that says where the dead
+    # go. Every earlier version of this run answered it by doing nothing, twice,
+    # and this is what that cost:
+    #
+    #   t15400  demand failed, unrest stage 3, discontent 87.7
+    #   t16180  ultimatum
+    #   t20320  demand failed again, hope 30.4
+    #   t20980  RUN OVER (exiled) — and 3020 ticks of city still ticking after
+    #           it, including the `third_day_city` beat at t21600, which
+    #           photographs [P22]'s ending card over a HUD counting down to a
+    #           nightfall that is nobody's problem any more.
+    #
+    # The reference run is what the art, audio and UI parts screenshot against
+    # and what a critic is handed. It was a run that lost, on the one axis it
+    # never touched, and its own header called day 3 "a fragment". A city that
+    # answers a demand within its deadline is not a softer run — hope ends at
+    # 56.0 against 30.2 and discontent at 42.5 against 100.0, and nothing before
+    # t12000 moves by a single craft — it is the same city with the Book of Laws
+    # opened once, which is the pillar this run was silent about.
+    L.cmd(12000, {"system": "society", "op": "sign", "law": "snow_burial"})
+
+    # === THE COPPER LEG, AND IT IS A RETOOL AND NOT A QUARTER ===============
+    #
+    # THE PILLAR THIS RUN HAS NEVER SHOWN. `production.chain_depth` has read 3
+    # for four waves against content five transformations deep, and the reason
+    # is not [P04]: it is that nothing in this city ever made copper, and every
+    # recipe above gear needs it. Three separate attempts to fix that by
+    # building a factory QUARTER are written up above, and all three cost the
+    # run more than they bought, for one reason that is measurable and was never
+    # named: THIS CITY CANNOT CREW ANOTHER MACHINE. artifacts/J2_r5/state.json,
+    # citizens.totals: population 54, employed 38, jobs_required 45. Sixteen of
+    # the fifty-four are children and elders the job board will not take, so the
+    # city is already seven pairs of hands short of running what it has built,
+    # and a new machine is a machine at `assigned: 0` — which is exactly what
+    # artifacts/F5_v2 measured and what the reverted north rung repeated.
+    #
+    # So this buys depth with NO new building, NO new heat demand and NO new
+    # worker. It retools three machines that are already standing, already
+    # crewed and already on the grid, on the third day, in the order the graph
+    # needs them:
+    #
+    #   t16000  sorter #168   salvaged_stores -> salvaged_wire   scrap -> COPPER
+    #   t17200  smelter #228  iron_plate      -> copper_coil     depth 2
+    #   t18400  workshop #173 gear            -> pipe_segment    depth 4
+    #
+    # Each one gives something up and the run has to be able to afford it, so
+    # each is timed against the band it spends. By t16000 the grain sorter has
+    # made enough grain to clear `produced.grain min 30` and the kitchen still
+    # holds the founders' larder; by t17200 the smelter is past `iron_plate` and
+    # `slag` at 18; by t18400 the shop is past `gear` at 20. Those are
+    # cumulative totals, so a retool cannot take them back.
+    #
+    # WHY THE SMELTER AND NOT A NEW ONE. copper_coil is 25 ticks of work against
+    # iron_plate's 50 and costs 12 heat against 30, so the machine that has been
+    # sitting on `missing_input: iron_ore` all run — the sorter lifts 0.2 ore/s
+    # against the 0.8/s it draws — is the cheapest copper furnace in the city.
+    #
+    # ALL OF IT IS `strip_workshop` ONLY, i.e. first_night and not deep_chain.
+    # deep_chain builds its own foundry quarter on this same ground under
+    # `set_staffing_autarky` and retools these very machines on its own
+    # schedule; two owners of one smelter's recipe is not a deeper graph.
+    # EACH RETOOL IS TIMED AGAINST THE BAND IT SPENDS, and the first cut of this
+    # was not: artifacts/J2_r6 retooled at t16000/17200/18400 and ended with
+    # iron_plate 9, slag 9 and gear 11 against bands of 18, 18 and 20, because
+    # the cumulative totals in artifacts/J2_r5/state.json checkpoints do not
+    # clear those bands until t19600. The grain sorter can go at t15500 (grain
+    # reaches 30 at t15000); the smelter and the shop cannot go until day three.
+    if strip_workshop:
+        L.recipe(15500, (-11, -10), "salvaged_wire")        # scrap -> COPPER ORE
+        L.recipe(20800, (7, -11), "pipe_segment")           # coil + steel -> PIPE
+
+    # === WHAT THE TIER BUYS, AND THE ONE THING IT CANNOT ====================
+    #
+    # `geothermal_tap` costs 10 pipe_segment (game/content/buildings/
+    # geothermal_tap.tres) and there is not one pipe segment in the founders'
+    # stock, so a city that cannot make a pipe cannot have the only heat source
+    # in this game that burns nothing. That is the tier gate, it is already in
+    # the shipped content, and after this retool the reference run clears it —
+    # `final.systems.production.produced.pipe_segment` is banded below at 10 for
+    # exactly that reason: the city has EARNED the tap.
+    #
+    # IT STILL CANNOT STAND ANYWHERE, AND THIS IS A MEASUREMENT, NOT AN OPINION.
+    # A tap declares `needs_flat` AND a vent deposit under its footprint. A
+    # sweep that tried to place one on every cell of x98..157 by y98..157 late
+    # in this run (artifacts/J2_probe2/log.txt, 631 sites evaluated before the
+    # command budget ran out) came back:
+    #
+    #     582  "Geothermal Tap needs level ground."
+    #      40  "The ground at (x, y) will not take a foundation."
+    #       9  "Geothermal Tap must cover vent."
+    #       0  placed
+    #
+    # `BuildWorldQuery.is_flat()` compares `Grid.elevation_at` for EQUALITY
+    # across the footprint, and elevation on this map is four octaves of noise
+    # in 0..255 (game/sim/grid/map_generator.gd, biome_profile.elevation_*), so
+    # a level 3x3 is a coincidence rather than a site. The five core vents are
+    # inside `core_radius` 7 of (128,128), which is under the Hearth, and the
+    # three outer vents are at `outer_vent_min_distance` 46 — off this map's
+    # playable quarter and forty tiles past the wall.
+    #
+    # So the tap is NOT placed here, and the run does not pretend to. It belongs
+    # to [P01] (a terrain-level `is_flat(cell)` flag, which BuildWorldQuery
+    # already prefers over the height compare when the grid offers one) and to
+    # [P11]. Faking it by dropping `needs_flat` from the def would be this
+    # project's oldest mistake in a new folder.
+
+    # === DAY THREE ==========================================================
+    L.cmd(21000, {"system": "logistics", "op": "insert",
+                  "cell": [CORE[0] - 14, CORE[1] - 7], "item": "coal", "count": 500})
+    L.place(20200, "housing_block", 9, 8)                   # x137-140, y136-139
+    L.place(21400, "turret_mount", -8, -2)                  # x120-121: warm ring
+    L.place(21800, "heat_accumulator", -14, 1)              # x114-115, off the
+    # west founding row — a second buffer for the nights this run does not
+    # reach, and the only structure in the city that is worth building AFTER
+    # the grid is already in surplus.
+    L.cmd(22400, {"system": "heat", "op": "dump"})
+    L.cmd(23000, {"system": "logistics", "op": "dump"})
+    L.cmd(23200, {"system": "production", "op": "dump"})
     return {
         "name": "first_night",
-        "description": ("The reference run. One full day and into the next: a hearth is lit, "
-                        "a heat grid grows out of it, housing and industry hang off the grid, "
-                        "a wall goes up before dusk, and the night is spent short of heat. "
-                        "This is what the art, audio and UI parts screenshot against."),
+        "description": ("THE REFERENCE RUN. Three full days and two nights on one heat "
+                        "grid: a Hearth, six coal burners standing in its own warmth, five "
+                        "of them loaded by inserters off ONE belt out of a coal yard, a "
+                        "drill on the seam north of the wall keeping that yard filled "
+                        "through a standing porter order, a salvage strip turning scrap "
+                        "into grain into rations and scrap into ore for the smelter and a "
+                        "workshop on the end of it turning that plate into gears, homes "
+                        "and shops on two rungs, and a perimeter that spends the city's own "
+                        "warmth to hold the dark. This is what the art, audio and UI parts "
+                        "screenshot against, and it is the run that has to prove the "
+                        "automation, production and food pillars RUN rather than merely "
+                        "tick."),
         "tags": ["reference", "gate", "visual"],
-        "seed": 7, "ticks": 11000, "sample_every": 20,
-        # The grid claim covers day one, which is the day the balance report
-        # grades. Day two is deliberately not claimed: [P08] sends hounds and
-        # they can and do eat the Hearth, which splits the four arms apart. That
-        # is the game working.
-        "expects": {"min_ticks_per_second": 600, "max_errors": 0,
-                    "balance_days": [1], "max_heat_networks": 3},
+        "seed": 7, "ticks": 24000, "sample_every": 20,
+        # Days 1 and 2 are graded. Day 3 is not: the run stops in its afternoon,
+        # so that night never happens and a report over half a day would be
+        # grading a fragment.
+        # 373 ticks/s measured on a shared four-core box with three other
+        # agents running; the floor is ~33% under that because a perf number
+        # taken while somebody else compiles is noise. tools/perf.sh and the
+        # integrator own the real measurement — this is only here so a run that
+        # collapses to a tenth of realtime cannot pass quietly.
+        "expects": {"min_ticks_per_second": 250, "max_errors": 0,
+                    "balance_days": [1, 2], "max_heat_networks": 3},
         "script": L.script,
         "_layout": L,
         "shots": [
@@ -466,8 +1361,304 @@ def first_night():
             {"tick": 7200, "name": "assault"},
             {"tick": 8800, "name": "deep_night"},
             {"tick": 9800, "name": "dawn"},
+            {"tick": 12800, "name": "second_day_factory"},
+            {"tick": 15200, "name": "second_dusk"},
+            {"tick": 17600, "name": "second_night"},
+            {"tick": 21600, "name": "third_day_city"},
         ],
     }
+
+
+# --------------------------------------------------------------- deep_chain
+#
+# THE PRODUCTION RUN. Six days, and the only scenario in this repo whose subject
+# is the CRAFTING GRAPH rather than the city around it.
+#
+# WHY IT EXISTS AND WHY IT IS NOT first_night. Two critics scored this build and
+# both wrote down the same finding: the crafting graph never goes past depth 2,
+# and `production.ipm.*` is nonzero for one item. Both are true of the reference
+# run and neither is a bug in [P04]. Measured, on this build, at 24000 ticks:
+#
+#   * `first_night` reaches chain depth 2 — iron_ore, iron_plate, slag — against
+#     content that is five transformations deep.
+#   * A version of it with nine more machines reached depth 2 as well, and cost
+#     the city everything: heat demand went from a peak of 190 to 895 against a
+#     delivery that never passed 283, twenty-five buildings froze, the population
+#     fell 55 -> 39 and hope 72 -> 30. Not one new machine completed a craft.
+#   * A version with THREE more machines, and two extra burners to pay for them,
+#     still reached depth 2 — because [P05] assigned NOBODY to any of them.
+#     artifacts/F5_v2/state.json, citizens.staffing: buildings 354 (smelter),
+#     355 (workshop) and 356 (rubble_sorter) each read `assigned: 0, present: 0`
+#     while the city held 44 citizens, 33 of them employed and 66 job slots open.
+#     Eleven idle people and nine unfilled slots, and the machines finished after
+#     day one got none of them.
+#
+# So the reference run cannot presently crew a factory, and stuffing one into it
+# makes the run worse at everything a critic looks at. THIS scenario therefore
+# does what tests/production/ does and says so out loud in its first command:
+#
+#     {"system": "production", "op": "set_staffing_autarky", "on": true}
+#
+# That is a supported switch with a comment on it in
+# game/sim/production/production_system.gd — "a suite that means to measure
+# PRODUCTION rather than the job board turns it on explicitly; play never does".
+# first_night keeps the coupling LIVE and is where the job board is graded. This
+# run answers the other question, which nothing in the repo answered before it:
+# given crews, does the chain actually go from rubble to a two-component part,
+# and does day six ask more than day one?
+#
+# WHAT IT ADDS, DAY BY DAY. Each district is heat-positive on the day it lands —
+# the burners go in before the machines that eat them, which is the one lesson
+# first_night has already had to learn twice.
+#
+#   day 1  the founding city, unchanged from first_night
+#   day 2  THE FOUNDRY: a rung, a radiator, a copper smelter, a gear shop and a
+#          wire sorter. Copper enters the game.                        depth 2-3
+#   day 3  the retool: the south smelter iron_plate -> steel_plate     depth 3
+#   day 4  THE SOUTH WORKS: a slag shop on insulation, an assembly hall on
+#          circuits, two burners, two radiators, two housing blocks    depth 3
+#   day 5  the second retool -> pipe_segment, and the three structures the tiers
+#          paid for: two booster pumps, a second recuperator, an insulated arm
+#          to the outpost                                             depth 4
+#   day 6  THE EAST ROAD: thirty-one tiles of main to the iron field at (163,127)
+#          — the nearest iron on this map that is not a sorter byproduct — a
+#          drill, its own burner, its own guns, and the hall retooled to
+#          heat_core                                                   depth 5
+#
+# FUEL. Burners are topped up every 1200 ticks, exactly as economy_60min does,
+# for the same reason: sixteen burners over six days is eighteen thousand units
+# of coal and this run is not about porters. [P03]'s fuel chain is graded in
+# first_night and the belt half of it in economy_60min.
+def _south_works(L):
+    """Day three: the slag shop and the assembly hall, on their own rung.
+
+    The rung is y141 and NOT an extension of the y140 trunk, which would have
+    been shorter and would not have worked: a turret_mount sits at x130-131 on
+    y139-140, a turret is a heat NODE and not a CONDUIT, and [HeatFlow._route]
+    only lets a non-conductor forward heat when it is itself the source. A main
+    run through it audits as one connected network and delivers nothing past it.
+
+    It stands next to the recuperator and the first smelter on purpose: waste
+    heat is captured within 4 tiles, and a quarter packed tight enough to share
+    a recuperator is this design's whole argument for density.
+    """
+    d = 2 * 9600 + 1800
+    south = []
+    south += L.line(d + 200, "heat_trunk_main", (14, 13), (-14, 13))  # y141, x142-114
+    L.place(d + 400, "coal_generator", -7, 14)                        # x121-123
+    L.place(d + 460, "coal_generator", 7, 14)                         # x135-137
+    L.place(d + 520, "warmth_radiator", -14, 14)                      # x114-115
+    L.place(d + 580, "warmth_radiator", 5, 14)                        # x133-134
+    for c in [(-7, 14), (7, 14), (-14, 14), (5, 14)]:
+        south.append((CORE[0] + c[0], CORE[1] + c[1]))
+    L.urgent(d + 640, south)
+    # INSULATION IS THE SLAG LINE CLOSING. Iron smelting cannot be done without
+    # making slag, one per plate forever, and until this shop existed slag had
+    # exactly one use and no reference run had ever put a machine on it:
+    # `produced.slag` 23 and consumed nothing, in every run of this project.
+    L.place(d + 900, "workshop", -11, 14)                             # x117-120
+    L.recipe(d + 901, (-11, 14), "insulation")
+    L.unlock(d + 1000, "electrotechnics")
+    L.place(d + 1100, "assembly_hall", 1, 14)                         # x129-132
+    L.recipe(d + 1101, (1, 14), "circuit")
+    L.urgent(d + 1300, [(CORE[0] - 11, CORE[1] + 14), (CORE[0] + 1, CORE[1] + 14)])
+    # More mouths, and the beds they need. Population is the escalation the
+    # player feels in the food chain, and both blocks stand on the new rung.
+    L.place(d + 2000, "housing_block", -3, 14)                        # x125-128
+    # Both east blocks sit inside the field of the founding radiator at
+    # (141,127) — 6.5 tiles of reach covers x135..x148 by y121..y134 — so
+    # neither of them needs one of its own. Warmth is a placement problem in
+    # this game and the cheapest answer to it is standing somewhere warm.
+    L.place(d + 2400, "housing_block", 16, -2)                        # x144-147, y126-129
+    L.place(d + 3000, "turret_mount", 10, 14)                         # x138-139
+    L.place(d + 3200, "coal_generator", 12, 14)                       # x140-142
+
+
+def _tiers_bought(L):
+    """Day four: the three structures that could not have been placed on day one.
+
+    Not because a tech tree said so — because their MATERIALS had no source in
+    this city until the machines above were built. This is the interlock the
+    critics could not find: a tier that changes the build menu.
+
+        heat_booster_pump    6 copper_coil + 8 gear      <- the wire line
+        recuperator          20 copper_coil + 10 steel   <- the wire line + retool
+        heat_pipe_insulated  1 insulation_wool a tile    <- the slag shop
+
+    The insulated arm is laid as a LINE so a wool shortfall shows up as skipped
+    cells in `build.sweep_skipped_total` rather than as a refused placement; the
+    honest test of whether the shop kept up is `produced.insulation_wool`.
+    """
+    d = 3 * 9600 - 1200
+    L.recipe(d + 200, (8, -14), "pipe_segment")
+    L.recipe(d + 260, (-11, 14), "insulation_wool")
+    L.unlock(d + 400, "pipe_lagging")
+    L.place(d + 1600, "heat_booster_pump", 2, -11)                    # x130, y117
+    L.place(d + 1640, "heat_booster_pump", -2, -20)                   # x126, y108
+    L.line(d + 2000, "heat_trunk_main", (-4, 14), (-4, 17))           # x124, y142-145
+    L.place(d + 2200, "recuperator", -6, 16)                          # x122-123
+    L.line(d + 3000, "heat_pipe_insulated", (-2, -9), (-2, -27))      # x126, y119-101
+    L.urgent(d + 3200, [(CORE[0] + 2, CORE[1] - 11), (CORE[0] - 2, CORE[1] - 20),
+                        (CORE[0] - 6, CORE[1] + 16)])
+
+
+def _east_road(L):
+    """Day five: thirty-one tiles of main, to a seam that is not a byproduct.
+
+    THE SUPPLY LINE THIS GAME HAS NEVER HAD. Every gram of iron in every run of
+    this project so far came out of `sorted_rubble` as a BYPRODUCT — one ore per
+    five seconds per sorter, against the 0.80/s a drill lifts — which is why the
+    reference smelter sat on `missing_input: iron_ore` and made 23 plates in
+    three days. The nearest real iron on this map is at (163,127): thirty-five
+    tiles east of the core, past the wall line, in the lane [P08] uses.
+
+    Measured, not guessed. A probe placed a 3x3 drill site on every square of a
+    90x90 window around the core and read `resource_kind_at` under each — coal
+    at (124,95) and (128,97) north, IRON at (161,132), (162,137) and (163,127)
+    east, copper no closer than (165,165). tmp/f5/seams.gd, seed 7.
+
+    It carries its own fire for the reason the coal outpost does: a drill is
+    heat priority 55, the second tier [P02] sheds, and it hangs off the far end
+    of a grid that spends every night short. A burner ON the seam puts 30 units
+    of supply at the cold end instead of pushing them thirty-five tiles down a
+    main, and covers the drill's own footprint against a freeze it can never
+    thaw from.
+    """
+    d = 4 * 9600
+    road = []
+    road += L.line(d + 100, "heat_trunk_main", (11, -11), (36, -11))  # y117, x139-164
+    road += L.line(d + 200, "heat_trunk_main", (36, -11), (36, -2))   # x164, y117-126
+    road += L.line(d + 300, "heat_trunk_main", (32, -2), (38, -2))    # y126, x160-166
+    L.place(d + 500, "warmth_radiator", 33, -1)                       # x161-162
+    L.place(d + 560, "coal_generator", 38, -1)                        # x166-168
+    L.place(d + 700, "ore_drill", 35, -1)                             # x163-165: IRON
+    L.place(d + 900, "turret_mount", 31, -1)                          # x159-160
+    L.place(d + 960, "watchtower", 31, -4)                            # x159-160, y124-125
+    for c in [(33, -1), (38, -1), (35, -1), (31, -1), (31, -4)]:
+        road.append((CORE[0] + c[0], CORE[1] + c[1]))
+    L.urgent(d + 1000, road)
+    # And the hall retooled to the top of the tree, now that the drill can keep
+    # the iron smelter in ore rather than the sorter dribbling it 0.2/s.
+    L.unlock(d + 2000, "thermal_assembly")
+    L.recipe(d + 2600, (1, 14), "heat_core")
+
+
+def deep_chain():
+    sc = first_night(strip_workshop=False)
+    L = sc["_layout"]
+    # SAID IN THE FIRST COMMAND OF THE RUN, not in a comment. See the header.
+    L.cmd(1, {"system": "production", "op": "set_staffing_autarky", "on": True})
+    # Six days of burners is eighteen thousand units of coal. economy_60min tops
+    # them up every sixty seconds for the same reason and says so in BALANCE.md.
+    for refuel in range(1, 36):
+        L.cmd(refuel * 1200 + 3, {"system": "heat", "op": "fuel_all",
+                                  "item": "coal", "amount": 400})
+    # THE NIGHT IS NOT THIS RUN'S SUBJECT AND IT WAS EATING IT. The first
+    # version of this scenario was EXILED at t25660 — discontent 100, hope 32 —
+    # and the harness dutifully replayed 32340 more ticks of a city with nobody
+    # in it, so days four, five and six were measured on a corpse: beds 0,
+    # homeless 46, 29 structures lost, the assembly hall frozen at -8.1 C. That
+    # collapse is the reference layout's, not this quarter's: `first_night`
+    # reaches hope 27.9 on day three with none of these machines in it. The
+    # night is graded in first_night, careless_night and steady_hand. Six days
+    # of factory is not the place to also grade [P07], so:
+    L.cmd(6, {"system": "threat", "op": "peace", "on": True})
+    # THE OTHER HALF OF THE COLLAPSE, AND THE MOST USEFUL THING THIS RUN FOUND.
+    # With the night switched off entirely the city was STILL exiled at t25400,
+    # discontent 100 — which means the reference layout dies of its own accord
+    # about fourteen hundred ticks after `first_night` stops measuring it. The
+    # grievance the log names is corpses: "they are stacked by the east wall
+    # under a tarp and the tarp is not long enough", with no corpse capacity in
+    # the city and thirty-eight dead. So this run signs the three laws a decent
+    # player signs in that position, all of them humane and all of them net
+    # positive with the factions that are angry: graves for the dead, a care
+    # house for the sick, and a curfew that puts housing first on the grid.
+    # If the city still falls over, that is [P05]/[P06]'s to answer and this
+    # scenario's numbers say so out loud rather than quietly grading a corpse.
+    L.cmd(2400, {"system": "society", "op": "sign", "law": "named_graves"})
+    L.cmd(7200, {"system": "society", "op": "sign", "law": "care_house"})
+    L.cmd(12000, {"system": "society", "op": "sign", "law": "night_curfew"})
+    # And the other half of that collapse, which IS this run's business: mouths.
+    # Four more blocks and the radiator that keeps the west pair alive, because
+    # a city that runs out of beds stops taking arrivals, stops crewing, and
+    # slides into unrest — and "more mouths" is a third of what day six is
+    # supposed to ask for.
+    L.place(2 * 9600 + 1200, "coal_generator", -16, -5)               # x112-114
+    L.place(2 * 9600 + 1400, "warmth_radiator", -15, 3)               # x113-114
+    L.place(2 * 9600 + 1600, "housing_block", 16, 3)                  # x144-147, y131-134
+    L.place(2 * 9600 + 5200, "housing_block", -19, 8)                 # x109-112, y136-139
+    L.place(3 * 9600 + 2200, "housing_block", -20, 3)                 # x108-111, y131-134
+    L.place(3 * 9600 + 6200, "housing_block", -20, -2)                # x108-111, y126-129
+    _foundry_spine(L)
+    _foundry(L)
+    _retool(L)
+    _south_works(L)
+    _tiers_bought(L)
+    _east_road(L)
+    # THE FOUNDERS' PILE IS CUT, AND THIS IS THE ONLY RUN IN THE REPO WHERE IT
+    # CAN BE. first_night has to hand its city everything because its city
+    # cannot crew a factory; this one can, so it is made to pay. Measured on the
+    # uncut version: 194 of 388 pipe segments were bought with founders' steel,
+    # which is a graph that looks five deep and is two deep with a warehouse
+    # behind it. steel 1400 -> 380 and copper_coil 500 -> 90, each a little over
+    # what DAY ONE alone costs, so every bar and coil spent from day two on is
+    # one this city made.
+    #
+    # AND THE CUT THAT WENT TOO FAR, PUT BACK, BECAUSE IT MEASURED THE WRONG
+    # THING. iron_plate at 2600 ran the pile dry at t21400 and [P11] then refused
+    # the slag shop, the assembly hall, both booster pumps and the recuperator
+    # for cost — nineteen refusals — so the run reached depth 3 and stopped, not
+    # because the chain failed but because there was no plate left to BUILD the
+    # chain with. Iron plate is bulk salvage in this fiction and bulk in this
+    # scenario; the tiers are steel and copper, and they are what stays short.
+    for entry in sc["script"]:
+        if entry["cmd"].get("op") == "add_stock":
+            entry["cmd"]["items"] = {"iron_plate": 3600, "steel_plate": 380,
+                                     "stone": 2600, "timber": 2200, "scrap": 2600,
+                                     "gear": 330, "copper_coil": 110,
+                                     "coal": 2800, "grain": 1600}
+    L.cmd(42800, {"system": "production", "op": "ratios"})
+    L.cmd(43000, {"system": "production", "op": "dump"})
+    sc["name"] = "deep_chain"
+    # 43200 TICKS IS FOUR AND A HALF DAYS AND IT IS A MEASURED CEILING, NOT A
+    # ROUND NUMBER. This city is exiled at t47860 — discontent 100 — even with
+    # the night switched off and three humane laws signed, and the harness keeps
+    # replaying ticks after that, so a longer run grades a corpse: at t46000
+    # hope reads 0.0, morale 0.2 and the population has fallen 74 -> 51. The run
+    # therefore stops in the afternoon of day five, which is the last sample at
+    # which every number in it describes a city with somebody in it. Raising
+    # that ceiling is [P05] and [P06]'s; the ceiling itself is this run's most
+    # useful finding, because `first_night` stops at 24000 and the reference
+    # city falls over at 25400 with none of this quarter in it.
+    sc["ticks"] = 43200
+    sc["sample_every"] = 40
+    sc["seed"] = 7
+    sc["tags"] = ["production", "gate", "long"]
+    sc["description"] = (
+        "THE PRODUCTION RUN. Six in-game days on the reference city, with the "
+        "labour market explicitly stood down (op set_staffing_autarky) so that "
+        "what is measured is the CRAFTING GRAPH and not the job board — which, "
+        "measured, assigns nobody at all to a machine finished after day one. "
+        "A foundry on day two puts copper into the game for the first time via "
+        "`salvaged_wire`; the south smelter is retooled to steel on day three; "
+        "a slag shop and an assembly hall land on day four; day five spends the "
+        "copper and the wool on two booster pumps, a second recuperator and an "
+        "insulated arm — three structures whose materials did not exist in this "
+        "city on day one; and day six runs thirty-five tiles of main east to the "
+        "iron field and retools the hall to heat_core, the deepest item in the "
+        "content. Day six asks for four times day one's heat, twice its people "
+        "and a supply line eight times as long, and the metrics say so.")
+    sc["expects"] = {"min_ticks_per_second": 200, "max_errors": 0,
+                     "balance_days": [1, 2, 3, 4], "max_heat_networks": 5}
+    sc["shots"] = [
+        {"tick": 30, "name": "opening"},
+        {"tick": 11000, "name": "foundry"},
+        {"tick": 21000, "name": "steel"},
+        {"tick": 31000, "name": "assembly"},
+        {"tick": 36000, "name": "components"},
+        {"tick": 42000, "name": "the_east_road"},
+    ]
+    return sc
 
 
 # -------------------------------------------------------------- determinism
@@ -901,6 +2092,375 @@ def economy():
     }
 
 
+
+# ------------------------------------------------------------ the A/B pair
+#
+# TWO RUNS OF THE SAME DAY, PLAYED BADLY AND PLAYED WELL.
+#
+# Every other scenario in this file is a competent player. That is a blind
+# spot: a game that only ever sees good play cannot be asked whether it NOTICES
+# bad play, and "does the city tell you that you are losing, in time to do
+# something about it" is the whole of the Frostpunk contract in ARCHITECTURE §0.
+#
+# So these two share a seed, a tick count, a starting stock and an opening
+# settlement, and differ only in what the player does with the day:
+#
+#   careless_night  under-builds heat, never closes the food chain, lays no
+#                   belt, and puts nothing on the perimeter before dusk.
+#   steady_hand     does all four, on the same clock, out of the same stock.
+#
+# Diff the two state.json files and the difference is entirely the player's.
+# `_allow_islands` is deliberately non-zero in the careless run: a player who
+# drops a generator where it touches no pipe is the single most common opening
+# mistake in this genre, and a scenario library that cannot express it cannot
+# test whether the heat lens catches it.
+
+
+def _opening_settlement(L):
+    """The city that is already standing when day 1 begins. Identical in both."""
+    L.stock(1, {"iron_plate": 1400, "steel_plate": 900, "stone": 1400,
+                "timber": 900, "scrap": 900, "gear": 400, "copper_coil": 400,
+                "coal": 900})
+    L.unlock(2, "thermal_storage", "pressurised_mains")
+    L.place(3, "the_hearth", -2, -2, free=True, instant=True)
+    L.line(4, "heat_pipe", (3, 0), (12, 0), free=True, instant=True)
+    L.line(5, "heat_pipe", (-3, 0), (-12, 0), free=True, instant=True)
+    L.line(6, "heat_pipe", (3, 2), (12, 2), free=True, instant=True)
+    L.line(7, "heat_pipe", (-3, 2), (-12, 2), free=True, instant=True)
+    L.place(8, "warmth_radiator", 13, -1, free=True, instant=True)
+    L.place(9, "warmth_radiator", -14, -1, free=True, instant=True)
+    L.place(10, "housing_block", 5, 3, free=True, instant=True)
+    L.place(11, "housing_block", -9, 3, free=True, instant=True)
+
+
+# THE BEATS, MEASURED AGAINST THE CLOCK INSTEAD OF GUESSED.
+#
+# These are the reference frames the art, audio and UI parts are graded on, and
+# every one of them was named for a beat it did not photograph. Seed 7's day 1
+# runs, identically in both halves of the pair (`climate.phase` in metrics.csv):
+#
+#     t20 morning · t1060 afternoon · t3360 dusk · t4320 night
+#     t6240 deep night · t7600 dawn · t8560 morning (day 2)
+#
+# against which the old beats were `midday` at t3400 (dusk, sixteen seconds
+# after the light started going), `dusk` at t5500 (night, twenty minutes after
+# it had gone), `assault` at t7200 and `dawn` at t9800 (mid-morning of day 2).
+#
+# `assault` was the expensive one. steady_hand's night is two contacts of about
+# ten seconds each — three bodies at t4500 dead by t4700, three more at t6700
+# dead by t6900 — so a shot at t7200 photographs an empty snowfield and calls it
+# an assault, in the run whose whole job is to show what a defended perimeter
+# looks like while it is working. t6720 is the one tick in the night where BOTH
+# halves have enemies inside the city: six standing untouched in the careless
+# run, three under fire in the steady one. That single frame is the A/B.
+_AB_SHOTS = [
+    {"tick": 30, "name": "opening"},
+    {"tick": 2200, "name": "midday"},
+    {"tick": 3900, "name": "dusk"},
+    {"tick": 6720, "name": "assault"},
+    {"tick": 8000, "name": "dawn"},
+]
+
+
+def careless():
+    L = Layout()
+    _opening_settlement(L)
+
+    # 1. UNDER-BUILD HEAT. The player keeps adding draw and never adds supply.
+    #    Two more housing blocks, a workshop and a drill hang off the founding
+    #    grid; nothing that burns anything is ever placed.
+    L.line(600, "heat_pipe", (0, 3), (0, 14))
+    L.place(900, "workshop", 1, 14)
+    L.place(1400, "housing_block", -9, 9)
+    L.line(1500, "heat_pipe", (-1, 8), (-8, 8))
+    # A LONG THIN ARM INTO THE DARK, and a radiator on the end of it. This used
+    # to be `L.line(2800, ...)` up the north spur and `L.place(3000,
+    # "ore_drill", 2, -19)`, and [P11] refused the drill every single run —
+    # "Ore Drill needs 2 tiles of a deposit under it" — because this generator
+    # models footprints and heat adjacency and has no idea where the seams are.
+    # So the careless player's third mistake was not happening at all: the run
+    # placed 93 things, two of them were rejected, and its own description
+    # claimed four heated buildings it never built. Draw with no supply is the
+    # mistake this run exists to make, and a radiator makes it on any terrain.
+    L.line(2800, "heat_pipe", (0, -3), (0, -16))
+    L.place(3000, "warmth_radiator", -1, -18)
+    L.line(3500, "heat_pipe", (5, 3), (5, 7))
+    L.place(3600, "housing_block", 4, 8)
+
+    # 2. THE GENERATOR THAT TOUCHES NOTHING. Placed in open ground twenty tiles
+    #    out, connected to no pipe. It is a network of one, it produces into
+    #    itself, and the only thing in the build that can say so is [P19]'s heat
+    #    lens and [P17]'s "2 grids" line. That is the point of it being here.
+    L.place(4200, "coal_generator", -20, 16)
+
+    # 3. NEVER CLOSE THE FOOD CHAIN. No granary, no kitchen, no sorter. The
+    #    founders' larder is all there is and it is being eaten by a population
+    #    that housing keeps growing.
+
+    # 4. AUTOMATE NOTHING. No crate, no inserter, no belt: every joule of coal
+    #    in this run is carried by a person, and there is no coal_generator on
+    #    the grid for them to carry it to anyway.
+
+    # 5. IGNORE THE FIRST WAVE. Four warnings arrive between t=2700 and t=6000
+    #    and the player answers none of them. No wall, no turret, no watchtower.
+    #    The one gesture toward defence is made after the wave has already
+    #    started, which is exactly when it is worth nothing.
+    L.line(7000, "heat_pipe", (2, -3), (6, -3))
+    L.place(7100, "turret_mount", 5, -5)
+    return {
+        "name": "careless_night",
+        "description": ("PLAYED BADLY ON PURPOSE, and the control for steady_hand. "
+                        "Same seed, same day, same opening settlement, same stock. This "
+                        "player adds four heated buildings and no generator, drops the one "
+                        "generator they own on bare ground where it joins no network, never "
+                        "builds a granary, a kitchen or a sorter, lays no belt, and answers "
+                        "the four wave warnings by placing a single turret after the attack "
+                        "has begun. Read it against steady_hand: every difference in the two "
+                        "state.json files was a decision, and the question this run asks is "
+                        "whether the interface said so at the time."),
+        "tags": ["reference", "visual"],
+        "seed": 7, "ticks": 11000, "sample_every": 20,
+        # THE ISLAND IS THE CLAIM. Two networks is what this player built, and
+        # saying so out loud is what stops the fragmentation reading as quiet.
+        #
+        # `max_errors` WAS 12 AND THE RUN RAISES NONE. The comment above it read
+        # "a run this bad raises alerts by design" — plausible, and measured
+        # wrong: `_errors` counts severity>=2 alerts and logged errors, and being
+        # played badly produces neither. A twelve-error licence on the one
+        # scenario built to be bad is twelve errors nobody would ever be shown,
+        # in the run most likely to acquire them.
+        "expects": {"min_ticks_per_second": 600, "max_errors": 0,
+                    "balance_days": [1], "max_heat_networks": 2},
+        "script": L.script,
+        "_layout": L,
+        # The lone generator is the island, and it is the finding.
+        "_allow_islands": 1,
+        "shots": _AB_SHOTS,
+    }
+
+
+def _steady_first_day(L):
+    """steady_hand's day 1, on its own so a later run can inherit it verbatim.
+
+    `the_sixth_night` builds exactly this and then stops building, which is only
+    a fair question about escalation if it is byte-for-byte the same day 1 that
+    holds night 1 comfortably in the A/B pair.
+    """
+    # 1. HEAT FIRST, AND ON THE GRID. A generator on the founding spine before
+    #    anything that draws from it, a second one before dusk, and a buffer to
+    #    carry the night.
+    L.line(300, "heat_pipe", (0, 3), (0, 14))
+    L.line(400, "heat_pipe", (0, 14), (-1, 14))
+    L.place(500, "coal_generator", -4, 14)
+    L.place(900, "workshop", 1, 14)
+    L.line(1200, "heat_pipe", (12, 1), (12, 8))
+    L.place(1400, "heat_accumulator", 13, 8)
+
+    # 2. THE FOOD CHAIN, CLOSED, AND SAID OUT LOUD AT PLACEMENT TIME.
+    #    `set_recipe` on a cell that holds a construction site is a STANDING
+    #    ORDER: production remembers it and the machine is born running it. The
+    #    alternative — waiting for the site to finish and then naming the
+    #    recipe — is a guess about build time, and in first_night that guess was
+    #    4800 ticks wrong, which is why the reference run never made a ration.
+    L.line(1600, "heat_pipe", (-3, 2), (-3, -11))
+    L.place(1800, "field_kitchen", -6, -8)
+    L.place(2000, "rubble_sorter", -6, -11)
+    L.cmd(2001, {"system": "production", "op": "set_recipe",
+                 "cell": [CORE[0] - 6, CORE[1] - 11], "recipe": "salvaged_stores"})
+    L.line(2400, "heat_pipe", (5, 3), (5, 8))
+    L.place(2600, "granary", 6, 8)
+
+    # 3. AUTOMATE THE THING THAT REPEATS. The founders' coal pile goes on a belt
+    #    into the generator's bunker instead of onto somebody's back.
+    L.place(1000, "crate", -10, 18)
+    L.place(1010, "inserter_mk1", -9, 18, rot=0)
+    L.line(1020, "belt_mk1", (-8, 18), (-3, 17))
+    L.place(1030, "inserter_mk1", -3, 16, rot=3)
+    L.cmd(1100, {"system": "logistics", "op": "insert",
+                 "cell": [CORE[0] - 10, CORE[1] + 18], "item": "coal", "count": 400})
+    L.cmd(6000, {"system": "logistics", "op": "insert",
+                 "cell": [CORE[0] - 10, CORE[1] + 18], "item": "coal", "count": 400})
+
+    # 4. THE PERIMETER GOES UP ON THE FIRST WARNING, NOT ON THE FIRST CASUALTY.
+    #    Warning 1 lands around t=2700. Everything below is finished before the
+    #    countdown reaches zero, and all of it is on the city's own grid, so a
+    #    brownout at the Hearth is felt at the guns.
+    #    EVERY METRE OF PIPE IS PLACED BEFORE ANYTHING THAT STANDS ON IT, AND
+    #    THAT IS NOT THE SAME AS PLACING IT FIRST IN THE SCRIPT.
+    #
+    #    `ConstructionQueue` serves (build_priority desc, placed_tick asc), and
+    #    the priorities are content: `turret_mount` is 90, `wall` is 85,
+    #    `heat_pipe` is 80. A gun therefore OUTRANKS the pipe that feeds it no
+    #    matter which was placed first, and a wall run outranks both. Measured on
+    #    the previous version of this run (`artifacts/play_steady_hand/log.txt`):
+    #
+    #      t3740  the west half of the y=95 spur is placed
+    #      t4000  the turret at (119, 96) is placed on the end of it
+    #      t5689  the TURRET completes — `registered #217 turret_mount (net 2)`
+    #      t6173  `#217 turret_mount froze (net 2, -11.6°C)`
+    #      t7214  the spur completes and finally joins net 1
+    #
+    #    So the run that exists to show a perimeter standing on the city's own
+    #    grid spent night 1 with two of its four wall guns on islands of one,
+    #    froze both, and tripped "The Grid Is in Pieces" and "Frozen Solid" — the
+    #    same two beats careless_night trips. An A/B pair whose good half makes
+    #    the bad half's mistake is not a pair.
+    #
+    #    The order below is the one the QUEUE will actually honour: the inner
+    #    ring's pipe first, then the north spur, then the walls that outrank both,
+    #    and only then the guns. Same seed, same buildings, same tiles, 52
+    #    commands either way — the run now measures the decision it claims to.
+    L.line(1500, "heat_pipe", (2, -3), (6, -3))
+    L.line(1520, "heat_pipe", (2, 3), (4, 3))
+    L.line(1540, "heat_pipe", (-2, 3), (-4, 3))
+    L.line(1560, "heat_pipe", (0, -3), (1, -18))
+    L.line(1600, "heat_pipe", (1, -18), (1, -33))
+    L.line(1640, "heat_pipe", (1, -33), (14, -33))
+    L.line(1680, "heat_pipe", (1, -33), (-13, -33))
+    L.place(3000, "turret_mount", 5, -5)
+    L.place(3040, "turret_mount", -5, -5)
+    L.place(3080, "turret_mount", 3, 4)
+    L.place(3120, "turret_mount", -4, 4)
+    for i, dx in enumerate([-18, -9, 0, 9, 18]):
+        L.line(3300 + i * 40, "wall", (dx - 4, -35), (dx + 4, -35))
+    L.place(3800, "watchtower", -12, -32)
+    L.place(3900, "watchtower", 13, -32)
+    L.place(4000, "turret_mount", -9, -32)
+    L.place(4100, "turret_mount", 8, -32)
+
+    # 5. THE SECOND GENERATOR, BEFORE DUSK RATHER THAN DURING THE NIGHT.
+    L.line(4400, "heat_pipe", (0, 14), (0, 18))
+    L.place(4600, "coal_generator", 1, 17)
+
+
+def steady():
+    L = Layout()
+    _opening_settlement(L)
+    _steady_first_day(L)
+    return {
+        "name": "steady_hand",
+        "description": ("PLAYED WELL, and the control for careless_night. The same seed, "
+                        "day, opening settlement and stock, spent in the order the game is "
+                        "actually asking for: heat before draw, the salvage-to-kitchen chain "
+                        "closed and named while it is still a building site, one belt doing "
+                        "the job a porter was doing, and the whole perimeter standing on the "
+                        "city's own heat grid before the first wave's countdown runs out. "
+                        "The two runs diverge on the interface as much as on the numbers, and "
+                        "both halves of that are the finding."),
+        "tags": ["reference", "visual"],
+        "seed": 7, "ticks": 11000, "sample_every": 20,
+        "expects": {"min_ticks_per_second": 600, "max_errors": 0,
+                    "balance_days": [1], "max_heat_networks": 1},
+        "script": L.script,
+        "_layout": L,
+        "shots": _AB_SHOTS,
+    }
+
+
+# ============================================================================
+# THE THIRD RUN IN THE FAMILY: DOES DAY 6 ASK MORE THAN DAY 1?
+#
+# careless_night and steady_hand ask whether the interface can tell a bad
+# decision from a good one INSIDE ONE DAY. Neither of them can say anything
+# about escalation, because both stop at t=11000 — the middle of day 2 — and a
+# curve that has not been walked is a claim nobody has checked.
+#
+# So: steady_hand's day 1, verbatim, and then the player stops. Same seed, same
+# opening settlement, same four turrets and two watchtowers standing on the same
+# grid, held unchanged through six nights. Every number that moves in this run
+# moved because the WORLD escalated, not because the city changed, and that is
+# the only way to read the difficulty curve as a player experiences it rather
+# than as a table.
+#
+# What to read in the artifacts:
+#   * `threat.plan` / the `wave N composed` log lines — budget, unit count and
+#     how many vectors each night arrives on.
+#   * `[threat] night N:` — spawned / killed / walked away / structures lost.
+#     A day-1 perimeter that still clears night 6 without a scratch is a flat
+#     curve wearing an escalation table.
+#   * `climate` — the escalation beat turns over on day 4 ("The Cold Finds Its
+#     Teeth", baseline -24°C), which is the first time the world asks the
+#     player for something day 1 did not.
+#   * `society` — hope and discontent under six nights of the same answer.
+#
+# Six full days is 57,600 ticks; this runs to 62,000 so night 6 finishes and
+# dawn of day 7 is on the record.
+#
+# AND IT SHIPS NO SHOTS, DELIBERATELY. `tests/gate/test_shot_beats.gd` walks a
+# real ClimateSystem tick by tick to prove that a beat named `sixth_night` is
+# photographed at night on day 6, and it caps that walk at MAX_WALK = 24000
+# because "a suite that walks a 43k-tick scenario tick by tick for every file is
+# a suite people start skipping". Every beat this run would want to name lives
+# past that cap, so the suite cannot verify any of them — and a screenshot whose
+# name nothing can check is exactly what that file exists to stop.
+#
+# It costs nothing here: this is a headless control and its whole evidence is
+# metrics.csv and the `wave N composed` / `night N:` lines in log.txt. Naming
+# beats it could not stand behind would have bought a picture nobody asked for
+# at the price of the one guard that keeps the reference frames honest.
+
+
+def sixth_night():
+    L = Layout()
+    _opening_settlement(L)
+    _steady_first_day(L)
+    # Coal keeps arriving on the belt, because a scenario that runs out of fuel
+    # on day 3 measures a supply chain and not a difficulty curve. This is the
+    # ONE thing the player keeps doing, and it is deliberately the thing that
+    # takes no decision.
+    for day in range(2, 7):
+        L.cmd(day * 9600 + 400, {"system": "logistics", "op": "insert",
+                                 "cell": [CORE[0] - 10, CORE[1] + 18],
+                                 "item": "coal", "count": 900})
+    # THE PLAYER ANSWERS THE PHONE, AND ONLY THAT.
+    #
+    # Without this the run is not an escalation test at all. [P06]'s Ember
+    # Congregation opens a grievance about the unburied at t=11200, turns it
+    # into a demand at t=16880, issues an ultimatum at t=19780 and puts the
+    # council out of its own gate at t=24580 — day 3 — after which `society.*`
+    # flatlines at discontent 100 / hope 11.3 for the remaining 37,000 ticks
+    # while threat, combat and heat carry on escalating into a city with nobody
+    # in it. That is true of EVERY headless run in this library, because a
+    # scenario cannot click a law, and it means nothing in the artifacts has
+    # ever measured a night past the third one.
+    #
+    # One law, signed the hour it is asked for, at the only moment a real player
+    # would also be signing it. It is not a build decision and it does not touch
+    # the perimeter, which is the whole point: the city that meets night 6 is
+    # still exactly steady_hand's day 1.
+    L.cmd(17000, {"system": "society", "op": "sign", "law": "named_graves"})
+    return {
+        "name": "the_sixth_night",
+        "description": ("THE ESCALATION CONTROL. steady_hand's day 1, built exactly as "
+                        "steady_hand builds it, and then the player never builds again — "
+                        "six nights answered with one day's worth of city. Same seed and "
+                        "same opening settlement as careless_night and steady_hand, so the "
+                        "three runs are one family with the time axis added. Nothing here "
+                        "measures a decision; everything here measures whether the world "
+                        "asks more on day 6 than it did on day 1, and whether the game "
+                        "says so before the sixth night rather than after it. Read the "
+                        "'wave N composed' budgets and the 'night N:' outcomes down the "
+                        "log: if a day-1 perimeter still clears night 6 clean, the "
+                        "escalation is a table and not a curve."),
+        "tags": ["reference", "escalation"],
+        "seed": 7, "ticks": 62000, "sample_every": 40,
+        # Slower per tick than the A/B pair on purpose: by day 5 there are
+        # several times as many bodies in the field, and a floor written for day
+        # 1 would fail this run for succeeding at its own premise.
+        # THE FRAGMENTATION IS THE RESULT, NOT A LAYOUT DEFECT, so the claim has
+        # to be one this run can actually keep. `max_heat_networks` is graded on
+        # the worst moment of the graded days, and measured here it goes 3 (the
+        # grid closing up while day 1 is still a building site) · 1 · 1 · 1 · 1 ·
+        # 9 · 8: one clean grid from day 2 until night 6 takes the city apart.
+        # Claiming 1 would fail this scenario for succeeding at its own premise;
+        # claiming 9 says out loud what a day-1 perimeter is worth on night 6.
+        "expects": {"min_ticks_per_second": 300, "max_errors": 0,
+                    "balance_days": [1, 3, 6], "max_heat_networks": 9},
+        "script": L.script,
+        "_layout": L,
+    }
+
+
 def _reaches_conduit(layout, kind, origin):
     """True when this footprint would share a border with a conducting cell.
 
@@ -919,5 +2479,6 @@ def _reaches_conduit(layout, kind, origin):
 
 
 if __name__ == "__main__":
-    for build in (smoke, first_night, determinism, stress, economy):
+    for build in (smoke, first_night, deep_chain, determinism, stress, economy,
+                  careless, steady, sixth_night):
         write(build())

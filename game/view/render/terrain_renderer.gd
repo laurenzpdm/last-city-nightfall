@@ -94,14 +94,22 @@ func bind_world() -> void:
 	ground_material.set_shader_parameter("heat_tex", field.heat_tex)
 	ground_material.set_shader_parameter("soot_tex", field.soot_tex)
 	ground_material.set_shader_parameter("city_tex", field.city_tex)
+	ground_material.set_shader_parameter("wear_tex", field.wear_tex)
 	ground_material.set_shader_parameter("noise_tex", field.noise_tex)
 	ground_material.set_shader_parameter("pal_tex", field.palette_tex)
 	ground_material.set_shader_parameter("map_px", Vector2(field.size) * float(TILE))
 	ground_material.set_shader_parameter("snow_scale", field.snow_scale)
-	ground_material.set_shader_parameter("snow_mid", _v3(LcnPalette.SNOW_MID))
-	ground_material.set_shader_parameter("snow_lit", _v3(LcnPalette.SNOW_LIT))
-	ground_material.set_shader_parameter("snow_shadow", _v3(LcnPalette.SNOW_SHADOW))
+	# The GROUND ramp, not the interface ramp. Painting the plain with the colour
+	# the HUD writes its body text in is how a midday frame came out white.
+	ground_material.set_shader_parameter("snow_mid", _v3(LcnPalette.GROUND_SNOW_MID))
+	ground_material.set_shader_parameter("snow_lit", _v3(LcnPalette.GROUND_SNOW_LIT))
+	ground_material.set_shader_parameter("snow_shadow", _v3(LcnPalette.GROUND_SNOW_SHADOW))
 	ground_material.set_shader_parameter("ash_col", _v3(LcnPalette.ASH))
+	# The erratics are cold stone wherever they lie, so they come from the ROCK
+	# recipe and not from whatever the host tile happens to be painted in.
+	var rock: Dictionary = LcnPalette.terrain_tones(LcnPalette.Terrain.ROCK)
+	ground_material.set_shader_parameter("stone_dark", _v3(rock["low"]))
+	ground_material.set_shader_parameter("stone_lite", _v3(rock["high"]))
 	ground_material.set_shader_parameter("warm_col", _v3(LcnPalette.WARM_EDGE))
 	_buildings_stamp = -1
 	_source_cooldown = 0
@@ -120,7 +128,20 @@ func render(view: Rect2, grade: Dictionary, zoom: float, full: bool = false) -> 
 	var t0: int = Time.get_ticks_usec()
 	_frames += 1
 	_rect = view.grow(OVERSCAN)
-	_detail = clampf(inverse_lerp(0.28, 0.85, zoom), 0.0, 1.0)
+	# THE DETAIL RAMP WAS CALIBRATED FOR A CAMERA NOBODY USES. `inverse_lerp(0.28,
+	# 0.85, zoom)` hands full detail only at 0.85, which is the zoom the harness
+	# happens to sit at during an assault; the camera's own log line
+	# (`readability -> normal at zoom 0.734`) and the overlay legends put an
+	# ordinary session between 0.50 and 0.75. At 0.50 the old ramp delivered 0.39
+	# — so the grain, the wind comb, the crystalline glint and the fine octave of
+	# the drift field were all running at a third of their amplitude at exactly
+	# the distance a player spends the session at, and `artifacts/CRIT/shots`
+	# measured 0.008 of local structure on the plain because of it.
+	#
+	# Full detail now arrives at 0.52 and the floor is 0.30 rather than 0.0, so
+	# the ground is never a flat quad even from the strategic zoom. The ground is
+	# one draw call at any zoom; what this scales is texture fetches inside it.
+	_detail = clampf(inverse_lerp(0.20, 0.52, zoom), 0.30, 1.0)
 
 	# Once a second. The scan is 256 version probes on a 500x500 map and it is the
 	# only thing that notices [P11] paving a road under the camera.
@@ -148,7 +169,24 @@ func render(view: Rect2, grade: Dictionary, zoom: float, full: bool = false) -> 
 		_city_cooldown = 30
 		field.refresh_city(model.buildings())
 
+	# THE GROUND'S MEMORY. Written by the entity pass wherever a figure actually
+	# put a foot down, aged here on the sim clock (never on frame delta, so a
+	# slow machine wears the same paths at the same moment), and buried faster
+	# the harder it is snowing.
+	var weather: float = model.ground_weather()
+	field.decay_wear(SimClock.seconds(), weather)
+	# Throttled: the field changes on every footfall and a full-map upload is a
+	# quarter of a megabyte. Fifteen times a second is far more than an eye can use
+	# for a surface that takes minutes to darken.
+	if _frames % 4 == 0 or full:
+		field.upload_wear()
+
 	ground_material.set_shader_parameter("detail", _detail)
+	# How many monitor pixels one tile covers right now. The ground authors its
+	# hard edges in screen pixels and converts them into height-field units with
+	# this, so a stone's rim is the same crispness at the strategic zoom as at
+	# the assault zoom instead of being whatever the camera made of a constant.
+	ground_material.set_shader_parameter("px_tile", maxf(zoom * float(TILE), 2.0))
 	ground_material.set_shader_parameter("time_s", SimClock.seconds())
 	ground_material.set_shader_parameter("sun_dir", grade["sun_dir"])
 	ground_material.set_shader_parameter("sun_col", _v3(grade["sun_col"]))
@@ -159,6 +197,27 @@ func render(view: Rect2, grade: Dictionary, zoom: float, full: bool = false) -> 
 	ground_material.set_shader_parameter("bounce_col", _v3(grade["bounce_col"]))
 	ground_material.set_shader_parameter("bounce", float(grade["bounce"]))
 	ground_material.set_shader_parameter("wild", float(grade["wild"]))
+	# The weather reaches the GROUND, not only [P14]'s air. A still frame of a
+	# snowing afternoon has to be different from a still frame of a calm one —
+	# and it is the SNOWING AFTERNOON that a session is mostly made of, which is
+	# why this asks for ground_weather() and not for the Great Frost envelope.
+	ground_material.set_shader_parameter("storm", weather)
+	# WHAT THE GROUND WAS ACTUALLY TOLD, IN THE RUN A CRITIC READS. Four rounds
+	# of this project have argued about the ground from frames whose zoom, hour
+	# and weather nobody could recover afterwards. Once every two seconds, in the
+	# ordinary log, so `artifacts/<run>/log.txt` answers "what was the camera at
+	# and what was falling out of the sky when this PNG was taken" without
+	# anybody having to stand a scene up.
+	# A visual run renders far fewer frames than it simulates seconds — the whole
+	# of `first_night` came out at one line every two seconds of WALL time and
+	# landed in log.txt exactly once, which answers the question for the opening
+	# shot and for none of the other ten. Every twenty frames, so each shot has a
+	# line within a second of it.
+	if _frames % 20 == 1:
+		Log.info("render", "ground zoom %.3f px/tile %.1f detail %.2f storm %.2f key %.2f/%.2f fill %.2f wild %.2f" % [
+			zoom, zoom * float(TILE), _detail, weather,
+			float(grade["sun_energy"]), float(grade["sun_height"]),
+			float(grade["sky_energy"]), float(grade["wild"])])
 	_quad.queue_redraw()
 	_update_us = Time.get_ticks_usec() - t0
 
@@ -181,6 +240,8 @@ func invalidate_near(cell: Vector2i) -> void:
 func clear_all() -> void:
 	_pending_chunks.clear()
 	_buildings_stamp = -1
+	if field != null:
+		field.clear_wear()
 
 
 func detail_level() -> float:
@@ -204,6 +265,9 @@ func stats() -> Dictionary:
 		"snow_us": int(f.get("snow_us", 0)),
 		"sources_us": int(f.get("sources_us", 0)),
 		"city_us": int(f.get("city_us", 0)),
+		"wear_us": int(f.get("wear_us", 0)),
+		"wear_stamps": int(f.get("wear_stamps", 0)),
+		"wear_mean": field.wear_mean() if field != null else 0.0,
 	}
 
 

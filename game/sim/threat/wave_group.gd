@@ -14,6 +14,10 @@ var count: int = 0
 var cost: float = 0.0
 ## Index into WavePlan.vectors.
 var vector: int = 0
+## Which ARRIVAL MOMENT this packet belongs to. Every group sharing an echelon
+## walks onto the map on the same tick, which is what makes a night a wave
+## instead of a metronome — see ThreatSystem._distribute.
+var echelon: int = 0
 ## Where in the arrival window this packet belongs, 0..1. Stamped at
 ## distribution time, when the length of the night is not yet known; turned into
 ## `delay_ticks` at nightfall, when it is. A night that runs from dusk to dawn
@@ -38,6 +42,7 @@ func to_dict() -> Dictionary:
 		"vector": vector,
 		"delay": delay_ticks,
 		"delay_frac": snappedf(delay_frac, 0.001),
+		"echelon": echelon,
 		"cell": [spawn_cell.x, spawn_cell.y],
 		"dispatched": dispatched,
 		"handle": handle,
@@ -52,6 +57,7 @@ static func from_dict(d: Dictionary) -> WaveGroup:
 	g.vector = int(d.get("vector", 0))
 	g.delay_ticks = int(d.get("delay", 0))
 	g.delay_frac = float(d.get("delay_frac", 0.0))
+	g.echelon = int(d.get("echelon", 0))
 	var c: Variant = d.get("cell", [])
 	if typeof(c) == TYPE_ARRAY and (c as Array).size() >= 2:
 		g.spawn_cell = Vector2i(int((c as Array)[0]), int((c as Array)[1]))

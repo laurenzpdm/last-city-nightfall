@@ -41,8 +41,6 @@ const TAG: String = "citizens"
 const RNG_STREAM: String = "citizens"
 const TILE: float = 32.0
 
-## Fraction of the workforce put on the night rotation.
-const NIGHT_EVERY: int = 3
 ## Ticks between presence recounts. Staffing has to react inside a second.
 const PRESENCE_TICKS: int = 5
 const PRESENCE_PHASE: int = 2
@@ -321,6 +319,10 @@ func _fill_context() -> void:
 		_ctx.care_ratio = clampf(float(board.care_capacity)
 			/ float(pool.count_sick + pool.count_injured), 0.0, 1.0)
 	_ctx.fatigue_mult = float(CitizenDefs.law_row(_shift_law).get("fatigue", 1.0))
+	_ctx.dark = _phase >= ClimateDefs.Phase.DUSK
+	_ctx.night_fatigue = CitizenDefs.NIGHT_FATIGUE_MULT
+	_ctx.night_accident = CitizenDefs.NIGHT_ACCIDENT_MULT
+	_ctx.night_morale = CitizenDefs.NIGHT_MORALE_PENALTY
 	_ctx.morale_offset = -_grief + float(CitizenDefs.law_row(_shift_law).get("morale", 0.0)) \
 		+ _society_morale()
 	_ctx.rng = Rng.stream(RNG_STREAM)
@@ -362,12 +364,21 @@ func _sync_city(tick: int) -> void:
 		var moved: int = board.assign_homes(pool, _homeless, MOVE_INS_PER_PASS)
 		if moved > 0:
 			Log.debug(TAG, "%d citizens moved into housing" % moved)
-	if not _jobless.is_empty():
-		var hired: int = board.assign_jobs(pool, _jobless, _child_labour, _elder_labour,
-			CitizenDefs.HIRES_PER_PASS)
-		if hired > 0:
-			_assign_shifts()
-			Log.debug(TAG, "%d citizens took a job" % hired)
+	# Called even when nobody is idle. On a settled map every pair of hands is
+	# already spoken for, so the only way a newly finished smelter ever gets a
+	# crew is for the board to take one back off a building that hired past what
+	# it needs — and that happens inside assign_jobs, not out here.
+	var hired: int = board.assign_jobs(pool, _jobless, _child_labour, _elder_labour,
+		CitizenDefs.HIRES_PER_PASS)
+	_hire_counter += hired
+	# Every pass, not only the passes that hired somebody. A rotation is cut from
+	# the crews as they stand, and crews change without anybody being hired: a
+	# building finishes, a worker dies, `_reassign_surplus` walks somebody across
+	# town. Re-cutting only on a hire is how a night shift ends up belonging to
+	# whoever happened to be third in the queue eleven minutes ago.
+	_assign_shifts()
+	if hired > 0:
+		Log.debug(TAG, "%d citizens took a job" % hired)
 
 
 ## Two slot lists the matcher needs, gathered in one pass.
@@ -411,21 +422,10 @@ func _collect_free_hands() -> void:
 	_idle_builders = builders
 
 
-## Splits the workforce across the rotations. Deterministic by hire order, so a
-## replay staffs the night shift with the same people.
+## The rotations are cut by the board, which is where the crews live. See
+## `CitizenJobBoard.cut_shifts` for the rule and for what the old one cost.
 func _assign_shifts() -> void:
-	var n: int = pool.alive.size()
-	for i: int in n:
-		var s: int = pool.alive[i]
-		if pool.job[s] < 0:
-			if pool.shift[s] != CitizenDefs.Shift.OFF:
-				pool.shift[s] = CitizenDefs.Shift.OFF
-			continue
-		if pool.shift[s] != CitizenDefs.Shift.OFF:
-			continue
-		_hire_counter += 1
-		pool.shift[s] = CitizenDefs.Shift.NIGHT if _hire_counter % NIGHT_EVERY == 0 \
-			else CitizenDefs.Shift.DAY
+	board.cut_shifts(pool, _shift_law)
 
 
 # =========================================================================
@@ -549,8 +549,12 @@ func _on_injury(slot: int, tick: int) -> void:
 	var site: CitizenJobBoard.Site = board.site_of(pool.job[slot])
 	var where: String = site.label if site != null else "work"
 	pool.set_state(slot, CitizenDefs.State.INJURED, tick)
+	# "at the Workshop" takes the article; the no-site fallback does not, and
+	# the alert panel carried "Marek Novak was hurt at the work." through every
+	# reference run in the library.
+	var place: String = ("at the %s" % where) if site != null else "at work"
 	_alert(StringName("citizen_injured"), 1,
-		"%s was hurt at the %s." % [_name_of(slot), where], _citizen_pos(slot), tick)
+		"%s was hurt %s." % [_name_of(slot), place], _citizen_pos(slot), tick)
 	Log.info(TAG, "#%d %s injured at %s (severity %.0f)" % [
 		pool.ids[slot], _name_of(slot), where, pool.injury[slot]])
 
@@ -585,9 +589,18 @@ func _bury(tick: int) -> void:
 		_grief += CitizenDefs.GRIEF_PER_DEATH
 		_last_deaths.append(id)
 
+		# Someone with no job cannot have worked themselves to death, and the
+		# sentence already says so two clauses earlier: `_trade_index()` only
+		# answers "child" or "pensioner" for a citizen holding no job at all.
+		# `Marek Novak, 12, child, worked themselves to death.` argued with
+		# itself inside one line.
+		var phrase: String = ""
+		if pool.job[slot] < 0:
+			phrase = String(CitizenDefs.CAUSE_PHRASES_UNWORKED.get(cause, ""))
+		if phrase == "":
+			phrase = String(CitizenDefs.CAUSE_PHRASES.get(cause, "died"))
 		var sentence: String = "%s, %d, %s, %s." % [
-			_name_of(slot), pool.age[slot], _trade_label(slot),
-			String(CitizenDefs.CAUSE_PHRASES.get(cause, "died"))]
+			_name_of(slot), pool.age[slot], _trade_label(slot), phrase]
 		Bus.citizen_died.emit(id, cause)
 		Bus.alert_raised.emit(1, &"citizen_died", sentence, _citizen_pos(slot))
 		if i < DEATH_DETAIL_CAP:
@@ -1073,7 +1086,20 @@ func set_shift_law(law: StringName) -> bool:
 	if _shift_law == law:
 		return true
 	_shift_law = law
-	Log.info(TAG, "shift law is now %s" % String(CitizenDefs.law_row(law).get("label", law)))
+	# Re-cut immediately rather than at the next job pass: a law the player has
+	# just signed should change who walks out of the door this second, and the
+	# rotation is what the law is actually FOR.
+	board.cut_shifts(pool, _shift_law)
+	var row: Dictionary = CitizenDefs.law_row(law)
+	Log.info(TAG, "shift law is now %s — %d of %d employed on the night rotation" % [
+		String(row.get("label", law)), board.night_crew, pool.count_employed])
+	# The one place the dark is priced out loud. Not a per-tick alert: it fires
+	# when the city decides, which is the moment a player is looking.
+	var says: String = "The night crew stands down; the works go quiet at dusk." \
+		if float(row.get("skeleton", 0.0)) <= 0.0 \
+		else "%d of %d hands now take the night rotation." % [board.night_crew, pool.count_employed]
+	_alert(&"citizens_shift_law", 1,
+		"%s %s" % [String(row.get("label", law)) + ".", says], _shelter_pos(), _tick)
 	return true
 
 
@@ -1439,6 +1465,7 @@ func metrics() -> Dictionary:
 		"unrest": unrest_pressure(),
 		"food_days": food_days_remaining(),
 		"staffed": snappedf(_staffed_ratio(), 0.001),
+		"night_crew": board.night_crew,
 		"routes": router.cached_routes(),
 	}
 

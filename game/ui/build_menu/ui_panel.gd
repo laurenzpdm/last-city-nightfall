@@ -165,6 +165,53 @@ func place(default_pos: Vector2, panel_size: Vector2) -> void:
 	clamp_into(get_viewport_rect().size if is_inside_tree() else Vector2(1920.0, 1080.0))
 
 
+## Shrinks the panel so it ends within `room` pixels of its own top, by taking
+## the difference out of its scrolling list rather than off the bottom.
+##
+## A panel cannot be made shorter than its children demand — Godot enforces
+## `size >= get_combined_minimum_size()` — so setting `size.y` on a panel whose
+## body carries `custom_minimum_size.y = 380` does nothing at all, silently. That
+## is exactly what happened at ui_scale 1.6 on a 21:9 display: [P17]'s bigger
+## chrome left the stage 508 px tall, the palette insisted on 517, and the extra
+## nine landed on [P18]'s own hotkey strip. A list is the right thing to take the
+## loss — it already scrolls, and the rows it stops showing are one wheel-notch
+## away. Everything else in the panel is chrome that has to stay.
+##
+## Returns true when it found a list to shrink.
+func fit_to_height(room: float) -> bool:
+	_ensure_built()
+	var list: ScrollContainer = _first_scroll(self)
+	if list == null:
+		return false
+	var chrome: float = maxf(0.0, size.y - list.custom_minimum_size.y)
+	var want: float = clampf(room - chrome, MIN_LIST_HEIGHT, 100000.0)
+	if is_equal_approx(want, list.custom_minimum_size.y):
+		return true
+	list.custom_minimum_size = Vector2(list.custom_minimum_size.x, want)
+	# Both halves are needed. Lowering the list's minimum only makes the smaller
+	# size LEGAL; the panel keeps whatever height it already had until something
+	# assigns one, and `custom_minimum_size` on the panel itself would put the old
+	# floor straight back.
+	custom_minimum_size = Vector2(custom_minimum_size.x, 0.0)
+	size = Vector2(size.x, want + chrome)
+	return true
+
+
+## Four rows and a scrollbar. Below this a list stops being a list.
+const MIN_LIST_HEIGHT: float = 132.0
+
+
+func _first_scroll(from: Node) -> ScrollContainer:
+	for child: Node in from.get_children():
+		var sc := child as ScrollContainer
+		if sc != null:
+			return sc
+		var found: ScrollContainer = _first_scroll(child)
+		if found != null:
+			return found
+	return null
+
+
 func clamp_into(screen: Vector2) -> void:
 	if screen.x <= 0.0 or screen.y <= 0.0:
 		return

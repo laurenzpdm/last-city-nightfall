@@ -196,12 +196,20 @@ const MAX_BUS_SEVERITY: int = 1
 const VERDICT_KEYS: Array[StringName] = [
 	&"overrun", &"breached", &"costly", &"held_at_dawn", &"held",
 ]
+## THE BEST NIGHT IN THE GAME USED TO READ LIKE THE WORST. The last line was
+## "Held. Nothing of it is left standing." — five words in which "it" means the
+## host, in a table whose FIRST line uses "it" to mean the city ("They are still
+## standing in it"). A player who has just cleared a perfect night is handed a
+## sentence about nothing of theirs being left. Measured in
+## `artifacts/play_steady_hand/state.json`: the well-played half of the standing
+## A/B pair, six of six put down, nothing lost, and that is the line it earned.
+## Its neighbour already uses "them" for the attackers; so does this one now.
 const VERDICT_LABELS: Array[String] = [
 	"They are still standing in it.",
 	"They got through the line.",
 	"Held, and it cost.",
 	"The last of them broke off with the light.",
-	"Held. Nothing of it is left standing.",
+	"Held. Nothing of them is left standing.",
 ]
 
 

@@ -93,6 +93,15 @@ var _destroyed_total: int = 0
 ## Bumped whenever a finished building is switched on or off. Part of
 ## roster_version() — see that function for why the number exists at all.
 var _switched_total: int = 0
+## Nonzero while a sweep — a line drag, an area fill or a blueprint stamp — is
+## walking its cells. A sweep is DEFINED to run through whatever already stands
+## (a player dragging a belt across a wall lays the rest of the run), so a cell
+## it declines is not a command that could never work. Counting both in
+## _rejected_total made that number unbandable: the gate could not tell a
+## deliberate overdraw from a placement generated at the wrong coordinates.
+var _sweep_depth: int = 0
+## Cells declined inside a sweep. Reported, never banded at zero.
+var _sweep_skipped_total: int = 0
 
 
 func _init() -> void:
@@ -127,6 +136,8 @@ func setup() -> void:
 	_rejected_total = 0
 	_destroyed_total = 0
 	_switched_total = 0
+	_sweep_depth = 0
+	_sweep_skipped_total = 0
 
 	stock = BuildStock.new()
 	for k: Variant in STARTING_STOCK:
@@ -453,6 +464,7 @@ func _place_many(def: BuildingDef, cells: Array[Vector2i], cmd: Dictionary, labe
 	var skipped: int = 0
 	var first_reason: String = ""
 	_undo.begin_group(label, _tick)
+	_sweep_depth += 1
 	for c: Vector2i in cells:
 		var sub: Dictionary = cmd.duplicate()
 		sub["cell"] = c
@@ -465,6 +477,7 @@ func _place_many(def: BuildingDef, cells: Array[Vector2i], cmd: Dictionary, labe
 			skipped += 1
 			if first_reason == "":
 				first_reason = String(r.get("reason", ""))
+	_sweep_depth -= 1
 	_undo.end_group()
 	if placed == 0:
 		return _fail(BuildTypes.CODE_OCCUPIED, first_reason if first_reason != "" else "Nothing could be placed there.")
@@ -683,6 +696,7 @@ func _op_place_blueprint(cmd: Dictionary) -> Dictionary:
 	var first_reason: String = ""
 	_plan_connections(t, anchor)
 	_undo.begin_group("Paste %s" % t.title, _tick)
+	_sweep_depth += 1
 	for e: BlueprintEntry in t.entries:
 		var target: Vector2i = anchor + e.offset
 		var existing: BuildingInstance = building_at(target)
@@ -700,6 +714,7 @@ func _op_place_blueprint(cmd: Dictionary) -> Dictionary:
 			skipped += 1
 			if first_reason == "":
 				first_reason = String(r.get("reason", ""))
+	_sweep_depth -= 1
 	_undo.end_group()
 	_planned_conn.clear()
 
@@ -961,7 +976,7 @@ func can_place(kind: StringName, cell: Vector2i, rot: int = 0, check_cost: bool 
 
 	for c: Vector2i in cells:
 		if not world.is_buildable(c):
-			return _fail(BuildTypes.CODE_TERRAIN, "The ground at %d, %d will not take a foundation." % [c.x, c.y], base)
+			return _fail(BuildTypes.CODE_TERRAIN, "The ground at (%d, %d) will not take a foundation." % [c.x, c.y], base)
 
 	if def.allowed_terrain.size() > 0 or def.forbidden_terrain.size() > 0:
 		for c: Vector2i in cells:
@@ -984,7 +999,7 @@ func can_place(kind: StringName, cell: Vector2i, rot: int = 0, check_cost: bool 
 		if occ != 0 and occ != ignore_id:
 			var other: BuildingInstance = _buildings.get(occ)
 			var other_name: String = other.def.display_name if other != null else "something"
-			return _fail(BuildTypes.CODE_OCCUPIED, "%s is in the way at %d, %d." % [other_name, c.x, c.y], base)
+			return _fail(BuildTypes.CODE_OCCUPIED, "%s is in the way at (%d, %d)." % [other_name, c.x, c.y], base)
 
 	if String(def.needs_ore) != "":
 		var want: int = clampi(def.ore_coverage, 1, cells.size())
@@ -1200,7 +1215,12 @@ func _resolve_target(cmd: Dictionary) -> BuildingInstance:
 
 
 func _reject(cell: Vector2i, result: Dictionary) -> void:
-	_rejected_total += 1
+	# Same signal either way — the player gets the same red ghost on the cell.
+	# Only the bookkeeping splits, because only the bookkeeping is banded.
+	if _sweep_depth > 0:
+		_sweep_skipped_total += 1
+	else:
+		_rejected_total += 1
 	Bus.placement_rejected.emit(cell, String(result.get("reason", "")))
 
 
@@ -1524,6 +1544,7 @@ func serialize() -> Dictionary:
 			"removed": _removed_total,
 			"completed": _completed_total,
 			"rejected": _rejected_total,
+			"sweep_skipped": _sweep_skipped_total,
 			"destroyed": _destroyed_total,
 		},
 	}
@@ -1570,6 +1591,7 @@ func deserialize(data: Dictionary) -> void:
 	_removed_total = int(stats.get("removed", 0))
 	_completed_total = int(stats.get("completed", 0))
 	_rejected_total = int(stats.get("rejected", 0))
+	_sweep_skipped_total = int(stats.get("sweep_skipped", 0))
 	_destroyed_total = int(stats.get("destroyed", 0))
 
 	# Deferred demolition refunds must find their undo entry again after a load.
@@ -1618,4 +1640,5 @@ func metrics() -> Dictionary:
 		"placed_total": _placed_total,
 		"completed_total": _completed_total,
 		"rejected_total": _rejected_total,
+		"sweep_skipped_total": _sweep_skipped_total,
 	}

@@ -33,6 +33,11 @@ var sink_id: int = -1
 ## Which lane of the target a side-load lands in, and where along it.
 var sink_lane: int = 0
 var sink_pos: float = 0.0
+## The tile just past the exit, when the sink is a STORE. A chest is an entity
+## and has an id; a machine's buffer is a [P11] building whose id is not enough
+## to deliver to, because a delivery onto a machine has to go through its
+## recipe's mouth first. See [method LogiWorld.give_to_cell].
+var sink_cell: Vector2i = Vector2i.ZERO
 
 ## Items handed off this tick, and a smoothed items-per-second for the lens.
 var moved: int = 0

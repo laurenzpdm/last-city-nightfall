@@ -61,7 +61,10 @@ func test_a_generator_sheet_states_its_actual_output() -> void:
 	var sheet: Dictionary = LcnBuildFacts.sheet(_def(&"coal_generator"), _ctx())
 	assert_eq(String(sheet["title"]), "Coal Generator", "the name")
 	assert_has(String(sheet["subtitle"]), "Power", "the category")
-	assert_eq(_row_value(sheet, "Heat", "Produces"), "30 u/s", "the number the sim will use")
+	# "heat/s", not "u/s": [P17]'s panel says "58 / 67 heat/s" for the same grid
+	# this sheet describes, and two names for one unit is two units to a player.
+	assert_eq(_row_value(sheet, "Heat", "Produces"), "30 heat/s",
+		"the number the sim will use")
 	assert_ne(_row_value(sheet, "Heat", "Burns"), "", "and what it burns to do it")
 	assert_eq(_row_value(sheet, "Structure", "Footprint"), "3 x 2  (6 tiles)", "the footprint")
 

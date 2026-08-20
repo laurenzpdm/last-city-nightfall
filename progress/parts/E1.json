@@ -1,0 +1,34 @@
+{
+ "ts": "2026-08-15T06:20:00Z",
+ "part": "E1",
+ "title": "The night arrives in echelons, is felt at more than 0.01, takes something you can name, and stops ending the run by accident",
+ "verified": {
+  "combat.enemies_alive peak, first_night @24000 ticks (the window the critics measured)": "4 -> 10",
+  "combat.enemies_alive peak, first_night @60000 ticks": "61 -> 90",
+  "threat.threat_level peak @24000": "0.37 -> 0.78; @60000 0.52 -> 1.00",
+  "felt strength of night one (ThreatProfile.strength_of)": "0.01 -> 0.55; the [feel] line now reads 'wave 1 felt at strength 0.55'",
+  "shots fired across six nights of first_night": "103 -> 406; night three alone 56 -> 298",
+  "night three (48-unit set piece), enemies put down": "26 of 48 -> 39 of 48, with the guns at 2 of 6 cold instead of 6 of 6",
+  "combat.structures_lost across six nights": "6 -> 29, and none of them is the hearth",
+  "THE HEARTH: baseline at 60000 ticks loses it on night three": "t027725 'The Hearth #1 destroyed by frost_shade' -> never; population 39 -> 0 was a cascade off that one loss",
+  "night post-mortem now names the bill": "'night 6 took: Gone by morning: Heat Pipe x15, Loading Arm, Salvage Crate, Turret Mount x2.'",
+  "new metrics.csv columns": "threat.strength and threat.peak_arrival \u2014 neither of the two numbers this part was failing on was in the artifact before",
+  "tests/threat/test_threat_simultaneity.gd (new, 9 tests, 396 asserts)": "TESTS PASSED; 5 of the 9 go RED when the shipped constants (flat pulse cap of 4, level_reference_budget 620) are restored in a scratch copy",
+  "tests/combat/test_combat_toll.gd (new, 9 tests, 0 skipped)": "TESTS PASSED; 4 of the 9 go RED when the last-resort rule and the toll are reverted in a scratch copy of game/sim/combat/ and the file restored after",
+  "tests/threat + tests/combat": "88 and 77 tests, 0 failed, 0 skipped",
+  "tools/determinism.sh": "IDENTICAL, sha256 eb53db65e48be6a9 and bdfa00c1bfca8ca9, run twice after the final edit",
+  "tests/boot/run_reachability.tscn --force-ui": "TESTS PASSED \u2014 92 checks, 0 failures",
+  "tests/combat/stress_1000_night.json (new \u2014 the debt stress_1000.json declares in its own description)": "1000+ structure city under three composed assaults: combat.enemies_alive 477, 823 shots, 1 breach, 3 structures lost, 0 errors",
+  "first_night 400/24000/60000 ticks": "0 Log.errors, 0 engine errors",
+  "night two's shape, measured tick by tick": "baseline: eight taps of four, something alive 71% of the night, peak 4. Now: three assaults of ten, something alive 40% of the night, peak 10. Fewer, bigger, punchier moments \u2014 and MORE silence between them, honestly reported, because the same 28 bodies now arrive in three groups and the wall deletes each group faster than the next one lands.",
+  "full in-process suite (95 suite files)": "1152 tests passed, 0 failed, 0 skipped"
+ },
+ "open": [
+  "THE REFERENCE SCENARIO STILL DIES OF COLD, NOT OF COMBAT. In first_night the guns read '0 shot(s), 6 of 6 cold' from night four on and population still reaches 0 by tick 60000 \u2014 in the BASELINE too. The city runs out of heat around day three and the scripted build never recovers. That is [P02]/[P04]/[P00]'s scenario, not this part: with the hearth protected the turrets survive, they are simply never fed. Somebody must decide whether first_night is supposed to be a city that can hold six nights.",
+  "NIGHT TWO IS STILL MOSTLY QUIET, AND THAT IS NOW A BUDGET PROBLEM RATHER THAN A TIMING ONE. 28 drift hounds are 840 hit points; six burner cannons sustain ~139 a second; the night is 3264 ticks. No arrangement of 28 bodies can occupy that night \u2014 landing them ten at a time makes each contact a fight instead of a tap, but it also concentrates them into three moments and leaves 60% of the dark empty. The answer is more volume on nights 2-3, i.e. budget_table, which a previous pass deliberately set and which I did NOT move blind at the end of a session: night three at 142 budget currently produces the best night in the build (298 shots, 39 of 48 put down, three heat mains lost, guns at 2 of 6 cold) and raising the whole curve risks tipping the campaign back into the collapse it just came out of. This wants one measured pass with a critic reading nights 1-3 as a teaching sequence.",
+  "THE NAMED DEAD ARE UNEXERCISED IN THE REFERENCE RUN. NightToll kills and injures through [P05]'s own kill_citizen/injure_citizen and the unit test proves it, but across 60000 ticks of first_night every structure lost was a heat pipe, a wall panel or a turret mount out on the perimeter with nobody standing in it. combat.citizens_killed reads 0. It will fire the first time housing or a workplace comes down. If the intent is that a night always costs people, the roster needs something that goes for housing (nothing in game/content/enemies/ has target_pref = housing today) \u2014 that is a content decision, and it is mine to make next.",
+  "[P08] WITHDRAWAL BOOKKEEPING IS WRONG AND NOT MINE TO SEE FROM HERE. Nights routinely log more withdrawn than spawned ('288 spawned, 0 killed, 319 walked away'), because withdraw_wave(-1) returns every body on the map including the previous wave's. Pre-existing; it makes 'killed' read 0 on nights that were partly fought. Worth an integrator's eye.",
+  "[P13]/E2 \u2014 WHAT I NEED FROM ENEMY ART. A night now peaks at 10 bodies on night two, 16 on the first set piece, 33 on night seven and up to 40 on a big one, all ARRIVING ON THE SAME TICK. The renderer has to read as a column and not as a swarm of identical dots: silhouette difference between the five roles (swarm / line / breaker / stalker / siege) at play zoom matters more than detail, and an echelon cresting a ridge together is the shot this game has and has never taken. combat.enemy_render_buffer() carries kind, position and state for every body.",
+  "PERF NOT MEASURED. Four agents on four cores; the stress fixture's min_ticks_per_second is deliberately slack (15) because a threshold set by the part being measured is not a gate. The integrator must run tests/combat/stress_1000_night.json alone \u2014 it is the first run in this build that puts 477 hostiles on a 1000-structure city, and if anything in this part is going to cost frames, it is there."
+ ]
+}

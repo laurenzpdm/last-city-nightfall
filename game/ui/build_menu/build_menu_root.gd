@@ -89,6 +89,11 @@ func _init() -> void:
 func _ready() -> void:
 	add_to_group(GROUP)
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# AFTER [P22] SHOWS ITS CARD AND AFTER [P17]'s STAGE MEASURES IT.
+	# `LcnNarrativeCard` and `LcnHudStage` run at 0 and 100; this part decides
+	# whether its sheet may be on screen from what both of them did THIS frame,
+	# and at the default 0 it was deciding from what they did last frame.
+	process_priority = 120
 	store.load_from_disk()
 	catalog.from_dict(store.palette)
 
@@ -167,14 +172,144 @@ func _build_panels() -> void:
 	_screen.add_child(tooltip)
 
 
+## The hotkey strip. It used to be anchored BOTTOM_LEFT at (18, -26), which put
+## it straight through [P17]'s stores shelf at 1920x1080 and at every other
+## resolution — two parts, two private opinions about the same forty pixels.
+## It is now placed by `LcnHudLayout`, which knows how tall the shelf is because
+## it put the shelf there.
 func _build_hint_bar() -> void:
 	_hint_bar = LcnUiStyle.label(
 		"B build    I recipes    T research    N blueprints    L laws",
 		LcnUiStyle.FS_TINY, LcnUiStyle.TEXT_FAINT)
-	_hint_bar.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_hint_bar.position = Vector2(18.0, -26.0)
-	_hint_bar.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_hint_bar.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_hint_bar.position = Vector2(18.0, 8.0)
 	_screen.add_child(_hint_bar)
+	_place_chrome()
+
+
+## Screen size the hotkey strip needs. Read by [P17]'s solver.
+func hint_size() -> Vector2:
+	if _hint_bar == null:
+		return Vector2.ZERO
+	return Vector2(maxf(1.0, _hint_bar.size.x), maxf(14.0, _hint_bar.size.y))
+
+
+## Screen pixels of the left edge an OPEN build panel owns, so [P17]'s left rail
+## can slide out from under it in build mode rather than being covered by it.
+## Zero when nothing is open.
+func left_block() -> float:
+	var edge: float = 0.0
+	for id: StringName in PANEL_IDS:
+		var p: LcnUiPanel = panel(id)
+		if p != null and p.is_open() and p.visible:
+			edge = maxf(edge, p.position.x + p.size.x)
+	return edge
+
+
+## Every rectangle this part draws, in screen pixels. The audit suite reads it.
+func chrome_rects() -> Dictionary:
+	var out: Dictionary = {}
+	if _hint_bar != null and _hint_bar.visible:
+		out["hint"] = Rect2(_hint_bar.position, hint_size())
+	if tooltip != null and tooltip.visible and tooltip.size.x > 1.0:
+		out["sheet"] = Rect2(tooltip.position, tooltip.size)
+	for id: StringName in PANEL_IDS:
+		var p: LcnUiPanel = panel(id)
+		if p != null and p.is_open() and p.visible:
+			out[String(id)] = Rect2(p.position, p.size)
+	return out
+
+
+## Puts the hotkey strip where [P17]'s solver says the bottom rail's second strip
+## is. Falls back to sitting directly on the bottom margin when there is no HUD
+## in this build at all — [P18] is playable without [P17] and must not vanish.
+func _place_chrome() -> void:
+	if _hint_bar == null or _screen == null:
+		return
+	var view: Vector2 = _screen.size
+	if view.x <= 0.0:
+		return
+	var slot: Rect2 = _hud_rect(&"hint")
+	if slot.size.x > 1.0:
+		_hint_bar.position = slot.position
+	else:
+		_hint_bar.position = Vector2(LcnHudLayout.MARGIN,
+			view.y - LcnHudLayout.MARGIN - hint_size().y)
+	_place_panels_in_stage()
+
+
+## Open browsers hang from the top of the STAGE, not from a y this file picked
+## once. The palette used to sit at y = 152 whatever else was on screen, which at
+## ui_scale 1.35 put it through the bottom of [P17]'s clock — and, worse, made the
+## clock's own free band 365 px wide, so a 675 px clock had nowhere to be but
+## inside the people panel. Asking where the stage starts costs one group lookup
+## and settles it for every scale at once.
+func _place_panels_in_stage() -> void:
+	var stage: Rect2 = _hud_rect(&"stage")
+	if stage.size.x <= 1.0:
+		return
+	for id: StringName in PANEL_IDS:
+		var p: LcnUiPanel = panel(id)
+		if p == null or not p.is_open() or not p.visible:
+			continue
+		var top: float = maxf(stage.position.y, LcnHudLayout.MARGIN)
+		p.position = Vector2(p.position.x, top)
+		# And it stops where the stage stops. A browser is a list and a list can
+		# scroll; the stores shelf and the hotkey strip underneath are facts about
+		# the city and cannot move. At ui 1.6 the palette ran 20 px into the shelf,
+		# which is the same class of defect as the hotkey rail this whole solver
+		# exists to have stopped: a panel deciding its own size with no idea what
+		# is beneath it.
+		var room: float = maxf(LcnUiPanel.MIN_LIST_HEIGHT,
+			stage.end.y - top - LcnHudLayout.STRIP_GAP)
+		if p.size.y > room + 0.5:
+			p.fit_to_height(room)
+
+
+func _hud_rect(key: StringName) -> Rect2:
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		return Rect2()
+	for node: Node in tree.get_nodes_in_group(&"lcn_hud_chrome"):
+		if node.has_method(&"solved_rect"):
+			return node.call(&"solved_rect", key) as Rect2
+	return Rect2()
+
+
+## True while [P22] has a card on screen, asked of [P17] DIRECTLY rather than of
+## its solved layout.
+##
+## `solved_rect(&"card")` is three hops from the truth: [P22] shows the card,
+## `LcnHudStage` measures it at `process_priority = 100`, and [P17] re-solves the
+## composition on a 10 Hz poll. So the rect could be empty for up to a tenth of a
+## second after a card went up — and that is precisely when the harness
+## photographs, because a card and a shot beat both land on a tick boundary.
+## Every opening frame this build has ever produced shows the sheet on the card:
+## `artifacts/play1/shots/opening.png`, `second_night.png`,
+## `artifacts/play_tour/shots/01_palette.png`. The behaviour was written and
+## commented and correct; it was reading a number that had not caught up yet.
+##
+## `card_on_screen()` is [P17]'s own answer with no solver in it. The rect stays
+## as the fallback for a build where [P17] is older than this line.
+## The left edge of [P17]'s right-hand column, or +inf when there is no HUD in
+## this build to ask. `left_block()` is what this part publishes going the other
+## way; this is the answer coming back.
+func _hud_right_block() -> float:
+	var tree: SceneTree = get_tree()
+	if tree != null:
+		for node: Node in tree.get_nodes_in_group(&"lcn_hud_chrome"):
+			if node.has_method(&"right_block"):
+				return float(node.call(&"right_block"))
+	return INF
+
+
+func _card_up() -> bool:
+	var tree: SceneTree = get_tree()
+	if tree != null:
+		for node: Node in tree.get_nodes_in_group(&"lcn_hud_chrome"):
+			if node.has_method(&"card_on_screen"):
+				return bool(node.call(&"card_on_screen"))
+	return _hud_rect(&"card").size.x > 1.0
 
 
 func panel(id: StringName) -> LcnUiPanel:
@@ -426,6 +561,19 @@ func _top_panel() -> LcnUiPanel:
 	return null
 
 
+## Opens or closes one panel by id. The same path the hotkey takes, exposed so a
+## suite can put the build into BUILD MODE without synthesising a key event —
+## and so [P21]'s tutorial can open the palette when it teaches it.
+func set_open(id: StringName, open: bool) -> void:
+	var p: LcnUiPanel = panel(id)
+	if p == null or p.is_open() == open:
+		return
+	if open:
+		_open(id)
+	else:
+		_close(id)
+
+
 func open_panels() -> Array[StringName]:
 	var out: Array[StringName] = []
 	for id: StringName in PANEL_IDS:
@@ -504,6 +652,21 @@ func _process(delta: float) -> void:
 	_accum += delta
 	if _shot_dir != "":
 		_drive_shots()
+	# OUTSIDE the 4 Hz gate on purpose. Chrome placement is two float compares and
+	# an assignment, and inside the gate it lagged a window resize by up to a
+	# quarter of a second — long enough for the audit suite to photograph the
+	# hotkey strip 732 px off the bottom of the screen, and long enough for a
+	# player dragging a window edge to watch it swim.
+	_place_chrome()
+	# Also outside the gate, and for the same reason. A decision outranks an
+	# inspection, but `_place_tooltip` only asks whether a card is up on the 4 Hz
+	# refresh — so a card arriving between two refreshes left this sheet on
+	# screen for a quarter of a second with the question underneath it. Measured
+	# at the opening beat of `first_night`: [P22]'s "The Column Stopped Here" and
+	# a 380 px inspection of the hearth, both drawn, in the frame a critic sees
+	# first. One group lookup per frame is the right price for that.
+	if tooltip != null and tooltip.visible and (_card_up() or LcnWorldWatch.needs_watching()):
+		tooltip.visible = false
 	if _accum < 1.0 / REFRESH_HZ:
 		return
 	_accum = 0.0
@@ -551,6 +714,7 @@ func _refresh_open_panels(force: bool) -> void:
 		return
 	if palette != null and palette.is_open():
 		palette.stock = _build.get(&"stock") if _build != null else null
+		catalog.refresh_caps(_build)
 		palette.refresh()
 	if recipes != null and recipes.is_open() and force:
 		recipes.refresh()
@@ -631,9 +795,94 @@ func _place_tooltip() -> void:
 	else:
 		var mouse: Vector2 = _screen.get_local_mouse_position()
 		pos = mouse + Vector2(TOOLTIP_MARGIN, TOOLTIP_MARGIN)
+	# A DECISION OUTRANKS AN INSPECTION. While [P22] has a card up, this sheet
+	# stands down completely rather than trying to find a corner. The first
+	# version flipped it to whichever side of the card had room, and what that
+	# produced in a real frame was a 380x380 sheet about the hearth sitting on
+	# top of [P19]'s lens legend — the sheet had stopped covering one thing by
+	# covering another. There is no arrangement in which a mouse-follow panel and
+	# a modal question both belong on screen.
+	#
+	# AND THE SAME RULE FOR THE NIGHT, WHICH IS WHAT THE CARD USED TO BUY BY
+	# ACCIDENT. [P22] now stands its card down whenever `LcnWorldWatch` says the
+	# world needs watching, which is right — but this sheet was suppressed by the
+	# CARD, not by the watch, so removing the card handed the stage straight to
+	# the inspection. Measured on the ordinary `first_night` visual run of the
+	# integrated tree, `shots/assault.png`, ten hostiles alive: a 382x385 opaque
+	# sheet about the Hearth at x 345..727, y 370..755, over the city, in a frame
+	# whose entire job is the fight. `tests/d7/run_fight_frames.gd` reads 5.8 %
+	# of its stage-centre box and PASSES, because that box is the middle 40 % of
+	# the screen — drawn around the 660 px card — and only 151 px of this sheet
+	# reaches into it. Widen the same measurement to the middle 66 % and the
+	# frame is 28.3 % plated.
+	#
+	# So the rule is stated against the watch and not against the card: an
+	# inspection is something the player asked about a building, and it does not
+	# outrank the thing that is currently walking into the city.
+	if _card_up() or LcnWorldWatch.needs_watching():
+		tooltip.visible = false
+		return
+	# It also stays out of the bottom rail. The stage is where the world is and
+	# where a sheet about a thing in the world belongs; below it are three strips
+	# of chrome that were placed exactly so nothing would land on them.
+	var stage: Rect2 = _hud_rect(&"stage")
+	var floor_y: float = screen.y - 8.0
+	if stage.size.y > 1.0:
+		floor_y = stage.end.y
+	# AND IT STAYS OFF THE PANELS THE PLAYER OPENED ON PURPOSE. `left_block()` is
+	# the right edge of every open panel and was written for exactly this, but
+	# only the DOCKED branch above ever honoured it: the mouse-follow branch put
+	# the sheet at pointer + (18, 18) and clamped its left edge to 8.0, so a
+	# pointer resting over the palette drew a world inspection straight across
+	# [P18]'s own list.
+	#
+	# THE GATE COULD NOT SEE THIS, AND THAT IS THE INTERESTING HALF.
+	# `tests/d7/run_layout_audit.tscn` is green on 132 checks headless and red on
+	# four of those SAME 132 at a real 1920x1080 — same suite, same count, the
+	# checks simply flip. Headless there is no pointer over the palette, so the
+	# mouse-follow branch never runs and the precondition of the check is never
+	# met. Measured: palette x sheet overlap 5983 px² at 1920x1080, 6714 px² at
+	# font 1.4, pointer at (978, 558) against a palette running x 24..1013.
+	#
+	# Only applied when the sheet still fits on screen to the right of the block;
+	# otherwise the old clamp stands, because shoving a 380 px sheet off the
+	# right edge to save an overlap trades one unreadable panel for two.
+	var left_edge: float = 8.0
+	var block: float = left_block()
+	if block > 1.0 and block + 8.0 + tooltip.size.x <= screen.x - 8.0:
+		left_edge = block + 8.0
+	# AND IT STAYS OFF THE PANELS THAT SAY WHETHER THE CITY IS STILL ALIVE.
+	#
+	# `left_block()` only knows about [P18]'s own browsers. [P17] moves its status
+	# column — heat grid, attention, the people, the wave — to whichever flank the
+	# browsers left free, so with a panel open on the left the whole attention
+	# stack is on the RIGHT, and the mouse-follow branch put a 380 px sheet
+	# straight through it: `artifacts/play_tour/shots/03_tech.png` reads
+	# "The Turret Mount run is 7.5 heat short / ...g running cold /
+	# ...eneration, or switch off what you can live without" with the middle of
+	# every line behind an inspection of the hearth. Three of eleven tour frames.
+	#
+	# The rectangle that already answers this is `stage` — what [P17] leaves free
+	# after placing every rail — and this function was already reading it for the
+	# floor and ignoring its two sides. Only applied when the sheet fits between
+	# them: shoving it off the screen edge to save an overlap trades one
+	# unreadable panel for two, which is the same trade the left clamp refuses.
+	var right_edge: float = minf(screen.x - 8.0, _hud_right_block() - 8.0)
+	# WHEN THE TWO CLAMPS CANNOT BOTH BE HONOURED, THE RIGHT ONE WINS.
+	#
+	# With a 900 px browser open the stage is about 330 px wide and this sheet is
+	# 380, so "right of the browser" and "left of the status column" are asking
+	# for room that does not exist. Keeping the LEFT constraint is what produced
+	# `03_tech.png`: the sheet parked itself neatly clear of the tech tree and
+	# printed straight through the attention stack, so the three lines telling
+	# the player their turret run was 7.5 heat short were the ones sacrificed. A
+	# browser is a list the player can close; the attention stack is the city
+	# saying it is in trouble, and it is never the thing that gives way.
+	var lo: float = left_edge
+	var hi: float = right_edge - tooltip.size.x
 	tooltip.position = Vector2(
-		clampf(pos.x, 8.0, maxf(8.0, screen.x - tooltip.size.x - 8.0)),
-		clampf(pos.y, 8.0, maxf(8.0, screen.y - tooltip.size.y - 8.0)))
+		clampf(pos.x, lo, hi) if hi >= lo else maxf(8.0, hi),
+		clampf(pos.y, 8.0, maxf(8.0, floor_y - tooltip.size.y)))
 
 
 # ----------------------------------------------------- command line / shots --

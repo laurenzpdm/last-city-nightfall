@@ -74,6 +74,8 @@ func _ready() -> void:
 		sprites.building(arch)
 	for kind: StringName in LcnSpriteFactory.AGENT_KINDS:
 		sprites.agent(kind)
+	for ek: StringName in LcnSpriteFactory.ENEMY_KINDS:
+		sprites.agent(ek)
 	sprites.turret_barrel()
 
 	model = LcnWorldModel.new(sprites)
@@ -120,6 +122,13 @@ func _ready() -> void:
 func _on_world_created(_seed_value: int) -> void:
 	if terrain != null:
 		terrain.clear_all()
+	if entities != null:
+		# A new world does not inherit the last one's dead, its footprints or the
+		# rocks that were standing on the last one's plain.
+		entities.clear_deaths()
+		entities.clear_tracks()
+		if entities.scenery != null:
+			entities.scenery.setup(Rng.seed_value)
 	_first_frame = true
 
 
@@ -130,6 +139,10 @@ func _on_world_ready() -> void:
 	terrain.clear_all()
 	terrain.bind_world()
 	entities.bind_field(terrain.field)
+	# The plain's furniture is read off the terrain, and the terrain has just
+	# been rebound to a different world.
+	if entities.scenery != null:
+		entities.scenery.setup(Rng.seed_value)
 	if terrain.field != null:
 		post.bind_heat_field(terrain.field.heat_tex,
 			Vector2(terrain.field.size) * float(TILE))
@@ -172,12 +185,23 @@ func _on_building_froze(id: int) -> void:
 	entities.mark_frozen(id, true)
 
 
+## The kind on this signal is the enemy's REAL id (`CombatEnemyDef.id`), which is
+## one of ash_spitter, cinder_leech, drift_hound, frost_shade, hoarfrost_breaker,
+## keener, pale_stalker, permafrost_borer, rime_sapper, the_long_cold.
+##
+## It used to be reduced here with
+##     &"brute" if String(kind).to_lower().contains("brute") else &"swarm"
+## and NOT ONE of those ten contains "brute" — so every enemy in the game, from a
+## 30 hp hound to a 9000 hp boss, drew the same eighteen pixels. The mapping was
+## not crude, it was never true for any input the simulation can produce.
 func _on_enemy_spawned(id: int, kind: StringName, pos: Vector2) -> void:
-	var arch: StringName = &"brute" if String(kind).to_lower().contains("brute") else &"swarm"
-	model.set_agent(id, arch, pos)
+	model.set_agent(id, LcnSpriteFactory.agent_arch(kind), pos)
 
 
-func _on_enemy_killed(id: int, _pos: Vector2) -> void:
+func _on_enemy_killed(id: int, pos: Vector2) -> void:
+	# Read the kind BEFORE dropping it: the death mark is drawn in the shape of
+	# the thing that died, and a boss going down must not look like a hound.
+	entities.mark_death(pos, model.agent_kind(id))
 	model.remove_agent(id)
 
 
@@ -369,13 +393,31 @@ func _drive_tour_camera() -> void:
 func _log_frame_cost() -> void:
 	var ts: Dictionary = terrain.stats()
 	var es: Dictionary = entities.stats()
-	Log.info("render", "frame %.2f ms | ground %.2f (field %d KB, detail %.2f) | collect %.2f | draw %.2f | lights %.2f | %d bld %d agents %d lights | %d draw calls" % [
+	# `wear` is on this line because it is the one number in the renderer that is
+	# supposed to CLIMB across a session — the ground's memory of where the
+	# population went. A run whose wear stays at 0.0000 while agents walk is a
+	# run where the city is not writing on the world, and that is invisible in a
+	# single screenshot and obvious in the log.
+	# `agents` IS A FRACTION, AND THAT IS THE POINT. It shipped as one number —
+	# how many figures the entity pass drew — and one number cannot tell a camera
+	# looking away from the crowd apart from a city with nobody in it. I read
+	# `artifacts/CRIT/log.txt` as saying the second thing and spent an hour on it
+	# before noticing that the number I was reading was `tracks`, one field to the
+	# right: the shipped run draws 45 of its 48 people at `third_day_city` and
+	# always did. The count is honest and the frame is still one a critic cannot
+	# find a person in — which is a CONTRAST and OCCLUSION problem, not a supply
+	# one, and is the reason FiguresPass exists. The fraction stays so that the
+	# next reader cannot make the mistake I made: 9/48 is a cull, 45/48 is not.
+	Log.info("render", "frame %.2f ms | ground %.2f (field %d KB, detail %.2f) | collect %.2f | draw %.2f | lights %.2f | %d bld %d scenery %d/%d agents %d tracks %d lights | wear %.5f over %d footfalls | %d draw calls" % [
 		_frame_us_avg / 1000.0,
 		float(_ground_us) / 1000.0, int(ts["field_kb"]), float(ts["detail"]),
 		float(es["collect_us"]) / 1000.0,
 		float(es["draw_us"]) / 1000.0,
 		float(_light_us) / 1000.0,
-		int(es["visible_buildings"]), int(es["visible_agents"]), lights.active_lights(),
+		int(es["visible_buildings"]), int(es["scenery"]), int(es["visible_agents"]),
+		model.agent_count(),
+		int(es["tracks_drawn"]), lights.active_lights(),
+		float(ts.get("wear_mean", 0.0)), int(ts.get("wear_stamps", 0)),
 		int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
 	])
 

@@ -38,6 +38,19 @@ extends SimSystem
 ##  TIER 1  rubble_sorter
 ##    sorted_rubble 4 scrap    -> 2 stone + 1 timber + 1 iron_ore     100t
 ##    salvaged_stores 6 scrap  -> 2 grain + 1 timber                  200t
+##    salvaged_wire 8 scrap    -> 2 copper_ore                        250t   0.16/s
+##
+##  WHY THE WIRE RECIPE EXISTS AND WHY ITS NUMBER IS BAD ON PURPOSE. Until it
+##  landed, `copper_ore` was a RAW material — the only way to get any was a
+##  drill standing on a copper field, and on the reference map the nearest one
+##  is 37 tiles south-east of the wall. `copper_coil` feeds `pipe_segment` and
+##  `circuit`, `heat_core` needs both, and a `warmth_radiator` costs coil to
+##  place, so FOUR of the fourteen shipped recipes were unreachable by anyone
+##  who had not first mounted an expedition, and the reference run reached chain
+##  depth 2 against content that is five deep. Salvage closes the hole at
+##  0.16 ore/s against a drill's 0.80: FIVE sorters to feed one copper smelter.
+##  That ratio is the design. It is how a poor city gets its first coil, and it
+##  is the tooltip telling the player, in numbers, to go and take the field.
 ##
 ##  TIER 2  workshop
 ##    gear          2 iron_plate                    -> 1 gear         100t   0.20/s
@@ -73,9 +86,33 @@ const SYSTEM_ORDER: int = 40          ## after logistics (30), before citizens (
 ## Degrees a fully sealed shell adds to what the machine feels inside. A machine
 ## at insulation 0.35 works as if it stood 10.5 C warmer than the tile it is on.
 const SHELTER_C: float = 30.0
-## Degrees above a recipe's floor at which it reaches full speed. Inside the band
-## it runs proportionally — cold is a slope, not a switch.
+## Degrees above a recipe's floor at which it reaches full speed IN STILL AIR.
+## Inside the band it runs proportionally — cold is a slope, not a switch.
 const COLD_BAND_C: float = 14.0
+## How much wider that band gets at storm intensity 1.0. A GREAT FROST IS WIND,
+## NOT A LOWER THERMOMETER, and this constant is the difference between those
+## two sentences.
+##
+## THE DEFECT THIS FIXES, MEASURED. `test_a_great_frost_slows_the_factory_down`
+## forces a storm at intensity 1.0 for 6000 ticks over a shop running
+## pipe_segment — the second-coldest floor in the game at -18 C — and asserts
+## two things. The first, that the frost is felt inside the shop, passed:
+## `felt_c` fell by more than 4 C. The second, that the shop therefore slows
+## down, FAILED, because `cold` is a slope measured off the recipe's own floor
+## and a shop standing in the Hearth's field is thirty degrees above that floor.
+## The signature weather event of a game pitched against Frostpunk had no effect
+## on production anywhere except within fourteen degrees of a hard freeze.
+##
+## Widening the band rather than dropping the temperature is the honest model
+## and it is also the one that keeps every other contract. Wind chill is a
+## heat-transfer RATE, not an offset: the shop is the same temperature, and the
+## hands in it lose warmth to the draught faster than the stove puts it back, so
+## the same still-air margin above a floor buys less work. At intensity 1.0 the
+## band is 14 + 22.4 = 36.4 C, so a shop at +16 C felt runs pipe_segment
+## (floor -18) at 0.93 and gear (floor -25) at 1.00 — the delicate job is what
+## the wind takes first, which is exactly what the test's third assert says.
+## In still air `_storm_i` is 0 and this is arithmetically the code that shipped.
+const COLD_BAND_STORM_C: float = 22.4
 ## Fallback outdoor temperature when neither [P09] nor [P02] exists.
 const DEFAULT_AMBIENT_C: float = -18.0
 
@@ -102,6 +139,9 @@ const STALL_REANNOUNCE_TICKS: int = 100
 const NOT_OURS_PRUNE_TICKS: int = 1200
 ## Below this the machine is treated as stopped rather than crawling.
 const MIN_RATE: float = 0.01
+## How long a shop keeps working on what is already on the bench after its last
+## hand walks out. Forty-five seconds at 20 Hz. See `_crew_of`.
+const STAFF_COAST_TICKS: int = 900
 ## Cap on the per-item rate columns in metrics.csv.
 const MAX_RATE_KEYS: int = 32
 ## Fraction of an input buffer a machine keeps topped up from the city store.
@@ -146,6 +186,7 @@ var _has_power: bool = false
 var _has_served: bool = false
 var _has_frozen: bool = false
 var _has_ambient: bool = false
+var _has_storm: bool = false
 var _has_harvest: bool = false
 var _has_deliver_fuel: bool = false
 var _has_accept_output: bool = false
@@ -174,10 +215,18 @@ var _rate_keys: Array[StringName] = []
 var _active: int = 0
 var _stalled: int = 0
 var _idle: int = 0
+## Stalls split by cause, recounted every tick alongside `_stalled`.
+var _stalled_unstaffed: int = 0
+var _stalled_cold: int = 0
+var _stalled_starved: int = 0
 var _crafts_total: int = 0
 var _fuel_served: float = 0.0
 var _fuel_denied: float = 0.0
 var _tick: int = 0
+## [P09]'s storm envelope, read ONCE a tick and not once per machine: a thousand
+## machines calling into another system for the same scalar is the shape of
+## every perf hole this file has ever had.
+var _storm_i: float = 0.0
 
 
 func _init() -> void:
@@ -242,6 +291,7 @@ func post_setup() -> void:
 	_has_frozen = _heat != null and _heat.has_method("is_frozen")
 	_has_deliver_fuel = _heat != null and _heat.has_method("deliver_fuel")
 	_has_ambient = _climate != null and _climate.has_method("ambient_temperature")
+	_has_storm = _climate != null and _climate.has_method("storm_intensity")
 	_has_harvest = _grid != null and _grid.has_method("harvest")
 	_has_accept_output = _logistics != null and _logistics.has_method("accept_output")
 	_has_staffing_of = _citizens != null and _citizens.has_method("staffing_of")
@@ -267,9 +317,18 @@ func step(tick: int) -> void:
 		_unlock_cache.clear()
 		_read_tech()
 
+	_storm_i = 0.0
+	if _has_storm:
+		var si: Variant = _climate.call("storm_intensity")
+		if typeof(si) == TYPE_FLOAT or typeof(si) == TYPE_INT:
+			_storm_i = clampf(float(si), 0.0, 1.0)
+
 	_active = 0
 	_stalled = 0
 	_idle = 0
+	_stalled_unstaffed = 0
+	_stalled_cold = 0
+	_stalled_starved = 0
 	var ids: PackedInt32Array = _sorted_ids()
 	for id: int in ids:
 		_advance(machines[id], tick)
@@ -354,6 +413,49 @@ func set_recipe(building_id: int, rid: StringName) -> bool:
 	return true
 
 
+## A recipe named on a cell that holds a CONSTRUCTION SITE rather than a
+## finished machine. Returns true when the order was taken.
+##
+## Both halves of this already existed and nothing joined them: `_pick_recipe()`
+## reads a recipe out of the building's `meta` the instant the machine
+## registers, and `_write_meta_recipe()` puts one there — but only ever for a
+## machine that was already standing. So naming a recipe was legal exactly and
+## only in the window between "the site finished" and "the player wanted it",
+## and the caller had to guess build time to hit that window.
+##
+## THE MEASUREMENT. tests/scenarios/first_night.json places a rubble_sorter at
+## t=3200 and names `salvaged_stores` on it at t=4650, with a comment explaining
+## that a site is not a machine yet. The site did not complete until t=9471 —
+## the guess was 4821 ticks short — so the order was refused with a Log.warn
+## nobody read, the sorter came up on its default recipe, the field kitchen sat
+## at `missing_input: grain` for the whole run, and the interlock ARCHITECTURE.md
+## §7 lists as LIVE ("scrap becomes grain becomes a meal") produced no rations in
+## the reference run of this game. The city ate its founders' larder and starved.
+##
+## A standing order removes the guess: name it whenever you like, and the machine
+## is born running it.
+func _standing_order(cmd: Dictionary, rid: StringName) -> bool:
+	if _build == null or not cmd.has("cell"):
+		return false
+	var site: Object = _build.call("building_at", _to_cell(cmd["cell"]))
+	if site == null:
+		return false
+	var kind: StringName = StringName(String(site.get("kind")))
+	var def: ProdMachineDef = _def_for(kind)
+	if def == null:
+		return false
+	if String(rid) != "":
+		var r: RecipeDef = book.get_recipe(rid)
+		if r == null or not r.runs_on(kind, def.tags):
+			Log.warn("production", "set_recipe: a %s cannot run '%s'" % [
+				String(kind), String(rid)])
+			return true
+	_write_meta_recipe(int(site.get("id")), rid)
+	Log.info("production", "standing order: the %s being built at %s will run '%s'" % [
+		String(kind), str(_to_cell(cmd["cell"])), String(rid)])
+	return true
+
+
 ## Recipes this machine is allowed to run, in menu order. [P18]'s browser.
 func recipes_for(building_id: int) -> Array[StringName]:
 	var m: ProdMachine = machines.get(building_id)
@@ -385,6 +487,7 @@ func stall_of(building_id: int) -> Dictionary:
 		"cold": snappedf(m.cold, 0.0001),
 		"heat_factor": snappedf(m.heat_factor, 0.0001),
 		"staffing": snappedf(m.staffing, 0.0001),
+		"bench": snappedf(m.bench, 0.0001),
 		"felt_c": snappedf(m.felt_c, 0.01),
 		"progress": snappedf(m.progress_ratio(), 0.001),
 	}
@@ -475,6 +578,15 @@ func chain_depth_max() -> int:
 	return book.max_depth
 
 
+## Degrees above a recipe's floor that buy full speed RIGHT NOW. Still air is
+## [constant COLD_BAND_C]; a Great Frost widens it. Published because a test and
+## a tooltip both have to be able to say the same number the solver used, and
+## because `m.cold` on its own cannot tell a player whether the shop is cold or
+## the weather is.
+func cold_band_c() -> float:
+	return COLD_BAND_C + COLD_BAND_STORM_C * _storm_i
+
+
 ## Recoverable heat per second currently being fed back into [P02]'s grid.
 func waste_recovered() -> float:
 	return waste.recovered_rate
@@ -511,6 +623,9 @@ func totals() -> Dictionary:
 		"recipes": book.size(),
 		"chain_depth": chain_depth_reached(),
 		"chain_depth_max": book.max_depth,
+		# The live cold band, so a state dump can prove a Great Frost reached the
+		# factory instead of the report claiming it did. Still air is 14.0.
+		"cold_band_c": snappedf(cold_band_c(), 0.01),
 		"waste_recovered": snappedf(waste.recovered_rate, 0.001),
 		"waste_vented": snappedf(waste.vented_rate, 0.001),
 		"fuel_served": snappedf(_fuel_served, 0.001),
@@ -536,7 +651,8 @@ func handle_command(cmd: Dictionary) -> void:
 			var id: int = _target_id(cmd)
 			var rid: StringName = StringName(String(cmd.get("recipe", "")))
 			if id < 0:
-				Log.warn("production", "set_recipe: no machine at %s" % str(cmd.get("cell", cmd.get("id", "?"))))
+				if not _standing_order(cmd, rid):
+					Log.warn("production", "set_recipe: no machine at %s" % str(cmd.get("cell", cmd.get("id", "?"))))
 			elif not set_recipe(id, rid):
 				Log.warn("production", "set_recipe: #%d cannot run '%s'" % [id, String(rid)])
 		"clear_recipe":
@@ -573,7 +689,7 @@ func _advance(m: ProdMachine, tick: int) -> void:
 	# Read the world BEFORE the frozen check, so a frozen machine still reports a
 	# live temperature and the overlay can show it thawing rather than stuck on
 	# whatever it happened to feel the moment it died.
-	_read_environment(m)
+	_read_environment(m, tick)
 	if _is_frozen(m.id):
 		_park(m, ProdMachine.State.FROZEN, ProdMachine.REASON_FROZEN, &"", tick)
 		return
@@ -593,7 +709,7 @@ func _advance(m: ProdMachine, tick: int) -> void:
 			_park(m, ProdMachine.State.STALLED, ProdMachine.REASON_MISSING_INPUT, &"waste_heat", tick)
 		return
 
-	if m.staffing <= 0.0:
+	if m.bench <= 0.0:
 		_park(m, ProdMachine.State.STALLED, ProdMachine.REASON_UNSTAFFED, &"", tick)
 		return
 
@@ -734,7 +850,7 @@ func _read_tech() -> void:
 
 func _work_rate(m: ProdMachine, r: RecipeDef) -> float:
 	var floor_c: float = r.min_temperature_c if r != null else -30.0
-	m.cold = clampf((m.felt_c - floor_c) / COLD_BAND_C, 0.0, 1.0)
+	m.cold = clampf((m.felt_c - floor_c) / cold_band_c(), 0.0, 1.0)
 
 	# A machine that asks the grid for nothing cannot be browned out by it,
 	# whatever its recipe costs — hand-work does not stop when the pipes do.
@@ -748,7 +864,7 @@ func _work_rate(m: ProdMachine, r: RecipeDef) -> float:
 	else:
 		m.heat_factor = m.power
 
-	return m.staffing * m.cold * m.heat_factor * m.def.craft_speed * _tech_craft
+	return m.bench * m.cold * m.heat_factor * m.def.craft_speed * _tech_craft
 
 
 ## Which of the two soft failures actually stopped it — the player needs to know
@@ -759,7 +875,7 @@ func _cold_or_dark(m: ProdMachine) -> StringName:
 	return ProdMachine.REASON_NO_HEAT
 
 
-func _read_environment(m: ProdMachine) -> void:
+func _read_environment(m: ProdMachine, tick: int) -> void:
 	if _heat_autarky:
 		m.power = 1.0
 	else:
@@ -771,8 +887,45 @@ func _read_environment(m: ProdMachine) -> void:
 		outside = float(_heat.call("temperature_at", m.center_cell))
 	m.felt_c = outside + m.def.insulation * SHELTER_C
 	m.staffing = 1.0
+	m.bench = 1.0
 	if not _staff_autarky and m.def.workers_required > 0:
+		# TWO NUMBERS ON PURPOSE. `staffing` is [P05]'s answer, unsmoothed,
+		# because it is the published one and another part is entitled to
+		# compare it. `bench` is what this shop can get done, which is not zero
+		# the instant its one hand walks to the larder.
 		m.staffing = clampf(_staffing_of(m.id), 0.0, 1.0)
+		m.bench = _crew_of(m, tick)
+
+
+## Crew, read over a short window instead of this instant.
+##
+## [P05] reports crew PRESENT, which is the right number and a very twitchy one:
+## a two-person shop whose second hand is on the night rotation reads 0 every
+## time the remaining one walks to the larder, and a machine that stalls outright
+## at `staffing <= 0` therefore spends a large part of its day announcing `no
+## crew` about somebody who is coming back in four seconds. Measured on the
+## reference run, `production.stalled_unstaffed` averaged 1.9 machines in the
+## AFTERNOON, with the city's whole day crew on the clock.
+##
+## So a shop coasts: it keeps the crew it last had, ramped linearly to nothing
+## across STAFF_COAST_TICKS, and then reports the truth. Twenty seconds of work
+## already on the bench is a thing a workshop has; a night off is not, and after
+## the window this says `unstaffed` exactly as loudly as it did before.
+##
+## This is `m.bench` and it is NOT `m.staffing`. Smoothing the published number
+## would have made `production` quietly disagree with `citizens` about who is
+## standing in a building, which is the kind of drift this project has paid for
+## twice — so the two are separate fields and both are in the metrics dump.
+func _crew_of(m: ProdMachine, tick: int) -> float:
+	var raw: float = m.staffing
+	if raw > 0.0:
+		m.staff_held = raw
+		m.staff_seen_tick = tick
+		return raw
+	var gone: int = tick - m.staff_seen_tick
+	if gone >= STAFF_COAST_TICKS or m.staff_held <= 0.0:
+		return 0.0
+	return m.staff_held * (1.0 - float(gone) / float(STAFF_COAST_TICKS))
 
 
 ## [P05] publishes `staffing_of(id)` for exactly this call — crew PRESENT, not
@@ -858,6 +1011,17 @@ func _park(m: ProdMachine, state: int, reason: StringName, item: StringName, tic
 		_idle += 1
 	else:
 		_stalled += 1
+		# Counted by cause, not just counted. "8 stalled" is a number; "8 stalled
+		# and every one of them says no crew" is a diagnosis, and it is the
+		# difference between a critic reading a factory as dead and reading it as
+		# starved of one specific thing. Written to metrics.csv so the answer is
+		# in the artifacts rather than in a builder's summary.
+		if reason == ProdMachine.REASON_UNSTAFFED:
+			_stalled_unstaffed += 1
+		elif reason == ProdMachine.REASON_NO_HEAT or reason == ProdMachine.REASON_TOO_COLD:
+			_stalled_cold += 1
+		elif reason == ProdMachine.REASON_MISSING_INPUT:
+			_stalled_starved += 1
 	var fresh: bool = m.announced_reason != reason
 	if not fresh and tick - m.announced_tick < STALL_REANNOUNCE_TICKS:
 		return
@@ -1347,9 +1511,13 @@ func metrics() -> Dictionary:
 		"machines": machines.size(),
 		"active_machines": _active,
 		"stalled": _stalled,
+		"stalled_unstaffed": _stalled_unstaffed,
+		"stalled_cold": _stalled_cold,
+		"stalled_starved": _stalled_starved,
 		"idle": _idle,
 		"crafts_total": _crafts_total,
 		"chain_depth": chain_depth_reached(),
+		"cold_band_c": snappedf(cold_band_c(), 0.01),
 		"recipes": book.size(),
 		"waste_recovered": snappedf(waste.recovered_rate, 0.001),
 		"waste_vented": snappedf(waste.vented_rate, 0.001),

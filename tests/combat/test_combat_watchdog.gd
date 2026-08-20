@@ -55,8 +55,19 @@ func test_a_withdrawal_empties_the_field() -> void:
 	var before: int = combat.enemies_alive()
 	assert_gt(float(before), 0.0, "and they are counted as fighting")
 
+	# THE ORDER AND THE COUNT ARE TWO DIFFERENT THINGS, and this assertion used
+	# to conflate them: it read `sent == before`, i.e. "the return value is every
+	# body on the map". That is precisely the reading that let a night report
+	# `288 spawned, 0 killed, 319 walked away` — [P08] closes a night with
+	# killed = spawned - withdrew, so a `withdrew` that counts bodies no plan
+	# ever bought drives `killed` to zero on a night that was fought. What the
+	# field does is unchanged and is still asserted below; what is COUNTED is
+	# now only what a director handed over, and these five came off a scenario's
+	# own hand.
 	var sent: int = combat.withdraw_wave(-1)
-	assert_eq(sent, before, "everything on the field was told to break off")
+	assert_eq(sent, 0,
+		"nothing here was composed by a director, so no wave has survivors to "
+		+ "report — but everything still turns around, which is the next line")
 	assert_eq(combat.enemies_alive(), 0,
 		"a body that is walking away is not part of the fight any more")
 	assert_gt(float(combat.bodies_on_map()), 0.0,
@@ -154,10 +165,19 @@ func test_nothing_outlives_the_hard_lifetime() -> void:
 	# The last line of defence: whatever a body is doing, however much damage it
 	# is dealing, it does not live past MAX_LIFE_TICKS.
 	assert_gt(float(EnemySwarm.MAX_LIFE_TICKS), 0.0, "there is a ceiling at all")
-	_spawn_out(HOUND, Vector2i(3, 0), 1)
+	# WELL OUTSIDE THE HEARTH DISTRICT. Three tiles used to be fine because the
+	# only thing that happened at the core was an absorb inside one tile; now
+	# EnemySwarm.INSIDE_PX is four tiles and a body spawned at three is inside on
+	# its first tick, gets nothing to attack in an empty fixture, and is absorbed
+	# before this test can age it. That turned the whole assertion below into a
+	# skip — a suite reporting green while measuring nothing, which is the exact
+	# failure this project has paid for twice. The skip stays as a net; the spawn
+	# no longer walks into it.
+	_spawn_out(HOUND, Vector2i(16, 0), 1)
 	world.run(4)
 	if combat.bodies_on_map() == 0:
-		skip("the body reached the core and leaked before it could be aged")
+		fail("the body did not survive four ticks sixteen tiles out, so the "
+			+ "lifetime ceiling is not being tested at all")
 		return
 	# Age it by hand rather than running six real minutes of simulation.
 	combat.swarm.e_born[0] = world.tick() - EnemySwarm.MAX_LIFE_TICKS - 1

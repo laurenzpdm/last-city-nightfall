@@ -45,6 +45,7 @@ func _draw() -> void:
 	_draw_buildings()
 	_draw_damage()
 	_flush()
+	flush_labels()
 	draw_us = Time.get_ticks_usec() - t0
 
 
@@ -67,7 +68,8 @@ func _draw_buildings() -> void:
 			LcnOverlayGeometry.box(r.grow(px(2.0 + 3.0 * beat)), _rings)
 			for _k: int in 4:
 				_ring_cols.append(LcnOverlayPalette.with_a(pal.ice(), 0.95))
-			plate(r.position + Vector2(0.0, -px(20.0)), "FROZEN  %.0f C" % temp, 14.0, pal.ice())
+			word(r.position + Vector2(0.0, -px(20.0)), "FROZEN  %.0f°C" % temp, 14.0,
+				pal.ice(), LcnLabelField.Rank.VERDICT, 2, "frozen", true)
 			continue
 		if not active:
 			continue
@@ -95,9 +97,18 @@ func _draw_buildings() -> void:
 				var when: String = "BELOW THE LINE"
 				if eta >= 1.0:
 					when = "freezes in %ds" % int(round(eta))
-				plate(r.position + Vector2(0.0, -px(20.0)), when, 14.0, c)
+				word(r.position + Vector2(0.0, -px(20.0)), when, 14.0, c,
+					LcnLabelField.Rank.VERDICT, 4, "countdown", true)
 		elif alt:
-			label(r.position + Vector2(px(2.0), -px(6.0)), "%.0f C" % temp, 13.0, LcnOverlayPalette.INK_DIM)
+			# THE 24 TEMPERATURE CHIPS. Every one of these was true, and printed
+			# over each other they read as noise — "30°C" across "no crew", "27°C"
+			# across "building". They are AMBIENT: the gauge beside each building
+			# already says where it sits against its own freeze line without a
+			# word, so the number is a detail for the two or three buildings the
+			# player's eye has landed on, and the field's ambient quota is what
+			# decides which those are.
+			word(r.position + Vector2(px(2.0), -px(6.0)), "%.0f°C" % temp, 13.0,
+				LcnOverlayPalette.INK_DIM, LcnLabelField.Rank.AMBIENT, 8, "temperature")
 
 
 ## A vertical thermometer against the building's own freeze line. The tick mark
@@ -142,8 +153,8 @@ func _draw_damage() -> void:
 		draw_rect(Rect2(bar.position, Vector2(bar.size.x * hp, bar.size.y)),
 			pal.bad() if hp < 0.4 else pal.warn(), true)
 		if hp < 0.45 and alt:
-			label(bar.position + Vector2(0.0, px(13.0)), "%d%% hp" % int(hp * 100.0),
-				13.0, pal.bad())
+			word(bar.position + Vector2(0.0, px(13.0)), "%d%% hp" % int(hp * 100.0),
+				13.0, pal.bad(), LcnLabelField.Rank.AMBIENT, 6, "hp")
 
 
 func _flush() -> void:

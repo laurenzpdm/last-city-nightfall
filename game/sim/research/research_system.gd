@@ -179,8 +179,56 @@ func setup() -> void:
 			continue
 		nodes.append(n)
 	_graph.build(nodes)
+	# ONE LINE PER KIND OF PROBLEM, NOT ONE PER NODE. Forty-five nodes sharing one
+	# authoring mistake is one finding; printed forty-five times it is a wall a
+	# reader scrolls past, and it buries the single genuine problem sitting next
+	# to it. The tail of the message is what repeats, so the fold is on it.
+	var folded: Dictionary[String, PackedStringArray] = {}
+	var order: PackedStringArray = PackedStringArray()
 	for p: String in _graph.problems:
-		Log.warn(TAG, "tree: %s" % p)
+		var cut: int = p.find("' — ")
+		var key: String = p.substr(cut + 4) if cut > 0 else p
+		var who: String = p.substr(0, cut + 1) if cut > 0 else ""
+		if not folded.has(key):
+			folded[key] = PackedStringArray()
+			order.append(key)
+		if who != "":
+			folded[key].append(who)
+	for key2: String in order:
+		var who2: PackedStringArray = folded[key2]
+		if who2.size() <= 1:
+			Log.warn(TAG, "tree: %s%s" % [(who2[0] + " — ") if who2.size() == 1 else "", key2])
+		else:
+			Log.warn(TAG, "tree: %d nodes — %s (%s%s)" % [who2.size(), key2,
+				", ".join(who2.slice(0, mini(3, who2.size()))),
+				" and %d more" % (who2.size() - 3) if who2.size() > 3 else ""])
+
+	# THE FIELD SAYS "Written for a player" AND EVERY NODE IS WRITTEN TO A
+	# DESIGNER. `ResearchNode.description` documents itself as the beat, "written
+	# for a player, read by a designer", and all 45 .tres files open "THE BEAT:"
+	# and talk about "the player" in the third person. [P18]'s tech panel printed
+	# them verbatim, so the research screen was the one surface in this game that
+	# broke the fiction — `artifacts/play_tour/shots/03_tech.png`. [P18] now
+	# withholds a description that reads this way, and this line is what stops
+	# the withholding being silent.
+	#
+	# A LOG LINE AND NOT A `validate()` PROBLEM, deliberately. Forty-five files
+	# is a rewrite, not a repair, and failing `tests/research/` on content that
+	# has been like this since it was authored would turn the gate red for every
+	# other agent over work none of them can do in passing. Named, counted, and
+	# on screen at every launch until somebody writes them for the reader the
+	# field claims.
+	var notes: PackedStringArray = PackedStringArray()
+	for n2: ResearchNode in nodes:
+		if n2.description.begins_with("THE BEAT") or n2.description.contains("the player"):
+			notes.append(String(n2.id))
+	if not notes.is_empty():
+		notes.sort()
+		Log.warn(TAG, "%d node description(s) are written to a designer rather "
+			% notes.size()
+			+ "than to a player ('THE BEAT' / 'the player'), so [P18] does not "
+			+ "show them: %s%s" % [", ".join(notes.slice(0, 3)),
+				" and %d more" % (notes.size() - 3) if notes.size() > 3 else ""])
 
 	_build_layout_cache()
 
@@ -741,7 +789,14 @@ func _finish(id: StringName, forced: bool) -> void:
 	_next_pick_tick = 0
 
 	Bus.research_completed.emit(id)
-	_alert(1, ResearchDefs.KEY_COMPLETED, "%s completed. %s" % [n.title, _payoff_text(n)])
+	# SEVERITY 0, and it used to be 1. Severity 1 puts a row in [P17]'s ATTENTION
+	# stack — the panel that ranks what is about to kill you — so a finished
+	# research node was filed one line under "6 light bodies, out of the
+	# south-east" and above "1 machine stalled", wearing the same warning bar.
+	# Good news does not go in the danger list. It goes in the toast lane, which
+	# is where the SAME event was already being announced a second time by
+	# `Bus.research_completed`.
+	_alert(0, ResearchDefs.KEY_COMPLETED, "%s completed. %s" % [n.title, _payoff_text(n)])
 	Bus.narrative_event.emit(ResearchDefs.KEY_COMPLETED, {
 		"id": String(id),
 		"title": n.title,
@@ -1115,8 +1170,9 @@ func _recompute_rate() -> void:
 
 	_rate = maxf(0.05, raw * heat_factor * cold_factor
 			* _effects.multiplier(ResearchDefs.E_RESEARCH_SPEED_MULT))
-	_rate_reason = "%d lab(s), %d workshop(s), heat %d%%, cold %d%%" % [
-		labs, shops, int(heat_factor * 100.0), int(cold_factor * 100.0)]
+	_rate_reason = "%d lab%s, %d workshop%s, heat %d%%, cold %d%%" % [
+		labs, "" if labs == 1 else "s", shops, "" if shops == 1 else "s",
+		int(heat_factor * 100.0), int(cold_factor * 100.0)]
 
 
 # ==========================================================================

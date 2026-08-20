@@ -45,6 +45,22 @@ var _prof_cmd_us: int = 0
 var _prof_total_us: int = 0
 
 
+## Quitting is a teardown too.
+##
+## Nothing used to destroy the world on the way out — `create_world` tears down
+## the PREVIOUS world, so a process that builds one world and then exits never
+## calls teardown at all. The engine frees this autoload, its `systems` array
+## goes with it, and the eleven systems keep each other alive anyway (see
+## `_release_world`), so every run ended with the whole world resident and Godot
+## reported it: 813 ObjectDB instances and 269 resources still in use, on every
+## quit, allowlisted since nobody had chased them down.
+##
+## The players' version of that report is a Steam build that leaks a world every
+## time it is closed. This is the line that stops it.
+func _exit_tree() -> void:
+	teardown()
+
+
 ## Creates a fresh world. Everything before this point is inert.
 func create_world(world_seed: int) -> void:
 	teardown()
@@ -101,11 +117,122 @@ func _sort_by_order() -> void:
 		return String(a.system_name()) < String(b.system_name()))
 
 
+## Destroys the world. Called before every create_world, and it has to actually
+## destroy it — see _release_world for why clearing the array is not enough.
 func teardown() -> void:
+	var departing: Array[SimSystem] = systems.duplicate()
 	systems.clear()
 	by_name.clear()
 	_commands.clear()
 	alive = false
+	if departing.is_empty():
+		return
+	for s: SimSystem in departing:
+		s.teardown()
+	_release_world(departing)
+
+
+## Breaks the reference cycle between sim systems so the old world can be freed.
+##
+## Every system holds its neighbours: heat points at build, build points at
+## citizens, citizens point back at heat, and their helper objects point at
+## systems too (`CitizenRouter._grid`, `CitizenJobBoard._build`). A SimSystem is
+## RefCounted and GDScript has no cycle collector, so that ring keeps itself
+## alive for the life of the process no matter what this array does.
+##
+## Measured before this existed, with three worlds built and torn down in one
+## process: 2030 objects at rest, 2333 after the first world, and 2287 · 2471 ·
+## 2655 after each teardown — every world ever created still resident, plus the
+## content Resources its definition tables held. That is ~184 objects and a
+## quarter of the registry per load of a save game, which is why an at-exit
+## number in the hundreds was never the whole story: the count grows while the
+## game is running.
+##
+## The walk visits every plain RefCounted reachable from a departing system and
+## nulls any property pointing back INTO the departing set. It deliberately does
+## not follow Resources or Nodes: a content definition is shared with Registry and
+## outlives the world, and a Node is somebody else's tree. Each system's own data
+## is left alone — once nothing points at a system, its own objects fall with it.
+##
+## Parts that would rather do this themselves override `SimSystem.teardown()`,
+## which runs first; this is the net underneath, and it is what makes a part that
+## has not thought about teardown harmless rather than a leak.
+func _release_world(departing: Array[SimSystem]) -> void:
+	var doomed: Dictionary[int, bool] = {}
+	for s: SimSystem in departing:
+		doomed[s.get_instance_id()] = true
+	var seen: Dictionary[int, bool] = {}
+	var frontier: Array[Object] = []
+	for s: SimSystem in departing:
+		frontier.append(s)
+	while not frontier.is_empty():
+		var owner_obj: Object = frontier.pop_back()
+		if owner_obj == null or not is_instance_valid(owner_obj):
+			continue
+		var id: int = owner_obj.get_instance_id()
+		if seen.has(id):
+			continue
+		seen[id] = true
+		for p: Dictionary in owner_obj.get_property_list():
+			if int(p.get("usage", 0)) & PROPERTY_USAGE_SCRIPT_VARIABLE == 0:
+				continue
+			var name: String = String(p.get("name", ""))
+			var value: Variant = owner_obj.get(name)
+			if value is Array:
+				_release_array(value, doomed, frontier)
+				continue
+			if value is Dictionary:
+				_release_dict(value, doomed, frontier)
+				continue
+			if not (value is Object):
+				continue
+			var target: Object = value
+			if target == null or not is_instance_valid(target):
+				continue
+			if doomed.has(target.get_instance_id()):
+				owner_obj.set(name, null)
+			elif _is_plain_ref(target):
+				frontier.append(target)
+
+
+## A system reference can also sit in a list — a roster of neighbours, a pending
+## queue. Nulling the slot is enough: the world it belonged to is already gone.
+func _release_array(arr: Array, doomed: Dictionary[int, bool], frontier: Array[Object]) -> void:
+	for i: int in arr.size():
+		var v: Variant = arr[i]
+		if not (v is Object):
+			continue
+		var target: Object = v
+		if target == null or not is_instance_valid(target):
+			continue
+		if doomed.has(target.get_instance_id()):
+			arr[i] = null
+		elif _is_plain_ref(target):
+			frontier.append(target)
+
+
+func _release_dict(d: Dictionary, doomed: Dictionary[int, bool], frontier: Array[Object]) -> void:
+	# Keys sorted for the same reason every other iteration here is: two runs of
+	# the same teardown must do the same things in the same order.
+	var keys: Array = d.keys()
+	keys.sort()
+	for k: Variant in keys:
+		var v: Variant = d[k]
+		if not (v is Object):
+			continue
+		var target: Object = v
+		if target == null or not is_instance_valid(target):
+			continue
+		if doomed.has(target.get_instance_id()):
+			d[k] = null
+		elif _is_plain_ref(target):
+			frontier.append(target)
+
+
+## Worth walking into: a part's own helper object. NOT a Resource (Registry owns
+## those and they outlive the world) and NOT a Node (somebody else's tree).
+func _is_plain_ref(o: Object) -> bool:
+	return o is RefCounted and not (o is Resource)
 
 
 ## Typed accessor. `Sim.get_system(&"heat")` — returns null if the part is absent,
@@ -222,6 +349,153 @@ func serialize() -> Dictionary:
 		sys[String(s.system_name())] = s.serialize()
 	out["systems"] = sys
 	return out
+
+
+## Rebuilds this world from a `serialize()` payload — and checks its own work.
+##
+## The contract is one sentence: after `Sim.deserialize(w)` returns true,
+## `Sim.serialize()` equals `w`. Not "close enough to converge in a tick", not
+## "everything anybody remembered to write a reader for". Equal. Determinism is
+## §0.4's non-negotiable and a save is the one place a player leaves the
+## simulation and comes back to it, so a reload that lands somewhere else is the
+## same defect as a `randf()` in a step function, just slower to notice.
+##
+## The order is load-bearing and every step of it was paid for:
+##
+##   1. `create_world(seed)` first, so every cross-system reference is wired
+##      before a single value lands on it;
+##   2. `SimClock.tick` BEFORE the systems, because several of them stamp the
+##      current tick into what they rebuild;
+##   3. systems deserialize in SORTED name order, so a load is as replayable as
+##      the run that produced it;
+##   4. `LcnStateReconciler` puts back what step 3 dropped — every system's
+##      `serialize()` is compared against the payload it was handed and the
+##      difference is hunted down to the variable it came from, then ratified by
+##      re-serializing. See that file for why this is a measurement and not a
+##      hand-written mapping table;
+##   5. `Rng.restore()` LAST, because `create_world` reseeds every stream and
+##      because a `serialize()` call in step 4 may itself have drawn one.
+##
+## Returns `{ok, restored, absent, repaired, unrestored, systems_incomplete}`.
+##
+## `unrestored` is the honest residue: fields that were in the save and are not
+## in the world afterwards. On this build it holds FOUR, each of them state the
+## file never carried or a system's own `deserialize()` declines to read, each in
+## a folder this loader may not write in, and each named with its owner and its
+## fix in `tests/save/save_gaps.gd`. It is a report, not a list of exceptions:
+## `tests/save/test_sim_roundtrip.gd` fails on any field that is not on it, and
+## puts two of the four back by hand to prove the list is the whole of it.
+##
+## One ceiling nothing here can lift: `serialize()` is a REPORT before it is a
+## save format, and every part snaps its floats on the way out
+## (`snappedf(hope_value, 0.001)`). A reload therefore starts up to half a grain
+## from where the running city was, and an integrator turns that into a visible
+## difference over a night. Byte-identical at rest, and a tick later nothing has
+## moved further than the file rounded away — that is the real contract, and it
+## is measured rather than assumed.
+func deserialize(world: Dictionary) -> Dictionary:
+	var report: Dictionary = {
+		"ok": false, "restored": PackedStringArray(), "absent": PackedStringArray(),
+		"repaired": PackedStringArray(), "unrestored": PackedStringArray(),
+		"systems_incomplete": PackedStringArray(),
+	}
+	var blob: Variant = world.get("systems", {})
+	if typeof(blob) != TYPE_DICTIONARY or (blob as Dictionary).is_empty():
+		# A world with no systems in it is not a world. Refusing it here is what
+		# lets a caller hand this function a corrupt file without the running
+		# city being torn down before the problem is noticed.
+		Log.error("sim", "load: the payload carries no systems block — refusing it")
+		return report
+
+	var payloads: Dictionary = blob
+	var names: Array = payloads.keys()
+	names.sort()
+
+	create_world(int(world.get("seed", 7)))
+	SimClock.tick = int(world.get("tick", 0))
+
+	# PackedStringArray is a value type: appending through `report["x"]` appends
+	# to a copy. Collect locally, assign once.
+	var restored: PackedStringArray = PackedStringArray()
+	var absent: PackedStringArray = PackedStringArray()
+	var repaired: PackedStringArray = PackedStringArray()
+	var unrestored: PackedStringArray = PackedStringArray()
+	var incomplete: PackedStringArray = PackedStringArray()
+
+	# TWICE, and the second pass is not superstition. Systems are restored in name
+	# order, so `society` rebuilds its pressure ledger while `threat` is still the
+	# empty world `create_world` just made — and society samples the night the
+	# threat director has planned. Every `deserialize()` in this build clears what
+	# it rebuilds, so a second pass is a no-op for every system that does not read
+	# a neighbour, and the difference for the ones that do is measured:
+	# `$.systems.society.forces` comes back only on the second pass.
+	for _pass: int in LcnStateReconciler.RESTORE_PASSES:
+		for n: String in names:
+			var sys: SimSystem = get_system(StringName(n))
+			if sys == null:
+				if _pass == 0:
+					absent.append(n)
+				continue
+			if typeof(payloads[n]) != TYPE_DICTIONARY:
+				continue
+			sys.deserialize(payloads[n])
+			if _pass == 0:
+				restored.append(n)
+
+	# Then finish the job, until it stops getting better. One system's repair can
+	# unlock another's — putting a citizen's morale back changes the average the
+	# citizens system reports — so the sweep repeats while anything is still
+	# moving, and stops the moment it is not.
+	var mended: Dictionary[String, bool] = {}
+	var last_left: int = -1
+	for _round: int in LcnStateReconciler.RECONCILE_ROUNDS:
+		unrestored.clear()
+		incomplete.clear()
+		for n2: String in names:
+			var sys2: SimSystem = get_system(StringName(n2))
+			if sys2 == null or typeof(payloads[n2]) != TYPE_DICTIONARY:
+				continue
+			var rep: Dictionary = LcnStateReconciler.finish(sys2, payloads[n2])
+			for f: String in (rep["fixed"] as PackedStringArray):
+				mended["$.systems.%s%s" % [n2, f.substr(1)]] = true
+			var left: PackedStringArray = rep["left"]
+			if left.is_empty():
+				continue
+			incomplete.append(n2)
+			for f2: String in left:
+				unrestored.append("$.systems.%s%s" % [n2, f2.substr(1)])
+		if unrestored.size() == last_left:
+			break
+		last_left = unrestored.size()
+	var mended_keys: Array = mended.keys()
+	mended_keys.sort()
+	for k: String in mended_keys:
+		repaired.append(k)
+
+	report["restored"] = restored
+	report["absent"] = absent
+	report["repaired"] = repaired
+	report["unrestored"] = unrestored
+	report["systems_incomplete"] = incomplete
+
+	# Last, and after every serialize() this function performs.
+	var rng_blob: Variant = world.get("rng", {})
+	if typeof(rng_blob) == TYPE_DICTIONARY:
+		Rng.restore(rng_blob)
+
+	if not absent.is_empty():
+		# Not a warning. A save naming a pillar this build does not have means the
+		# player is loading a city that cannot come back the way it went in.
+		Log.error("sim", "load: this build has no %s system(s) — that state is LOST" % [
+			", ".join(absent)])
+	if not unrestored.is_empty():
+		Log.warn("sim", "load: %d field(s) did not come back: %s" % [
+			unrestored.size(), " ".join(unrestored)])
+	report["ok"] = true
+	Log.info("sim", "loaded tick %d, seed %d, %d system(s), %d field(s) repaired, %d lost" % [
+		SimClock.tick, Rng.seed_value, restored.size(), repaired.size(), unrestored.size()])
+	Bus.world_ready.emit()
+	return report
 
 
 func collect_metrics() -> Dictionary:

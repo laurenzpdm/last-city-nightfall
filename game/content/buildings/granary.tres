@@ -20,6 +20,7 @@ build_time_ticks = 1000
 demolish_time_ticks = 120
 build_priority = 45
 workers_required = 1
+staff_capacity = 2
 heat_consumed = 3.0
 heat_insulation = 0.75
 hp = 600.0

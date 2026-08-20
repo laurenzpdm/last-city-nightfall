@@ -9,6 +9,7 @@ extends RefCounted
 const SCENARIOS: Array[String] = [
 	"res://tests/logistics/cold_snap.json",
 	"res://tests/logistics/belt_by_hand.json",
+	"res://tests/logistics/belt_to_nowhere.json",
 ]
 
 var _checks: int = 0

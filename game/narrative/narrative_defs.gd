@@ -150,7 +150,7 @@ const FACTS: Dictionary = {
 	&"phase": ["Time of day", "", 0],
 	&"is_night": ["Night", "", 0],
 	&"is_deep_night": ["Deep night", "", 0],
-	&"temperature": ["Outside temperature", "°C", 1],
+	&"temperature": ["Outside temperature", "°C", 0],
 	&"severity": ["How bad the winter has got", "", 2],
 	&"era": ["Winter era", "", 0],
 	&"storm_active": ["A Great Frost is blowing", "", 0],

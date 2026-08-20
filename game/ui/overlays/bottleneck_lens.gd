@@ -11,7 +11,7 @@ extends LcnOverlayLayer
 ## Here it becomes: a pulsing box on the choking tile, a ring around every
 ## building it starved, and a leader line from the victim to the culprit with
 ## the verdict written on it. Nobody has to understand max-min fair allocation
-## to read "this pipe, 41 of 32 u/s, six buildings".
+## to read "this pipe, 41 of 32 heat/s, six buildings".
 ##
 ## The rest of the frame is dimmed rather than hidden — you still see your base,
 ## it just stops competing with the diagnosis.
@@ -51,6 +51,7 @@ func _draw() -> void:
 	_draw_chokes()
 	_draw_leaders(victims)
 	_draw_verdicts()
+	flush_labels()
 	draw_us = Time.get_ticks_usec() - t0
 
 
@@ -177,13 +178,14 @@ func _draw_verdicts() -> void:
 		var reason: String = String(b.get("reason", "capacity"))
 		var text: String
 		if reason == "capacity":
-			text = "AT CAPACITY  %.0f/%.0f u/s  ->  %d buildings draw through it" % [
+			text = "AT CAPACITY  %.0f/%.0f heat/s  ->  %d buildings draw through it" % [
 				float(b.get("load", 0.0)), float(b.get("capacity", 0.0)),
 				int(b.get("consumers", 0))]
 		else:
 			text = "SOURCE AT FULL OUTPUT  ->  %d buildings draw on it" % [
 				int(b.get("consumers", 0))]
-		plate(r.position + Vector2(r.size.x + px(10.0), -px(6.0)), text, 15.0, pal.bad())
+		word(r.position + Vector2(r.size.x + px(10.0), -px(6.0)), text, 15.0,
+			pal.bad(), LcnLabelField.Rank.VERDICT, 3, "capacity", true)
 
 	# Anything the router could not reach at all is a different failure and
 	# deserves a different word.
@@ -200,5 +202,9 @@ func _draw_verdicts() -> void:
 		if not visible_rect(r2.grow(TILE * 2.0)):
 			continue
 		orphan += 1
-		plate(r2.position + Vector2(0.0, -px(22.0)),
-			"NOT CONNECTED TO ANY SOURCE", 14.0, pal.void_color())
+		# Four identical "NOT CONNECTED TO ANY SOURCE" plates used to be allowed,
+		# one per orphan. It is one fact about the grid, not four about four tiles;
+		# the rings already say WHICH tiles, and the legend says what to do.
+		word(r2.position + Vector2(0.0, -px(22.0)),
+			"NOT CONNECTED TO ANY SOURCE", 14.0, pal.void_color(),
+			LcnLabelField.Rank.VERDICT, 1, "", true)

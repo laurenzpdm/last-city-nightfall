@@ -27,7 +27,7 @@ const OPS: Array[String] = [
 const STATE_OPS: Array[String] = ["min", "max", "eq", "len_min", "len_max", "exists", "why"]
 const LIVENESS_KEYS: Array[String] = [
 	"stalled_enemy_ticks", "waves_must_end", "min_kill_ratio",
-	"min_shots_per_enemy", "claims", "$why_stalled",
+	"min_shots_per_enemy", "claims", "$why_stalled", "$why_shots",
 ]
 
 var _expect: Dictionary = {}

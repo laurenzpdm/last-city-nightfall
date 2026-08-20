@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="LcnTutorialLesson" format=3]
+
+[ext_resource type="Script" path="res://game/ui/tutorial/tutorial_lesson.gd" id="1_lesson"]
+
+[resource]
+resource_name = "You cannot click fast enough"
+script = ExtResource("1_lesson")
+id = &"05_you_cannot_click_fast_enough"
+order = 50
+kicker = "By hand"
+headline = "Ten porters, one furnace, all day."
+body = "Porters have carried {fuel_by_porter} coal to the burners on their backs. Coal in store: {coal_stock}. At this burn it runs out in {coal_seconds}. Every one of those trips is a person who built nothing today."
+action = "A crate of coal, a loading arm facing the furnace, a belt between them. Press B and look under Logistics."
+watch = Array[StringName]([&"coal_stock", &"coal_seconds", &"fuel_by_porter", &"line_fed_burners"])
+done_when = Array[String](["line_fed_burners >= 1"])
+urgent_when = Array[String]([])
+focus = &"burner"
+final_card = false

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="LcnTutorialLesson" format=3]
+
+[ext_resource type="Script" path="res://game/ui/tutorial/tutorial_lesson.gd" id="1_lesson"]
+
+[resource]
+resource_name = "The pipes reach, or nothing does"
+script = ExtResource("1_lesson")
+id = &"01_the_pipes_reach_or_nothing_does"
+order = 10
+kicker = "The cold"
+headline = "Three heat networks. One fire."
+body = "It is {temperature} outside. The hearth burns at the centre and the mains run east and west from it. Structures on neither main: {off_grid}. Heat does not travel through snow, and what the pipes do not reach freezes where it stands."
+action = "Press B, take Heat Pipe, and drag a run from the mains out to the ring on the map. One network, not three."
+watch = Array[StringName]([&"networks", &"off_grid", &"frozen", &"temperature"])
+done_when = Array[String](["networks <= 1"])
+urgent_when = Array[String]([])
+focus = &"orphan"
+final_card = false

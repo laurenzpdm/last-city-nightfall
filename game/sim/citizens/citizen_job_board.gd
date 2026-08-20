@@ -22,6 +22,12 @@ extends RefCounted
 ## Doors re-derived per refresh pass. Bounded on purpose — see _revalidate_doors.
 const DOOR_FIXES_PER_PASS: int = 8
 
+## How many crews may be re-cut in a single hiring pass. The surplus a building
+## took while it was the only building in town is the city's labour reserve, and
+## a city that has just finished a smelter should be SEEN to walk people over to
+## it across a shift — not to teleport its whole workforce in one tick.
+const TRANSFERS_PER_PASS: int = 2
+
 
 ## One building, as the population cares about it.
 class Site extends RefCounted:
@@ -74,6 +80,9 @@ var shelter_building: int = -1
 ## drops exactly the cached paths that crossed them, instead of the whole cache.
 var blocked_cells: Array[Vector2i] = []
 
+## How many employed citizens are on the night rotation after the last cut. The
+## price of a factory that runs in the dark, in bodies, for [P17] and the log.
+var night_crew: int = 0
 var total_required: int = 0
 var total_capacity: int = 0
 var total_beds: int = 0
@@ -458,32 +467,284 @@ func publish_workers() -> void:
 			b.set("workers", site.present)
 
 
+## The crew a site cannot run WITHOUT — never more than it has room for, because
+## a def is allowed to be wrong and a matcher is not.
+static func _need_of(site: Site) -> int:
+	return mini(site.required, site.capacity)
+
+
 ## Fills up to `limit` vacancies with the nearest idle worker. Hiring is
 ## deliberately gradual: a city that loses a shift should visibly scramble.
+##
+## Three passes, and the order between them is the whole point. `capacity` is how
+## many people a building has ROOM for; `required` is how many it needs to run at
+## all. A single greedy walk that fills each site to capacity in priority order
+## hands the front of the queue the entire labour force — the Hearth hired eight
+## against a need of four — and every building finished after that starves no
+## matter how much slack the city has. So:
+##
+##   1. every site's `required` crew, priority order, from the idle queue;
+##   2. anything still short is covered out of the SURPLUS of the sites that took
+##      more than they need, because on a settled map nobody is idle;
+##   3. and only then do spare hands deepen crews toward `capacity` — dealt out
+##      a layer at a time, because `required` is a crew ROSTER and a shift is
+##      what puts people in the room. A building carrying exactly its
+##      requirement has that many people in it only while none of them is
+##      asleep, eating or walking, so depth is what makes a crew reliable.
 func assign_jobs(pool: CitizenPool, jobless: PackedInt32Array, allow_child: bool,
 		allow_elder: bool, limit: int) -> int:
-	if jobless.is_empty():
+	if limit <= 0:
 		return 0
 	var taken: Dictionary[int, bool] = {}
+	var hires: int = 0
+	hires += _required_pass(pool, jobless, taken, allow_child, allow_elder, limit - hires)
+	hires += _reassign_surplus(pool, limit - hires)
+	hires += _deepen_pass(pool, jobless, taken, allow_child, allow_elder, limit - hires)
+	return hires
+
+
+## One walk down the hiring order, filling each site to the crew it cannot run
+## without and not one person further.
+func _required_pass(pool: CitizenPool, jobless: PackedInt32Array,
+		taken: Dictionary[int, bool], allow_child: bool, allow_elder: bool,
+		limit: int) -> int:
+	if limit <= 0 or jobless.is_empty():
+		return 0
 	var hires: int = 0
 	for i: int in job_ids.size():
 		if hires >= limit:
 			break
 		var site: Site = sites[job_ids[i]]
-		if not site.operational or site.assigned >= site.capacity:
+		if not site.operational:
 			continue
-		while site.assigned < site.capacity and hires < limit:
+		while site.assigned < _need_of(site) and hires < limit:
+			var pick: int = _nearest_worker(pool, jobless, taken, site,
+				allow_child, allow_elder)
+			# The queue rejects candidates on age and health, never on which site
+			# is asking, so an empty answer here is an empty answer for every site
+			# still to come. Walking the rest of the order would re-scan the whole
+			# sample once per vacancy to learn the same thing.
+			if pick < 0:
+				return hires
+			taken[pick] = true
+			_place(pool, pick, site)
+			hires += 1
+	return hires
+
+
+## Spare hands, spread before deep. Walking the order once and filling each site
+## to `capacity` is the same mistake as the loop this file replaced, one level
+## down: the Hearth would take every spare pair of hands for its fifth through
+## eighth body while the kitchen ran on the bare two that let it call itself
+## staffed. So the surplus is dealt out in layers — everybody gets a second body
+## before anybody gets a third — and priority only decides who gets each layer
+## first.
+func _deepen_pass(pool: CitizenPool, jobless: PackedInt32Array,
+		taken: Dictionary[int, bool], allow_child: bool, allow_elder: bool,
+		limit: int) -> int:
+	if limit <= 0 or jobless.is_empty():
+		return 0
+	var deepest: int = 0
+	for i: int in job_ids.size():
+		var s: Site = sites[job_ids[i]]
+		if s.operational:
+			deepest = maxi(deepest, s.capacity - _need_of(s))
+	var hires: int = 0
+	for depth: int in range(1, deepest + 1):
+		if hires >= limit:
+			break
+		for i: int in job_ids.size():
+			if hires >= limit:
+				break
+			var site: Site = sites[job_ids[i]]
+			if not site.operational:
+				continue
+			if site.assigned >= mini(_need_of(site) + depth, site.capacity):
+				continue
 			var pick: int = _nearest_worker(pool, jobless, taken, site,
 				allow_child, allow_elder)
 			if pick < 0:
-				break
+				return hires
 			taken[pick] = true
-			pool.job[pick] = site.id
-			pool.trade[pick] = site.trade
-			pool.hazard[pick] = 1 if site.hazard else 0
-			site.assigned += 1
+			_place(pool, pick, site)
 			hires += 1
 	return hires
+
+
+## Cuts the day and night rotations. **A shift belongs to a BUILDING, not to a
+## hire counter — and no building in this city closes at sunset.**
+##
+## Two rules died here, in this order.
+##
+## The first dealt every third hire to the night and never looked at where that
+## person worked, so the rotation was a property of hire ORDER and was never
+## re-cut: every building was permanently missing a third of its crew by day and
+## two thirds by night, and `citizens.staffed` never rose above 0.64 at any hour.
+##
+## The second — the one this replaces — put a crew entirely on the rotation its
+## building was "for" and only bought a second rotation with surplus bodies. In a
+## city that is short of hands nothing ever HAS surplus, so in practice every
+## workshop was day-only and every gun was night-only. Measured over 24000 ticks:
+## `production.active_machines` 3.01 morning, 2.44 afternoon, then 0.34 / 0.44 /
+## 0.35 through the dark, all eight machines ending `unstaffed`, every belt line
+## at throughput 0.0. It also cost the DAY: the hearth's four stokers were all on
+## nights, so the city's main fire read `no crew` every morning.
+##
+## The rule now, in one sentence: **a crew works both rotations, weighted toward
+## the hours its building is for.** Primary is filled first; `skeleton_crew` says
+## how many hands are peeled off for the other rotation; surplus past `required`
+## still buys a full second crew, because depth should always beat policy. A
+## workshop of four is three by day and one after dark. A gun of one stays on the
+## wall at night, because one body cannot be in two places.
+##
+## The cost is deliberate and lands on the day: half a crew at the bench is half
+## the output, so daylight is no longer free and hiring past `required` is how
+## you buy it back. CitizenDefs.NIGHT_TRADES carries the rest of the reasoning.
+##
+## Re-cut from scratch on every pass rather than remembered, so somebody walked
+## onto a new crew by `_reassign_surplus` takes that crew's hours with them
+## instead of carrying their first employer's rota around for life.
+##
+## Deterministic twice over: `pool.alive` and `job_ids` are both sorted, and the
+## one dictionary here is only ever read through `job_ids`, never iterated.
+func cut_shifts(pool: CitizenPool, law: StringName = CitizenDefs.LAW_STANDARD) -> void:
+	# One walk of the population buckets every crew. Asking each site who works
+	# there instead is O(sites x population), which is the shape this whole file
+	# is arranged to avoid.
+	var crews: Dictionary[int, PackedInt32Array] = {}
+	var n: int = pool.alive.size()
+	for i: int in n:
+		var s: int = pool.alive[i]
+		var j: int = pool.job[s]
+		if j < 0:
+			pool.shift[s] = CitizenDefs.Shift.OFF
+			continue
+		# Days by default, so a crew whose site vanished between the last refresh
+		# and this pass is never left holding a rotation nobody will re-cut.
+		pool.shift[s] = CitizenDefs.Shift.DAY
+		var crew: PackedInt32Array = crews.get(j, PackedInt32Array())
+		crew.append(s)
+		crews[j] = crew
+
+	night_crew = 0
+	for i: int in job_ids.size():
+		var id: int = job_ids[i]
+		if not crews.has(id):
+			continue
+		var crew2: PackedInt32Array = crews[id]
+		var site: Site = sites[id]
+		var need: int = _need_of(site)
+		var primary: int = CitizenDefs.Shift.NIGHT \
+			if CitizenDefs.is_night_trade(site.trade) else CitizenDefs.Shift.DAY
+		var other: int = CitizenDefs.Shift.DAY \
+			if primary == CitizenDefs.Shift.NIGHT else CitizenDefs.Shift.NIGHT
+		# Two claims on the other rotation, and the bigger one wins.
+		#
+		#   policy  — the shift law's skeleton share of this crew, so a building
+		#             with exactly its requirement still has somebody in it at
+		#             the far end of the clock;
+		#   depth   — every hand past `required`, because a spare body adds
+		#             nothing to a rotation that is already at its requirement.
+		#
+		# The cliff version of the depth rule — cover both ONLY with a full
+		# second crew — was measured over 24000 ticks and took
+		# `production.active_machines` at night to 0.00, because almost nothing
+		# in a city short of hands ever reaches twice its requirement. That is
+		# why policy exists underneath it and why it is not conditional on
+		# anything: the dark is the game.
+		var policy: int = CitizenDefs.skeleton_crew(law, crew2.size())
+		var depth: int = clampi(crew2.size() - need, 0, need) if need > 0 else 0
+		var to_other: int = clampi(maxi(policy, depth), 0, maxi(0, crew2.size() - 1))
+		# A curfew beats depth as well as policy. Without this the law is a lie
+		# in exactly the city that can afford to sign it: a crew twice its
+		# requirement would cover both rotations anyway, so the buildings that
+		# would actually keep working through a curfew are the well-staffed ones.
+		if not CitizenDefs.splits_the_clock(law):
+			to_other = 0
+		var keep: int = crew2.size() - to_other
+		for k: int in crew2.size():
+			var shift: int = primary if k < keep else other
+			pool.shift[crew2[k]] = shift
+			if shift == CitizenDefs.Shift.NIGHT:
+				night_crew += 1
+
+
+func _place(pool: CitizenPool, slot: int, site: Site) -> void:
+	pool.job[slot] = site.id
+	pool.trade[slot] = site.trade
+	pool.hazard[slot] = 1 if site.hazard else 0
+	site.assigned += 1
+
+
+## Moves people off crews that are deeper than they need to be and onto the
+## required slots nobody is standing in. Without this the two passes above only
+## help a city that still has idle hands; the one in the reference run had none,
+## because the first four buildings had hired everybody.
+##
+## Bounded per pass on purpose, and the whole re-cut is skipped in the ordinary
+## case where nothing is short.
+func _reassign_surplus(pool: CitizenPool, limit: int) -> int:
+	var budget: int = mini(limit, TRANSFERS_PER_PASS)
+	if budget <= 0:
+		return 0
+	var moved: int = 0
+	for i: int in job_ids.size():
+		if moved >= budget:
+			break
+		var site: Site = sites[job_ids[i]]
+		if not site.operational or site.assigned >= _need_of(site):
+			continue
+		while site.assigned < _need_of(site) and moved < budget:
+			# A donor is a donor regardless of who is asking, so once the city has
+			# no surplus left it has none for anybody.
+			if not _poach_one(pool, site):
+				return moved
+			moved += 1
+	return moved
+
+
+## Takes one worker off the least important overstaffed crew in the city and
+## puts them on `site`. Returns false when no building anywhere is carrying more
+## people than it needs — at which point the city is simply short of hands, and
+## the understaffed badge is telling the truth.
+func _poach_one(pool: CitizenPool, site: Site) -> bool:
+	# Reverse hiring order: lowest build_priority first, and among equals the
+	# highest id — the crew a city can most afford to thin is the last thing it
+	# decided it wanted.
+	for i: int in range(job_ids.size() - 1, -1, -1):
+		var donor: Site = sites[job_ids[i]]
+		if donor.id == site.id or donor.assigned <= _need_of(donor):
+			continue
+		var pick: int = _pick_from_crew(pool, donor, site)
+		if pick < 0:
+			continue
+		donor.assigned = maxi(0, donor.assigned - 1)
+		_place(pool, pick, site)
+		return true
+	return false
+
+
+## Whoever on the donor's roster stands closest to the door that needs them.
+## `pool.alive` is sorted, so equal distances always resolve to the same person
+## and a replay re-cuts the same crews.
+func _pick_from_crew(pool: CitizenPool, donor: Site, site: Site) -> int:
+	var best: int = -1
+	var best_d: int = 0x7FFFFFFF
+	var n: int = pool.alive.size()
+	for i: int in n:
+		var s: int = pool.alive[i]
+		if pool.job[s] != donor.id:
+			continue
+		# Reassigning someone who is in bed with fever fills the roster and not
+		# the building, which is the exact lie this whole change exists to stop.
+		if pool.illness[s] >= CitizenDefs.SICK_ONSET or pool.injury[s] >= CitizenDefs.INJURY_CLEAR:
+			continue
+		var from: Vector2i = pool.cell_of(s)
+		var d: int = absi(from.x - site.door.x) + absi(from.y - site.door.y)
+		if d < best_d:
+			best_d = d
+			best = s
+	return best
 
 
 func _nearest_worker(pool: CitizenPool, jobless: PackedInt32Array,

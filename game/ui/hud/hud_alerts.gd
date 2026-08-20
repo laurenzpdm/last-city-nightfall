@@ -59,6 +59,9 @@ var _toasts: Array[Dictionary] = []
 var _deaths: Array[float] = []
 var _stall_keys: Dictionary[int, float] = {}
 var _now: float = 0.0
+## Set once, by `Bus.game_over`. A city that is over has no next hour, so it has
+## no advice worth giving.
+var _over: bool = false
 ## item -> the in-world second its drain was first seen. Cleared the moment the
 ## drain stops, which is what makes the confirmation window a window and not a
 ## delay that only ever runs once.
@@ -105,6 +108,22 @@ func refresh(probe: LcnHudProbe, now: float) -> void:
 		clear()
 	_now = now
 	var out: Array[Dictionary] = []
+	# ── THE PANEL WAS STILL GIVING ADVICE TO A CORPSE ────────────────────────
+	# `artifacts/play1/shots/third_day_city.png`: [P22]'s epilogue card — "The
+	# City Did Not Stand" — is open in the middle of the screen, and eighteen
+	# hundred pixels to its left the ATTENTION panel reads "Attack in 2 minutes
+	# · First Frost arrives in 20 seconds · Scrap runs out in 2 minutes · Add
+	# generation, or switch off what you can live without". Every one of those
+	# is a promise about an hour this city does not get, and the one row that
+	# was true — "The city is lost" — had already aged out of the bus lane on a
+	# 12 second TTL while the ending it announces was still on screen.
+	#
+	# So the panel says one thing after the end, and says it for as long as the
+	# run is on screen.
+	if _over:
+		entries = _carry_over_row(probe)
+		_toasts.clear()
+		return
 	_derive_heat(probe, out)
 	_derive_people(probe, out)
 	_derive_threat(probe, out)
@@ -114,8 +133,40 @@ func refresh(probe: LcnHudProbe, now: float) -> void:
 	_derive_council(probe, out)
 	_carry_bus(probe, out)
 	out.sort_custom(_rank)
-	entries = _cap_families(out)
+	entries = _cap_families(_fold_identical(out))
 	_expire_toasts()
+
+
+## Two rows that read the same become one row with a count.
+##
+## `_cap_families()` below stops one FAMILY owning the panel; nothing stopped
+## one SENTENCE appearing twice. The rows are keyed by what produced them —
+## `heat_2`, `heat_3` — and their headlines are built from the grid's name, so
+## two networks whose biggest producer happens to be the same kind of building
+## both render "The Turret Mount run is 3.0 heat short". The panel printed that
+## line twice, identically, one under the other, in the middle of the assault
+## (`artifacts/play_steady/shots/assault.world.png`), two rows below a row
+## reading "2 of 6 guns have no heat and cannot fire  ×3".
+##
+## That `×3` is the point: the counter, the drawing code for it and the `count`
+## field it reads all already existed, and had done since the widget was
+## written. Nothing was routing duplicates into it. Ranked order is kept — the
+## survivor is the first, which after `_rank` is the most severe — and its
+## `focus` with it, so clicking still lands on the worst of them.
+func _fold_identical(rows: Array[Dictionary]) -> Array[Dictionary]:
+	var seen: Dictionary[String, int] = {}
+	var kept: Array[Dictionary] = []
+	for e: Dictionary in rows:
+		var text: String = "%s|%s|%s" % [e.get("head", ""), e.get("body", ""), e.get("fix", "")]
+		if seen.has(text):
+			var at: int = seen[text]
+			var row: Dictionary = kept[at]
+			row["count"] = maxi(1, int(row.get("count", 1))) + maxi(1, int(e.get("count", 1)))
+			kept[at] = row
+			continue
+		seen[text] = kept.size()
+		kept.append(e)
+	return kept
 
 
 ## No family may own the panel. Two heat grids short is news; six is one story
@@ -138,6 +189,7 @@ func _cap_families(rows: Array[Dictionary]) -> Array[Dictionary]:
 
 
 func clear() -> void:
+	_over = false
 	entries.clear()
 	_bus.clear()
 	_toasts.clear()
@@ -188,8 +240,12 @@ func _derive_heat(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 		var sev: int = S.Sev.WARN
 		if starved >= 3 or deficit > maxf(4.0, float(stats.get("demand", 1.0)) * 0.35):
 			sev = S.Sev.DANGER
+		# `shortfall()` and not `amount()`: this row and the heat panel are quoting
+		# the SAME hole three panels apart, and `amount()`'s decimal under ten made
+		# them "9.2 heat short" here and "−9 short" there in one frame
+		# (`artifacts/play2/shots/third_day_city.png`). One hole, one number.
 		var head: String = "%s is %s heat short" % [
-			_capitalise(title), LcnHudFormat.amount(deficit)]
+			_capitalise(title), LcnHudFormat.shortfall(deficit)]
 		if deficit < 0.5:
 			head = "%s is browning out" % _capitalise(title)
 		var fix: String = "Add generation, or switch off what you can live without."
@@ -202,7 +258,12 @@ func _derive_heat(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 			"heat_capacity" if reason == "capacity" else "heat_supply",
 			sev, head,
 			("Because " + sentence + ".") if sentence != "" else
-				"%d building%s are running cold." % [starved, "" if starved == 1 else "s"],
+				# The verb belongs IN the suffix, not hardcoded beside it: with
+				# "are" pinned outside, the first screen of a new game read
+				# "1 building are running cold." Every other count line in this
+				# file already folds the verb in ("s are", "s have"); this was
+				# the one that did not.
+				"%d building%s running cold." % [starved, "" if starved == 1 else "s are"],
 			fix, probe.network_focus(stats), 1))
 	if probe.heat_frozen > 0:
 		out.append(_entry(&"frozen", "frozen",
@@ -300,18 +361,11 @@ func _derive_people(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 
 
 ## "half a day", "1.5 days", "3 days" — never "2.0 days", never "0.0 days".
+## Moved to `LcnHudFormat.days` so the vitals panel can round the same float the
+## same way this list does. Kept as a one-line forward: every call site here
+## reads better with the local name.
 static func _days_words(days: float) -> String:
-	if days < 0.05:
-		return "nothing"
-	if days < 0.75:
-		return "half a day"
-	if days < 10.0:
-		var rounded: float = snappedf(days, 0.5)
-		if is_equal_approx(rounded, roundf(rounded)):
-			var whole: int = int(roundf(rounded))
-			return "%d day%s" % [whole, "" if whole == 1 else "s"]
-		return "%.1f days" % rounded
-	return "%d days" % int(roundf(days))
+	return LcnHudFormat.days(days)
 
 
 func _derive_threat(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
@@ -322,24 +376,62 @@ func _derive_threat(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 	if where == Vector2.ZERO:
 		where = probe.core_focus()
 	if probe.wave_active and probe.enemies_alive > 0:
+		# THE FIX HAS TO BE A FIX THIS PLAYER CAN MAKE. `careless_night` has no
+		# turret standing when the hounds walk in, and the panel still advised
+		# "do not let the grid brown out now" — heat discipline, for guns that
+		# do not exist (`artifacts/play_careless_vis/shots/assault.png`). The
+		# probe has counted the mounts since it was written; the row simply
+		# never asked.
+		var fix: String = "Turrets burn heat to fire — do not let the grid brown out now."
+		if probe.turrets_total <= 0:
+			fix = "Nothing in this city can shoot back. They will keep walking until something stops them."
+		elif probe.turrets_online <= 0:
+			fix = "Every turret you own is cold — they need heat on the grid before they can fire."
 		out.append(_entry(&"wave_here", "wave", S.Sev.CRITICAL,
 			"%d in the city" % probe.enemies_alive,
 			"They are inside the perimeter.",
-			"Turrets burn heat to fire — do not let the grid brown out now.",
-			where, probe.enemies_alive))
+			fix, where, probe.enemies_alive))
 		return
 	if probe.wave_seconds >= 0.0 and probe.wave_seconds < 120.0:
-		var body: String = "Wave %d comes from the %s." % [maxi(1, probe.wave_number),
-			LcnHudFormat.compass(probe.wave_direction)]
+		# "WAVE 1 COMES FROM THE ALL SIDES." `LcnHudFormat.compass()` answers
+		# "all sides" for a direction vector of zero, which is the right words in
+		# the wrong slot: every other answer it gives ("south-east") wants a
+		# definite article and this one does not.
+		#
+		# A zero vector here also means the probe HAS no bearing, while the wave
+		# panel beside it was reading [P08]'s redacted preview and printing "wave
+		# 1 from the south-east" in the same frame
+		# (`artifacts/play_careless_v2/shots/midday.png`). Two panels, one wave,
+		# two answers. When there is no bearing this row now says so instead of
+		# inventing a compass rose.
+		var compass: String = LcnHudFormat.compass(probe.wave_direction)
+		var body: String = ""
+		if probe.wave_direction == Vector2.ZERO:
+			body = "Wave %d. The watch has not placed it yet." % maxi(1, probe.wave_number)
+		else:
+			body = "Wave %d comes from the %s." % [maxi(1, probe.wave_number), compass]
 		if not probe.wave_known:
 			body = "Wave %d. Nothing has been seen yet — the direction is not known." \
 				% maxi(1, probe.wave_number)
-		out.append(_entry(&"wave", "wave",
-			S.Sev.DANGER if probe.wave_seconds < 45.0 else S.Sev.WARN,
+		var advice: String = "Guns on that side, and heat in the pipes that feed them."
+		var sev: int = S.Sev.DANGER if probe.wave_seconds < 45.0 else S.Sev.WARN
+		# THE ONE THING THE COVERAGE LENS SAYS AND THIS PANEL DID NOT.
+		#
+		# Played badly on purpose (tests/scenarios/careless_night.json), the city
+		# reaches dusk of day one with no turret anywhere and 6 bodies inbound.
+		# [P19]'s coverage lens prints "no turrets built" in red — but only if the
+		# player thinks to press F6, and a player who did not think to build a gun
+		# is not the player who thinks to open the gun lens. The alert stack, the
+		# one panel that is always on screen, said exactly what it says to a city
+		# with six turrets. Both halves of this sentence were already measured;
+		# only the sentence was missing.
+		if probe.has_combat and probe.turrets_total <= 0:
+			sev = S.Sev.DANGER
+			body += " Nothing in this city can shoot back."
+			advice = "A turret mount, on a pipe, on that side — before the number reaches zero."
+		out.append(_entry(&"wave", "wave", sev,
 			"Attack %s" % LcnHudFormat.in_words(probe.wave_seconds),
-			body,
-			"Guns on that side, and heat in the pipes that feed them.",
-			where, 1))
+			body, advice, where, 1))
 
 
 func _derive_climate(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
@@ -410,9 +502,15 @@ func _derive_supplies(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 		var first: Dictionary = live[0]
 		out.append(_entry(&"stock_group", "stock",
 			S.Sev.DANGER if float(first["seconds"]) < 60.0 else S.Sev.WARN,
-			"%s are running out" % _capitalise(LcnHudFormat.list_words(names)),
-			"%s goes first — %s left, and it has been falling by %s a minute for "
-				% [LcnHudFormat.item_title(first["id"] as StringName),
+			# Naming all five in the HEADLINE ran to 56 characters and off the
+			# panel. The count is the headline; the names are in the body, which
+			# wraps and is one hover away.
+			("%s and %s are running out" % [_capitalise(names[0]), names[1]])
+				if names.size() == 2 else
+				("%d stores are running out" % names.size()),
+			"%s. %s goes first — %s left, and it has been falling by %s a minute for "
+				% [_capitalise(LcnHudFormat.list_words(names)),
+					LcnHudFormat.item_title(first["id"] as StringName),
 					LcnHudFormat.stock(int(first["amount"])),
 					LcnHudFormat.amount(float(first["rate"]))]
 				+ "the last %s." % LcnHudFormat.clock(
@@ -435,17 +533,36 @@ func _derive_supplies(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
 		probe.core_focus(), 1))
 
 
-## [P04] may report its own stall count; the Bus signal covers the case where it
-## does not. Whichever number is larger is the one the player can see on the map.
+## [P04]'s own stall count when it has one, and the Bus signal only when it does
+## not.
+##
+## IT USED TO TAKE THE LARGER OF THE TWO, on the reasoning that the larger number
+## is "the one the player can see on the map". The opposite is true, and one
+## frame shows it: `artifacts/play_tour/shots/08_lens_5.png` has [P19]'s
+## logistics legend reading "1 machine stalled" — a live count, over a map with
+## one ring drawn on it — while this panel reads "2 machines stalled" nine
+## hundred pixels away. `_stall_keys` is a twenty-second MEMORY of
+## `Bus.machine_stalled`, so it keeps counting a machine that started again
+## fifteen seconds ago. A remembered stall is not a stall, and the map is the
+## thing the player can check.
 func _derive_build(probe: LcnHudProbe, out: Array[Dictionary]) -> void:
-	var stalled: int = maxi(_live_stalls(), probe.stalled_machines)
+	var remembered: int = _live_stalls()
+	var stalled: int = probe.stalled_machines if probe.has_production else remembered
 	if stalled <= 0:
 		return
+	# "FOLLOW THE BELT" IN A CITY WITH NO BELTS. `artifacts/play_tour/shots/
+	# 10_build_ghost.png` has two stalled machines, this exact advice, and not
+	# one belt segment anywhere in the world — the whole run is hand-hauled.
+	# Which fix is true depends on whether the player has automated anything
+	# yet, and [P03] has been counting its lines the whole time.
+	var fix: String = "Follow the belt: it is empty at one end and full at the other."
+	if probe.belt_lines <= 0:
+		fix = "Nothing is being carried to them. Check what the recipe needs and "\
+			+ "whether the city has any of it."
 	out.append(_entry(&"stalled", "stalled", S.Sev.INFO,
 		"%d machine%s stalled" % [stalled, "" if stalled == 1 else "s"],
 		"They have nothing to work with, or nowhere to put what they make.",
-		"Follow the belt: it is empty at one end and full at the other.",
-		probe.stalled_focus(), stalled))
+		fix, probe.stalled_focus(), stalled))
 
 
 ## [P06] issues ultimatums with a deadline on them, and the ONLY answer to one is
@@ -519,11 +636,19 @@ func _on_alert(severity: int, key: StringName, text: String, pos: Vector2) -> vo
 	var family: String = _family_of(key)
 	var existing: Dictionary = _bus.get(key, {})
 	var count: int = int(existing.get("count", 0)) + 1
+	# A claim and its reason, cut apart once and disjoint — see `_split_alert`.
+	# This lane used to publish the first sentence as the head and the WHOLE text
+	# as the body, so the panel printed the same line twice, bright and then dim:
+	#
+	#   ! 1 burner running dry — the city is out of coal
+	#     1 burner running dry — the city is out of coal
+	var split: PackedStringArray = _split_alert(text)
 	_bus[key] = {
 		"key": key, "family": family,
 		"sev": clampi(severity + 1, S.Sev.INFO, S.Sev.CRITICAL),
-		"head": _headline(text), "body": text, "fix": "",
-		"focus": pos, "count": count, "at": _now,
+		"head": split[0],
+		"body": split[1],
+		"fix": "", "focus": pos, "count": count, "at": _now,
 	}
 
 
@@ -574,8 +699,15 @@ func _on_placement_rejected(_cell: Vector2i, reason: String) -> void:
 	_push_toast("Cannot build there — %s" % reason, S.Sev.WARN)
 
 
-func _on_research_completed(id: StringName) -> void:
-	_push_toast("%s researched" % LcnHudFormat.titleize(String(id)), S.Sev.INFO)
+## Deliberately silent. [P10] already announces a finished node on
+## `Bus.alert_raised` at severity 0, with the PAYOFF in the sentence ("Field
+## Medicine completed. Opens medical_post"), and that lands in this same toast
+## lane. Toasting it a second time from the id produced two lines about one
+## event, in two wordings, in the same corner: "Field Medicine completed. Opens
+## medical_post" directly above "Field Medicine researched". The subscription is
+## kept so the reason for the silence has somewhere to live.
+func _on_research_completed(_id: StringName) -> void:
+	pass
 
 
 func _on_law_enacted(id: StringName) -> void:
@@ -587,11 +719,41 @@ func _on_wave_cleared(wave: int) -> void:
 
 
 func _on_game_over(reason: String) -> void:
+	if _over:
+		return   # the hearth falls and then the last citizen dies: one ending.
+	_over = true
 	_bus[&"game_over"] = {
 		"key": &"game_over", "family": "game_over", "sev": S.Sev.CRITICAL,
-		"head": "The city is lost", "body": reason, "fix": "",
+		"head": "The city is lost", "body": _ending_words(reason), "fix": "",
 		"focus": Vector2.ZERO, "count": 1, "at": _now,
 	}
+
+
+## The single row an ended run shows, rebuilt every refresh so it never ages out.
+func _carry_over_row(_probe: LcnHudProbe) -> Array[Dictionary]:
+	var row: Dictionary = _bus.get(&"game_over", {}).duplicate()
+	if row.is_empty():
+		return []
+	row["at"] = _now
+	return [row] as Array[Dictionary]
+
+
+## `Bus.game_over` carries a reason key, not a sentence: "exiled", "despair",
+## "the hearth was torn down". Printed raw under "The city is lost" the panel
+## read `exiled`, which is the same lower-case machine word the epilogue card
+## prints in its BECAUSE block. One of the two had to become English.
+func _ending_words(reason: String) -> String:
+	match reason.strip_edges():
+		"exiled":
+			return "The council was put out of its own gate."
+		"despair":
+			return "Nobody left here believes this city will hold."
+		"extinct":
+			return "There is nobody left alive in the caldera."
+		"":
+			return ""
+	var r: String = reason.strip_edges()
+	return _capitalise(r.trim_suffix(".")) + "."
 
 
 func _push_toast(text: String, sev: int) -> void:
@@ -678,14 +840,54 @@ static func _family_of(key: StringName) -> String:
 ## First sentence, capitalised, no trailing full stop — an alert headline is a
 ## label, not prose.
 static func _headline(text: String) -> String:
-	var t: String = text.strip_edges()
+	return _split_alert(text)[0]
+
+
+## THE BODY IS WHAT IS LEFT OF THE SENTENCE, NEVER THE SENTENCE AGAIN.
+##
+## `_headline()` cut at the first ". " and the body was the WHOLE text, so every
+## alert of two sentences printed its first one twice, bright and then dim. That
+## was noticed and half-fixed with `body = "" if head == text`, which catches
+## only the case where the alert is one short sentence — and misses the common
+## one, where the head had to be TRUNCATED and therefore can never equal the
+## text it came from:
+##
+##   ! 2 burners running dry — there is 200 coal in store…
+##     2 burners running dry — there is 200 coal in store and nobody is
+##     carrying it there
+##
+## (`artifacts/play_tour/shots/01_palette.png` and `03_tech.png`, the panel's
+## top row, on the first day of a fresh game.)
+##
+## So the split happens ONCE, here, and the two halves are disjoint by
+## construction. An em dash is a headline break as much as a full stop is —
+## which is what turns that alert into the shape the HUD's own derived rows
+## already use: a claim in bold, the reason under it. With neither break
+## available the head is cut at the last word inside the limit and the tail
+## becomes the body, so nothing is ever lost to an ellipsis.
+const HEAD_LIMIT: int = 64
+
+static func _split_alert(text: String) -> PackedStringArray:
+	var t: String = text.strip_edges().trim_suffix(".")
+	var cut: int = -1
 	var stop: int = t.find(". ")
 	if stop > 0:
-		t = t.substr(0, stop)
-	t = t.trim_suffix(".")
-	if t.length() > 64:
-		t = t.substr(0, 61) + "…"
-	return _capitalise(t)
+		cut = stop
+	var dash: int = t.find(" — ")
+	if dash > 0 and (cut < 0 or dash < cut):
+		cut = dash
+	var head: String = t if cut < 0 else t.substr(0, cut)
+	var body: String = "" if cut < 0 else t.substr(cut)
+	if head.length() > HEAD_LIMIT:
+		var brk: int = head.rfind(" ", HEAD_LIMIT - 3)
+		if brk > 16:
+			body = head.substr(brk) + " " + body
+			head = head.substr(0, brk)
+		else:
+			head = head.substr(0, HEAD_LIMIT - 3) + "…"
+	body = body.strip_edges().lstrip(".—- ").strip_edges()
+	return PackedStringArray([_capitalise(head.strip_edges()),
+		_capitalise(body.trim_suffix("."))])
 
 
 static func _capitalise(s: String) -> String:

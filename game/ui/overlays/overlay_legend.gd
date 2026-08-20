@@ -16,15 +16,29 @@ const PAD: float = 14.0
 const WIDTH: float = 508.0
 const ROW: float = 21.0
 const MARGIN: float = 22.0
-## The panel sits this far off the bottom edge, leaving [P17]'s HUD strip room
-## to exist underneath it instead of fighting it for the same pixels. Measured
-## against the real stores shelf in artifacts/p00_shots: at 78 the legend's last
-## line landed on the word STORES.
+## Where the legend sits when there is NO HUD in this build to ask. It used to be
+## `108`, "measured against the real stores shelf in artifacts/p00_shots" — a
+## number taken off one screenshot at one resolution with one number of chips on
+## the shelf, which is exactly the kind of constant that is wrong everywhere
+## else. When [P17] is present the solver answers instead and this is unused.
 const BOTTOM_CLEARANCE: float = 108.0
-## The lens rail hangs down the right edge BELOW [P17]'s vitals and wave panels.
-## As a fraction of viewport height, so it survives a different resolution and a
-## HUD scaled up by Settings.graphics.ui_scale.
+## Same contract for the lens rail: a fallback fraction, only when nobody can be
+## asked where [P17]'s right column ends.
 const RAIL_TOP_FRACTION: float = 0.375
+const RAIL_ROW: float = 28.0
+const RAIL_BOX_H: float = 24.0
+
+## Screen rects handed down by `LcnHudLayout` through [P17]. Empty means "no HUD
+## in this build" and the fallbacks above are used instead.
+var legend_slot: Rect2 = Rect2()
+var rail_slot: Rect2 = Rect2()
+var hint_slot: Rect2 = Rect2()
+
+## The rectangle the panel ACTUALLY painted last frame, which is what
+## `chrome_rects()` publishes and what the audit measures. A part that reports
+## the size it wanted rather than the size it drew cannot be audited: both
+## rectangles agree, and the screen still has two things on one strip.
+var drawn_rect: Rect2 = Rect2()
 
 var pal: LcnOverlayPalette = null
 var snap: LcnOverlaySnapshot = null
@@ -60,6 +74,7 @@ func _draw() -> void:
 		return
 	_draw_rail()
 	if mode == LcnOverlayDefs.Mode.NONE and not alt:
+		drawn_rect = Rect2()
 		_draw_hint()
 		return
 	_build_rows()
@@ -69,11 +84,25 @@ func _draw() -> void:
 # --- the always-there hint -------------------------------------------------
 
 func _draw_hint() -> void:
-	var size: Vector2 = get_viewport_rect().size
-	var text: String = "%s  overlays      ALT  details" % _key_summary()
-	var w: float = _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 13).x
-	_text(Vector2(size.x - w - MARGIN, size.y - BOTTOM_CLEARANCE), text, 13,
+	var r: Rect2 = hint_rect()
+	_text(Vector2(r.position.x, r.end.y - 4.0), _hint_text(), 13,
 		LcnOverlayPalette.with_a(LcnOverlayPalette.INK_DIM, 0.7))
+
+
+func _hint_text() -> String:
+	return "%s  overlays      ALT  details" % _key_summary()
+
+
+## Where the always-there overlay reminder goes. It shares the hotkey strip's
+## baseline on the opposite side of the screen when [P17] is present.
+func hint_rect() -> Rect2:
+	var size: Vector2 = get_viewport_rect().size
+	var w: float = 200.0
+	if _font != null:
+		w = _font.get_string_size(_hint_text(), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 13).x
+	if hint_slot.size.x > 1.0:
+		return Rect2(hint_slot.end.x - w, hint_slot.position.y, w, 18.0)
+	return Rect2(size.x - w - MARGIN, size.y - BOTTOM_CLEARANCE - 14.0, w, 18.0)
 
 
 func _key_summary() -> String:
@@ -84,12 +113,56 @@ func _key_summary() -> String:
 
 # --- the lens rail ---------------------------------------------------------
 
+## Screen size the lens rail needs, so [P17]'s solver can reserve it under the
+## right-hand column instead of the rail guessing a fraction of the height.
+func rail_size() -> Vector2:
+	if _font == null:
+		return Vector2(180.0, RAIL_ROW * float(LcnOverlayDefs.MODE_COUNT - 1))
+	var w: float = 0.0
+	for m: int in range(1, LcnOverlayDefs.MODE_COUNT):
+		var key: String = keys[m] if m < keys.size() else "?"
+		var text: String = "%s  %s" % [key, LcnOverlayDefs.MODE_TITLES[m]]
+		w = maxf(w, _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 14).x + 18.0)
+	return Vector2(w, RAIL_ROW * float(LcnOverlayDefs.MODE_COUNT - 2) + RAIL_BOX_H)
+
+
+## Screen height the panel needs for `for_mode`. Takes the mode as an argument
+## rather than reading `self.mode`, because the root knows the mode a frame
+## before this node is told it — and the layout is solved on that earlier frame.
+func height_for(for_mode: int) -> float:
+	var was: int = mode
+	mode = for_mode
+	_build_rows()
+	mode = was
+	return _panel_height()
+
+
+## Everything in the panel that is not a row: two pads, the title, the blurb,
+## the headline and the footer. Named because two functions need it and a
+## literal `122` in both is how they drift apart.
+const PANEL_CHROME: float = PAD * 2.0 + 26.0 + 20.0 + 22.0 + 26.0
+
+
+func _panel_height() -> float:
+	return PANEL_CHROME + float(_rows.size()) * ROW
+
+
+## How many rows fit in `h` screen pixels. Never below one: a legend with a
+## title and no numbers is still a legend, and one with a negative row count is
+## a crash.
+static func rows_that_fit(h: float) -> int:
+	return maxi(1, int(floorf((h - PANEL_CHROME) / ROW)))
+
+
 func _draw_rail() -> void:
 	var size: Vector2 = get_viewport_rect().size
 	if mode == LcnOverlayDefs.Mode.NONE and not alt:
 		return
 	var x: float = size.x - MARGIN
 	var y: float = maxf(MARGIN + 108.0, size.y * RAIL_TOP_FRACTION)
+	if rail_slot.size.x > 1.0:
+		x = rail_slot.end.x
+		y = rail_slot.position.y
 	for m: int in range(1, LcnOverlayDefs.MODE_COUNT):
 		var active: bool = m == mode
 		var key: String = keys[m] if m < keys.size() else "?"
@@ -109,9 +182,44 @@ func _draw_rail() -> void:
 
 func _draw_panel() -> void:
 	var size: Vector2 = get_viewport_rect().size
-	var h: float = PAD * 2.0 + 26.0 + 20.0 + 22.0 + float(_rows.size()) * ROW + 26.0
+	var h: float = _panel_height()
 	var origin := Vector2(MARGIN, size.y - h - BOTTOM_CLEARANCE)
+	# THE PANEL NEVER OUTGROWS THE STRIP IT WAS GIVEN.
+	#
+	# `legend_size()` publishes what this panel WANTS and [P17]'s solver reserves
+	# it, but the want is content-dependent — a second heat grid appearing adds
+	# two rows — and the reservation is one poll behind the content. Measured in
+	# `artifacts/d7/cur_1920/shots/assault.png`: reserved 154 px, drawn 185 px,
+	# and the 31 px difference was [P18]'s hotkey strip printed straight through
+	# this panel's own footer line. That is the exact defect `LcnHudLayout` was
+	# written to kill, still on screen, and invisible to the audit because BOTH
+	# rectangles it compared came from the same wrong reported height.
+	#
+	# So the slot is authority. When the content does not fit, rows are shed and
+	# the panel says how many — a legend that is one line short is legible; a
+	# legend with somebody else's hotkeys printed across it is not.
+	if legend_slot.size.x > 1.0:
+		origin = legend_slot.position
+		var fits: int = rows_that_fit(legend_slot.size.y)
+		if _rows.size() > fits:
+			# `fits - 1`, because the "+N more" line is itself a row and has to
+			# come out of the same budget. Keeping `fits` rows and then adding
+			# the notice made the panel exactly one row taller than the strip —
+			# 164 px in a 150 px slot — which the audit failed on, correctly, the
+			# first time this clamp was written.
+			var keep: int = maxi(0, fits - 1)
+			var hidden: int = _rows.size() - keep
+			_rows.resize(keep)
+			# Appended directly, not through `_row`, which refuses past twelve
+			# rows — the one row that must never be the one dropped is the row
+			# that says rows were dropped.
+			_rows.append({"text": "+%d more — %s cycles the lens" % [hidden,
+				keys[mode] if mode < keys.size() else "the lens key"],
+				"color": LcnOverlayPalette.with_a(LcnOverlayPalette.INK_DIM, 0.8),
+				"swatch": null})
+		h = _panel_height()
 	var panel := Rect2(origin, Vector2(WIDTH, h))
+	drawn_rect = panel
 	draw_rect(panel, LcnOverlayPalette.PANEL, true)
 	draw_rect(panel, LcnOverlayPalette.PANEL_EDGE, false, 1.5)
 	draw_rect(Rect2(origin, Vector2(4.0, h)), _accent(), true)
@@ -121,11 +229,15 @@ func _draw_panel() -> void:
 	var key: String = keys[mode] if mode < keys.size() else "-"
 	_text(Vector2(x, y), "%s   %s" % [LcnOverlayDefs.MODE_TITLES[mode], key], 18, LcnOverlayPalette.INK)
 	y += 20.0
+	# Every line below is clipped to the plate. The panel is a fixed width and the
+	# sentences in it are generated from live numbers, so "how wide can this get"
+	# is not a question this file can answer — only "how wide is it allowed to be".
+	var inner: float = WIDTH - PAD * 2.0
 	_text(Vector2(x, y), LcnOverlayDefs.MODE_BLURBS[mode], 13,
-		LcnOverlayPalette.with_a(LcnOverlayPalette.INK_DIM, 0.85))
+		LcnOverlayPalette.with_a(LcnOverlayPalette.INK_DIM, 0.85), inner)
 	y += 24.0
 	if snap != null:
-		_text(Vector2(x, y), snap.headline(), 15, _accent())
+		_text(Vector2(x, y), snap.headline(), 15, _accent(), inner)
 	y += 20.0
 
 	for r: Dictionary in _rows:
@@ -138,14 +250,14 @@ func _draw_panel() -> void:
 			draw_rect(sw, LcnOverlayPalette.with_a(LcnOverlayPalette.INK, 0.35), false, 1.0)
 			tx += 30.0
 		_text(Vector2(tx, y), String(r.get("text", "")), 14,
-			r.get("color", LcnOverlayPalette.INK) as Color)
+			r.get("color", LcnOverlayPalette.INK) as Color, inner - (tx - x))
 		y += ROW
 
 	var foot: String = "ALT hold: details      %s: cycle" % (keys[mode] if mode < keys.size() else "key")
 	if zoom_label != "":
 		foot += "      " + zoom_label
 	_text(Vector2(x, origin.y + h - PAD), foot, 12,
-		LcnOverlayPalette.with_a(LcnOverlayPalette.INK_DIM, 0.7))
+		LcnOverlayPalette.with_a(LcnOverlayPalette.INK_DIM, 0.7), inner)
 
 
 ## Red is reserved for something the player is actually LOSING. A binding
@@ -161,12 +273,19 @@ func _accent() -> Color:
 	return pal.good()
 
 
-func _text(at: Vector2, text: String, size: int, c: Color) -> void:
+## `max_w` is a hard clip, not a hint: Godot's `draw_string` truncates at the
+## width it is given. -1 means "no limit", which is right for the rail and the
+## hint (they are sized to their own text) and wrong for a panel row, which is
+## somebody's sentence about the grid inside a fixed 508 px plate. Measured in
+## `fixed_1920/shots/deep_night.png`: "8 cooling toward the line; soonest is the
+## coal_generator, already below the line" ran 40 px out of the right edge of
+## its own panel and onto the city.
+func _text(at: Vector2, text: String, size: int, c: Color, max_w: float = -1.0) -> void:
 	if text == "":
 		return
 	_font.draw_string_outline(get_canvas_item(), at, text, HORIZONTAL_ALIGNMENT_LEFT,
-		-1.0, size, 4 if pal.high_contrast else 3, Color(0.0, 0.0, 0.0, 0.85))
-	_font.draw_string(get_canvas_item(), at, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, size, c)
+		max_w, size, 4 if pal.high_contrast else 3, Color(0.0, 0.0, 0.0, 0.85))
+	_font.draw_string(get_canvas_item(), at, text, HORIZONTAL_ALIGNMENT_LEFT, max_w, size, c)
 
 
 # --- rows per lens ---------------------------------------------------------
@@ -198,11 +317,39 @@ func _row(text: String, c: Color = LcnOverlayPalette.INK, swatch: Variant = null
 	_rows.append({"text": text, "color": c, "swatch": swatch})
 
 
+## "1 building" / "4 buildings". THE LENS LEGEND WAS THE ONLY SURFACE IN THE GAME
+## THAT WROTE "(s)".
+##
+## Eleven rows of it — "89 node(s)", "8 turret(s)", "5 chokepoint(s)",
+## "23 damaged structure(s)" — against a HUD, a build sheet and a narrative layer
+## that all inflect properly and have helpers for it
+## (`LcnHudFormat.in_words`, `bottleneck_sentence`). It reads as a debug print
+## sitting inside the one panel whose entire job is to make a screenshot of this
+## game diagnosable, which is exactly where a form-feed voice does most damage.
+static func _n(count: int, word: String, plural: String = "") -> String:
+	if count == 1:
+		return "1 %s" % word
+	return "%d %s" % [count, plural if plural != "" else word + "s"]
+
+
+## Never an id. `String(kind)` put "turret_mount" and "coal_generator" into the
+## freeze and bottleneck rows — `LcnHudFormat` opens with "Never print an id" and
+## carries the registry lookup that makes it possible, and this panel simply was
+## not calling it.
+static func _title(kind: StringName) -> String:
+	return LcnHudFormat.building_title(kind)
+
+
 func _rows_summary() -> void:
 	var t: Dictionary = snap.totals
-	_row("%d building(s) on %d grid(s)" % [snap.node_count, snap.nets.size()])
-	_row("delivered %.0f of %.0f u/s, loss %.0f" % [
-		float(t.get("delivered", 0.0)), float(t.get("demand", 0.0)), float(t.get("loss", 0.0))])
+	_row("%s on %s" % [_n(snap.node_count, "building"), _n(snap.nets.size(), "grid")])
+	# `demand - deficit`, through `LcnHudFormat.rate`, because [P17]'s heat panel
+	# headlines exactly that and a legend is not a second opinion.
+	var demand_all: float = float(t.get("demand", 0.0))
+	var met_all: float = maxf(0.0, demand_all - float(t.get("deficit", 0.0)))
+	_row("delivered %s of %s heat/s, loss %s" % [
+		LcnHudFormat.rate(met_all), LcnHudFormat.rate(demand_all),
+		LcnHudFormat.rate(float(t.get("loss", 0.0)))])
 
 
 func _rows_networks() -> void:
@@ -213,19 +360,21 @@ func _rows_networks() -> void:
 		var slot: int = int(n.get("slot", 0))
 		var deficit: float = float(n.get("deficit", 0.0))
 		var producers: int = int(n.get("producers", 0))
-		var text: String = "%s GRID %d   %.0f/%.0f u/s   %d node(s)" % [
+		var demand: float = float(n.get("demand", 0.0))
+		var met: float = maxf(0.0, demand - deficit)
+		var text: String = "%s GRID %d   %s/%s heat/s   %s" % [
 			pal.network_mark(slot), int(n.get("id", 0)),
-			float(n.get("delivered", 0.0)), float(n.get("demand", 0.0)),
-			int(n.get("nodes", 0))]
+			LcnHudFormat.rate(met), LcnHudFormat.rate(demand),
+			_n(int(n.get("nodes", 0)), "node")]
 		var c: Color = LcnOverlayPalette.INK
 		if producers == 0:
 			text += "   NO SOURCE"
 			c = pal.bad()
 		elif deficit > 0.5:
-			text += "   short %.0f" % deficit
+			text += "   short %s" % LcnHudFormat.shortfall(deficit)
 			c = pal.bad()
 		elif float(n.get("buffer", 0.0)) > 0.0:
-			text += "   buffer %.0f" % float(n.get("buffer", 0.0))
+			text += "   buffer %s" % LcnHudFormat.rate(float(n.get("buffer", 0.0)))
 		_row(text, c, pal.network_color(slot))
 	if snap.nets.size() > 1:
 		_row("separate grids do not share heat", pal.warn())
@@ -234,27 +383,46 @@ func _rows_networks() -> void:
 func _rows_bottlenecks() -> void:
 	if snap.bottlenecks.is_empty():
 		_row("nothing is choking the grid right now", pal.good())
+	# A GRID THAT IS OUT OF HEAT IS ONE FACT, NOT THREE.
+	#
+	# [P02] attributes a `supply` bottleneck to every consumer cluster it choked,
+	# so a single starved grid arrives here as several rows — and they were worded
+	# identically, which is how `artifacts/play1/shots/dawn.png` came to print
+	#   grid 1 generating everything it has — 10 draw on it
+	#   grid 1 generating everything it has — 8 draw on it
+	#   grid 1 generating everything it has — 3 draw on it
+	# three lines that read as a stutter and cost the panel three of its twelve
+	# rows to say one thing. Capacity bottlenecks stay one row each: those really
+	# are different tiles and the tile is the whole point.
+	var starving: Dictionary[int, int] = {}
 	for b: Dictionary in snap.bottlenecks:
 		var cell: Array = b.get("cell", [0, 0])
 		if String(b.get("reason", "")) == "capacity":
-			_row("%s (%d, %d) at capacity %.0f/%.0f u/s — %d draw through it" % [
-				String(b.get("kind", "line")), int(cell[0]), int(cell[1]),
+			_row("%s (%d, %d) at capacity %.0f/%.0f heat/s — %d draw through it" % [
+				_title(StringName(String(b.get("kind", "line")))),
+				int(cell[0]), int(cell[1]),
 				float(b.get("load", 0.0)), float(b.get("capacity", 0.0)),
 				int(b.get("consumers", 0))], pal.bad())
 		else:
-			_row("grid %d generating everything it has — %d draw on it" % [
-				int(b.get("net", 0)), int(b.get("consumers", 0))], pal.bad())
+			var net: int = int(b.get("net", 0))
+			starving[net] = int(starving.get(net, 0)) + int(b.get("consumers", 0))
+	var nets: Array = starving.keys()
+	nets.sort()
+	for net2: int in nets:
+		_row("grid %d is generating everything it has — %s drawing on it" % [
+			net2, _n(int(starving[net2]), "building")], pal.bad())
 	var starved: int = snap.starved_count()
 	if starved > 0:
-		_row("%d building(s) below full heat; ring size is how short" % starved, pal.warn())
+		_row("%s below full heat; ring size is how short" % _n(starved, "building"),
+			pal.warn())
 
 
 func _rows_thermal() -> void:
-	_row("outside air %.0f C" % snap.ambient_c, pal.ice())
-	_row("warmest tile on screen %.0f C" % snap.warm_max, pal.warn())
-	_row("survival line %.0f C — outside it a working building freezes" % LcnThermalLens.SURVIVAL_C,
+	_row("outside air %.0f°C" % snap.ambient_c, pal.ice())
+	_row("warmest tile on screen %.0f°C" % snap.warm_max, pal.warn())
+	_row("survival line %.0f°C — outside it a working building freezes" % LcnThermalLens.SURVIVAL_C,
 		pal.ice())
-	_row("comfort line +%.0f C — below it every building costs more heat" % LcnThermalLens.COMFORT_C,
+	_row("comfort line +%.0f°C — below it every building costs more heat" % LcnThermalLens.COMFORT_C,
 		pal.good())
 	_row("palette: %s" % LcnOverlayPalette.vision_name(pal.vision),
 		LcnOverlayPalette.with_a(LcnOverlayPalette.INK_DIM, 0.8))
@@ -263,7 +431,9 @@ func _rows_thermal() -> void:
 func _rows_freeze() -> void:
 	var frozen: int = snap.frozen_count()
 	if frozen > 0:
-		_row("%d building(s) frozen — they do nothing until they thaw" % frozen, pal.ice())
+		_row("%s frozen — %s nothing until %s thaw%s" % [_n(frozen, "building"),
+			"it does" if frozen == 1 else "they do",
+			"it" if frozen == 1 else "they", "s" if frozen == 1 else ""], pal.ice())
 	var soon: int = 0
 	var worst: float = 1.0e9
 	var worst_kind: StringName = &""
@@ -276,11 +446,14 @@ func _rows_freeze() -> void:
 			worst = eta
 			worst_kind = snap.node_kind[i]
 	if soon > 0:
-		var when: String = "already below the line"
+		var when: String = "already below it"
 		if worst >= 1.0:
 			when = "in %ds" % int(round(worst))
-		_row("%d cooling toward the line; soonest is the %s, %s" % [
-			soon, String(worst_kind), when], pal.bad())
+		# Short enough to survive the 508 px plate. The old sentence ran off the
+		# right edge and `_text`'s hard clip cut it mid-word — "already below t" —
+		# which is a clip working exactly as designed on a sentence nobody sized.
+		_row("%s cooling toward the line; %s %s" % [_n(soon, "building"),
+			_title(worst_kind).to_lower(), when], pal.bad())
 	elif frozen == 0:
 		_row("nothing is freezing", pal.good())
 	_row("gauge tick = that building's own freeze point", LcnOverlayPalette.INK_DIM)
@@ -289,7 +462,7 @@ func _rows_freeze() -> void:
 		if snap.bld_hp[j] < 0.999:
 			damaged += 1
 	if damaged > 0:
-		_row("%d damaged structure(s)" % damaged, pal.warn())
+		_row(_n(damaged, "damaged structure"), pal.warn())
 
 
 func _rows_logistics() -> void:
@@ -307,11 +480,29 @@ func _rows_logistics() -> void:
 			dry += 1
 		elif snap.node_fuel[i] < LcnLogisticsLens.BUNKER_LOW:
 			low += 1
-	_row("%d generator(s): %d out of fuel, %d running low" % [burners, dry, low],
-		pal.bad() if dry > 0 else (pal.warn() if low > 0 else pal.good()))
+	# ZERO PROBLEMS IS NOT TWO PROBLEMS OF SIZE ZERO. This row read
+	# "2 generators: 0 out of fuel, 0 running low" on a city whose fuel chain was
+	# working perfectly (`artifacts/play_steady2/shots/dawn.png`) — a lens whose
+	# whole job is to point at what is wrong, printing the names of two things
+	# that are not wrong. The clauses now appear only when they have a number to
+	# carry, and a clean chain gets the one word a player needs.
+	var fuel_note: String = ""
+	if burners == 0:
+		fuel_note = "nothing in this city burns anything yet"
+	elif dry == 0 and low == 0:
+		fuel_note = "%s, every bunker fed" % _n(burners, "generator")
+	else:
+		fuel_note = "%s: " % _n(burners, "generator")
+		var parts: PackedStringArray = PackedStringArray()
+		if dry > 0:
+			parts.append("%d out of fuel" % dry)
+		if low > 0:
+			parts.append("%d running low" % low)
+		fuel_note += ", ".join(parts)
+	_row(fuel_note, pal.bad() if dry > 0 else (pal.warn() if low > 0 else pal.good()))
 	if probe.has_stalls():
 		var stalls: int = probe.stalls().size()
-		_row("%d machine(s) stalled" % stalls, pal.bad() if stalls > 0 else pal.good())
+		_row("%s stalled" % _n(stalls, "machine"), pal.bad() if stalls > 0 else pal.good())
 
 
 func _rows_coverage() -> void:
@@ -324,7 +515,7 @@ func _rows_coverage() -> void:
 	if turrets == 0:
 		_row("no turrets built", pal.warn())
 	else:
-		_row("%d turret(s), longest reach %.0f tiles" % [turrets, reach], pal.good())
+		_row("%s, longest reach %.0f tiles" % [_n(turrets, "turret"), reach], pal.good())
 	if not snap.probe.has_combat():
 		_row("no combat system yet — reach is the weapon definition, unverified",
 			LcnOverlayPalette.INK_DIM)
@@ -339,7 +530,7 @@ func _rows_coverage() -> void:
 		if (f & LcnOverlayDefs.F_NO_NETWORK) != 0 or (f & LcnOverlayDefs.F_UNREACHABLE) != 0:
 			unpowered += 1
 	if unpowered > 0:
-		_row("%d structure(s) on no grid at all (hatched)" % unpowered, pal.bad())
+		_row("%s on no grid at all (hatched)" % _n(unpowered, "structure"), pal.bad())
 	if snap.grid != null:
-		_row("%d chokepoint(s) marked on the approach lanes" % snap.grid.chokepoints().size(),
+		_row("%s marked on the approach lanes" % _n(snap.grid.chokepoints().size(), "chokepoint"),
 			LcnOverlayPalette.INK_DIM)

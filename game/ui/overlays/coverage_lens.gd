@@ -48,6 +48,7 @@ func _draw() -> void:
 	_draw_unpowered()
 	_draw_lanes()
 	_flush()
+	flush_labels()
 	draw_us = Time.get_ticks_usec() - t0
 
 
@@ -76,8 +77,9 @@ func _draw_turrets() -> void:
 		for _k: int in _ring_segments(radius):
 			_ring_cols.append(LcnOverlayPalette.with_a(c, 0.55))
 		if alt or wpp < 1.2:
-			label(centre + Vector2(0.0, -radius - px(6.0)),
-				"%.0f tiles" % reach, 13.0, c, true)
+			word(centre + Vector2(0.0, -radius - px(6.0)),
+				"%.0f tiles" % reach, 13.0, c, LcnLabelField.Rank.AMBIENT, 8,
+				"range", false, true)
 
 
 func _ring_segments(radius: float) -> int:
@@ -119,8 +121,9 @@ func _draw_crew() -> void:
 			push_lines(dashed, LcnOverlayPalette.with_a(c, 0.9))
 			if shown < 14 and (alt or wpp < 1.4):
 				shown += 1
-				label(r.position + Vector2(0.0, -px(8.0)),
-					"crew %d/%d" % [have, need], 13.0, c)
+				word(r.position + Vector2(0.0, -px(8.0)),
+					"crew %d/%d" % [have, need], 13.0, c,
+					LcnLabelField.Rank.FIGURE, 5, "crew")
 	flush_lines(stroke(1.7))
 
 
@@ -188,7 +191,8 @@ func _draw_lanes() -> void:
 		for _k: int in 24:
 			_mark_cols.append(LcnOverlayPalette.with_a(pal.bad(), 0.55))
 		if alt:
-			plate(r.get_center() + Vector2(px(12.0), 0.0), "CHOKEPOINT", 13.0, pal.bad())
+			word(r.get_center() + Vector2(px(12.0), 0.0), "CHOKEPOINT", 13.0,
+				pal.bad(), LcnLabelField.Rank.VERDICT, 3, "chokepoint", true)
 
 
 func _flush() -> void:

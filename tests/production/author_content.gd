@@ -167,6 +167,38 @@ func _recipes() -> Array[RecipeDef]:
 	stores.tint = Color(0.8, 0.74, 0.5)
 	out.append(stores)
 
+	# THE THIRD THING THE SAME CREW CAN BRING BACK, AND THE ONE THAT UNLOCKS THE
+	# TOP HALF OF THE TREE. `pipe_segment` and `circuit` both want copper_coil,
+	# heat_core wants both of them, and a warmth_radiator costs 20 coil to place
+	# — so before this recipe existed, copper was a RAW material with no source
+	# inside the walls and the graph above depth 3 could not be entered at all
+	# without a mine. The nearest copper field on the reference map is 37 tiles
+	# south-east, past the wall, past the lanes [P08] uses.
+	#
+	# THE RATIO IS THE DESIGN AND IT IS DELIBERATELY BAD: 2 copper_ore per 12.5 s
+	# is 0.16/s, against the 0.80 ore/s ONE drill lifts. Five sorters to feed one
+	# copper smelter. Salvage is how a city that cannot yet afford an expedition
+	# gets its first coil; mining is how it stops being poor. A player who reads
+	# that ratio off the tooltip has been told, in numbers, to go take the field.
+	var wire := _recipe("salvaged_wire", "Salvaged Wire",
+		"Armoured cable cut out of the buried streets and burned back to metal. Eight crates of rubble for two of copper: a fifth of what one drill lifts, which is exactly why the copper field is worth thirty tiles of pipe.",
+		&"salvage", 2)
+	wire.inputs = {&"scrap": 8} as Dictionary[StringName, int]
+	wire.outputs = {&"copper_ore": 2} as Dictionary[StringName, int]
+	wire.time_ticks = 250
+	wire.machines = [&"rubble_sorter"] as Array[StringName]
+	wire.machine_tags = [&"sorter"] as Array[StringName]
+	# 45 over 12.5 s = 3.6 u/s against the sorter's 6 u/s rating. Burning cable
+	# clean costs more heat per second than picking rubble (2.0 u/s) and less
+	# than the machine can draw, so it is the salvage recipe a brownout slows
+	# first and stops last.
+	wire.heat_cost = 45.0
+	wire.waste_heat = 4.0
+	wire.min_temperature_c = -25.0
+	wire.sort_order = 30
+	wire.tint = Color(0.84, 0.52, 0.36)
+	out.append(wire)
+
 	# ------------------------------------------------------------- parts ----
 	# 2 plate -> 1 gear every 5 s = 0.20 gear/s, drawing 0.40 plate/s.
 	# ONE IRON SMELTER FEEDS ONE GEAR SHOP.

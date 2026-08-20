@@ -37,6 +37,38 @@ extends Resource
 ## minutes to build and a little under three minutes to survive.
 @export var phase_starts: PackedInt32Array = PackedInt32Array([0, 960, 3072, 5376, 6336, 8256])
 
+## WHERE A NEW RUN BEGINS, as a tick inside day 1. Not zero, and the reason is
+## the first screen a player ever sees.
+##
+## Tick 0 is the first instant of the DAWN phase, and [P13]'s PHASE_ARC maps the
+## start of dawn onto palette time 0.235 — which sits between the palette's
+## `night` keyframe (0.19) and its `dawn` keyframe (0.27), where the grade's
+## `wild` term is still ~0.49 and crushes bare snow to a fifth of its albedo.
+## So a new game opened at 19/255 mean luminance under a HUD that read "Dawn":
+## the palette was right, the clock was right, the START POINT was wrong.
+##
+## 2016 is mid-MORNING, palette time ~0.42 — decisively between the palette's
+## `morning` (0.37) and `noon` (0.50) keyframes. The HUD says "Morning" and the
+## screen looks like morning. Measured on the first_night opening shot, world
+## layer only: mean luminance 19.2/255 at tick 0, 32.9/255 here. The whole sweep,
+## same scenario, same shot, same metric:
+##
+##     tick 0 (dawn)  19.2   |  960 (morning)  27.4
+##     tick 1408      30.8   |  2016 (this)    32.9  |  3072 (noon)  39.3
+##
+## Noon is brighter still and was rejected: it opens the game in the AFTERNOON
+## phase with the wave director already at 29% and 2:42 left on the clock. A
+## first screen should be the calm before, not the middle of.
+##
+## What it costs: nightfall is 4320 ticks (216 s / 3:35) away instead of 316.8 s.
+## Day 1 still gives more daylight to build in than darkness to survive — which
+## is the shape day 1 is supposed to have — and every phase after this one lands
+## exactly where `phase_starts` says it does.
+##
+## Clamped into [0, night_start_tick) by validate(): a run may not begin after
+## nightfall, because "you lost before you looked" is not a difficulty setting.
+@export var opening_tick: int = 2016
+
 ## Sun elevation curve, 0 = pitch dark, 1 = full noon. Keyed on day progress 0..1,
 ## smoothstep-interpolated between keys. Peaks mid-afternoon (0.44) and is flat
 ## black from 0.72 to dawn — that flat stretch is where deep night gets its teeth.
@@ -231,6 +263,12 @@ func validate() -> bool:
 	phase_starts[0] = 0
 	for i: int in range(1, phase_starts.size()):
 		phase_starts[i] = clampi(phase_starts[i], phase_starts[i - 1] + 1, day_ticks - (ClimateDefs.PHASE_COUNT - i))
+
+	# A run that begins after nightfall is a run the player has already lost.
+	var opening_max: int = maxi(0, night_start_tick() - 1)
+	if opening_tick < 0 or opening_tick > opening_max:
+		opening_tick = clampi(opening_tick, 0, opening_max)
+		ok = false
 
 	if sun_key_progress.size() != sun_key_value.size() or sun_key_progress.size() < 2:
 		sun_key_progress = PackedFloat32Array([0.0, 0.44, 0.72, 1.0])

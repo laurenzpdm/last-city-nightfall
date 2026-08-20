@@ -1,5 +1,13 @@
 .godot/
 artifacts/
 /build/
+# [P24]'s Steam export writes the Linux and Windows builds here — 272 MB of
+# binaries that are rebuilt from source by definition. export_presets.cfg is
+# the part worth keeping; its output is not.
+/dist/
+# Godot only reads export presets from the project root, so [P24] copies its
+# master there at export time (game/ui/meta/export_build.gd:25). The master is
+# game/content/meta/export_presets.cfg and is tracked; this is its footprint.
+/export_presets.cfg
 *.import
 __pycache__/

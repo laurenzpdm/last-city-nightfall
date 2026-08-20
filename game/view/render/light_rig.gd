@@ -113,7 +113,7 @@ func update(grade: Dictionary, view: Rect2, model: LcnWorldModel, lights_on: boo
 		# A critic looking at the deep-night frame saw two blown-out white blobs
 		# and 206 invisible buildings; the readability now comes from the light
 		# rig's bounce term, not from cranking the point lights until they clip.
-		l2.energy = clampf(0.34 * intensity * energy * flicker, 0.0, 1.25)
+		l2.energy = clampf(0.40 * intensity * energy * flicker, 0.0, 1.05)
 		l2.enabled = true
 	_active = n
 

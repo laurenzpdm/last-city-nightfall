@@ -279,7 +279,16 @@ func _draw_grid(t: LcnStatsTheme, r: Rect2) -> void:
 		v += step
 
 	# Time axis: four verticals, labelled with the world clock.
-	var divisions: int = 4
+	#
+	# NEVER MORE LABELS THAN THE SERIES HAS MOMENTS. The recorder samples every
+	# hundred ticks, so a five-second window holds three samples and five evenly
+	# spaced labels resolved to the same three clocks:
+	# `artifacts/play_tour/shots/06_lcn_stats.png` reads "0:00 0:05 0:05 0:10
+	# 0:10" under an empty chart. A repeated tick mark is not a rounding wart —
+	# it tells a player the two gridlines between them mean nothing, which for
+	# once is exactly true and exactly the wrong thing to say.
+	var divisions: int = clampi(_count - 1, 1, 4)
+	var last_label: String = ""
 	for i: int in range(divisions + 1):
 		var f: float = float(i) / float(divisions)
 		var x: float = r.position.x + r.size.x * f
@@ -288,6 +297,9 @@ func _draw_grid(t: LcnStatsTheme, r: Rect2) -> void:
 				t.GRID, 1.0)
 		var tick: int = track.tick_at(_from + int(roundf(f * float(maxi(1, _count - 1)))))
 		var label: String = LcnStatsTheme.ticks_as_clock(tick)
+		if label == last_label:
+			continue
+		last_label = label
 		var align: float = 0.0 if i == 0 else (-1.0 if i == divisions else -0.5)
 		var w: float = t.text_width(label, size_small)
 		t.text(self, Vector2(x + align * w, r.position.y + r.size.y + size_small + 5.0),

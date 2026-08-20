@@ -28,10 +28,31 @@ var hud: Node = null
 ## {rect: Rect2, title: String, body: String, action: StringName, arg: Variant}
 var hot: Array[Dictionary] = []
 
+## How loud this panel is meant to be in the composition the screen is currently
+## in, 0..1. Set by `LcnHud._place_panels` from `LcnHudLayout.EMPHASIS`; a panel
+## never decides its own prominence, because prominence is a comparison and a
+## panel cannot see its neighbours.
+##
+## It moves two things and deliberately no more: the lamplight on the plate, and
+## the panel's overall alpha. The floor is 0.62 rather than 0 — a HUD that fades
+## a panel to the point of illegibility has stopped composing and started hiding.
+var emphasis: float = 1.0:
+	set(value):
+		var v: float = clampf(value, 0.0, 1.0)
+		if is_equal_approx(v, emphasis):
+			return
+		emphasis = v
+		modulate.a = 0.62 + 0.38 * v
+		queue_redraw()
+
 var hover_index: int = -1
 var key_index: int = -1
 var _signature: String = ""
 var _dirty: bool = true
+## Lowest alpha this panel's plate may fall to, whatever the composition says.
+## Zero for every panel but one: see `LcnHudStyle.draw_plate`. A panel the world
+## reads through is a panel a player has to read twice.
+var plate_floor: float = 0.0
 var _panel_seed: int = 1
 
 
@@ -91,6 +112,25 @@ func layout() -> void:
 ## Forces the next refresh to redraw even if nothing changed (scale, palette).
 func invalidate() -> void:
 	_dirty = true
+
+
+## THE BACKSTOP. `LcnHud` calls this with the height the composition actually had
+## room for, after the solve. Panels that can shed content gracefully — the
+## attention stack, the selection panel — do that first through their own
+## `max_height`; this is what catches everything else.
+##
+## It exists because a panel that REPORTS one height and DRAWS another makes
+## every rectangle placed beneath it wrong, and the failure is silent: the solver
+## believes there is no overlap and the screen has one. Measured at ui 1.6 with
+## large type, the unclamped right column put the heat panel 40 px through the
+## attention stack under it. `clip_contents` is what makes the pixels and the
+## rectangle agree.
+func clamp_height(h: float) -> void:
+	if h <= 0.0 or size.y <= h + 0.5:
+		return
+	clip_contents = true
+	custom_minimum_size = Vector2(custom_minimum_size.x, h)
+	size = Vector2(size.x, h)
 
 
 # =======================================================================  hot =
@@ -231,7 +271,11 @@ func content_top() -> float:
 ## Returns `content_top()` so a `_draw` can start where `layout` did.
 func draw_frame(title: String, sev: int = S.Sev.CALM, lit: float = 0.35) -> float:
 	var rect := Rect2(Vector2.ZERO, size)
-	style.draw_plate(self, rect, lit, sev, _panel_seed)
+	# Emphasis rides ON TOP of whatever light the panel asked for, so a panel that
+	# lights itself for a reason of its own still gets to; it just does it louder
+	# when the composition wants it read first.
+	style.draw_plate(self, rect, clampf(lit * (0.55 + 0.75 * emphasis), 0.0, 1.0),
+		sev, _panel_seed, plate_floor)
 	if title == "":
 		return content_top()
 	var y: float = title_baseline()

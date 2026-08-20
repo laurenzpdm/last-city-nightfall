@@ -14,16 +14,70 @@ extends RefCounted
 ## ── CANVAS LAYERS ────────────────────────────────────────────────────────────
 ##
 ##   0   WORLD          [P13] terrain, entities, lights (a plain Node2D canvas)
+##                      — and four other parts paint inside it. See the Z LADDER
+##                        below: layer 0 is shared, so the ordering there is by
+##                        `z_index` and it is allocated here like everything else.
 ##   60  POST           [P13] grade, bloom, vignette, grain, cold split
 ##   61  FEEL_SCREEN    [P15] hit flashes, freeze frames, screen impulses
 ##   62  OVERLAY_WORLD  [P19] readability lenses + world badges  ← WORLD SPACE
 ##   65  HUD            [P17] clock, vitals, stocks, alerts, selection
+##   66  NARRATIVE      [P22] the dilemma card — over the world, under the work
+##   67  TUTORIAL       [P21] the guide strip — chrome, never a modal
 ##   72  OVERLAY_UI     [P19] the lens legend and key rail       ← SCREEN SPACE
 ##   74  BUILD_MENU     [P18] palette, recipes, tech, blueprints, laws
 ##   76  STATS          [P20] production graphs, flow history, the night report
-##   78  NARRATIVE      [P22] the dilemma card — it is answered, so it is on top
-##   80  MODAL          reserved: [P21] tutorial gates, [P24] settings, pause
+##   80  MODAL          [P24] title, pause, settings, saves — it stops the world
 ##   90  DEBUG          reserved: profiler HUDs, harness annotations
+##
+## NARRATIVE AND TUTORIAL USED TO BE 78 AND 79 — ABOVE EVERY WORK SURFACE — AND
+## THAT WAS THE SECOND HALF OF THIS BUILD'S BIGGEST VISUAL DEFECT. The reasoning
+## in the old row was "the card is answered, so it is on top", and it does not
+## hold: **a surface only earns the top of the stack by stopping the world, and
+## the card does not stop the world.** It has a deadline that runs whether it is
+## read or not, the simulation keeps ticking behind it, and the player can walk
+## away from it — which is the definition of non-modal. MODAL (80) is the one
+## layer that stops the game and it is [P24]'s alone.
+##
+## What the old order cost, in the tour's own frames: in
+## `artifacts/ui_tour/shots/01_palette.png` the card covers the entire cost
+## column of every building in [P18]'s palette, so a player cannot read what
+## anything costs while a story card is up. Six of six tour screenshots are the
+## same defect — palette, recipes, tech, blueprints, laws, stats — and it also
+## landed on `artifacts/d2_belt_gallery/01_four_states.png`, the gallery that
+## exists to grade belt art.
+##
+## THE RULE THIS ADDS, and `table_violations()` / `violations()` enforce it:
+## **a non-modal surface may never sit above a surface the player opened on
+## purpose.** The player pressed B; the answer to B is not a story card.
+##
+## The card is still ABOVE the HUD (65), because [P17] draws its scrim there and
+## the scrim has to land between the world and the card. Under the legend (72)
+## costs nothing: `tests/d7/run_layout_audit.tscn` already fails a card that
+## overlaps the legend at all, so the two never share a pixel to argue over.
+## [P22] additionally stands its card down entirely while a work surface is open
+## — see `game/narrative/narrative_card.gd` — so the fix is order AND yield, not
+## order alone: a card poking out from behind a 982 px palette is still clutter.
+##
+## ONE CONSEQUENCE, WRITTEN DOWN RATHER THAN DISCOVERED: `LcnHarness` hides
+## `layer >= LcnLayers.NARRATIVE` for the `.world` variant of every screenshot.
+## With NARRATIVE at 66 that selector now means "everything drawn over the city",
+## legend and panels included, instead of "the card, the guide and the pause
+## menu". For a frame whose whole job is to show the city with the chrome taken
+## off, that is the reading it should always have had.
+##
+## 67 EXISTS BECAUSE TWO PARTS BOTH TOOK 80. The tutorial row used to read
+## "reserved: [P21] tutorial gates, [P24] settings, pause", and both parts read
+## it and obeyed it: `LcnTutorial` and `LcnMetaRoot` came up on layer 80
+## together, and NEITHER had a row in SLOTS — so `enforce()` had nothing to
+## correct, `audit()` called both unclaimed, and boot logged them as layers it
+## did not know about on every launch. Two CanvasLayers with the same `layer`
+## are ordered by the order they reached the viewport's canvas, which here is
+## decided by one installing from `PENDING` and the other from a `.tres` the
+## Registry scans — a tie-break neither part can see, state, or test. A slot two
+## parts share is not an allocation, it is a coincidence that has not bitten yet.
+## The tutorial is chrome the player reads WHILE playing; MODAL is the layer that
+## stops the world, and it is [P24]'s alone. Verified with `tools/layer_probe.gd`
+## against a real display: ten canvas layers, ten rows, no two on one number.
 ##
 ## THE RULE, in one sentence: **anything drawn in world coordinates goes UNDER
 ## the interface, anything drawn in screen coordinates goes OVER the world.**
@@ -33,6 +87,44 @@ extends RefCounted
 ## a lens is a thing painted on the ground, and the ground does not get to cover
 ## the clock. The legend is not a lens: it is chrome, it lives in screen space,
 ## and it belongs on top with the rest of the chrome.
+##
+## ── THE Z LADDER INSIDE LAYER 0 ──────────────────────────────────────────────
+##
+## Five parts draw in world coordinates on the one canvas, and `enforce()` cannot
+## help there: `z_index` is a property of a CanvasItem, not of a CanvasLayer, so
+## nothing audits it. This is the allocation, read off the running build:
+##
+##   -100  terrain quad                    [P13] terrain_renderer
+##    -40  building shadows                [P13] entity_renderer ShadowPass
+##    -20  building glow                   [P13] entity_renderer GlowPass
+##    -18  idle life (smoke, birds)        [P15] idle_life
+##      0  entities, lights, vfx root      [P13] / [P17]
+##      1  belt surfaces                   [D2] item_flow_root Z_BELTS
+##      3  items in flight                 [D2] item_flow_root Z_ITEMS
+##      4  inserters, splitters, tunnels   [D2] item_flow_root Z_MACHINES
+##      5  world juice                     [P15] world_fx
+##      6  hover feedback                  [P15] hover_fx
+##      7  hostile halo                    [P13] entity_renderer FoeHaloPass
+##      8  decay                           [P14] vfx_decay
+##     20+ particles, combat, weather      [P14] vfx_*
+##
+## [D2] asked for the rows at 1/3/4 rather than taking a canvas layer of its own,
+## which was the right call: an item on a belt is a thing lying on the ground and
+## a canvas layer above the HUD is not where the ground goes. The gap between the
+## simulation paint (1–4) and the juice (5) is deliberate — juice reads as
+## something happening TO the factory, so it goes over it.
+##
+## ROW 7 IS HERE BECAUSE THE LADDER'S OWN LESSON REPEATED ITSELF ONE RUNG LOWER.
+## [P13]'s hostile halo — the mark that exists so nothing the player built can
+## hide a monster — shipped on z 5, reading the rows at 1/3/4 above it and
+## stopping there. 5 is [P15]'s world juice. Neither part was wrong about its own
+## intent and neither could see the other, which is the same shape as [P21] and
+## [P24] both coming up on canvas layer 80: two CanvasItems on one z are ordered
+## by the order they reached the canvas, and a slot two parts share is not an
+## allocation. The halo is on 7 now — the free rung that still clears the
+## factory and still sits under [P14]. THIS LADDER IS THE ALLOCATION; a part
+## that picks a rung by reading only the rows it cares about will land on
+## somebody.
 ##
 ## ── HOTKEYS ──────────────────────────────────────────────────────────────────
 ##
@@ -73,12 +165,22 @@ const POST: int = 60
 const FEEL_SCREEN: int = 61
 const OVERLAY_WORLD: int = 62
 const HUD: int = 65
+const NARRATIVE: int = 66
+const TUTORIAL: int = 67
 const OVERLAY_UI: int = 72
 const BUILD_MENU: int = 74
 const STATS: int = 76
-const NARRATIVE: int = 78
 const MODAL: int = 80
 const DEBUG: int = 90
+
+## Surfaces the player OPENED ON PURPOSE and closes with Escape. Whatever is on
+## one of these is the thing they asked to look at.
+const WORK_SURFACES: Array[StringName] = [&"build_menu", &"stats"]
+
+## Surfaces that are drawn over the world but do NOT stop it: the story card and
+## the guide strip. The simulation runs behind both, both can be ignored, and
+## neither may cover a work surface. See `table_violations()`.
+const NON_MODAL: Array[StringName] = [&"narrative", &"tutorial"]
 
 ## Where boot looks for a subsystem that has not landed yet. A part is reachable
 ## the moment it puts a Node class at this path; until then boot says out loud,
@@ -87,8 +189,14 @@ const PENDING: Array[Dictionary] = [
 	{"key": &"stats", "owner": "P20 stats", "hotkey": "G",
 		"script": "res://game/ui/stats/stats_root.gd", "layer": STATS,
 		"why": "production graphs, flow history and the night report"},
-	{"key": &"tutorial", "owner": "P21 tutorial", "hotkey": "F1 help",
-		"script": "res://game/ui/tutorial/tutorial_root.gd", "layer": MODAL,
+	# [P21] HAS LANDED — this row is what installs it, so it stays. Only the
+	# hotkey text was wrong: it advertised "F1 help", and F1 is [P19]'s
+	# readability lens, which `tests/boot/run_reachability.tscn` asserts. The
+	# guide took no key at all; it is mouse-only on real Buttons, like [P22]'s
+	# card. A row in this table that names a key another part owns is exactly
+	# the disagreement this file exists to prevent, even when it is only text.
+	{"key": &"tutorial", "owner": "P21 tutorial", "hotkey": "no key — mouse only",
+		"script": "res://game/ui/tutorial/tutorial_root.gd", "layer": TUTORIAL,
 		"why": "the first twenty minutes"},
 ]
 
@@ -112,6 +220,10 @@ const SLOTS: Array[Dictionary] = [
 		"names": ["LcnStatsRoot", "StatsRoot", "LcnStats"]},
 	{"key": &"narrative", "layer": NARRATIVE, "owner": "P22 narrative",
 		"names": ["LcnNarrativeCard", "NarrativeCard"]},
+	{"key": &"tutorial", "layer": TUTORIAL, "owner": "P21 tutorial",
+		"names": ["LcnTutorial", "LcnTutorialRoot"]},
+	{"key": &"meta", "layer": MODAL, "owner": "P24 meta",
+		"names": ["LcnMetaRoot", "MetaRoot"]},
 ]
 
 # --- hotkeys -----------------------------------------------------------------
@@ -179,6 +291,73 @@ static func view_wanted() -> bool:
 
 # --- enforcement -------------------------------------------------------------
 
+## The layer this table allocates to a key, or -1 when the key is not in it.
+static func layer_of(key: StringName) -> int:
+	for slot: Dictionary in SLOTS:
+		if StringName(slot["key"]) == key:
+			return int(slot["layer"])
+	return -1
+
+
+## THE RANK RULE, checked against the TABLE ALONE — no tree, no display, no
+## running game. Returns one sentence per broken pair, empty when the stack is
+## ordered.
+##
+## Three things it asserts, and each of them was wrong in a shipped build:
+##
+##   * a NON_MODAL surface is strictly BELOW every WORK_SURFACE. The card at 78
+##     and the guide at 79 covered the palette, the recipe browser, the tech
+##     tree, the Book of Laws and the statistics screen — six of six frames in
+##     `artifacts/ui_tour/shots/`;
+##   * a NON_MODAL surface is strictly ABOVE the HUD, because [P17] draws the
+##     scrim on the HUD layer and a scrim over its own card is a grey rectangle;
+##   * every one of them is strictly BELOW MODAL, which is the only layer
+##     allowed to stop the world.
+##
+## Separate from `violations()` on purpose: this one needs nothing but the file,
+## so it is cheap enough for a headless suite to run and cannot be excused by
+## "the part was not installed in this configuration".
+static func table_violations() -> PackedStringArray:
+	var out := PackedStringArray()
+	for row: Dictionary in table_rows():
+		out.append(String(row["why"]))
+	return out
+
+
+## The same rule as rows: {key, layer, why}. `violations()` folds these in so the
+## boot seam can name the offending PART and its layer in the log instead of
+## printing a sentence with no subject.
+static func table_rows() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for key: StringName in NON_MODAL:
+		var mine: int = layer_of(key)
+		if mine < 0:
+			out.append({"key": key, "layer": -1,
+				"why": "is named as non-modal but has no row in SLOTS"})
+			continue
+		for other: StringName in WORK_SURFACES:
+			var theirs: int = layer_of(other)
+			if theirs < 0:
+				out.append({"key": other, "layer": -1,
+					"why": "is named as a work surface but has no row in SLOTS"})
+				continue
+			if mine >= theirs:
+				out.append({"key": key, "layer": mine, "why":
+					("%s (%d) is not modal and must not sit above the work surface "
+					+ "%s (%d) — the player opened %s on purpose") % [
+					String(key), mine, String(other), theirs, String(other)]})
+		if mine <= HUD:
+			out.append({"key": key, "layer": mine, "why":
+				("%s (%d) must sit above the HUD (%d): [P17]'s scrim is drawn on the "
+				+ "HUD layer and has to land between the world and the card") % [
+				String(key), mine, HUD]})
+		if mine >= MODAL:
+			out.append({"key": key, "layer": mine, "why":
+				("%s (%d) must sit below MODAL (%d): only a surface that stops the "
+				+ "world may be on top") % [String(key), mine, MODAL]})
+	return out
+
+
 ## Every CanvasLayer in the tree, matched against the table.
 ## Rows: {key, owner, node, path, expected, actual, ok, known}
 static func audit(tree: SceneTree) -> Array[Dictionary]:
@@ -224,17 +403,53 @@ static func enforce(tree: SceneTree) -> PackedStringArray:
 	return notes
 
 
-## The one invariant a screenshot can betray: nothing drawn in world space may
-## sit above the HUD. Returns the offending rows, empty when the stack is sane.
+## The invariants a screenshot can betray. Returns the offending rows, empty
+## when the stack is sane. Rows always carry {key, owner, actual, why}.
+##
+##   1. nothing drawn in WORLD space may sit above the HUD;
+##   2. no CanvasLayer may disagree with its row in the table;
+##   3. NO NON-MODAL SURFACE MAY SIT ABOVE A WORK SURFACE — measured on the
+##      layer numbers the nodes REALLY have, so it catches both a wrong table
+##      and a part that ignores the table and sets its own number in `_ready`.
+##
+## Rule 3 is the one this build was missing. `enforce()` cannot find it: it only
+## corrects a layer that DISAGREES with the table, and a card at 78 agreed with
+## a table that said 78. Every check in the build was consistent with the defect,
+## which is why it took a critic and six screenshots to name it.
 static func violations(tree: SceneTree) -> Array[Dictionary]:
 	var bad: Array[Dictionary] = []
+	var live: Dictionary[StringName, Dictionary] = {}
 	for row: Dictionary in audit(tree):
 		var node: CanvasLayer = row["node"]
+		if bool(row["known"]):
+			live[StringName(row["key"])] = row
 		if node.follow_viewport_enabled and node.layer >= HUD:
-			bad.append(row)
+			bad.append(_with_why(row, "drawn in world space at or above the HUD"))
 		elif bool(row["known"]) and not bool(row["ok"]):
-			bad.append(row)
+			bad.append(_with_why(row, "disagrees with the table"))
+	for key: StringName in NON_MODAL:
+		if not live.has(key):
+			continue
+		var mine: int = int(live[key]["actual"])
+		for other: StringName in WORK_SURFACES:
+			if not live.has(other):
+				continue
+			var theirs: int = int(live[other]["actual"])
+			if mine >= theirs:
+				bad.append(_with_why(live[key],
+					"is not modal and is drawn at %d, over the work surface %s at %d"
+					% [mine, String(other), theirs]))
+	for row2: Dictionary in table_rows():
+		bad.append({"key": row2["key"], "owner": "the LcnLayers table itself",
+			"node": null, "path": "", "expected": -1, "actual": int(row2["layer"]),
+			"ok": false, "known": true, "why": String(row2["why"])})
 	return bad
+
+
+static func _with_why(row: Dictionary, why: String) -> Dictionary:
+	var out: Dictionary = row.duplicate()
+	out["why"] = why
+	return out
 
 
 static func _collect(node: Node, out: Array[CanvasLayer]) -> void:

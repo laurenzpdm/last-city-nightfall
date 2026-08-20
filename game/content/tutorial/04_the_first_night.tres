@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="LcnTutorialLesson" format=3]
+
+[ext_resource type="Script" path="res://game/ui/tutorial/tutorial_lesson.gd" id="1_lesson"]
+
+[resource]
+resource_name = "The first night"
+script = ExtResource("1_lesson")
+id = &"04_the_first_night"
+order = 40
+kicker = "Night"
+headline = "Hold what you have lit."
+body = "{enemies_alive} on the field. Turret uptime {turret_uptime}. Every shot is warmth taken out of somebody's house, so the grid goes short exactly when the guns are working. Watch it happen."
+action = "Nothing to build now. Dawn is in {dawn_seconds}."
+watch = Array[StringName]([&"enemies_alive", &"turret_uptime", &"heat_deficit", &"dawn_seconds"])
+done_when = Array[String](["waves_cleared >= 1"])
+urgent_when = Array[String](["enemies_alive >= 1"])
+focus = &""
+final_card = false

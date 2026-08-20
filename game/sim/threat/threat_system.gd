@@ -260,7 +260,7 @@ func step(tick: int) -> void:
 func threat_level() -> float:
 	if _plan == null:
 		return 0.0
-	var size: float = clampf(_plan.budget / _profile.level_reference_budget, 0.0, 1.0)
+	var size: float = _strength_norm(_plan.budget, _plan.wave)
 	if _state == ThreatDefs.WaveState.ACTIVE:
 		var left: float = _live_fraction()
 		return clampf(0.35 + 0.65 * size * (0.30 + 0.70 * left), 0.0, 1.0)
@@ -286,7 +286,7 @@ func next_wave_preview() -> Dictionary:
 		"locked": _plan.locked,
 		"active": _state == ThreatDefs.WaveState.ACTIVE,
 		"seconds_until": snappedf(maxf(0.0, seconds_until_wave()), 0.05),
-		"strength": snappedf(_strength_norm(_plan.budget), 0.001),
+		"strength": snappedf(_strength_norm(_plan.budget, _plan.wave), 0.001),
 		"strength_label": _plan.band_label(),
 		"set_piece": _plan.set_piece,
 		"title": _plan.title,
@@ -478,6 +478,7 @@ func _distribute(p: WavePlan) -> void:
 		return
 
 	var rows: Array[Dictionary] = []
+	var total_units: int = 0
 	for entry: Dictionary in p.composition:
 		var total: int = int(entry.get("count", 0))
 		if total <= 0:
@@ -488,60 +489,66 @@ func _distribute(p: WavePlan) -> void:
 		for i: int in p.vectors.size():
 			if counts[i] <= 0:
 				continue
-			# One packet per pulse, not one packet per kind. Fourteen hounds
-			# arriving on one tick is a blob the wall deletes in twenty seconds;
-			# the same fourteen in three pulses is a night.
-			for share: int in _pulses(counts[i]):
-				var g := WaveGroup.new()
-				g.enemy = StringName(String(entry.get("enemy", "")))
-				g.count = share
-				g.cost = per_unit * float(share)
-				g.vector = i
-				g.spawn_cell = p.vectors[i].entry_cell
-				p.spent += g.cost
-				rows.append({"g": g, "tier": def.tier if def != null else 1,
-					"cost": def.cost if def != null else 0.0})
+			rows.append({
+				"enemy": StringName(String(entry.get("enemy", ""))),
+				"count": counts[i],
+				"per_unit": per_unit,
+				"vector": i,
+				"tier": def.tier if def != null else 1,
+				"unit_cost": def.cost if def != null else 0.0,
+			})
+			total_units += counts[i]
 
 	# Arrival order: the small and the quick first, the heavy last. A night that
 	# opens with its anchor is one decision; a night that ends with it is five.
 	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var ga: WaveGroup = a["g"]
-		var gb: WaveGroup = b["g"]
 		if int(a["tier"]) != int(b["tier"]):
 			return int(a["tier"]) < int(b["tier"])
-		if absf(float(a["cost"]) - float(b["cost"])) > 0.0001:
-			return float(a["cost"]) < float(b["cost"])
-		if ga.vector != gb.vector:
-			return ga.vector < gb.vector
-		if ga.count != gb.count:
-			return ga.count > gb.count
-		return String(ga.enemy) < String(gb.enemy))
+		if absf(float(a["unit_cost"]) - float(b["unit_cost"])) > 0.0001:
+			return float(a["unit_cost"]) < float(b["unit_cost"])
+		if int(a["vector"]) != int(b["vector"]):
+			return int(a["vector"]) < int(b["vector"])
+		if int(a["count"]) != int(b["count"]):
+			return int(a["count"]) > int(b["count"])
+		return String(a["enemy"]) < String(b["enemy"]))
 
-	var n: int = rows.size()
-	for i: int in n:
-		var g2: WaveGroup = rows[i]["g"]
-		g2.delay_frac = 0.0 if n <= 1 else float(i) / float(n - 1)
-		g2.delay_ticks = int(round(float(_profile.spawn_window_ticks) * g2.delay_frac))
-		p.groups.append(g2)
+	# THE ECHELONS — why a night is a night and not a metronome.
+	#
+	# The old rule cut every kind on every vector into packets of four and spread
+	# the packets evenly, so a 28-unit night arrived as eight lots of four with
+	# 340 empty ticks between them and `combat.enemies_alive` never once passed 4.
+	# Now the night is cut into a handful of ARRIVAL MOMENTS instead, sized
+	# against the wave's own budget, and every group belonging to a moment lands
+	# on the same tick — a column of hounds with its breakers behind it, not four
+	# hounds, silence, four hounds.
+	var echelons: int = _profile.echelon_count(p.wave, total_units, p.budget)
+	var per_echelon: int = maxi(1, (total_units + echelons - 1) / echelons)
+	var e: int = 0
+	var room: int = per_echelon
+	for row: Dictionary in rows:
+		var left: int = int(row["count"])
+		while left > 0:
+			if room <= 0 and e < echelons - 1:
+				e += 1
+				room = per_echelon
+			# The last echelon has no ceiling: whatever the packing has not placed
+			# by then arrives with it. Dropping the remainder would break the one
+			# promise the telegraph makes — that exactly what was named turns up.
+			var take: int = left if e >= echelons - 1 else mini(left, room)
+			var g := WaveGroup.new()
+			g.enemy = row["enemy"]
+			g.count = take
+			g.cost = float(row["per_unit"]) * float(take)
+			g.vector = int(row["vector"])
+			g.spawn_cell = p.vectors[g.vector].entry_cell
+			g.echelon = e
+			g.delay_frac = 0.0 if echelons <= 1 else float(e) / float(echelons - 1)
+			g.delay_ticks = int(round(float(_profile.spawn_window_ticks) * g.delay_frac))
+			p.spent += g.cost
+			p.groups.append(g)
+			room -= take
+			left -= take
 	_stamp_arrivals(p)
-
-
-## Splits one packet into pulses of at most `pulse_max_units`, largest first, so
-## the counts always add back up exactly and the split is identical everywhere.
-func _pulses(total: int) -> PackedInt32Array:
-	var out: PackedInt32Array = PackedInt32Array()
-	if total <= 0:
-		return out
-	var per: int = maxi(1, _profile.pulse_max_units)
-	var n: int = mini(_profile.pulses_max, (total + per - 1) / per)
-	if n <= 1:
-		out.append(total)
-		return out
-	var base: int = total / n
-	var extra: int = total % n
-	for i: int in n:
-		out.append(base + (1 if i < extra else 0))
-	return out
 
 
 ## Turns each packet's place in the arrival window into a tick, against the
@@ -651,7 +658,7 @@ func _emit_warning(rung: int, precision: int, until_ticks: int) -> void:
 		"precision": precision,
 		"seconds_until": snappedf(seconds, 0.05),
 		"text": line,
-		"strength": snappedf(_strength_norm(_plan.budget), 0.001),
+		"strength": snappedf(_strength_norm(_plan.budget, _plan.wave), 0.001),
 		"strength_label": _plan.band_label(),
 		"directions": _plan.direction_labels(),
 		"set_piece": _plan.set_piece,
@@ -681,7 +688,7 @@ func _maybe_notice(p: WavePlan) -> void:
 		"storm_synced": p.storm_synced,
 		"storm": p.storm_title,
 		"text": line,
-		"strength": snappedf(_strength_norm(p.budget), 0.001),
+		"strength": snappedf(_strength_norm(p.budget, p.wave), 0.001),
 	})
 	_extern_end(t0)
 	Log.info(TAG, "set piece announced: %s" % line)
@@ -726,7 +733,7 @@ func _begin_wave() -> void:
 
 	var line: String = _format(_profile.wave_started_line, 3, 0.0)
 	var t0: int = _extern_begin()
-	Bus.wave_started.emit(_plan.wave, _strength_norm(_plan.budget))
+	Bus.wave_started.emit(_plan.wave, _strength_norm(_plan.budget, _plan.wave))
 	Bus.alert_raised.emit(ThreatDefs.MAX_BUS_SEVERITY, ThreatDefs.KEY_WAVE_STARTED, line, _focus())
 	Bus.narrative_event.emit(ThreatDefs.KEY_WAVE_STARTED, {
 		"wave": _plan.wave,
@@ -882,15 +889,37 @@ func _resolve_wave(at_dawn: bool) -> void:
 		and withdrew == 0
 	if wiped:
 		_waves_wiped += 1
-	var detail: String = "%d of %d put down%s" % [
+	# ENDS IN A FULL STOP, because a sentence the toll is appended to does not
+	# get one anywhere else. The dawn line careless_night actually raised read
+	#
+	#   Held, and it cost. Night 1 held. 0 of 6 put down, 1 structure lost Gone
+	#   by morning: Housing Block. Otto Salo did not come out. 8 hurt.
+	#
+	# — the one line the player reads at dawn, running two sentences together at
+	# the exact word where the arithmetic stops and the names begin.
+	var detail: String = "%d of %d put down%s." % [
 		int(outcome.get("killed", 0)), maxi(1, int(outcome.get("spawned", 0))),
 		"" if int(outcome.get("structures_lost", 0)) == 0
-			else ", %d structure(s) lost" % int(outcome.get("structures_lost", 0))]
+			else ", %d structure%s lost" % [int(outcome.get("structures_lost", 0)),
+				"" if int(outcome.get("structures_lost", 0)) == 1 else "s"]]
 	# The verdict comes FIRST, in words, because that is the thing a player needs
 	# before any of the numbers: was that a good night or a bad one.
 	var verdict: int = ThreatDefs.verdict_of(outcome, wiped, withdrew)
 	var line: String = "%s %s" % [ThreatDefs.verdict_label(verdict),
 		_profile.wave_cleared_line.replace("{wave}", str(_plan.wave)).replace("{detail}", detail)]
+	# WHAT THE NIGHT TOOK. A night that costs nothing is a night the player has no
+	# reason to have prepared for, and this build ran three of them with
+	# structures_lost flat at zero. The bill is read at dawn, in words, before any
+	# number: which buildings are missing and who was in them.
+	var toll_rows: Array[Dictionary] = _night_toll()
+	var toll_line: String = _night_toll_line()
+	if toll_line != "":
+		line = "%s %s" % [line, toll_line]
+	var toll_dead: int = 0
+	var toll_hurt: int = 0
+	for row: Dictionary in toll_rows:
+		toll_dead += (row.get("dead", []) as Array).size()
+		toll_hurt += int(row.get("hurt", 0))
 
 	var defence: Dictionary = _defence_delta()
 	_nights.append({
@@ -907,6 +936,10 @@ func _resolve_wave(at_dawn: bool) -> void:
 		"verdict": String(ThreatDefs.verdict_key(verdict)),
 		"structures_lost": int(outcome.get("structures_lost", 0)),
 		"breached": bool(outcome.get("breached", false)),
+		"dead": toll_dead,
+		"hurt": toll_hurt,
+		"toll": toll_rows,
+		"toll_text": toll_line,
 		"damage_taken": defence.get("damage_taken", 0.0),
 		"shots_fired": defence.get("shots", 0),
 		"heat_spent": defence.get("heat_spent", 0.0),
@@ -935,6 +968,10 @@ func _resolve_wave(at_dawn: bool) -> void:
 		"pressure_after": record.get("pressure_after", 1.0),
 		"withdrew": withdrew,
 		"wiped": wiped,
+		"dead": toll_dead,
+		"hurt": toll_hurt,
+		"toll": toll_rows,
+		"toll_text": toll_line,
 		"verdict": String(ThreatDefs.verdict_key(verdict)),
 		"verdict_text": ThreatDefs.verdict_label(verdict),
 		"ended_at_dawn": at_dawn,
@@ -964,6 +1001,8 @@ func _resolve_wave(at_dawn: bool) -> void:
 		int(defence.get("cold", 0)), int(defence.get("turrets", 0)),
 		float(defence.get("damage_taken", 0.0)), int(outcome.get("structures_lost", 0)),
 		" | THEY GOT THROUGH" if bool(outcome.get("breached", false)) else ""])
+	if toll_line != "":
+		Log.info(TAG, "night %d took: %s" % [_plan.wave, toll_line])
 
 
 ## Sends whatever is left of the night home. Combat turns them around and walks
@@ -1204,6 +1243,41 @@ func nights() -> Array[Dictionary]:
 	return _nights.duplicate(true)
 
 
+## What [P07] says this night cost, one row per structure with the names of
+## whoever was inside it. Empty in a build with no combat system — the siege
+## model is an abstraction and has nobody to lose.
+func _night_toll() -> Array[Dictionary]:
+	if _combat == null or not _combat.has_method("night_toll"):
+		return []
+	var raw: Variant = _combat.call("night_toll", _night_start_tick)
+	var out: Array[Dictionary] = []
+	if typeof(raw) != TYPE_ARRAY:
+		return out
+	for row: Variant in (raw as Array):
+		if typeof(row) == TYPE_DICTIONARY:
+			out.append(row)
+	return out
+
+
+func _night_toll_line() -> String:
+	if _combat == null or not _combat.has_method("night_toll_line"):
+		return ""
+	return String(_combat.call("night_toll_line", _night_start_tick))
+
+
+## Bodies the current plan puts on the map at its busiest single moment.
+func _peak_arrival() -> int:
+	if _plan == null:
+		return 0
+	var by_tick: Dictionary[int, int] = {}
+	for g: WaveGroup in _plan.groups:
+		by_tick[g.delay_ticks] = int(by_tick.get(g.delay_ticks, 0)) + g.count
+	var peak: int = 0
+	for k: int in by_tick.keys():
+		peak = maxi(peak, by_tick[k])
+	return peak
+
+
 func _building_count() -> int:
 	if _build != null and _build.has_method("building_count"):
 		return int(_build.call("building_count"))
@@ -1337,8 +1411,12 @@ func _format(line: String, precision: int, seconds: float) -> String:
 		.replace("{wave}", str(_plan.wave))
 
 
-func _strength_norm(budget: float) -> float:
-	return clampf(budget / _profile.level_reference_budget, 0.0, 1.0)
+## How hard a night should LAND on the player, 0..1. The profile owns the rule;
+## this system only remembers which night it is asking about, which is the whole
+## bug that shipped: a constant divisor made the first nightfall in a game named
+## after nightfall arrive at 0.01.
+func _strength_norm(budget: float, wave: int) -> float:
+	return _profile.strength_of(budget, wave)
 
 
 # ==========================================================================
@@ -1445,6 +1523,17 @@ func serialize() -> Dictionary:
 		"state": String(ThreatDefs.wave_state_name(_state)),
 		"threat_level": snappedf(threat_level(), 0.001),
 		"budget": snappedf(_plan.budget if _plan != null else 0.0, 0.01),
+		# THE TWO NUMBERS THIS PART WAS FAILING, IN THE ARTIFACT A CRITIC READS.
+		# `strength` is what the shake, the edge pulse and the mix multiply by —
+		# it used to read 0.01 on night one because it was divided by a day-45
+		# army. `peak_arrival` is the largest number of bodies that walk in on one
+		# tick of the current plan — it used to be 4 on every night of the
+		# campaign, for ever. Neither was in metrics.csv, which is why both
+		# survived a whole phase.
+		"strength": snappedf(_strength_norm(
+			_plan.budget if _plan != null else 0.0,
+			_plan.wave if _plan != null else 1), 0.001),
+		"peak_arrival": _peak_arrival(),
 		"waves_cleared": waves_cleared(),
 		"waves_wiped": _waves_wiped,
 		"waves_survived": _waves_survived,
@@ -1520,6 +1609,17 @@ func metrics() -> Dictionary:
 		"wave": _wave,
 		"threat_level": snappedf(threat_level(), 0.001),
 		"budget": snappedf(_plan.budget if _plan != null else 0.0, 0.01),
+		# THE TWO NUMBERS THIS PART WAS FAILING, IN THE ARTIFACT A CRITIC READS.
+		# `strength` is what the shake, the edge pulse and the mix multiply by —
+		# it used to read 0.01 on night one because it was divided by a day-45
+		# army. `peak_arrival` is the largest number of bodies that walk in on one
+		# tick of the current plan — it used to be 4 on every night of the
+		# campaign, for ever. Neither was in metrics.csv, which is why both
+		# survived a whole phase.
+		"strength": snappedf(_strength_norm(
+			_plan.budget if _plan != null else 0.0,
+			_plan.wave if _plan != null else 1), 0.001),
+		"peak_arrival": _peak_arrival(),
 		"waves_cleared": waves_cleared(),
 		"waves_wiped": _waves_wiped,
 		"waves_survived": _waves_survived,

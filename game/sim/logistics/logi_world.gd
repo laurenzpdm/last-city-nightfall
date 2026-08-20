@@ -75,11 +75,43 @@ var _heat: SimSystem = null
 var _build: SimSystem = null
 var _tick: int = 0
 
+## `(building_id, item, amount) -> accepted`, set by [LogisticsSystem] to
+## [P04]'s `offer_input`. Unset in a world with no production in it, and then a
+## delivery onto a machine falls back to that machine's buffer store exactly as
+## it did before this existed.
+##
+## THIS IS THE HALF OF THE INTERLOCK THAT MAKES A BELT WORTH LAYING. Without it
+## an arm could put ore ON a smelter's tile and the smelter would never see it:
+## the ore landed in the machine's [LogiStore], which production does not read,
+## and the smelter went on pulling the same ore out of the city stockpile at
+## unlimited range for free. Machines were fed by teleport and the whole
+## transport layer was a decoration bolted to a coal line.
+var machine_input: Callable = Callable()
+
 ## Items that could not be poured back onto a line after the player edited it.
 var spilled: int = 0
 var delivered_to_stores: int = 0
+## Fuel that reached a bunker BY ANY ROUTE — an arm swinging into it, or a
+## porter walking there. Do not read this as an automation number: for two waves
+## `logistics.fuel_by_machine` published exactly this counter under exactly that
+## name, and the gate band beside it read "1040 by machine against 1029 by
+## porter — the machines now carry more of this city's fuel than the people do".
+## 1029 of that 1040 WERE the porters. The arms had carried eleven units.
 var delivered_as_fuel: float = 0.0
+## The honest half: fuel an ARM put in a bunker. Nothing else touches it.
+var fuel_by_arm: int = 0
+## Items an arm or the end of a line put into a store or a machine buffer.
+var delivered_by_arm: int = 0
 var items_moved: int = 0
+## Ingredients this world put straight into a machine's mouth — the honest count
+## of "the belt fed the factory", as opposed to a plate landing on a shelf.
+var machine_fed: int = 0
+## Finished goods taken OFF a machine into its own buffer because an arm was
+## standing there to lift them. See [method LogisticsSystem.accept_output].
+var machine_taken: int = 0
+## Store owners holding goods a belt or an arm delivered that the machine could
+## not take at the time. Drained by [method LogisticsSystem._work_the_docks].
+var docks: Dictionary[int, bool] = {}
 
 
 func bind(heat: SimSystem, build: SimSystem) -> void:
@@ -178,6 +210,11 @@ func register_store(owner: int, store: LogiStore, cells: Array[Vector2i], origin
 	store_origin[owner] = origin
 	for c: Vector2i in cells:
 		store_cells[c] = owner
+	# A smelter finishing at the nose of a belt that has been backed up for two
+	# days is the same event as a chest being placed there, and the lines have to
+	# be told. Without this the belt keeps its Sink.NONE from before the machine
+	# existed and stays jammed for the rest of the run.
+	sinks_dirty = true
 
 
 func unregister_store(owner: int) -> void:
@@ -188,6 +225,7 @@ func unregister_store(owner: int) -> void:
 			store_cells.erase(c)
 	stores.erase(owner)
 	store_origin.erase(owner)
+	sinks_dirty = true
 
 
 ## Registers a [P11] burner's bunker so an arm can shovel coal into it.
@@ -197,6 +235,7 @@ func register_burner(owner: int, fuel: StringName, cells: Array[Vector2i]) -> vo
 		fuel_cells[c] = owner
 	if not store_origin.has(owner) and not cells.is_empty():
 		store_origin[owner] = cells[0]
+	sinks_dirty = true
 
 
 func unregister_burner(owner: int) -> void:
@@ -225,6 +264,29 @@ func line_fed_burners() -> Dictionary[int, bool]:
 		if arm == null or not arm.enabled:
 			continue
 		var owner: int = int(fuel_cells.get(arm.target_cell(), -1))
+		if owner >= 0:
+			out[owner] = true
+	return out
+
+
+## Store owners an enabled arm reaches INTO — "somebody is standing here to
+## carry what this makes away".
+##
+## The mirror of [method line_fed_burners], and it exists for the same reason:
+## [P03] only takes over a building's goods when the player has actually built
+## the thing that takes them over. A smelter with no arm on it keeps handing its
+## plate to the city stores the way it always has; put an arm on its face and the
+## plate starts coming out onto a belt instead. That is the whole opt-in, and it
+## is why turning this on cannot change a single existing run.
+func arm_drained_stores() -> Dictionary[int, bool]:
+	var out: Dictionary[int, bool] = {}
+	if store_cells.is_empty():
+		return out
+	for id: int in inserter_ids:
+		var arm: LogiInserter = entities.get(id)
+		if arm == null or not arm.enabled:
+			continue
+		var owner: int = int(store_cells.get(arm.source_cell(), -1))
 		if owner >= 0:
 			out[owner] = true
 	return out
@@ -383,8 +445,19 @@ func _resolve_sink(seg: LogiSegment) -> void:
 	seg.sink = LogiTypes.Sink.NONE
 	seg.sink_id = -1
 	var next: Vector2i = seg.exit_cell + seg.dir
+	seg.sink_cell = next
 	var e: LogiEntity = entity_at(next)
 	if e == null:
+		# A LINE THAT RUNS INTO A MACHINE FEEDS THE MACHINE. It did not, and
+		# that is why nothing but coal was ever on a belt in this game: only
+		# chests and other belts were sinks, so a belt laid nose-first against a
+		# smelter resolved to Sink.NONE, backed up, and was then reported as a
+		# "belt to nowhere". Every [P11] building with a buffer — a machine, a
+		# granary, a yard — and every burner's bunker is a destination, exactly
+		# as it already is for an arm swinging into it.
+		if int(store_cells.get(next, -1)) >= 0 or int(fuel_cells.get(next, -1)) >= 0:
+			seg.sink = LogiTypes.Sink.STORE
+			seg.sink_id = int(store_cells.get(next, int(fuel_cells.get(next, -1))))
 		return
 	match e.role():
 		LogiTypes.Role.SPLITTER:
@@ -542,13 +615,11 @@ func _push_out(seg: LogiSegment, lane: int, kind: int) -> bool:
 				return false
 			return side_target.lanes[seg.sink_lane].insert_at(kind, seg.sink_pos)
 		LogiTypes.Sink.STORE:
-			var st: LogiStore = stores.get(seg.sink_id)
-			if st == null:
-				return false
-			if st.insert(kind_name(kind), 1) <= 0:
-				return false
-			delivered_to_stores += 1
-			return true
+			# give_to_cell rather than a bare store insert, so the end of a belt
+			# and the end of an arm mean the same thing: a recipe input goes into
+			# the machine, coal goes into the bunker, and anything else lands on
+			# the shelf. It also counts the delivery once, in one place.
+			return give_to_cell(seg.sink_cell, kind_name(kind), 1, seg.exit_cell) > 0
 	return false
 
 
@@ -781,9 +852,16 @@ func _grab_from_belt(arm: LogiInserter, e: LogiEntity, cell: Vector2i, want: int
 func _arm_drop(arm: LogiInserter) -> bool:
 	if arm.held <= 0:
 		return true
+	# Which counters the drop lands in is decided by WHERE it lands, and only
+	# give_to_cell knows that. Reading the two totals either side of the call is
+	# how this stays true when a new kind of destination is added.
+	var fuel_before: float = delivered_as_fuel
+	var store_before: int = delivered_to_stores
 	var moved: int = give_to_cell(arm.target_cell(), arm.held_kind, arm.held, arm.cell)
 	if moved <= 0:
 		return false
+	fuel_by_arm += int(delivered_as_fuel - fuel_before)
+	delivered_by_arm += delivered_to_stores - store_before
 	arm.held -= moved
 	arm.moved += moved
 	items_moved += moved
@@ -822,11 +900,34 @@ func give_to_cell(cell: Vector2i, kind: StringName, amount: int, from_cell: Vect
 			return took
 	var owner: int = int(store_cells.get(cell, -1))
 	if owner >= 0:
+		# THE MACHINE'S OWN MOUTH FIRST, ITS SHELF SECOND. A recipe input goes
+		# straight into the machine's ingredient buffer, where production will
+		# actually consume it; anything the machine has no use for falls through
+		# to the buffer store and stays visible to the porters, exactly as
+		# before. An arm holding a plate a full smelter will not take keeps
+		# holding it, which is the back-pressure a player reads off the arm.
+		var fed: int = 0
+		if machine_input.is_valid():
+			fed = clampi(int(machine_input.call(owner, kind, amount)), 0, amount)
+			if fed > 0:
+				delivered_to_stores += fed
+				machine_fed += fed
+				if fed >= amount:
+					return fed
 		var st2: LogiStore = stores.get(owner)
 		if st2 != null:
-			var n2: int = st2.insert(kind, amount)
+			var n2: int = st2.insert(kind, amount - fed)
 			delivered_to_stores += n2
-			return n2
+			if n2 > 0 and machine_input.is_valid():
+				# THE SHELF IS A LOADING DOCK, NOT AN OUBLIETTE. A belt delivering
+				# copper into a shop that is still cutting gears has to leave it
+				# somewhere the shop can reach the day its recipe changes;
+				# LogisticsSystem drains this set into the machine's mouth every
+				# tick, so retooling a machine puts what is already stacked
+				# against its wall to work instead of stranding it.
+				docks[owner] = true
+			return fed + n2
+		return fed
 	return 0
 
 
@@ -984,6 +1085,86 @@ func idle_arms() -> int:
 		if arm != null and arm.idle_ticks >= IDLE_POLL_AFTER:
 			n += 1
 	return n
+
+
+## Could an item put on this cell ever be accepted by anything? The same
+## dispatch [method give_to_cell] uses, asked as a question — a belt, a chest, a
+## burner's bunker, or a machine's own buffer. Bare ground answers false.
+func accepts_delivery(cell: Vector2i) -> bool:
+	var e: LogiEntity = entity_at(cell)
+	if e != null and (e.is_transport() or e.role() == LogiTypes.Role.CHEST):
+		return true
+	if int(fuel_cells.get(cell, -1)) >= 0:
+		return true
+	return int(store_cells.get(cell, -1)) >= 0
+
+
+## Arms standing there holding goods they can never put down: the target cell is
+## bare ground with not even a construction site on it. Ascending, so the log
+## line is stable.
+##
+## THREE THINGS THIS DELIBERATELY IS NOT, each of which the first draft got wrong
+## and each of which would have made the warning wallpaper:
+##
+##   * NOT "idle". An idle arm is ambiguous — three of the four arms on the
+##     Hearth's south face are idle all day because the fourth, nearest the
+##     crate, takes everything off a four-tile belt first. That is a layout a
+##     player might want.
+##   * NOT "empty target". Every arm in the reference run points at empty ground
+##     at t761, because the burners under them are placed and not yet BUILT. An
+##     assistant that calls an unfinished factory a mistake is worse than none.
+##   * NOT "target is full". A full bunker accepts deliveries again in a second.
+##
+## An arm with something in its hand, aimed at snow, is none of those. It is
+## wrong, it stays wrong, and no amount of supply behind it will help.
+func arms_with_no_target() -> Array[int]:
+	var out: Array[int] = []
+	for id: int in inserter_ids:
+		var arm: LogiInserter = entities.get(id)
+		if arm == null or not arm.enabled or arm.held <= 0:
+			continue
+		var at: Vector2i = arm.target_cell()
+		if accepts_delivery(at) or _site_at(at):
+			continue
+		out.append(id)
+	out.sort()
+	return out
+
+
+## Is [P11] building something on this cell? A site is a promise, not a mistake.
+func _site_at(cell: Vector2i) -> bool:
+	if _build == null or not _build.has_method("building_at"):
+		return false
+	return _build.call("building_at", cell) != null
+
+
+## Lines that end in nothing AND have no arm reaching onto them anywhere: a run
+## of belt a player laid that cannot deliver a single item to anything, ever.
+##
+## Deliberately NOT the same question as "is it backed up". A saturated line
+## with a live consumer is a belt DOING ITS JOB with more supply than demand —
+## three of the four lines in the reference run are exactly that, one compressed
+## chain from the coal yard to the burner row, and reading their `blocked`
+## counters as a fault is how a healthy factory gets called broken.
+func lines_to_nowhere() -> Array[int]:
+	var drawn: Dictionary[int, bool] = {}
+	for id: int in inserter_ids:
+		var arm: LogiInserter = entities.get(id)
+		if arm == null:
+			continue
+		var sid: int = int(seg_at.get(arm.source_cell(), -1))
+		if sid >= 0:
+			drawn[sid] = true
+	var out: Array[int] = []
+	for sid2: int in segment_ids:
+		var seg: LogiSegment = segments[sid2]
+		if seg.sink != LogiTypes.Sink.NONE:
+			continue
+		if drawn.has(sid2):
+			continue
+		out.append(sid2)
+	out.sort()
+	return out
 
 
 func _sorted_store_ids() -> Array[int]:

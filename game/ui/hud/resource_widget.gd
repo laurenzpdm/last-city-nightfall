@@ -17,6 +17,19 @@ const PAD: float = 13.0
 const MAX_CHIPS: int = 9
 const ALWAYS_SHOW: int = 5
 
+## How many chips the shelf may show. Written by `LcnHud._place_panels`, which
+## knows two things this widget cannot: how wide the screen actually is, and
+## whether it is night. Nine chips at 126 design px is 1160 px of shelf — it ran
+## straight off a 1280-wide screen, and at night it was competing for the eye
+## with the thing that was killing the city.
+var chip_budget: int = MAX_CHIPS:
+	set(value):
+		var v: int = clampi(value, 1, MAX_CHIPS)
+		if v == chip_budget:
+			return
+		chip_budget = v
+		invalidate()
+
 var _shown: Array[StringName] = []
 var _top: float = 34.0
 var _height: float = 96.0
@@ -42,12 +55,13 @@ func signature() -> String:
 func _pick() -> Array[StringName]:
 	var out: Array[StringName] = []
 	var i: int = 0
+	var cap: int = clampi(chip_budget, 1, MAX_CHIPS)
 	for id: StringName in probe.stock_order:
 		var amount: int = probe.stock.get(id, 0)
 		if amount > 0 or i < ALWAYS_SHOW:
 			out.append(id)
 		i += 1
-		if out.size() >= MAX_CHIPS:
+		if out.size() >= cap:
 			break
 	return out
 
@@ -156,8 +170,13 @@ func _draw_chip(id: StringName, rect: Rect2) -> void:
 	# three minutes. The tooltip carries the measured window either way.
 	var sustained: float = probe.trend.sustained_per_minute(id)
 	if dir != 0 and absf(sustained) >= 0.05:
+		# WITH ITS UNIT. Every other rate in this game carries one — the heat
+		# grid says "heat/s", the lenses say "u/s", the build menu says "/min" —
+		# and this rail printed a bare "436" beside a stock of "1.2k". Two
+		# numbers, one row, one of them a level and one of them a rate, and
+		# nothing on screen saying which was which.
 		style.draw_text(self, Vector2(x + 13.0, baseline),
-			LcnHudFormat.rate(absf(sustained)), style.fs(11), arrow_col)
+			"%s/min" % LcnHudFormat.rate(absf(sustained)), style.fs(11), arrow_col)
 	elif dir != 0:
 		style.draw_text(self, Vector2(x + 13.0, baseline), "—", style.fs(11),
 			style.ink_faint())

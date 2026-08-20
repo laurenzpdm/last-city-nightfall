@@ -37,6 +37,7 @@ speed keys survive.
 
 ```
 overlay_defs.gd        enums, bit flags, labels — the shared vocabulary
+label_field.gd         the one gate every word on the world has to pass
 overlay_palette.gd     colour + dash + glyph per channel, per vision mode
 overlay_geometry.gd    contours, dashes, leaders, rings, hatch — pure maths
 overlay_probe.gd       duck-typed reads of the systems that may not exist yet
@@ -55,6 +56,20 @@ overlay_root.gd        modes, hotkeys, the two canvas layers, the harness script
 * **it is cheap.** Sampling is 4 Hz and touches each heat node once; drawing is
   flat Packed arrays batched into a handful of draw calls. Both are measured and
   logged under the `overlay` tag.
+* **one word per THING, and the frame is counted.** Every label goes through
+  `LcnLabelField`: on screen, not on the interface, not a repeat, not on another
+  word, and inside a zoom-scaled budget (10 words at zoom 0.50, 12 at 0.70) with
+  rank quotas so an ambient chip can never crowd out a verdict. Badges MERGE by
+  screen distance into one marker with a count, and repeated problems become one
+  chip — "building ×22", not 22 chips.
+  `tests/overlays/run_lens_density.tscn` draws the real lenses at 0.50/0.60/0.70
+  and asserts the census; the same frame with the arbiter bypassed must still
+  report 42 chips and 80 overlaps, or the assertions had nothing to bite on. The
+  live numbers are in every run's log under `overlay` as `density · <lens>`.
+* **nothing a lens draws ever lands on the HUD.** [P17]'s `chrome_rects()` come
+  back every frame as world-space keep-out. Layer order was never enough: a
+  translucent clock panel is a window, and `= GRID 3 0/0 heat/s NO SOURCE` read
+  straight through it. ARCHITECTURE.md §3.
 * **it never hides what it is diagnosing.** Fills are clamped below 62% alpha,
   marks are rings and brackets, badges float above a building rather than on it.
 * **colour is never the only channel.** Every network carries a dash pattern and

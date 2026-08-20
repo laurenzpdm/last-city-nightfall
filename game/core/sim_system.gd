@@ -23,6 +23,19 @@ func post_setup() -> void:
 	pass
 
 
+## Called on every system when the world is destroyed, before `Sim` releases it.
+## Drop anything this system holds that outlives a world — a connection to `Bus`,
+## a reference handed to view/ or ui/, a cache keyed on the old map.
+##
+## Neighbour references do NOT need to be cleared here: `Sim._release_world`
+## finds and breaks those, including the ones hiding in helper objects, because
+## eleven systems that all point at each other are a cycle no RefCounted can
+## escape and no single part can be asked to see. Override this for what only
+## this system knows about.
+func teardown() -> void:
+	pass
+
+
 ## Advance exactly one tick. `tick` is the absolute tick index.
 ## Use SimClock.DT for integration. Never use frame delta.
 func step(_tick: int) -> void:

@@ -1,11 +1,11 @@
 {
- "round": 3,
- "phase": "C \u2014 Repair + Reachability",
- "state": "10 builders: boot seam, gate teeth, reachability, VFX, feel, audio, narrative, stats",
- "agents_live": 10,
- "critic_score": 4.2,
- "blind_wins": 0,
- "blind_total": 0,
+ "round": 9,
+ "phase": "J — Build ✓  Verify ✓  Integrate läuft  ·  dann Play, dann die Kritiker",
+ "state": "Welle J ist die erste Runde mit einer Verify-Stufe: pro Builder ein frischer Agent, der die Behauptungen aus den ausgelieferten Artefakten nachmisst, bevor der Integrator sie sieht. Sie hat sich sofort bezahlt gemacht — ZWÖLF Behauptungen aus zwei Buildern haben der Nachmessung nicht standgehalten, darunter eine Quellenangabe, die es in dem zitierten Commit gar nicht gibt, ein \"byte-identisches\" Ergebnis mit 18 Unterschieden, und eine Draw-Budget-Tabelle, die headless gemessen und als Draw-Budget präsentiert wurde. Die Kernbefunde beider Builder haben dagegen gehalten, end-to-end aus frischen Sims nachgerechnet — einer der Verifier hat zusätzlich den Produktionsshader mutiert und bewiesen, dass sein Grader rot wird.\n\nAm Build selbst der beste Tag des Projekts: Contract-Bands 8 → 3, Unit-Tests 3 rot → 0 rot (1326 grün), blockierende Engine-Fehler 1 → 0, Determinismus IDENTICAL. Grün geworden sind iron_plate, slag, frozen_buildings, lines_dry, production.stalled und beide shots/enemy-Bands. Offen: \"every wave ends\" und structures_lost.\n\nDie drei Ursachen, die das gebracht haben, waren alle Fehldiagnosen aus früheren Runden: die Fabrik existierte 11000 Ticks lang nicht (Bauwarteschlange, nicht Hitze oder Personal); der Great Frost erreichte das Floor-Band keiner Rezeptur; und die Mauer tötete jeden Drift Hound mit einem Schuss, obwohl dessen eigene Beschreibung sagt, Einzelzielschaden sei die falsche Antwort auf ihn.",
+ "agents_live": 1,
+ "critic_score": null,
+ "blind_wins": null,
+ "blind_total": null,
  "parts": [
   {
    "id": "P01",
@@ -124,7 +124,7 @@
   {
    "id": "P20",
    "name": "Stats & graphs",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
@@ -136,13 +136,13 @@
   {
    "id": "P22",
    "name": "Narrative & events",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
    "id": "P23",
    "name": "Audio",
-   "status": "in_progress",
+   "status": "done",
    "score": null
   },
   {
@@ -150,24 +150,66 @@
    "name": "Meta / Steam",
    "status": "todo",
    "score": null
+  },
+  {
+   "id": "D1",
+   "name": "World look — ground, mass, light",
+   "status": "done",
+   "score": null
+  },
+  {
+   "id": "D2",
+   "name": "Belt legibility — items in motion",
+   "status": "done",
+   "score": null
+  },
+  {
+   "id": "D3",
+   "name": "Tutorial [P21]",
+   "status": "done",
+   "score": null
+  },
+  {
+   "id": "D4",
+   "name": "Meta & Steam [P24]",
+   "status": "done",
+   "score": null
+  },
+  {
+   "id": "D5",
+   "name": "Perf: resumable A*, teardown",
+   "status": "done",
+   "score": null
+  },
+  {
+   "id": "D6",
+   "name": "Gate correctness",
+   "status": "done",
+   "score": null
+  },
+  {
+   "id": "D7",
+   "name": "Screen composition",
+   "status": "failed",
+   "score": null
   }
  ],
  "shots": [
-  "shots/assault.png",
-  "shots/build.png",
+  "shots/midday.png",
+  "shots/assault.world.png",
   "shots/dawn.png",
   "shots/deep_night.png",
-  "shots/deep_night.png.import",
   "shots/dusk.png",
-  "shots/dusk.png.import",
-  "shots/midday.png",
-  "shots/midday.png.import",
-  "shots/opening.png",
-  "shots/opening.png.import"
+  "shots/build.png",
+  "shots/opening.png"
  ],
  "verdict": {
-  "blind": [],
-  "summary": "Round 2 critic: 4.2/10 (up from 3.8). Perf 36 -> 122 ticks/s, 60fps at 1700 buildings, determinism holds. But the critic found the build menu is NEVER in the scene tree: add_child fails at boot, install() swallows it, boot logs success. 768 tests report green because Log.errors ignores engine-level errors.",
-  "biggest_gap": "Nothing you built is reachable, and the gate cannot see it. Until a human can open a menu, the eleven systems underneath are a simulation, not a game."
+  "summary": "Critic 3.7/10 — coherence rose to 6 (its best ever, up from 3), heat and survival fell to 5 (its worst), automation 2, night 2, keep-playing 2. Blind: OURS 0, EVEN 2 (information design, onboarding), THEIRS 8. Wave H landed real work verified in the shipped frame: hostiles went from 0 of 9 findable to 9 of 9, belts from 11.7% of goods to 61.9%, and an engine flip-flag bug was found that drew every right-facing figure a full sprite-width off its tile.",
+  "biggest_gap": "BOTH CRITICS, INDEPENDENTLY, NAMED THE SAME CAUSE. The critic: the automation pillar shuts down at night and the night is what the game is about — production.active_machines by phase reads 3.01 morning, 2.44 afternoon, then 0.34 dusk, 0.44 night, 0.35 deep night. An 8.6x collapse for the entire dark, caused by NIGHT_TRADES = [GUNNER, STOKER] at game/sim/citizens/citizen_defs.gd:340. The blind judge, separately: the factory never comes alive — 341 buildings, 8 machines, 0 active, staffed 0.14-0.51 while 44 citizens are employed. It moves five dimensions at once, and it is why the world looks empty: there is no factory to look at."
+ },
+ "gate": {
+  "label": "Gate (macOS CI)",
+  "value": "RED — 1",
+  "note": "and the gate itself calls it FLAPPING, not a regression"
  }
 }

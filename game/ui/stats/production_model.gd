@@ -156,6 +156,19 @@ func _build(track: LcnStatTrack, window: int) -> Array[Dictionary]:
 		var used: float = ((c.last() - c.back(span)) * per_min) if c != null else 0.0
 		var stock: float = s.last() if s != null else 0.0
 		var stock_delta: float = (stock - s.back(span)) if s != null else 0.0
+		# AN ITEM THE CITY HAS NEVER SEEN IS NOT A ROW. Three zeros and the word
+		# "idle" is what a table prints when it has nothing to say and has been
+		# told to say it twenty times: `artifacts/play_tour/shots/06_lcn_stats.png`
+		# reads "Nothing has been made in this window" across the top and then
+		# lists thirteen items at 0 made, 0 used, 0 in store — sorted, with a
+		# sort arrow, by a column that is entirely zero. The seven rows that do
+		# carry stock are the whole of what that screen knows, and they are lost
+		# in the twenty. A row appears once the city has made it, used it, or has
+		# any of it; nothing is hidden that the player has ever touched.
+		if made <= 0.001 and used <= 0.001 and absf(stock) <= 0.001 \
+				and absf(stock_delta) <= 0.001 \
+				and int(starving.get(item, 0)) == 0 and int(blocked.get(item, 0)) == 0:
+			continue
 		total_made += made
 		out.append({
 			"item": String(item),

@@ -66,6 +66,12 @@ const MAX_STALLS: int = 3
 const MAX_LIFE_TICKS: int = 7200
 ## Getting this much closer to the core (in px) counts as making progress.
 const PROGRESS_PX: float = 24.0
+## How close to the fire counts as being INSIDE, in pixels. Four tiles: the
+## hearth district, not the hearth tile. The old test was one tile, and the flow
+## field parks a body that has run out of targets against the hearth's own
+## footprint — three tiles out — so the rule fired for nothing that actually
+## happened in a run.
+const INSIDE_PX: float = 128.0
 ## How long a body that has broken off keeps walking before it is simply gone.
 const RETREAT_TICKS: int = 400
 ## ...and how much faster it walks while it does. They do not leave slowly.
@@ -142,6 +148,15 @@ var e_born: PackedInt32Array = PackedInt32Array()
 ## depth moves slowly, and asking [WorldGrid] once per enemy per tick is five
 ## hundred cross-object calls to answer a question that changed by nothing.
 var e_ground: PackedFloat32Array = PackedFloat32Array()
+## WHERE THIS BODY ACTUALLY WENT LAST TICK, in px/s. Written by step() from the
+## movement it really performed, zeroed before the movement runs, and read by
+## every gunner that leads a shot. See [method velocity_at] for what it replaces
+## and what that cost.
+var e_vx: PackedFloat32Array = PackedFloat32Array()
+var e_vy: PackedFloat32Array = PackedFloat32Array()
+## Has this body already been counted as having got inside? One body crossing
+## into the hearth district is one leak, however long it then stays there.
+var e_inside: PackedByteArray = PackedByteArray()
 ## Watchdog: tick of the last real progress, closest-ever squared distance to the
 ## core, and how many times this body has already been prodded.
 var e_prog: PackedInt32Array = PackedInt32Array()
@@ -318,6 +333,9 @@ func spawn(slot_def: int, pos: Vector2, new_id: int, tick: int) -> int:
 	e_best[i] = to_core.x * to_core.x + to_core.y * to_core.y
 	e_stalls[i] = 0
 	e_leave[i] = 0
+	e_vx[i] = 0.0
+	e_vy[i] = 0.0
+	e_inside[i] = 0
 	return i
 
 
@@ -421,6 +439,21 @@ func _kill(slot: int, tick: int) -> void:
 	var d: int = e_def[slot]
 	if d_spawn_death[d] == 1:
 		_queue_adds(slot, tick)
+
+
+## THIS ONE IS INSIDE. A body that has reached the hearth district is not
+## something the guns can still answer: it is past the line, it has taken
+## whatever it came for, and it is gone by morning. Counted as a leak rather
+## than a kill, so the night's post-mortem cannot mistake it for the wall
+## working. [CombatSystem] calls this instead of letting an attacker chew on the
+## fire — see _is_last_resort.
+func absorb(slot: int, tick: int) -> void:
+	if slot < 0 or slot >= count:
+		return
+	if e_state[slot] == CombatTypes.EnemyState.SPENT:
+		return
+	leaked += 1
+	_kill(slot, tick)
 
 
 ## Drains this tick's death record as flat (id, x, y) triples. [CombatSystem]
@@ -534,7 +567,6 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 	var acost: PackedByteArray = assault.cost if has_assault else PackedByteArray()
 	var afield: FlowField = assault.field if has_assault else null
 	var adir: PackedByteArray = afield.direction if afield != null else PackedByteArray()
-	var think_gate: int = tick % THINK_PERIOD
 
 	for i: int in range(count):
 		if e_state[i] == CombatTypes.EnemyState.SPENT:
@@ -542,6 +574,11 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 		var d: int = e_def[i]
 		var px: float = e_x[i]
 		var py: float = e_y[i]
+		# Cleared HERE, before anything can `continue` past the movement block,
+		# so a body that does not move this tick reports that it did not move.
+		# Leaving last tick's value behind is the whole bug velocity_at names.
+		e_vx[i] = 0.0
+		e_vy[i] = 0.0
 
 		# --- burning, regeneration ---------------------------------------
 		if e_burn_t[i] > 0.0:
@@ -569,6 +606,8 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 			var rs: float = d_speed[d] * RETREAT_SPEED * e_ground[i] * dt
 			e_x[i] = px + e_hx[i] * rs
 			e_y[i] = py + e_hy[i] * rs
+			e_vx[i] = e_hx[i] * rs / dt
+			e_vy[i] = e_hy[i] * rs / dt
 			continue
 
 		var cell_x: int = clampi(int(px / TILE), 0, w - 1)
@@ -584,7 +623,19 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 
 		# --- the think tick: everything that costs a cross-object call ----
 		var behav: int = d_behaviour[d]
-		if (i + tick) % THINK_PERIOD == think_gate:
+		# ONE BODY IN TEN THINKS EACH TICK, STAGGERED BY SLOT — not "only the
+		# slots divisible by ten, every tick", which is what
+		# `(i + tick) % THINK_PERIOD == tick % THINK_PERIOD` reduces to: that
+		# condition is true exactly when i is a multiple of THINK_PERIOD and
+		# does not depend on the tick at all. Nine bodies in ten therefore never
+		# ran the stall watchdog, never re-read their ground speed, never
+		# regenerated, never aged out, and — the reason it was finally caught —
+		# NEVER LOOKED FOR A TARGET. Ten snow widows stood one tile from a
+		# housing block for the last twelve hundred ticks of a night with
+		# `target -1`, because seeking only happens on a think tick and their
+		# slots were not multiples of ten. The cost is identical either way:
+		# count/THINK_PERIOD bodies think per tick before and after.
+		if (i + tick) % THINK_PERIOD == 0:
 			# The watchdog runs first, so a body it prods gets to act this tick
 			# rather than standing still for another half-second.
 			var wx: float = px - cx
@@ -691,8 +742,12 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 				# building" for free. Without it — the seconds between a spawn and
 				# the surface landing — ask [P11] directly rather than letting a
 				# pack mill about in front of a wall it is allowed to eat.
+				# blocker_at, not structure_at: the fire is impassable but it is
+				# not something to chew on while the city still stands, and a
+				# body told otherwise spends the rest of the night pressed
+				# against it doing nothing. See CombatSystem.blocker_at.
 				if not has_assault or acost[aidx] != Grid.IMPASSABLE:
-					blocker = int(sys.call("structure_at", Vector2i(acx, acy)))
+					blocker = int(sys.call("blocker_at", Vector2i(acx, acy)))
 				if blocker == 0:
 					# Slide along the obstacle rather than grinding into it.
 					var sx: float = px + mvx
@@ -722,6 +777,12 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 
 		e_x[i] = px + mvx
 		e_y[i] = py + mvy
+		# The ONLY place a walking body's velocity is written, and it is written
+		# from the movement that survived the blocker probe and the slide — not
+		# from the heading it wanted. A body pinned against a wall moves zero and
+		# now says zero.
+		e_vx[i] = mvx / dt
+		e_vy[i] = mvy / dt
 
 		# --- attacking ------------------------------------------------------
 		if e_cool[i] > 0.0:
@@ -759,14 +820,48 @@ func step(tick: int, sys: Object, gcost: PackedByteArray, open_dir: PackedByteAr
 				e_state[i] = CombatTypes.EnemyState.WALKING
 		else:
 			e_state[i] = CombatTypes.EnemyState.WALKING
-			# Nothing left to fight and standing on the hearth: it is inside, and
-			# the city has already lost whatever it was going to lose here.
+			# IT IS INSIDE, AND BEING INSIDE HAS TO COST THE CITY SOMETHING.
+			#
+			# This used to read `leaked += 1; _kill(i, tick)`: a body that walked
+			# all the way to the fire with nothing it was allowed to attack simply
+			# evaporated, and the player paid nothing at all for the hole it came
+			# through. That is not a hypothetical either. On night one of the
+			# reference run three drift hounds arrived at 128,131 — three tiles
+			# off the hearth, which is outside the one-tile absorb radius — and so
+			# they did not even evaporate: they stood there for 2600 ticks doing
+			# nothing while the wall shot at them. (That stall is real and the gate
+			# saw it: at 535f1a8 the first_night contract failed `no enemy stands
+			# still for 2400 ticks` naming these three bodies at full HP; on this
+			# build that check passes.) What must NOT be carried forward is the
+			# rest of the old premise — that every structure lost was perimeter
+			# furniture and combat.citizens_killed read 0. That is [E1]-era and
+			# stale; see the note on CombatSystem.inside_target for what replaced
+			# it and why the number depends on how long you run.
+			#
+			# Now it turns on the hearth district. CombatSystem.inside_target
+			# picks what — housing first, because the warmth they came for is the
+			# warmth people sleep in, and never the fire itself. When there is
+			# genuinely nothing left but the fire it is still absorbed, which is
+			# what stops one body ending a run on the win condition.
 			if behav != CombatTypes.Behaviour.SIEGE:
 				var lx: float = e_x[i] - cx
 				var ly: float = e_y[i] - cy
-				if lx * lx + ly * ly < 1024.0:
-					leaked += 1
-					_kill(i, tick)
+				if lx * lx + ly * ly < INSIDE_PX * INSIDE_PX:
+					if e_inside[i] == 0:
+						e_inside[i] = 1
+						leaked += 1
+					var got: Dictionary = sys.call("inside_target", Vector2(e_x[i], e_y[i]))
+					if got.is_empty():
+						_kill(i, tick)
+					else:
+						e_target[i] = int(got["id"])
+						var gp: Vector2 = got["pos"]
+						e_tx[i] = gp.x
+						e_ty[i] = gp.y
+						# It has found something: that is progress, or the
+						# watchdog would pull it straight back off again.
+						e_prog[i] = tick
+						e_stalls[i] = 0
 
 		e_rally[i] = 0.0
 
@@ -965,16 +1060,30 @@ func health_fraction(slot: int) -> float:
 	return clampf(e_hp[slot] / m, 0.0, 1.0) if m > 0.0 else 0.0
 
 
+## Where this body ACTUALLY went last tick, in px/s. What a gunner leads by.
+##
+## This used to return `heading × top speed`, which is a body's INTENTION and not
+## its motion. Everything that had stopped moving without entering the ATTACKING
+## state still claimed to be crossing the ground at full pace: a body pinned
+## against a wall by the blocker probe, one sliding along an obstacle with both
+## axes zeroed, one wading through deep snow at a fraction of speed (e_ground was
+## never in the answer at all), and — the case that finally showed up in a run —
+## one standing at the fire with nothing it is allowed to attack.
+##
+## Every gun in range then led that stationary target by up to a tile and a half
+## and put every shell behind it. A projectile only counts as a hit within
+## `body_radius + 6px` of the target, so the lead error was three times the hit
+## window and the miss was total, not partial. On night one of the reference run
+## that read as **871 shots, 3128 heat on the guns and SIX hits**: three drift
+## hounds stood three tiles from the hearth for 2600 ticks while the whole wall
+## shot at them, and `combat.damage_dealt` sat at 0.0 the entire time. A tower
+## defence whose guns cannot hit something that is standing still is not a
+## difficulty curve, it is a broken gun — and it burned the player's heat, which
+## is the one resource all three genres in this build share.
 func velocity_at(slot: int) -> Vector2:
 	if slot < 0 or slot >= count:
 		return Vector2.ZERO
-	if e_state[slot] == CombatTypes.EnemyState.ATTACKING:
-		return Vector2.ZERO
-	var d: int = e_def[slot]
-	var s: float = d_speed[d] * (1.0 + e_rally[slot])
-	if e_state[slot] == CombatTypes.EnemyState.RETREATING:
-		s = d_speed[d] * RETREAT_SPEED
-	return Vector2(e_hx[slot] * s, e_hy[slot] * s)
+	return Vector2(e_vx[slot], e_vy[slot])
 
 
 func census() -> Dictionary:
@@ -1021,6 +1130,9 @@ func serialize() -> Array:
 			"prog": e_prog[i],
 			"stalls": e_stalls[i],
 			"leave": e_leave[i],
+			"vx": snappedf(e_vx[i], 0.01),
+			"vy": snappedf(e_vy[i], 0.01),
+			"inside": e_inside[i],
 		})
 	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["id"]) < int(b["id"]))
 	return out
@@ -1052,6 +1164,9 @@ func deserialize(rows: Array, tick: int) -> void:
 		e_prog[i] = int(r.get("prog", int(r.get("born", tick))))
 		e_stalls[i] = int(r.get("stalls", 0))
 		e_leave[i] = int(r.get("leave", 0))
+		e_vx[i] = float(r.get("vx", 0.0))
+		e_vy[i] = float(r.get("vy", 0.0))
+		e_inside[i] = int(r.get("inside", 0))
 
 
 # =========================================================================
@@ -1091,6 +1206,9 @@ func _copy_slot(from: int, to: int) -> void:
 	e_best[to] = e_best[from]
 	e_stalls[to] = e_stalls[from]
 	e_leave[to] = e_leave[from]
+	e_vx[to] = e_vx[from]
+	e_vy[to] = e_vy[from]
+	e_inside[to] = e_inside[from]
 
 
 func _grow(need: int) -> void:
@@ -1122,6 +1240,9 @@ func _grow(need: int) -> void:
 	e_best.resize(cap)
 	e_stalls.resize(cap)
 	e_leave.resize(cap)
+	e_vx.resize(cap)
+	e_vy.resize(cap)
+	e_inside.resize(cap)
 
 
 func _reset_defs(n: int) -> void:

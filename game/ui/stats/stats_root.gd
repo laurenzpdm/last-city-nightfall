@@ -349,7 +349,10 @@ func _draw_chrome() -> void:
 	var right: float = frame.position.x + frame.size.x - 18.0
 	for i2: int in range(WINDOWS.size() - 1, -1, -1):
 		var entry: Dictionary = WINDOWS[i2]
-		var label2: String = _window_label(entry)
+		var narrower: float = 0.0
+		if i2 > 0:
+			narrower = _window_seconds(StringName(String((WINDOWS[i2 - 1] as Dictionary)["id"])))
+		var label2: String = _window_label(entry, narrower)
 		var w2: float = t.caps_width(label2, small) + 18.0
 		var r2 := Rect2(Vector2(right - w2, frame.position.y + 14.0), Vector2(w2, 26.0))
 		var on: bool = StringName(String(entry["id"])) == window_id
@@ -382,17 +385,36 @@ func _memory_note() -> String:
 ## The button says what the track ACTUALLY covers, read off the track. A button
 ## labelled MINUTE over a two-minute window is a small lie that costs a player
 ## an hour of wondering why their numbers do not add up.
-func _window_label(entry: Dictionary) -> String:
+## A RANGE PICKER HAS TO GET WIDER LEFT TO RIGHT.
+##
+## These labels are measured, not authored — each button says how much history
+## its track actually holds — and in the first seconds of a run the measurement
+## inverts them. `artifacts/play_tour/shots/06_lcn_stats.png` shows the row as
+## "LAST 10 S | LAST 5 S | WHOLE RUN": the coarse track samples rarely, so early
+## on it spans LESS time than the fine one, and the middle button offers the
+## player a narrower window than the button to its left. So a window that has
+## not yet outgrown its narrower neighbour keeps its authored name instead of
+## advertising a span that is briefly a lie about the ordering.
+func _window_label(entry: Dictionary, floor_seconds: float = 0.0) -> String:
 	var id := StringName(String(entry["id"]))
 	if id == LcnStatsRecorder.T_RUN:
 		return "WHOLE RUN"
-	var t: LcnStatTrack = recorder.track(id)
-	if t == null or t.sample_count() < 2:
+	var seconds: float = _window_seconds(id)
+	if seconds <= floor_seconds or seconds <= 0.0:
 		return String(entry["label"])
-	var seconds: float = t.window_seconds()
 	if seconds < 90.0:
 		return "LAST %d S" % int(round(seconds))
 	return "LAST %d MIN" % int(round(seconds / 60.0))
+
+
+## Seconds of history a track holds right now; 0 when it holds too few to span.
+func _window_seconds(id: StringName) -> float:
+	if recorder == null:
+		return 0.0
+	var t: LcnStatTrack = recorder.track(id)
+	if t == null or t.sample_count() < 2:
+		return 0.0
+	return t.window_seconds()
 
 
 # ===================================================================  input ==

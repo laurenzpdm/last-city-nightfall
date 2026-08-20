@@ -1,0 +1,115 @@
+{
+  "why": [
+    "THE CENSUS OF EVERYTHING IN THIS REPOSITORY THAT PHOTOGRAPHS THE FRAMEBUFFER.",
+    "Three tools have now shipped that photographed something other than the thing",
+    "they were named for — a sprite suite reading its own cache, a frame lab that",
+    "graded 24 pictures of the main menu, and a --ui-tour that photographed the same",
+    "menu eleven more times while it ate every key the tour pressed. Each was found",
+    "by a human holding two PNGs side by side.",
+    "",
+    "tests/gate/test_screenshot_guards.gd reads this file. The rule it enforces is",
+    "short: a file that reads the framebuffer must name LcnShutter (tools/ui_tour_shutter.gd),",
+    "or carry both guards inline and be listed under `guarded_inline` with the",
+    "functions that hold them, or be listed under `blind` as named debt. A file in",
+    "none of the three is RED — so a NEW screenshot tool cannot be born blind, and",
+    "the only way to add one that is, is to write a row here on purpose.",
+    "",
+    "The two guards, both of which the frame lab learned the hard way:",
+    "  CHROME  nothing may be drawn above the subject when the shutter opens",
+    "  DIFF    photographs of different things must actually differ"
+  ],
+
+  "guarded_inline": [
+    {
+      "path": "res://tests/render/frame_lab.gd",
+      "owner": "P13 render",
+      "photographs": "the art direction matrix — six hours by five zooms, plus the night, the crowd, the weather and the ground's memory",
+      "chrome": "_strip_chrome",
+      "diff": "_print_delta",
+      "note": "Where both guards were invented. It strips to LcnLayers.POST and fingerprints every cell; --keep-chrome shows them going red. Left inline on purpose: it is [P13]'s file, and this suite asserts the two functions still exist rather than reaching into another part's folder to rewrite them."
+    }
+  ],
+
+  "blind": [
+    {
+      "path": "res://tests/hud/shoot.gd",
+      "owner": "P17 hud",
+      "photographs": "the HUD in each of its three compositions",
+      "cost": "a shot taken with a modal or a story card over the clock plate grades the card"
+    },
+    {
+      "path": "res://tests/stats/shoot.gd",
+      "owner": "P20 stats",
+      "photographs": "the production graphs and the night report",
+      "cost": "same class: nothing asserts the statistics screen is the thing in the frame"
+    },
+    {
+      "path": "res://tests/vfx/vfx_gpu.gd",
+      "owner": "P14 vfx",
+      "photographs": "particle plates, with and without the effects layer",
+      "cost": "it is already a differential, so DIFF is half-present; CHROME is not asserted at all"
+    },
+    {
+      "path": "res://tests/feel/feel_gallery.gd",
+      "owner": "P15 feel",
+      "photographs": "the juice gallery — shakes, flashes, impulses",
+      "cost": "no strip and no fingerprint; a full-screen layer would be graded as feel"
+    },
+    {
+      "path": "res://tests/render/night_contrast.gd",
+      "owner": "P13 render",
+      "photographs": "the night wave plates",
+      "cost": "it strips, but nothing compares its plates for being the same picture"
+    },
+    {
+      "path": "res://tests/meta/run_meta_ui.gd",
+      "owner": "P24 meta",
+      "photographs": "the title, pause, settings and save screens",
+      "cost": "it fingerprints, but nothing asserts what is above the screen it opened"
+    },
+    {
+      "path": "res://tests/items_view/item_frames.gd",
+      "owner": "D2 items view",
+      "photographs": "belts, arms and items in flight",
+      "cost": "no chrome assertion and no pairwise comparison"
+    },
+    {
+      "path": "res://game/ui/build_menu/build_menu_root.gd",
+      "owner": "P18 build menu",
+      "photographs": "a debug capture of the palette and browsers, on demand",
+      "cost": "same class as the tour's, in the part the tour photographs"
+    },
+    {
+      "path": "res://game/ui/meta/save_manager.gd",
+      "owner": "P24 meta",
+      "photographs": "the save-slot thumbnail",
+      "cost": "lower stakes and the same defect: the thumbnail is grabbed while a menu is open, so every save in the browser is a picture of the save browser"
+    }
+  ],
+
+  "max_blind": 9,
+
+  "misnamed_beats_why": [
+    "tests/gate/test_shot_beats.gd asserts that every photographic beat in every",
+    "shipped scenario is taken in the phase and on the day its NAME claims. These",
+    "are the beats that cannot be: the scenario never reaches the moment it named,",
+    "so there is no tick to move the shot to. The harness refuses to photograph",
+    "them at all rather than write a PNG with a false name in it.",
+    "",
+    "Every row is a one-line fix in a file this part does not own, so it is listed",
+    "instead of silently tolerated: named, owned, dated to this wave, and asserted",
+    "to still be true. A row that stops being true is RED, and the list may not",
+    "grow — a new misnamed beat has to displace one of these."
+  ],
+  "misnamed_beats": [
+    {
+      "scenario": "smoke",
+      "beat": "dawn_wide",
+      "claims": "Dawn",
+      "photographs": "Morning of day 1",
+      "owner": "INTEGRATOR — tests/scenarios/smoke.json, via tools/gen_scenarios.py",
+      "fix": "smoke is 600 ticks and a run begins at ClimateProfile.opening_tick (2016), which is morning; the scenario scripts skip_to_phase for the other five phases and not for this one. Either add {\"tick\":20,\"cmd\":{\"system\":\"climate\",\"op\":\"skip_to_phase\",\"phase\":\"dawn\"}} before the shot, or rename the beat to what it actually shows."
+    }
+  ],
+  "max_misnamed_beats": 1
+}

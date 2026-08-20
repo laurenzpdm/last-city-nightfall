@@ -64,6 +64,15 @@ func _process(delta: float) -> void:
 	alpha = clampf(_accum / DT, 0.0, 1.0)
 
 
+## True when ticks are actually being delivered. The interface asks THIS, never
+## `running`: in manual mode the harness and the test fixtures drive advance()
+## by hand, `running` stays false, and a clock widget reading `running` prints
+## PAUSED over a countdown that is visibly counting down. Every screenshot this
+## build has ever shipped carried that contradiction in the top centre.
+func is_advancing() -> bool:
+	return _manual or (running and speed > 0.0)
+
+
 ## Seconds of in-world time elapsed. Use this, never Time.get_ticks_msec().
 func seconds() -> float:
 	return float(tick) * DT

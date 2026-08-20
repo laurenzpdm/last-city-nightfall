@@ -1,0 +1,31 @@
+{
+  "ts": "2026-08-14T19:40:00Z",
+  "part": "D5",
+  "title": "The shift-change hitch is a resumable A* now, and a destroyed world is actually destroyed",
+  "verified": {
+    "tests/citizens shift-change worst tick, BEFORE, 6 clean readings (godot count 0 before and after each)": "9809 / 9854 / 10035 / 10436 / 10501 / 11116 us against a 9000 us floor — FAILING",
+    "tests/citizens shift-change worst tick, AFTER, 6 clean readings": "2497 / 2751 / 2836 / 2899 / 3057 / 3260 us — PASSING, median 3.6x lower",
+    "what the spike actually was (instrumented)": "worst tick 10499 us = router 10360 us = ONE find_path call at 10346 us; 2 failed searches were 20378 of the 23004 us of all pathing in that run",
+    "mean tick of 1018 citizens (budget 2000 us)": "1012-1073 us before, 916-1164 us after — unchanged",
+    "route cache hit rate (deterministic, load-independent)": "1375 hits before, 1372 after (99.8% preserved)",
+    "tools/determinism.sh smoke / determinism / first_night": "IDENTICAL, sha256 1556dda2931ebb9f / ad2a1e8ac155218d / 367ca62dcfd5cf6e — unchanged by the teardown work",
+    "full in-process suite (tests/run_tests.gd)": "1125 passed, 0 failed, 0 skipped (was 1070/1 failing)",
+    "leak: headless run (tools/run_sim.sh --scenario=smoke)": "813 objects / 269 resources -> 53 / 24",
+    "leak: visual run (tools/run_visual.sh --scenario=smoke, xvfb)": "849 / 269 -> 89 / 24",
+    "leak: whole test suite in one process": "121967 objects / 262 resources -> 32 / 15",
+    "leak: growth per world built and destroyed": "+184 objects each (2287 -> 2471 -> 2655) -> +0 (2101 -> 2101 -> 2101)",
+    "reachability (--force-ui, xvfb)": "TESTS PASSED — 90 checks, 0 failures, 0 unchecked",
+    "tools/gate.sh --scenarios=first_night --no-visual": "first_night 29 pass / 1 FAIL (the known build.rejected_total band, unchanged at 13); first_night_endurance 24000 ticks 15 pass / 0 FAIL",
+    "tools/lint_sim.sh": "0 fatal, 1 advisory (pre-existing, in game/sim/grid)",
+    "mutation checks proving the new tests can fail": "reversing the open set on resume reddens test_citizen_paths; removing the invalidate abort reddens the router test; reverting Sim._release_world reddens all 3 teardown tests and names all 10 surviving systems"
+  },
+  "open": [
+    "[P16] camera owns the last real object leak: game/view/camera/keybinds.gd keeps 35 InputEventKey/InputEventMouseButton in `static var _defaults` / `_overrides` and hands them to InputMap at line 450. They are the entire difference between a headless run (53 objects) and a windowed one (89).",
+    "[P16] camera also owns 9 of the 24 'resources still in use': statics in keybinds.gd, camera_services.gd (`static var _cache`) and game_camera.gd (`static var _current`). game/core/ui_layers.gd and game/core/sim_system.gd are in that list only because those camera scripts hold them — they go when [P16]'s do.",
+    "[P23] audio owns 13 of the 24: statics in game/audio/synth_recipes.gd (`static var _cache`) and game/audio/audio_bootstrap.gd. Same shape, same fix.",
+    "INTEGRATOR: tools/error_allowlist.txt is not mine to edit. exit_object_leak and exit_resource_leak now describe 53/24 rather than ~800/~260 and no longer grow while the game runs. Both entries want a `max_per_run` ratchet at the new numbers so the next regression is caught instead of absorbed, and their `why` text is now wrong where it says the leak cannot matter before exit — it grew by a world per save load.",
+    "INTEGRATOR / [P11]: build.rejected_total is still 13 against final_max 0. Untouched — HANDOFF 5 says the band is mis-specified and the choice between its three options is Maximilian's, not an agent's.",
+    "[P01] grid: GridSystem.find_path is unchanged and still spends its whole ceiling in one call. Anything else that calls it (combat, threat) still has the spike citizens no longer has. CitizenPathSearch is a drop-in resumable transcription of it and could move to game/sim/grid/ if [P01] wants one search instead of two.",
+    "PERF CAVEAT: measured on a shared four-core box with other agents active. Every reading above was gated on `ps -eo cmd | grep -c '[g]odot --'` being 0 before and after, and reported as a spread, but the integrator should re-measure alone before trusting any single number."
+  ]
+}

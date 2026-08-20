@@ -49,6 +49,35 @@ static func rate(value: float) -> String:
 	return "%.1f" % v
 
 
+## A HOLE IN THE GRID, IN THE ONE RENDERING THE WHOLE GAME USES.
+##
+## One shortfall, four surfaces, four numbers, one frame
+## (`artifacts/play1/shots/dawn.png` and `third_day_city.png`):
+##
+##   heat panel       "160 / 165 heat/s"  and  "−5.4 short"   `rate()`
+##   attention row    "the Recuperator grid is 9.2 heat short" `amount()`
+##   lens legend      "9 heat/s short"                         `%.0f`
+##   world badge      "spare 8"  against the panel's "+7.8 spare"
+##
+## Every one of them is arithmetically defensible and together they teach a
+## player that the interface does not agree with itself. `rate()` keeps a
+## decimal under ten because for a THROUGHPUT the decimal sometimes changes what
+## you would build; for a HOLE it never has. Nobody has ever placed a different
+## generator for 9.2 than for 9.
+##
+## So: whole units, one function, and the row a player can check by subtracting
+## the two numbers next to it — 165 − 160 = 5, and the chip says 5.
+static func shortfall(value: float) -> String:
+	var v: float = absf(value)
+	if v < 0.5:
+		return "0"
+	if v < 1.0:
+		return "under 1"
+	if v >= 1000.0:
+		return "%.1fk" % (v / 1000.0)
+	return "%d" % int(roundf(v))
+
+
 ## A quantity inside a SENTENCE, where "0" is a lie whenever the value is not
 ## actually zero. `rate()` floors anything under 0.05 to "0", which is right on a
 ## chip and wrong in prose: "the north grid is short 0 heat/s" is the exact line
@@ -64,6 +93,29 @@ static func amount(value: float) -> String:
 	if v >= 10.0:
 		return "%d" % int(roundf(v))
 	return "%.1f" % v
+
+
+## Days of something left, in the ONE wording the whole HUD uses.
+##
+## THE PANEL AND THE ALERT WERE ROUNDING THE SAME FLOAT DIFFERENTLY, in the same
+## frame, fifteen hundred pixels apart: `artifacts/play_careless_vis/shots/
+## assault.png` reads "FOOD 1.6 days" on the vitals panel and "Food runs out in
+## 1.5 days" in the ATTENTION list. A player who notices has to decide which
+## panel is lying, and the answer — neither, they snap to different grids — is
+## not available to them. Half-day steps, because nobody plans on a tenth of a
+## day and 1.6 pretends to a precision the food model does not have.
+static func days(value: float) -> String:
+	if value < 0.05:
+		return "nothing"
+	if value < 0.75:
+		return "half a day"
+	if value < 10.0:
+		var rounded: float = snappedf(value, 0.5)
+		if is_equal_approx(rounded, roundf(rounded)):
+			var whole: int = int(roundf(rounded))
+			return "%d day%s" % [whole, "" if whole == 1 else "s"]
+		return "%.1f days" % rounded
+	return "%d days" % int(roundf(value))
 
 
 ## "timber", "timber and stone", "timber, stone and coal". Oxford-free, because
@@ -156,17 +208,23 @@ static func building_title(kind: StringName) -> String:
 
 
 ## Item names for the resource rail. Registry first, then a readable fallback.
+##
+## IT ASKED TWO CATEGORIES THAT DO NOT EXIST. `Registry` indexes by FOLDER name
+## under `game/content/`, and there is no `items/` and no `resources/` — the
+## seventeen LogiItems that carry `display_name` live in `logistics/`. So every
+## lookup here missed, every caller got `titleize()`, and the stores shelf and
+## [P20]'s table print "Ammo Shell" and "Insulation Wool" while the recipe
+## browser two keystrokes away calls the same two things "Ammunition Shell" and
+## "Slag Wool". `Registry.display_name()` now owns the search order, so [P17],
+## [P18] and [P20] cannot drift apart again by editing one list.
 static func item_title(id: StringName) -> String:
 	var tree: SceneTree = Engine.get_main_loop() as SceneTree
 	if tree != null and tree.root != null:
 		var reg: Node = tree.root.get_node_or_null(NodePath("Registry"))
-		if reg != null:
-			for category: String in ["items", "resources"]:
-				var res: Resource = reg.call("get_item", category, id) as Resource
-				if res != null and "display_name" in res:
-					var dn: String = String(res.get("display_name"))
-					if dn != "":
-						return dn
+		if reg != null and reg.has_method("display_name"):
+			var dn: String = String(reg.call("display_name", id))
+			if dn != "":
+				return dn
 	return titleize(String(id))
 
 

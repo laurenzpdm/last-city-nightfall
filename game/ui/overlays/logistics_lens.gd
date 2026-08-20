@@ -49,6 +49,7 @@ func _draw() -> void:
 		draw_multiline_colors(_belts, _belt_cols, stroke(2.4))
 	if _rings.size() >= 2:
 		draw_multiline_colors(_rings, _ring_cols, stroke(2.4))
+	flush_labels()
 	draw_us = Time.get_ticks_usec() - t0
 
 
@@ -63,7 +64,10 @@ func _draw_belts() -> void:
 		if not visible_rect(r):
 			continue
 		var load: float = float(b["load"])
-		var stuck: bool = bool(b["stalled"]) or bool(b["backed_up"])
+		# `stalled` is the probe's normalised key: it already folds the sim's
+		# `backed_up` and the at-capacity fallback into one bool. Reading
+		# `backed_up` here threw on every frame this lens drew.
+		var stuck: bool = bool(b["stalled"])
 		var c: Color = pal.good().lerp(pal.warn(), load)
 		if stuck:
 			c = pal.bad()
@@ -100,8 +104,9 @@ func _draw_stalls() -> void:
 			_ring_cols.append(LcnOverlayPalette.with_a(pal.bad(), 0.55 + 0.45 * beat))
 		if labels < MAX_STALL_LABELS:
 			labels += 1
-			plate(r.position + Vector2(0.0, -px(20.0)),
-				String(s.get("reason", "stalled")).to_upper(), 14.0, pal.bad())
+			word(r.position + Vector2(0.0, -px(20.0)),
+				String(s.get("reason", "stalled")).to_upper(), 14.0, pal.bad(),
+				LcnLabelField.Rank.VERDICT, 2, "stall")
 
 
 ## Fuel is logistics whether or not a belt exists: a burner with an empty bunker
@@ -130,7 +135,8 @@ func _draw_fuel() -> void:
 		for _k: int in 4:
 			_ring_cols.append(LcnOverlayPalette.with_a(LcnOverlayPalette.INK_DIM, 0.5))
 		if starved and shown <= 8:
-			plate(r.position + Vector2(0.0, -px(20.0)), "OUT OF FUEL", 14.0, pal.bad())
+			word(r.position + Vector2(0.0, -px(20.0)), "OUT OF FUEL", 14.0, pal.bad(),
+				LcnLabelField.Rank.VERDICT, 2, "", true)
 		elif alt:
-			label(bar.position + Vector2(0.0, px(16.0)), "fuel %d%%" % int(fuel * 100.0),
-				12.0, LcnOverlayPalette.INK_DIM)
+			word(bar.position + Vector2(0.0, px(16.0)), "fuel %d%%" % int(fuel * 100.0),
+				12.0, LcnOverlayPalette.INK_DIM, LcnLabelField.Rank.AMBIENT, 6, "fuel")

@@ -505,8 +505,10 @@ func test_the_cold_factor_is_the_recipe_floor_read_off_the_warmth_field() -> voi
 	var id: int = _place("smelter", _at("smelter"))
 	world.run(20)
 	var m: ProdMachine = _machine(id)
+	assert_near(prod.cold_band_c(), ProductionSystem.COLD_BAND_C, 0.001,
+		"still air is the shipped band and nothing else")
 	var expected: float = clampf(
-		(m.felt_c - m.recipe.min_temperature_c) / ProductionSystem.COLD_BAND_C, 0.0, 1.0)
+		(m.felt_c - m.recipe.min_temperature_c) / prod.cold_band_c(), 0.0, 1.0)
 	assert_near(m.cold, expected, 0.001, "cold is a slope off the recipe's own floor")
 
 
@@ -526,10 +528,13 @@ func test_a_great_frost_slows_the_factory_down() -> void:
 	var felt_before: float = m.felt_c
 	assert_near(m.cold, 1.0, 0.001, "a warm shop is at full speed")
 
+	var still_band: float = prod.cold_band_c()
 	world.cmd_now({"system": &"climate", "op": "force_storm", "intensity": 1.0,
 		"duration_ticks": 6000})
 	world.run(1400)
 	assert_lt(m.felt_c, felt_before - 4.0, "the frost is felt inside the shop")
+	assert_gt(prod.cold_band_c(), still_band + 1.0,
+		"the wind widened the band a recipe has to climb out of")
 	assert_lt(m.cold, 1.0, "and it slows the delicate work down")
 	var chilled: float = m.cold
 
@@ -603,9 +608,54 @@ func test_the_labour_market_is_actually_wired_in() -> void:
 	world.run(20)
 	assert_near(_machine(id).staffing, float(citizens.call("staffing_of", id)), 0.0001,
 		"the crew a machine runs on is the crew [P05] says is standing in it")
-	if _machine(id).staffing <= 0.0:
+	if _machine(id).bench <= 0.0:
 		assert_eq(String(_machine(id).reason), "unstaffed",
 			"and an empty shop says so rather than running on ghosts")
+
+
+## The bench coast, pinned at both ends. It exists because [P05] reports crew
+## PRESENT and a two-hand shop therefore read 0 every time the remaining hand
+## walked to the larder; it must NOT become a way for a machine to disagree with
+## [P05] about who is standing in it.
+func test_a_shop_coasts_on_the_bench_but_never_lies_about_its_crew() -> void:
+	_world()
+	var citizens: SimSystem = world.system(&"citizens")
+	if citizens == null or not citizens.has_method("staffing_of"):
+		skip("[P05] citizens is not built yet")
+		return
+	prod.set_staffing_autarky(false)
+	if not _city():
+		return
+	var id: int = _place("smelter", _at("smelter"))
+	world.run(20)
+	var m: ProdMachine = _machine(id)
+	assert_near(m.staffing, float(citizens.call("staffing_of", id)), 0.0001,
+		"`staffing` is [P05]'s number with nothing smoothed into it")
+
+	# Hand-drive the coast rather than waiting for a citizen to get hungry: the
+	# thing under test is the ramp, and the ramp is a function of two fields.
+	m.staffing = 0.0
+	m.staff_held = 1.0
+	m.staff_seen_tick = 0
+	assert_near(prod._crew_of(m, 0), 1.0, 0.0001,
+		"the tick the last hand steps out, the bench is still full")
+	assert_near(prod._crew_of(m, ProductionSystem.STAFF_COAST_TICKS / 2), 0.5, 0.01,
+		"and it is half gone half way through the window")
+	assert_eq(prod._crew_of(m, ProductionSystem.STAFF_COAST_TICKS), 0.0,
+		"and at the end of the window the shop says `unstaffed` as loudly as ever")
+	assert_eq(prod._crew_of(m, ProductionSystem.STAFF_COAST_TICKS * 4), 0.0,
+		"a night off is not bench work")
+
+	# A shop that never had anybody does not get a free 900 ticks. Wind THIS
+	# machine back to the state one is born in rather than placing a second one:
+	# the first cut placed a workshop here and read the machine straight off the
+	# id, which is null on any run where that tile is not free, and an unguarded
+	# null property write is a blocking engine error rather than a red check.
+	m.staffing = 0.0
+	m.staff_held = 0.0
+	m.staff_seen_tick = -1000000
+	assert_eq(prod._crew_of(m, 5), 0.0,
+		"a shop nobody has ever worked in has nothing on its bench")
 
 
 func test_research_gates_a_recipe_and_says_so() -> void:
@@ -874,12 +924,22 @@ func test_nothing_is_created_or_destroyed_across_a_craft() -> void:
 	var id: int = _place("smelter", _at("smelter"))
 	world.run(20)
 	var ore_before: int = _stock("iron_ore") + _machine(id).held(&"iron_ore")
-	var plate_before: int = _stock("iron_plate")
+	# COUNT THE PLATES AT THE MACHINE, NOT IN THE CITY'S STOCK. The city's stock
+	# is not a closed system and this assertion is about one craft: measured
+	# against `_stock("iron_plate")` it went red the moment [P18]'s research
+	# ledger started a node that costs iron_plate (ballistics, 40) inside this
+	# window, and it reported "36 ore for -2 plates" about a smelter that had in
+	# fact turned 36 ore into exactly 18 plates. `m.produced` is what this
+	# machine made, which is the only quantity the ratio is a claim about.
+	var plates_before: int = int(_machine(id).produced.get(&"iron_plate", 0))
 	world.run(900)
 	var m: ProdMachine = _machine(id)
 	var ore_after: int = _stock("iron_ore") + m.held(&"iron_ore")
-	var plates: int = _stock("iron_plate") - plate_before
+	var plates: int = int(m.produced.get(&"iron_plate", 0)) - plates_before
 	var ore_used: int = ore_before - ore_after
+	# And a smelter that smelted NOTHING satisfies 0 == 0. Say so out loud, or
+	# the conservation law below is green in exactly the case it cannot see.
+	assert_gt(float(plates), 0.0, "the smelter actually smelted in this window")
 	# Two ore per plate, plus the charge committed to the craft in flight.
 	assert_between(float(ore_used), float(plates * 2), float(plates * 2 + 2),
 		"every plate cost exactly two ore, no more and no less")

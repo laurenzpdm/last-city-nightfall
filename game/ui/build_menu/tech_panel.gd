@@ -17,6 +17,13 @@ signal building_requested(kind: StringName)
 const PANEL_W: float = 900.0
 const PANEL_H: float = 600.0
 
+
+## True for a node description written to a colleague rather than to a player.
+## The two markers are the ones every offending node in this build actually uses,
+## and they are cheap enough to test on the one selected node per refresh.
+static func is_authors_note(text: String) -> bool:
+	return text.begins_with("THE BEAT") or text.contains("the player")
+
 var model: LcnTechModel = null
 var build_system: Object = null
 var research_system: Object = null
@@ -91,8 +98,22 @@ func refresh() -> void:
 	_graph.selected = selected
 	_graph.rebuild_layout()
 	_rebuild_detail()
-	_footer.text = "%d of %d complete   ·   tree read from %s" % [
-		done, model.nodes.size(), String(model.source())]
+	# WHERE THE TREE CAME FROM IS NOT NEWS TO A PLAYER. This footer read
+	# "0 of 45 complete · tree read from research" — half a sentence for the
+	# reader and half for whoever wired the model, in the one screen where the
+	# game is trying to sound like engineers talking to a governor. The
+	# provenance still matters when it is NOT the real tree: `content` and
+	# `buildings` are the degraded fallbacks [P10] leaves behind when the
+	# research system is missing, and a player looking at a tree of building
+	# unlocks deserves to be told that is all it is.
+	_footer.text = "%d of %d complete" % [done, model.nodes.size()]
+	match model.source():
+		&"content":
+			_footer.text += "   ·   read from the content files — no research system in this build"
+		&"buildings":
+			_footer.text += "   ·   what each building opens — no research system in this build"
+		&"none":
+			_footer.text = "nothing to research in this build"
 
 
 func select(id: StringName) -> void:
@@ -152,7 +173,28 @@ func _rebuild_detail() -> void:
 	_detail.add_child(LcnUiStyle.label(badge, LcnUiStyle.FS_SMALL, _state_colour(n.state)))
 	if n.flavour != "":
 		_detail.add_child(_wrapped(n.flavour, LcnUiStyle.ACCENT_SOFT))
-	if n.description != "":
+	# `description` IS NOT SHOWN, AND THAT IS THE FIX RATHER THAN THE OMISSION.
+	#
+	# `ResearchNode` documents the field as "THE BEAT. Written for a player, read
+	# by a designer", and all 45 nodes in `game/content/research/` are written the
+	# other way round — as notes to whoever builds the tree next. What this panel
+	# printed to a player, in `artifacts/play_tour/shots/03_tech.png`, was:
+	#
+	#   "THE BEAT: the first night the player watches a turret connect and
+	#    nothing happens. Raw damage is the least interesting answer in the
+	#    branch and the correct first one, because at this point the player does
+	#    not yet know what kind of enemy they are failing against."
+	#
+	# A city-management game speaking about "the player" in the third person,
+	# inside the research screen, in a build where every building, law and event
+	# holds its voice. The beat is already on screen in the game's own words —
+	# `flavour` above and "Why now" below, which is `urgency_line` measured
+	# against the city this minute — so nothing a player needed is lost. The
+	# authored notes stay in the .tres for the next person to work the tree.
+	# `ResearchNode.validate()` now names any node written that way, so this is
+	# reported in the log rather than quietly hidden. Restore this line the day
+	# the content is rewritten for the reader it claims.
+	if n.description != "" and not LcnTechPanel.is_authors_note(n.description):
 		_detail.add_child(_wrapped(n.description, LcnUiStyle.TEXT_DIM))
 
 	var why_text: String = n.why_now()
@@ -375,17 +417,35 @@ class _Graph extends Control:
 
 	## One line under the name, in a box 168 pixels wide. What it opens if it
 	## opens anything, otherwise what it costs to think about.
+	##
+	## IT USED TO COUNT INSTEAD OF NAMING. `artifacts/play_tour/shots/03_tech.png`
+	## shows a tree in which "Pressurised Mains" reads "2 buildings" and "Alloy
+	## Steel" reads "1 unlock" — a number a player cannot want, in the one screen
+	## whose entire job is answering "what do I get". The model already carries
+	## the kinds; one of them fits in 168 pixels and two of them fit as "X + 1
+	## more", so the row says a NAME and falls back to the count only when the
+	## name would not fit at all.
 	static func _node_subtitle(n: LcnTechModel.TechNode) -> String:
 		if not n.unlocks.is_empty():
-			return "%d building%s" % [n.unlocks.size(), "" if n.unlocks.size() == 1 else "s"]
+			return _opens_line(n.unlocks)
 		if not n.grants.is_empty():
-			return "%d unlock%s" % [n.grants.size(), "" if n.grants.size() == 1 else "s"]
+			return _opens_line(n.grants)
 		var payoff: PackedStringArray = n.effect_lines()
 		if not payoff.is_empty():
 			return payoff[0]
 		if n.cost_points > 0.0:
 			return "%s insight" % LcnUiFormat.num(n.cost_points)
 		return LcnUiFormat.item_name(n.branch)
+
+	## "Booster Pump", "Booster Pump +1 more". Sorted by the model already, so
+	## the same node always reads the same way.
+	static func _opens_line(ids: Array[StringName]) -> String:
+		var first: String = LcnUiFormat.item_name(ids[0])
+		if ids.size() == 1:
+			return first
+		if first.length() <= 18:
+			return "%s +%d more" % [first, ids.size() - 1]
+		return "%s and %d more" % [first.substr(0, 16) + "…", ids.size() - 1]
 
 	func _is_done(id: StringName) -> bool:
 		if model == null:

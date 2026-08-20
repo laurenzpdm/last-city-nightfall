@@ -24,6 +24,12 @@ extends CanvasLayer
 const LAYER: int = 61
 const VIGNETTE_PX: int = 64
 const SWEEP_PX: int = 64
+## Where the THREAT ring starts and how far it takes to reach full, in units of
+## half-frame. 0.50/0.70 — the ambient ramp — puts measurable red over the whole
+## playfield; 0.78/0.42 keeps it in the margin, where it is louder than before
+## and out of the way of the fight.
+const THREAT_START: float = 0.78
+const THREAT_SPAN: float = 0.42
 
 ## Continuous pressures, 0..1, set by LcnFeel from the simulation.
 var night_pressure: float = 0.0
@@ -32,6 +38,21 @@ var cold_pressure: float = 0.0
 
 var _canvas: Control = null
 var _vignette_tex: ImageTexture = null
+## A SECOND, TIGHTER RAMP, AND IT IS THERE FOR A MEASURED DEFECT.
+##
+## The threat pressure is the only one of the three that is red, and red is the
+## colour that costs the most: a hostile in this game is separated from a citizen
+## by a COLD cue, so every point of red laid over the playfield is spent directly
+## out of the one difference the player is hunting for. A critic scanned the
+## shipped assault frame (`artifacts/CRIT/shots/assault.world.png`) for that cue
+## and found 105 pixels, all of them interface text — ten hostiles inside the
+## perimeter, none of them findable, on a frame this layer had just tinted.
+##
+## Night and cold are ambient and may reach in from d=0.50. Threat now starts at
+## THREAT_START and is at full strength only in the outer margin, which is also
+## the truer statement: the thing coming for you is coming from OUTSIDE, and the
+## middle of the frame is where you have to be able to read what it is doing.
+var _threat_tex: ImageTexture = null
 var _sweep_tex: ImageTexture = null
 
 var _wash := LcnImpulse.new(LcnEase.Kind.QUART_OUT)
@@ -52,7 +73,8 @@ func _ready() -> void:
 	name = "FeelScreen"
 	layer = LAYER
 	follow_viewport_enabled = false
-	_vignette_tex = _bake_vignette()
+	_vignette_tex = _bake_vignette(0.50, 0.70)
+	_threat_tex = _bake_vignette(THREAT_START, THREAT_SPAN)
 	_sweep_tex = _bake_sweep()
 	_canvas = _Canvas.new()
 	(_canvas as _Canvas).host = self
@@ -149,8 +171,8 @@ func _paint(c: Control) -> void:
 		# wave is. Nothing else in the frame does that, so it is unmistakable.
 		var beat: float = 0.55 + 0.45 * LcnEase.breathe(LcnTiming.ui_now * (0.35 + threat * 1.1))
 		var tc: Color = LcnPalette.DANGER
-		c.draw_texture_rect(_vignette_tex, full, false,
-			Color(tc.r, tc.g, tc.b, 0.26 * threat * beat))
+		c.draw_texture_rect(_threat_tex, full, false,
+			Color(tc.r, tc.g, tc.b, 0.30 * threat * beat))
 
 	# 2. the one-off edge pulse
 	var e: float = _edge.value()
@@ -194,7 +216,7 @@ func _paint_sweep(c: Control, size: Vector2) -> void:
 
 ## A radial alpha ramp: transparent in the middle, opaque at the corners.
 ## Baked once at 64x64 and stretched; a vignette has no detail to lose.
-func _bake_vignette() -> ImageTexture:
+func _bake_vignette(start: float, span: float) -> ImageTexture:
 	var img := Image.create(VIGNETTE_PX, VIGNETTE_PX, false, Image.FORMAT_RGBA8)
 	var half: float = float(VIGNETTE_PX) * 0.5
 	for y: int in VIGNETTE_PX:
@@ -204,7 +226,7 @@ func _bake_vignette() -> ImageTexture:
 			# even with night, cold and threat pressure stacked on top of each
 			# other — the vignette is a mood, not a mask.
 			var a: float = LcnEase.apply(LcnEase.Kind.QUAD_IN,
-				clampf((d - 0.50) / 0.70, 0.0, 1.0))
+				clampf((d - start) / span, 0.0, 1.0))
 			img.set_pixel(x, y, Color(1.0, 1.0, 1.0, a))
 	return ImageTexture.create_from_image(img)
 

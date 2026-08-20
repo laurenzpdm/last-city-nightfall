@@ -121,6 +121,9 @@ var wave_band: String = ""
 var wave_known: bool = true
 var wave_precision: int = 3
 var wave_active: bool = false
+## Latched by `Bus.game_over`. Cleared only when the probe rebinds to a new
+## world, which is what a restart does.
+var run_over: bool = false
 var has_combat: bool = false
 var enemies_alive: int = 0
 var turrets_online: int = 0
@@ -132,7 +135,12 @@ var has_build: bool = false
 var sites_pending: int = 0
 var buildings_total: int = 0
 var buildings_frozen: int = 0
+var has_production: bool = false
 var stalled_machines: int = 0
+## Belt lines [P03] is running. Zero in a city where nothing has been automated
+## yet, which is most of the first hour — and the difference between advice a
+## player can follow and advice about equipment they do not own.
+var belt_lines: int = 0
 var stock: Dictionary[StringName, int] = {}
 var stock_order: Array[StringName] = []
 
@@ -165,6 +173,8 @@ var _scanned_tick: int = -1000
 var _item_ids: Array[StringName] = []
 var _items_scanned: bool = false
 var _bus_wave: Array = []                          ## [wave, seconds, tick] from Bus
+## Highest wave number `Bus.wave_cleared` has announced. See `_read_threat()`.
+var _wave_finished: int = 0
 ## instance id -> metrics(), valid for one refresh only.
 var _metrics_cache: Dictionary[int, Dictionary] = {}
 
@@ -177,6 +187,7 @@ func _init() -> void:
 			bus.connect(&"wave_incoming", _on_wave_incoming)
 			bus.connect(&"wave_started", _on_wave_started)
 			bus.connect(&"wave_cleared", _on_wave_cleared)
+			bus.connect(&"game_over", _on_game_over)
 
 
 ## Drops every Bus subscription. MUST be called when the owner goes away: an
@@ -189,7 +200,8 @@ func dispose() -> void:
 	for pair: Array in [[&"heat_shortfall", _on_heat_shortfall],
 			[&"wave_incoming", _on_wave_incoming],
 			[&"wave_started", _on_wave_started],
-			[&"wave_cleared", _on_wave_cleared]]:
+			[&"wave_cleared", _on_wave_cleared],
+			[&"game_over", _on_game_over]]:
 		if bus.is_connected(pair[0], pair[1]):
 			bus.disconnect(pair[0], pair[1])
 
@@ -232,6 +244,12 @@ func bind() -> void:
 	if world_seed != _bound_seed:
 		_bound_seed = world_seed
 		trend.reset()
+		# A different world has not survived any night yet, and carrying the
+		# last one's count over would leave its first wave suppressed.
+		_wave_finished = 0
+		_bus_wave = []
+		# A new seed is a new city. The last one's ending is not this one's.
+		run_over = false
 	_bound_tick = _tick()
 
 
@@ -256,12 +274,15 @@ func _forget() -> void:
 	has_threat = false
 	has_combat = false
 	has_research = false
+	has_production = false
+	stalled_machines = 0
 	short_networks.clear()
 	stock.clear()
 	stock_order.clear()
 	demands.clear()
 	ultimatum_active = false
 	sites_pending = 0
+	belt_lines = 0
 	research_title = ""
 	_shortfalls.clear()
 	_focus_cache.clear()
@@ -333,8 +354,20 @@ func _read_climate() -> void:
 
 ## Seconds until the thing that matters next: nightfall while it is day, dawn
 ## while it is night. Negative when climate is absent.
+##
+## AND A CITY THAT IS OVER HAS NO NEXT NIGHTFALL EITHER.
+##
+## `_on_game_over` already stands the wave panel down, and the clock — the
+## single most prominent number in the interface — kept counting.
+## `artifacts/play1/shots/third_day_city.png`: [P22]'s ending card in the middle
+## of the screen, "The council was put out of its own gate" in the attention
+## stack, and above both of them **NIGHTFALL IN 1:36** burning amber because the
+## countdown had dropped under two minutes. The clock was not wrong about the
+## sky; it was answering a question the run had stopped asking. Same latch, same
+## sentinel the widget already reads: negative seconds means "there is nothing
+## to count", and `LcnHudClock` prints "—:—" under whatever label it is given.
 func countdown_seconds() -> float:
-	if not has_climate:
+	if not has_climate or run_over:
 		return -1.0
 	return seconds_to_dawn if is_night else seconds_to_night
 
@@ -342,6 +375,8 @@ func countdown_seconds() -> float:
 func countdown_label() -> String:
 	if not has_climate:
 		return "—"
+	if run_over:
+		return "THE RUN IS OVER"
 	return "SUNRISE IN" if is_night else "NIGHTFALL IN"
 
 
@@ -609,9 +644,20 @@ func _on_wave_started(wave: int, _strength: float) -> void:
 	wave_active = true
 
 
-func _on_wave_cleared(_wave: int) -> void:
+func _on_wave_cleared(wave: int) -> void:
 	wave_active = false
 	_bus_wave = []
+	_wave_finished = maxi(_wave_finished, wave)
+
+
+## The run is over. [P08] keeps composing waves afterwards — it has no reason
+## not to — and `artifacts/play1/shots/third_day_city.png` therefore shows [P22]'s
+## ending card with "NEXT WAVE 1:36 · wave 3 from the south-east, the south-west
+## and the north-east" beside it, a forecast for a night this city does not get.
+## The panel already stands itself down on `wave_seconds < 0`; it only needed to
+## be told.
+func _on_game_over(_reason: String) -> void:
+	run_over = true
 
 
 ## [P08]'s preview if it has one, the Bus countdown if it does not, nothing if
@@ -663,6 +709,30 @@ func _read_threat(tick: int) -> void:
 			["seconds_to_wave", "next_wave_seconds"], -1.0)
 		wave_strength = _ask(_threat, [&"wave_strength", &"pressure"],
 			["strength", "pressure"], wave_strength)
+
+	# A NIGHT THE PLAYER HAS ALREADY WON MUST STOP COUNTING DOWN.
+	#
+	# [P08] keeps the resolved plan on its books until the next night is
+	# composed at the day roll-over, and every clock it offers is measured to
+	# NIGHTFALL — which, in the hour between "wave 1 resolved" and dawn, is now.
+	# So `next_wave_preview()` and `seconds_until_wave()` both answer 0 for a
+	# wave that is over, and read literally that painted, in
+	# `artifacts/play1/shots/assault.png`, a wave panel reading "NEXT WAVE 0:00 —
+	# wave 1 from the south-east · A HANDFUL" and an alert reading "Attack now"
+	# over the quiet minutes AFTER the six drift hounds were all dead. Both
+	# widgets were honest about what they were told; nobody had told them.
+	#
+	# `Bus.wave_cleared` is the announcement, this probe already listens to it,
+	# and `wave_seconds < 0` is the documented "there is nothing to show" value
+	# that `LcnHudWave.should_show()` and `LcnHudAlerts` both already respect.
+	# The three existed; the wire between them did not.
+	if not wave_active and wave_number <= _wave_finished:
+		wave_seconds = -1.0
+	# And a city that is over has no next night at all. Same rule, one signal
+	# later: see `_on_game_over`.
+	if run_over:
+		wave_seconds = -1.0
+		wave_active = false
 
 
 ## The heaviest approach lane, and where it comes in. [P08] hands out a
@@ -721,8 +791,10 @@ func _read_build() -> void:
 		+ int(bm.get("queued", 0))
 	buildings_total = int(bm.get("buildings_total", 0))
 	buildings_frozen = int(bm.get("frozen", 0))
+	has_production = _production != null
 	if _production != null:
 		stalled_machines = int(_ask(_production, [], ["stalled"], 0.0))
+	belt_lines = int(_ask(_logistics, [], ["belt_lines"], 0.0))
 	_read_stock()
 
 

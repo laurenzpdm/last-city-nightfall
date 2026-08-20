@@ -113,6 +113,110 @@ func test_every_archetype_bakes_something_with_an_outline() -> void:
 		assert_lt(fill, 0.92, "%s is a silhouette, not a filled rectangle (fill %.3f)" % [arch, fill])
 
 
+# ============================================== THE PEOPLE, AT THE PLAY ZOOM ==
+#
+# A blind judge looking at a real 1920x1080 frame of this build "could find one
+# human figure". The ten enemies were given ten silhouettes last pass and are
+# held to 0.62 overlap here; the CITY'S OWN PEOPLE were never graded at all, and
+# `_bake_person` drew citizen, worker and soldier from ONE polygon list with a
+# different coat colour and a different belt. Three roles, one shape.
+#
+# Colour is not the answer at this scale. `LcnEntityRenderer.agent_scale` holds
+# every figure at MIN_AGENT_PX on screen, so at zoom 0.60 a citizen and a
+# soldier are both seventeen pixels tall — the height difference the world
+# sprites have is spent by the figure floor before it reaches the eye. What
+# survives is the OUTLINE and the ASPECT RATIO, and that is what these two tests
+# measure: each sprite rasterised to the screen height the renderer will
+# actually give it, then compared as a shape.
+#
+# That is a stricter frame than the enemy test above, which normalises at a
+# common WORLD scale and therefore gets size for free. It is also the honest
+# one for the townspeople, because they all arrive at the same screen height.
+
+## Every render kind the city itself can put in the street. Enemies are graded
+## by test_the_ten_enemies_are_distinguishable_by_shape_alone.
+const HUMAN_KINDS: Array[StringName] = [&"citizen", &"worker", &"porter", &"soldier"]
+
+## The screen height the figure floor gives a person at play zoom. Read from the
+## renderer's own constant, never copied: a suite that hardcodes 17 goes on
+## certifying 17 px silhouettes after the floor moves, and would have graded the
+## shapes at a size the screen no longer shows.
+const PLAY_PX: int = int(LcnEntityRenderer.MIN_AGENT_PX)
+## Cells across the mask. A figure this size cannot be wider than twice its
+## height without being something other than a person. Sized off the floor for
+## the same reason: at 24 px a 20-row mask would clip every figure's head off
+## and then measure how alike the remains are.
+const ROLE_W: int = PLAY_PX * 2
+const ROLE_H: int = PLAY_PX + 3
+
+
+## THE ROLES READ APART AS SHAPES, at seventeen pixels, with no colour.
+##
+## Fails at 1.000 against the old `_bake_person`, which returned the same
+## polygon for all three of its kinds.
+func test_the_city_roles_are_distinguishable_by_shape_alone() -> void:
+	var masks: Dictionary[StringName, PackedByteArray] = {}
+	for kind: StringName in HUMAN_KINDS:
+		var m: PackedByteArray = _mask_at_play_height(f.agent(kind))
+		var on: int = 0
+		for v: int in m:
+			on += v
+		assert_gt(float(on), 24.0,
+			"%s is a figure and not a smudge at %d px (%d cells)" % [kind, PLAY_PX, on])
+		masks[kind] = m
+	var worst: float = 0.0
+	var pair: String = ""
+	for i: int in HUMAN_KINDS.size():
+		for j: int in range(i + 1, HUMAN_KINDS.size()):
+			var same: float = _similarity(masks[HUMAN_KINDS[i]], masks[HUMAN_KINDS[j]])
+			if same > worst:
+				worst = same
+				pair = "%s vs %s" % [HUMAN_KINDS[i], HUMAN_KINDS[j]]
+	assert_lt(worst, 0.62,
+		"closest city-role silhouette pair is %s at %.3f overlap at play zoom" % [pair, worst])
+
+
+## ...and they are not the enemy either. A hooded citizen crossing the plaza and
+## a drift hound coming out of the dark are the one pair in this game that must
+## never be confused, and they arrive at the same seventeen pixels.
+func test_a_person_never_reads_as_a_creature() -> void:
+	var worst: float = 0.0
+	var pair: String = ""
+	for hk: StringName in HUMAN_KINDS:
+		var hm: PackedByteArray = _mask_at_play_height(f.agent(hk))
+		for ek: StringName in LcnSpriteFactory.ENEMY_KINDS:
+			var em: PackedByteArray = _mask_at_play_height(f.agent(ek))
+			var same: float = _similarity(hm, em)
+			if same > worst:
+				worst = same
+				pair = "%s vs %s" % [hk, ek]
+	assert_lt(worst, 0.70,
+		"closest person/creature pair is %s at %.3f overlap at play zoom" % [pair, worst])
+
+
+## The sprite as the screen gets it: scaled so its HEIGHT is exactly the figure
+## floor, aspect preserved, standing on the bottom row, centred horizontally —
+## which is what `LcnEntityRenderer._draw_agent` does about the feet.
+static func _mask_at_play_height(sprite: Dictionary) -> PackedByteArray:
+	var img: Image = (sprite["texture"] as ImageTexture).get_image()
+	var out := PackedByteArray()
+	out.resize(ROLE_W * ROLE_H)
+	var w: int = img.get_width()
+	var h: int = img.get_height()
+	var s: float = float(PLAY_PX) / float(maxi(h, 1))
+	var ox: float = (float(ROLE_W) - float(w) * s) * 0.5
+	var oy: float = float(ROLE_H) - float(h) * s - 1.0
+	for y: int in ROLE_H:
+		for x: int in ROLE_W:
+			var sx: int = int((float(x) - ox) / s)
+			var sy: int = int((float(y) - oy) / s)
+			var on: int = 0
+			if sx >= 0 and sy >= 0 and sx < w and sy < h and img.get_pixel(sx, sy).a > 0.45:
+				on = 1
+			out[y * ROLE_W + x] = on
+	return out
+
+
 ## Two archetypes whose alpha masks are nearly identical are the same building to
 ## a player at far zoom, whatever colours are inside them.
 func test_archetype_silhouettes_are_measurably_different() -> void:
@@ -260,3 +364,194 @@ func test_atlas_is_one_texture_and_stays_a_sane_size() -> void:
 	assert_lt(float(px), 4.0 * 1024.0 * 1024.0,
 		"atlas is %dx%d — small enough to stay resident on any GPU" % [tex.get_width(), tex.get_height()])
 	assert_gt(float((a["regions"] as Dictionary).size()), 25.0, "and it earns its size")
+
+
+# =========================================================== THE TEN ENEMIES ==
+#
+# `world_renderer._on_enemy_spawned` mapped every spawn with
+#
+#     &"brute" if String(kind).to_lower().contains("brute") else &"swarm"
+#
+# and not one of the ten ids in game/content/enemies/ contains "brute". So the
+# expression was not merely coarse — it was FALSE for every input the simulation
+# can produce, and every enemy in the game drew one 18x16 sprite. These three
+# tests fail against that expression, which is the point of them: the first two
+# fail on the mapping, the third on the art it maps to.
+
+
+## THE MAPPING IS TRUE FOR THE THINGS THAT ACTUALLY SPAWN. Read off the content
+## folder, not off a list in this file, so an enemy added tomorrow without art
+## fails here rather than silently becoming a blob at midnight.
+func test_every_shipped_enemy_maps_to_its_own_sprite() -> void:
+	var dir := DirAccess.open("res://game/content/enemies")
+	if dir == null:
+		skip("no enemy content in this build")
+		return
+	var ids: Array[StringName] = []
+	for file: String in dir.get_files():
+		if file.ends_with(".tres"):
+			ids.append(StringName(file.get_basename()))
+	assert_ge(float(ids.size()), 10.0, "the designed roster is present (%d)" % ids.size())
+
+	var archs: Dictionary[StringName, bool] = {}
+	for id: StringName in ids:
+		var arch: StringName = LcnSpriteFactory.agent_arch(id)
+		assert_eq(arch, id,
+			"%s renders as itself, not as a generic archetype (got '%s')" % [id, arch])
+		archs[arch] = true
+	assert_eq(archs.size(), ids.size(),
+		"%d enemies produce %d distinct render kinds" % [ids.size(), archs.size()])
+
+
+## Every one of them is in the atlas, so drawing ten creatures still costs the
+## draw calls of one. An enemy sprite outside the atlas would bind a second
+## texture and break the batch the whole renderer is built on.
+func test_every_enemy_sprite_rides_the_one_atlas() -> void:
+	var a: Dictionary = f.atlas([])
+	var regions: Dictionary = a["regions"]
+	for kind: StringName in LcnSpriteFactory.ENEMY_KINDS:
+		assert_true(regions.has(LcnSpriteFactory.agent_key(kind)),
+			"atlas contains enemy %s" % kind)
+
+
+## SILHOUETTE, NOT PALETTE. At the zoom this game is played at an enemy is about
+## a dozen pixels tall with no readable interior, so two kinds that share an
+## outline are the same creature to the player however differently they are
+## tinted. Rasterised at a COMMON world scale — a 30 hp hound and a 9000 hp boss
+## differ by size as much as by shape, and normalising per sprite would throw
+## exactly that away.
+##
+## The bar is 0.62, tighter than the 0.82 the buildings are held to, because a
+## building is identified at leisure and an enemy is identified while it is
+## walking at you.
+func test_the_ten_enemies_are_distinguishable_by_shape_alone() -> void:
+	var kinds: Array[StringName] = LcnSpriteFactory.ENEMY_KINDS
+	var masks: Dictionary[StringName, PackedByteArray] = {}
+	for kind: StringName in kinds:
+		var m: PackedByteArray = _mask_at(f.agent(kind), 64.0)
+		var on: int = 0
+		for v: int in m:
+			on += v
+		assert_gt(float(on), 12.0, "%s draws something at play scale (%d cells)" % [kind, on])
+		masks[kind] = m
+	var worst: float = 0.0
+	var pair: String = ""
+	for i: int in kinds.size():
+		for j: int in range(i + 1, kinds.size()):
+			var same: float = _similarity(masks[kinds[i]], masks[kinds[j]])
+			if same > worst:
+				worst = same
+				pair = "%s vs %s" % [kinds[i], kinds[j]]
+	assert_lt(worst, 0.62,
+		"closest enemy silhouette pair is %s at %.3f overlap" % [pair, worst])
+
+
+## THE ECHELON, AT THE SIZE THE SCREEN ACTUALLY GIVES IT.
+##
+## The test above normalises every creature to a common WORLD scale, which is
+## the right frame for "are these ten designs distinct" and the WRONG one for
+## "can a player tell them apart in a night". The figure floor in
+## `LcnEntityRenderer.agent_scale` spends most of the size difference before the
+## sprite reaches the eye: at zoom 0.60 a 13 px hound is enlarged to the floor
+## and a 24 px breaker is enlarged to the same floor, so on screen they are the
+## same height and only their OUTLINES are left to carry which one is which.
+##
+## [F5] is building nights that crest at 10, 16, 33 and 40 bodies on one tick and
+## asked for exactly this: silhouette difference between the kinds at play zoom,
+## because an echelon coming over a ridge together is one shape repeated forty
+## times and the player has to read it in the second before it arrives.
+##
+## This is also the check that catches a figure floor raised too far. Push
+## MIN_AGENT_PX up and more creatures pile onto it, and this number climbs.
+func test_the_echelon_reads_at_play_zoom() -> void:
+	const PLAY_ZOOM: float = 0.60
+	var kinds: Array[StringName] = LcnSpriteFactory.ENEMY_KINDS
+	var masks: Dictionary[StringName, PackedByteArray] = {}
+	var heights: Dictionary[StringName, int] = {}
+	for kind: StringName in kinds:
+		var sprite: Dictionary = f.agent(kind)
+		var wh: float = float((sprite["texture"] as ImageTexture).get_image().get_height())
+		var px: int = int(round(wh * PLAY_ZOOM
+			* LcnEntityRenderer.agent_scale(wh, PLAY_ZOOM)))
+		heights[kind] = px
+		assert_gt(float(px), LcnEntityRenderer.MIN_AGENT_PX - 1.0,
+			"%s reaches the figure floor at play zoom (%d px)" % [kind, px])
+		assert_gt(float(px),
+			LcnEntityRenderer.agent_target_px(wh) - 1.0,
+			"%s reaches the height the floor asks for it (%d px of %.1f)"
+				% [kind, px, LcnEntityRenderer.agent_target_px(wh)])
+		masks[kind] = _mask_at_screen_height(sprite, px)
+	var worst: float = 0.0
+	var pair: String = ""
+	for i: int in kinds.size():
+		for j: int in range(i + 1, kinds.size()):
+			var same: float = _similarity(masks[kinds[i]], masks[kinds[j]])
+			if same > worst:
+				worst = same
+				pair = "%s (%d px) vs %s (%d px)" % [
+					kinds[i], heights[kinds[i]], kinds[j], heights[kinds[j]]]
+	assert_lt(worst, 0.66,
+		"closest pair in an echelon at zoom %.2f is %s at %.3f overlap — on screen, "
+		% [PLAY_ZOOM, pair, worst]
+		+ "after the figure floor, they are one creature")
+
+
+## Rasterised at the exact screen height `agent_scale` gives it, bottom-aligned
+## and centred on a canvas big enough for the boss, so what is compared is what
+## the player is shown and not what the atlas holds.
+static func _mask_at_screen_height(sprite: Dictionary, px: int) -> PackedByteArray:
+	var img: Image = (sprite["texture"] as ImageTexture).get_image()
+	var cw: int = PLAY_PX * 3
+	var ch: int = PLAY_PX * 2
+	var out := PackedByteArray()
+	out.resize(cw * ch)
+	var w: int = img.get_width()
+	var h: int = img.get_height()
+	var s: float = float(px) / float(maxi(h, 1))
+	var ox: float = (float(cw) - float(w) * s) * 0.5
+	var oy: float = float(ch) - float(h) * s - 1.0
+	for y: int in ch:
+		for x: int in cw:
+			var sx: int = int((float(x) - ox) / s)
+			var sy: int = int((float(y) - oy) / s)
+			var on: int = 0
+			if sx >= 0 and sy >= 0 and sx < w and sy < h and img.get_pixel(sx, sy).a > 0.45:
+				on = 1
+			out[y * cw + x] = on
+	return out
+
+
+## The boss must not be a big hound. Size IS information in a tower defense:
+## 9000 hp and 30 hp arriving in the same frame have to be told apart before
+## either of them is in range.
+func test_size_carries_the_threat() -> void:
+	var hound: Image = (f.agent(&"drift_hound")["texture"] as ImageTexture).get_image()
+	var boss: Image = (f.agent(&"the_long_cold")["texture"] as ImageTexture).get_image()
+	var breaker: Image = (f.agent(&"hoarfrost_breaker")["texture"] as ImageTexture).get_image()
+	assert_gt(float(boss.get_height()), float(hound.get_height()) * 3.0,
+		"the boss is over three times the height of the swarm trash (%d vs %d)"
+			% [boss.get_height(), hound.get_height()])
+	assert_gt(float(breaker.get_height()), float(hound.get_height()) * 1.8,
+		"the 900 hp breaker reads as heavy next to the 30 hp hound (%d vs %d)"
+			% [breaker.get_height(), hound.get_height()])
+	# ...and the flier is the widest thing in the set, because a wingspan is the
+	# only cue that survives when everything is twelve pixels tall.
+	var stalker: Image = (f.agent(&"pale_stalker")["texture"] as ImageTexture).get_image()
+	for kind: StringName in LcnSpriteFactory.ENEMY_KINDS:
+		if kind == &"pale_stalker" or kind == &"the_long_cold":
+			continue
+		var im: Image = (f.agent(kind)["texture"] as ImageTexture).get_image()
+		assert_gt(float(stalker.get_width()) / float(stalker.get_height()),
+			float(im.get_width()) / float(im.get_height()),
+			"the flier is the widest-for-its-height silhouette (vs %s)" % kind)
+
+
+## An id nobody has drawn must still draw SOMETHING. The fallback is the reason
+## adding an enemy to the content folder can never produce an invisible one.
+func test_an_undrawn_enemy_still_lands_on_an_archetype() -> void:
+	assert_eq(LcnSpriteFactory.agent_arch(&"grave_titan"), &"brute",
+		"a heavy-sounding unknown falls back to the brute")
+	assert_eq(LcnSpriteFactory.agent_arch(&"nibbler"), &"swarm",
+		"anything else falls back to the swarm")
+	assert_eq(LcnSpriteFactory.agent_arch(&"citizen"), &"citizen",
+		"and the townspeople are left alone")
