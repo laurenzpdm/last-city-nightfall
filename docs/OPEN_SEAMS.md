@@ -55,15 +55,17 @@ enough that a handful of new structures tips it. That is load-bearing, not a sce
 Belongs with `every wave ends` (3 started, 2 cleared) and `shots / enemy` (59 for 51, 1.16) —
 all three are the same weakness seen from different angles, and all three are J3's.
 
-## 3. `test_a_thousand_citizens_fit_in_the_tick_budget` — 10294 us against 9000
+## 3. ~~`test_a_thousand_citizens_fit_in_the_tick_budget` — 10294 us against 9000~~ NOISE
 
-Same CI job, `tests/citizens/test_citizen_perf.gd`. Not yet established as reproducible rather
-than CI-runner noise; the gate marks genuinely flapping suites as FLAPPING and did not mark this
-one, so treat it as real until somebody reads it three times.
+**Withdrawn the same day it was filed.** It appeared on CI job 96473329828 (`19bda2d`) and did
+not recur on job 96476182933 (`d68cf6e`), one commit later, on a codebase that touched nothing
+in `game/sim/citizens/`. Two identical reads, one red one green: runner noise.
 
-Note the standing context in `tools/perf_budget.json`: the perf floors were already unreachable
-on this hardware before any of this wave's work. That is about `_draw`, not about the citizen
-tick, so it does not excuse this one.
+Left here rather than deleted, because the mistake is the useful part. This entry originally
+said "treat it as real until somebody reads it three times" — which was the right instinct and
+still filed a defect on one read. One read is not a measurement. The gate itself knows this and
+marks genuinely intermittent suites FLAPPING after three; it had not seen this one three times
+either.
 
 ## 4. Two suites red on CI that are UNCHECKED on a headless box
 
