@@ -102,6 +102,7 @@ var _shadow: Node2D = null
 var _glow: Node2D = null
 var _main: Node2D = null
 var _halo: Node2D = null
+var _figures: Node2D = null
 
 var _atlas: ImageTexture = null
 var _regions: Dictionary[StringName, Rect2] = {}
@@ -272,6 +273,40 @@ func setup(world_model: LcnWorldModel, sprite_factory: LcnSpriteFactory) -> void
 	# above makes: above [P03]'s plates (4), above [P15]'s juice (5) and hover
 	# (6), still below [P14]'s decay (8) and its effects (20+).
 	_halo = _make_pass("FoeHaloPass", 3, 7, true)
+	# ...AND NOTHING THE PLAYER BUILT MAY CUT A CITIZEN IN HALF EITHER. The
+	# paragraph above fixed the hostiles and stopped there, and the note handed on
+	# from that pass says so in as many words: the hostiles were worked around,
+	# the people were not.
+	#
+	# THE MEASUREMENT. The figures were drawn inside MainPass, on z 0. [P03]'s
+	# belt surfaces are on 1, its items in flight on 3 and its inserter and
+	# splitter plates on 4 — every one of them above every figure in the game.
+	# And a belt is WALKABLE: `game/content/buildings/belt_mk1.tres` carries
+	# `blocks_movement = false` and `walkable = true`, so a conveyor is not an
+	# obstacle a citizen walks around, it is a road a citizen walks ALONG. At the
+	# zoom a session sits at a person is 24 screen pixels and a belt tile is 19,
+	# so a hauler following the trunk line into the smelter yard is drawn with its
+	# legs under the conveyor it is standing on, in the densest and most looked-at
+	# part of the frame, at every hour.
+	#
+	# THE TRADE, STATED PLAINLY, BECAUSE IT IS A REAL ONE. Figures leave the
+	# building sort to do this. Inside MainPass an agent was y-sorted against the
+	# structures, so a citizen on the tiles behind a tall shed was correctly
+	# hidden by it; on z 7 that citizen is drawn over the shed's roof instead.
+	# That is the cost. It is paid because the other side of it is every person in
+	# the city being sliced by the floor they walk on, everywhere, all the time,
+	# and because this game's buildings are drawn nearly flat — the occlusion
+	# being given up is a few pixels along the top edge of a footprint, against a
+	# defect that covers whole figures. Shadows and warm pools do NOT move: they
+	# stay in the passes below, so a figure's shadow still falls on the ground and
+	# still goes behind the building it should.
+	#
+	# Both items on rung 7 are [P13]'s own and are created here, in this order, so
+	# the tie-break between them is a line of code in one file rather than an
+	# accident of which part reached the canvas first — which is the thing the
+	# ladder in `game/core/ui_layers.gd` forbids between PARTS. The halo is the
+	# light a creature throws and belongs under the creature that throws it.
+	_figures = _make_pass("FiguresPass", 4, 7, false)
 
 
 ## Binds the ground's data fields so entities can be lit by the same numbers the
@@ -331,6 +366,7 @@ func refresh(day_grade: Dictionary, view: Rect2, interp: float, camera_zoom: flo
 	_glow.queue_redraw()
 	_main.queue_redraw()
 	_halo.queue_redraw()
+	_figures.queue_redraw()
 
 
 ## Flattens the grade's light rig into scalars, once, for the frame. Entities are
@@ -664,6 +700,7 @@ func draw_pass(ci: CanvasItem, which: int) -> void:
 		1: _draw_glow(ci)
 		2: _draw_main(ci)
 		3: _draw_foe_halos(ci)
+		4: _draw_figures(ci)
 	if which == 0:
 		_draw_us = 0
 	_draw_us += Time.get_ticks_usec() - t0
@@ -967,10 +1004,8 @@ func _draw_glow(ci: CanvasItem) -> void:
 # --- pass 3: sprites ---------------------------------------------------------
 
 func _draw_main(ci: CanvasItem) -> void:
-	# model.buildings() is already ordered back-to-front; agents are merged into
-	# it linearly instead of re-sorting the whole world with a script lambda.
-	var vis_ag: Array[Dictionary] = _vis_ag
-
+	# model.buildings() is already ordered back-to-front. The figures used to be
+	# merged into this loop; they are their own pass now — see FiguresPass.
 	# The plain first, under everything. Scenery is scattered where the city is
 	# not, so y-sorting it against the settlement buys nothing and costs a merge
 	# over a set that can be a thousand rocks at far zoom.
@@ -984,17 +1019,9 @@ func _draw_main(ci: CanvasItem) -> void:
 			Color(slit.r, slit.g, slit.b, 1.0))
 
 	var frost: Color = LcnPalette.ICE_BLUE
-	var ai: int = 0
 	var barrels: bool = zoom >= LOD_ZOOM and _barrel_r.size.x > 0.0
 	for i: int in _vis_b.size():
 		var b2: Dictionary = _vis_b[i]
-		var cell: Vector2i = b2["cell"]
-		var tiles: Vector2i = b2["tiles"]
-		var y: float = float(cell.y + tiles.y) * float(TILE)
-		while ai < vis_ag.size() and float((vis_ag[ai]["pos"] as Vector2).y) < y:
-			_draw_agent(ci, vis_ag[ai])
-			ai += 1
-
 		var rect: Rect2 = _rect_at(i, Vector2.ZERO)
 		var state2: int = int(b2.get("state", LcnWorldModel.BUILD_OPERATIONAL))
 		var lit: Color = _light_for(b2["centre"], float(b2["warm"]))
@@ -1013,9 +1040,13 @@ func _draw_main(ci: CanvasItem) -> void:
 			if barrels and b2["arch"] == &"turret":
 				_draw_barrel(ci, b2, rect, tint)
 
-	while ai < vis_ag.size():
-		_draw_agent(ci, vis_ag[ai])
-		ai += 1
+
+
+## The people and the creatures, on the rung above the factory floor. Still
+## y-sorted among THEMSELVES, so two figures crossing overlap correctly.
+func _draw_figures(ci: CanvasItem) -> void:
+	for ag: Dictionary in _vis_ag:
+		_draw_agent(ci, ag)
 	_log_foe_marks(ci)
 
 

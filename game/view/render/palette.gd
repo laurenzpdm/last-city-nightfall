@@ -335,9 +335,25 @@ static func _keyframes() -> Array[Dictionary]:
 			"lift": Color(0.000, 0.003, 0.012), "gain": Color(1.02, 1.02, 1.03),
 			"sat": 1.02, "fog": Color(0.400, 0.470, 0.610), "fog_amt": 0.10,
 			"light_energy": 0.14, "bloom": 0.30, "chroma": 0.22, "star_amt": 0.0,
-			"sun_dir": Vector2(0.10, -0.86), "sun_col": Color(1.00, 0.980, 0.945), "sun_energy": 1.40,
+			# NOON WAS CLIPPING, AND A CLIPPED FRAME HAS NO ART IN IT. At a key of
+			# 1.40 against a fill of 0.80 the ground shader hands the crust
+			# `light` of about 1.7 before albedo, so every snow surface turned
+			# over more than one and came out as paper: `frame_lab` graded
+			# midday_play at 0.751 mean luma against its own 0.62 ceiling and
+			# called it a white field in four cells out of five, and the drift
+			# structure this wave exists to put back was being drawn INTO the
+			# clip. The hour keeps its shape — noon is still by a long way the
+			# brightest thing this game draws, and `run_ground_frame`'s absolute
+			# floor of 0.240 on the daylit plain still has room over it — but the
+			# top of the range is now inside the monitor. The cut here is small —
+			# most of the work is done by the HIGHLIGHT SHOULDER at the bottom of
+			# terrain.gdshader, because darkening the day is the one way to fix a
+			# clipped noon that also closes the day-to-night gap
+			# `tests/render/run_ground_frame.gd` measures as ARC_SEPARATION, and
+			# that gap is the thing this game is about.
+			"sun_dir": Vector2(0.10, -0.86), "sun_col": Color(1.00, 0.980, 0.945), "sun_energy": 1.30,
 			"sun_height": 0.95,
-			"sky_col": Color(0.290, 0.420, 0.760), "sky_energy": 0.80,
+			"sky_col": Color(0.290, 0.420, 0.760), "sky_energy": 0.74,
 			"bounce": 0.0, "bounce_col": Color(1.00, 0.88, 0.70), "wild": 0.0,
 		},
 		{
@@ -348,9 +364,11 @@ static func _keyframes() -> Array[Dictionary]:
 			"lift": Color(0.002, 0.005, 0.016), "gain": Color(1.01, 1.00, 1.01),
 			"sat": 1.00, "fog": Color(0.380, 0.410, 0.510), "fog_amt": 0.13,
 			"light_energy": 0.44, "bloom": 0.40, "chroma": 0.30, "star_amt": 0.0,
-			"sun_dir": Vector2(-0.50, -0.70), "sun_col": Color(1.00, 0.940, 0.858), "sun_energy": 1.34,
+			# Same cut as noon, kept proportional so the two hours stay the same
+			# distance apart. See the note on the noon keyframe.
+			"sun_dir": Vector2(-0.50, -0.70), "sun_col": Color(1.00, 0.940, 0.858), "sun_energy": 1.26,
 			"sun_height": 0.52,
-			"sky_col": Color(0.255, 0.375, 0.720), "sky_energy": 0.74,
+			"sky_col": Color(0.255, 0.375, 0.720), "sky_energy": 0.70,
 			"bounce": 0.10, "bounce_col": Color(1.00, 0.86, 0.66), "wild": 0.03,
 		},
 		{

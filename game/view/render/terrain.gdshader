@@ -148,7 +148,19 @@ float drift(vec2 t, float fine) {
 	// there is drift structure at the size of the things standing on it, and it
 	// is in `h` rather than behind `fine` so the LIGHT rakes it too. One fetch.
 	float c = n1(vec2(q.x * 0.42, q.y * 1.60) + vec2(211.0, 47.0));
-	float ridge_c = 1.0 - abs(c * 2.0 - 1.0);
+	// ...AND IT IS BEHIND `fine`, WHICH IS WHAT TURNS THE HATCH BACK INTO DUNES.
+	// The lighting block calls this function four more times at `t +/- 0.42` with
+	// `fine = 0.0` to build the shading normal. This rank has an across-wind
+	// period of 0.63 of a tile, so a 0.84-tile finite difference of it is not a
+	// slope, it is an alias — and that alias, multiplied by a normal amplitude of
+	// 7.5, is what painted the same 15-px diagonal comb over every pixel of
+	// `artifacts/P13/frames/midday_play.png` at every hour. Weighted by `fine` it
+	// leaves `h` exactly where it was at play zoom (the centre tap passes
+	// `detail`, which is 1.0 at every zoom a session uses) and disappears from
+	// the four normal taps, so the LIGHT now rakes the two long ranks and the
+	// swell — the forms a drift actually has — while the crust edge still breaks
+	// along this one.
+	float ridge_c = (1.0 - abs(c * 2.0 - 1.0)) * fine;
 	// Slow swell far larger than the screen: the plain is not flat.
 	float swell = fbm2(t * 0.021 + vec2(9.0, 61.0));
 	// The wind does not work the whole plain equally. Modulating the ridge
@@ -390,8 +402,39 @@ void fragment() {
 	// mostly crust with scoured lanes cut through it, deep snow is a white
 	// field, and grit and rock still come out bare. Their drift ratings already
 	// separate them; only the mapping from rating to bar was wrong.
-	float lying = clamp(depth * 1.20 + windy * 0.95 + storm * 0.16, 0.0, 1.0) * takes_snow;
-	float thr = 0.94 - lying * 0.90;
+	// STORM'S SHARE IS THE WEATHER YOU CAN SEE IN A STILL, and 0.16 of it was not
+	// enough to move a bar that ran from 0.94 down to 0.04. On the bar below,
+	// 0.30 of `lying` is 0.065 of the threshold, which over open snow is fifteen
+	// points of coverage: a snowing afternoon has visibly MORE white on the
+	// ground than a clear one, in the same frame, with no particle in it.
+	float lying = clamp(depth * 1.20 + windy * 0.95 + storm * 0.30, 0.0, 1.0) * takes_snow;
+	// AND THEN IT WAS SET SO LOW THAT THE PLAIN HAD NOTHING BUT SNOW ON IT, WHICH
+	// IS THE SAME DEFECT WITH THE SIGN FLIPPED. `drift()` returns a field whose
+	// mean over open ground is about 0.49 and whose useful spread is roughly
+	// 0.35..0.68; the bar was `0.94 - lying * 0.90`, and open snow's own drift
+	// rating of 0.62 alone puts `lying` at 0.59 before a flake has fallen, so the
+	// bar landed at 0.41 and every accumulating tile in the world pushed it lower
+	// still. At 0.04 — where the shipped preview settlement sits — the threshold
+	// is BELOW THE FLOOR OF THE FIELD, so `cover` is 1.0 in every pixel of the
+	// frame. That is why `artifacts/P13/frames/midday_play.png` before this change
+	// is a white sheet with soft blue smears on it: there is no crust boundary
+	// anywhere in it to see, only the lambert of a smooth field, and no amount of
+	// edge-sharpening downstream can draw an edge that was never crossed.
+	//
+	// The bar now lives inside the field it is measuring. Same spread and same
+	// ordering — bare rock keeps only what catches in its high ground, open snow
+	// is mostly crust with scoured lanes cut through it, deep snow is a white
+	// field — but every one of those is now a real fraction between 0 and 1
+	// instead of a saturated 1.
+	// The numbers: `drift()` measured over a 200x200 tile patch of open plain has
+	// mean 0.627, sd 0.104, decile 0.497 and 0.766 — so a bar of 0.755 leaves a
+	// fifth of a surface under crust, 0.628 leaves half and 0.540 leaves four
+	// fifths. Bare rock (drift rating 0.18) keeps only what catches in its high
+	// ground, dry open snow (0.62) is half crust and half scoured lane, and a
+	// surface that is either deep snow or being snowed on goes to four fifths
+	// white. Reproduce the distribution with tests/render/test_terrain_field.gd's
+	// drift-field case.
+	float thr = 0.755 - lying * 0.215;
 	// THE CRUST BREAKS ALONG A COMB THE PLAY CAMERA CAN RESOLVE. The edge used
 	// to be a threshold on a field built entirely from linearly-filtered single
 	// texels of a 256px value noise, so every boundary was a smooth blob and the
@@ -401,17 +444,47 @@ void fragment() {
 	// tile) puts a finger of bare scour every 8-14 screen pixels along every
 	// snow edge in the frame.
 	vec2 qc = vec2(dot(t, WIND), dot(t, WIND_T));
-	thr += (n1(vec2(qc.x * 0.26, qc.y * 2.15) + vec2(157.0, 83.0)) - 0.5) * 0.19;
+	// FRAY THE EDGE, DO NOT FRAY THE FIELD. This is the defect that survived five
+	// rounds and it was written HERE, not in the drift field. The two combs below
+	// move the coverage bar by up to +/-0.13 of the height field, and the bar is
+	// crossed with a smoothstep 0.052 wide — so at ANY point on the plain, edge or
+	// not, the comb is more than twice as wide as the transition it is jittering.
+	// The result is that coverage flips fully on and fully off along a half-tile
+	// pitch EVERYWHERE, and what the frame shows is not a snowfield with torn
+	// edges but a diagonal hatch laid edge to edge over the whole monitor at one
+	// frequency. Open `artifacts/P13/frames/midday_play.png` from before this
+	// change: there is no square inch of it without the same comb in it, which is
+	// the definition of wallpaper, and it is why five critics in a row wrote down
+	// "no drift structure at play zoom" about a shader that has three ranks of
+	// drift in it. The structure was there; the hatch was painted over it.
+	//
+	// So the fray is windowed on DISTANCE FROM THE BAR. Within about a twentieth
+	// of the height field of the edge it is at full strength and the boundary
+	// tears exactly as intended; a fifth of the field away — the middle of a
+	// snowfield, the middle of a scoured lane — it is arithmetically zero and the
+	// surface is left to the drift, the comb striations and the light.
+	// The window is TIGHT, and it has to be, because the field it is windowing is
+	// smooth. A threshold 0.05 wide crossed by a field whose gradient is 0.1 per
+	// tile is an edge twelve screen pixels across however narrow the threshold
+	// looks written down — which is why the scoured patches in the previous frame
+	// are soft blue clouds. The fray is what makes the boundary hard: inside a
+	// fiftieth of the bar it swings the bar by more than the whole transition
+	// width, so cover flips on and off along a half-tile comb and the boundary
+	// comes out ragged, with fingers of scour reaching into the crust and vice
+	// versa. Two hundredths out and it is gone again.
+	float near_edge = 1.0 - smoothstep(0.02, 0.10, abs(h - thr));
+	thr += ((n1(vec2(qc.x * 0.26, qc.y * 2.15) + vec2(157.0, 83.0)) - 0.5) * 0.19
 	// ...and a second, finer comb, at about a fifth of a tile across the wind, so
 	// the edge frays at four screen pixels as well as at fourteen. Two scales of
 	// fray is the difference between a torn edge and a wavy line.
-	thr += (n1(vec2(qc.x * 1.10, qc.y * 5.20) + vec2(67.0, 199.0)) - 0.5) * 0.085 * detail;
+		+ (n1(vec2(qc.x * 1.10, qc.y * 5.20) + vec2(67.0, 199.0)) - 0.5) * 0.085 * detail)
+		* near_edge;
 	// AND THE EDGE IS AN EDGE. At +/-0.055 of the height field the crust faded
 	// over about five screen pixels, which is a soft boundary, and a plain whose
 	// every boundary is soft is the "one large soft cloud-noise field" the frame
 	// keeps being called. Half that, so the snow line lands in two pixels and
 	// the eye has something to catch on.
-	float cover = smoothstep(thr - 0.026, thr + 0.026, h);
+	float cover = smoothstep(thr - 0.016, thr + 0.016, h);
 	cover *= smoothstep(0.0, 0.04, lying);
 	// Warmth breaks the crust, and feet break it faster.
 	float melt = smoothstep(0.30, 0.70, heat);
@@ -441,7 +514,15 @@ void fragment() {
 	// snowpack is DARK: it is the shadowed pack under the drift, not another
 	// shade of the drift. At 0.30 against 0.62-0.85 a crust edge is finally a
 	// step you can see across a room.
-	vec3 scoured = mix(low * 0.62, base * 0.82, 0.10 + 0.32 * strat);
+	// ...AND THEN NOT SO DARK THAT THE PLAIN IS A PHOTOCOPY. `low * 0.62` puts
+	// open snow's scour at 0.31 luminance against a crust at 0.80 — one and a
+	// half stops, which was the right call when the scour was four fifths of the
+	// picture and the wrong one now the bar above has put it back to a third of
+	// it. Wind-stripped snowpack is not rock: it is the shadowed pack UNDER the
+	// drift, a stop below it, not a hole in it. At 0.50 against 0.80 a crust edge
+	// is still a step the eye catches across a room, and the plain stops reading
+	// as a black-and-white jigsaw at play zoom.
+	vec3 scoured = mix(low * 1.00, base * 1.02, 0.18 + 0.42 * strat);
 	vec3 albedo = mix(rocky, scoured, windy);
 	// Fracture lines. Two contour sets at right angles read as a broken shelf.
 	float crack = max(
@@ -578,10 +659,20 @@ void fragment() {
 	// surface. Four extra fetches; this is the difference between "the frame has
 	// been tinted" and "a low sun is crossing a snowfield".
 	float relief = mix(prm.a, 1.15, cover * 0.7) * (1.0 - worn * 0.6);
-	float e = 0.42;
+	// THE STEP AND THE AMPLITUDE ARE THE OTHER HALF OF THE SAME DEFECT. A step of
+	// 0.42 tiles samples the field at 13 screen pixels and an amplitude of 7.5
+	// turns a height difference of 0.1 into a 37-degree face, so every ripple in
+	// the field became a full swing of the lambert and the plain came out with
+	// more local contrast in it than the buildings standing on it. That is the
+	// literal mechanism behind "the city does not occupy the screen": the ground
+	// was the loudest thing in the frame and it had nothing to say. A wider step
+	// reads the drift instead of the ripple, and a gentler amplitude puts the
+	// plain back where a plain belongs — quiet, with the contrast spent on the
+	// crust edges, the lee shadows, the rock and the city.
+	float e = 0.70;
 	float hx = drift(t + vec2(e, 0.0), 0.0) - drift(t - vec2(e, 0.0), 0.0);
 	float hy = drift(t + vec2(0.0, e), 0.0) - drift(t - vec2(0.0, e), 0.0);
-	float amp = 7.5 * relief * (0.55 + 0.45 * detail);
+	float amp = 4.6 * relief * (0.55 + 0.45 * detail);
 	vec3 N = normalize(vec3(-hx * amp, -hy * amp, 1.0));
 
 	// Only lightly wrapped. A fully wrapped term (dot*0.5+0.5) hands flat ground
@@ -682,6 +773,35 @@ void fragment() {
 	float sp = n1(t * 17.0 + vec2(time_s * 0.05, 0.0));
 	col += vec3(1.0, 1.0, 1.05) * step(0.9905, sp) * cover * crest * prm.b * detail
 		* (1.0 - worn) * (0.15 + daylight * 1.05) * (1.0 - clamp(storm * 0.85, 0.0, 1.0));
+
+	// ---- the highlight shoulder ----------------------------------------------
+	// A SNOWFIELD AT NOON IS THE ONE SURFACE IN THIS GAME THAT CAN CLIP, AND IT
+	// WAS CLIPPING OVER MOST OF THE FRAME. With a key of 1.4 and a fill of 0.8
+	// the crust receives `light` of about 1.7, so the whole of the daylit plain
+	// arrived above 1.0 and was flattened to paper by the framebuffer: `frame_lab`
+	// graded midday_play at 0.751 mean and called it a white field, and every
+	// crest, lip and comb this shader draws into the top of the range was being
+	// drawn into the clip and thrown away. That is why five rounds of "no drift
+	// structure at play zoom" survived a shader with three ranks of drift in it —
+	// half the day, the structure was there and the monitor could not show it.
+	//
+	// The obvious fix is to turn the day down, and it is the wrong one: the arc
+	// from noon to midnight is what this game is about, `run_ground_frame` grades
+	// it as a SEPARATION between the darkest tenth of the day and the brightest
+	// tenth of the night, and darkening the day closes it from the wrong end.
+	//
+	// So the top of the range gets a shoulder instead of a wall. Everything below
+	// SHOULDER is untouched — the mid-tones, the night, the whole of the arc —
+	// and everything above it is compressed onto an asymptote at 1.0, so a lit
+	// crest is still the brightest thing on the plain and still has a value
+	// ABOVE the crust beside it instead of being the same white. Applied to
+	// luminance and scaled back onto the colour so the shoulder cannot shift a
+	// hue, which a per-channel curve would.
+	const float SHOULDER = 0.60;
+	float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+	float over = max(lum - SHOULDER, 0.0);
+	float rolled = lum - over + over / (1.0 + over / (1.0 - SHOULDER));
+	col *= rolled / max(lum, 0.0001);
 
 	// Off the edge of the world.
 	vec2 d = max(vec2(0.0) - muv, muv - vec2(1.0));

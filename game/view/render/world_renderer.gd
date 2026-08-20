@@ -398,13 +398,22 @@ func _log_frame_cost() -> void:
 	# population went. A run whose wear stays at 0.0000 while agents walk is a
 	# run where the city is not writing on the world, and that is invisible in a
 	# single screenshot and obvious in the log.
-	Log.info("render", "frame %.2f ms | ground %.2f (field %d KB, detail %.2f) | collect %.2f | draw %.2f | lights %.2f | %d bld %d scenery %d agents %d tracks %d lights | wear %.5f over %d footfalls | %d draw calls" % [
+	# `agents` IS A FRACTION, AND THAT IS THE POINT. It shipped as one number —
+	# how many figures the entity pass drew — and one number cannot tell a camera
+	# looking away from the crowd apart from a city with nobody in it. Every
+	# `render: frame` line in `artifacts/CRIT/log.txt` reads `0 agents`,
+	# `2 agents`, `9 agents` against a population the citizens system logs at 48,
+	# and there was no way to see from the log which half of that was happening.
+	# It is now drawn/total, so a run states its own answer: 9/48 is a cull,
+	# 9/9 is a crowd that is not being supplied.
+	Log.info("render", "frame %.2f ms | ground %.2f (field %d KB, detail %.2f) | collect %.2f | draw %.2f | lights %.2f | %d bld %d scenery %d/%d agents %d tracks %d lights | wear %.5f over %d footfalls | %d draw calls" % [
 		_frame_us_avg / 1000.0,
 		float(_ground_us) / 1000.0, int(ts["field_kb"]), float(ts["detail"]),
 		float(es["collect_us"]) / 1000.0,
 		float(es["draw_us"]) / 1000.0,
 		float(_light_us) / 1000.0,
 		int(es["visible_buildings"]), int(es["scenery"]), int(es["visible_agents"]),
+		model.agent_count(),
 		int(es["tracks_drawn"]), lights.active_lights(),
 		float(ts.get("wear_mean", 0.0)), int(ts.get("wear_stamps", 0)),
 		int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
