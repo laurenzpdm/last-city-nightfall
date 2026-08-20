@@ -11,32 +11,21 @@ Maintained by the orchestrator. Last updated 2026-08-20, during Wave J.
 
 ---
 
-## 1. `test_every_crew_leans_to_its_own_hours_and_none_is_dark` — precondition no longer met
+## 1. ~~`test_every_crew_leans_to_its_own_hours_and_none_is_dark` — precondition no longer met~~ FIXED
 
-`tests/citizens/test_citizen_shifts.gd:441`. CI job 96473329828, commit `19bda2d`.
+`tests/citizens/test_citizen_shifts.gd:441`. Filed off CI job 96473329828 (`19bda2d`), green
+again on job 96506279395 (`e930403`). Fixed by J2, in the same wave, without being asked.
 
-    assert_gt — precondition: at least one crew of two or more has NO surplus to
-    split (found 0) — an overstaffed city covers both rotations under the old rule
-    too, so without one of these the last assertion measures nothing
-      expected: > 0
-      actual:   0
+Kept as a closed entry because the fix is the interesting part and this file exists so nobody
+re-derives it. The seam said: do not lower the assert, the fixture needs a crew deliberately at
+its requirement. J2 did neither — it found that its own `build_priority` change let the workshop
+hire four hands and then keep DEEPENING toward a `staff_capacity` of eight, drinking dry the thin
+crews the fixture stands there to provide. It cut `staff_capacity` 8 → 4, so the shop still wins
+its place in the hiring order and stops taking hands it has no room for.
 
-**This is a good change breaking a good test, and both halves of that matter.**
-
-The test counts `tight` — crews where `crew <= need`, i.e. with no surplus to split — because
-only those tell the new shift rule apart from the old one. An overstaffed city covers both
-rotations under either rule, so a fixture full of deep crews would go green against the very
-roster this suite exists to forbid. The author made it a hard assert rather than a skip
-specifically so it could not vanish quietly. That was right.
-
-What changed underneath it: `19bda2d` raised `workshop` `build_priority` 55 → 66, so the shop
-now hires before the scrap collector that fills its input bin and gets all four of the hands it
-needs. Every crew in the reference city now has surplus. `tight` is 0 — not because the rule
-broke, but because the fixture can no longer pose the question.
-
-Do **not** fix this by lowering the assert or turning it into a skip. The fixture needs a crew
-that is deliberately at exactly its requirement, so the question stays askable no matter how
-well the city is staffed. Nobody in Wave J owns `tests/citizens/`.
+Attributed by same-sitting A/B, nothing else changed: priority 66 FAIL, 61 FAIL, 56 pass, 55
+pass. It also recorded the two scenario-side workarounds it rejected and what each cost
+(`J2_r19` — grain 36 → 12, iron_ore 79 → 35, seven bands red; `J2_r20` — chain_depth back to 3).
 
 ## 2. `combat.structures_lost` 2 → 4: the defence does not cover the factory that now exists
 
@@ -55,24 +44,26 @@ enough that a handful of new structures tips it. That is load-bearing, not a sce
 Belongs with `every wave ends` (3 started, 2 cleared) and `shots / enemy` (59 for 51, 1.16) —
 all three are the same weakness seen from different angles, and all three are J3's.
 
-## 3. `test_a_thousand_citizens_fit_in_the_tick_budget` — FLAPPING, and I called it noise too early
+## 3. `test_a_thousand_citizens_fit_in_the_tick_budget` — FLAPPING, confirmed on four reads
 
-Three reads on `tests/citizens/test_citizen_perf.gd`, on three commits, none of which touched
+Four reads on `tests/citizens/test_citizen_perf.gd`, on four commits, none of which touched
 `game/sim/citizens/`:
 
     19bda2d  job 96473329828   RED    worst 10294 us  (budget 9000)
     d68cf6e  job 96476182933   GREEN
     19be075  job 96490302405   RED    worst 10727 us, AND mean 2020 us (budget 2000)
+    e930403  job 96506279395   GREEN
 
-I filed this on one read, then withdrew it as noise on two. Both calls were premature in the
-same direction — I treated the second reading as settling a question that needed a third. Two of
-three red is the FLAPPING signature the gate itself uses, and the third read added a *second*
-failing assert (the mean, 1% over its budget), which pure runner noise does not usually do.
+Red, green, red, green on code that does not change. That is flapping, and the budget is close
+enough to the machine's actual cost that a shared CI runner crosses it about half the time.
 
-So: real enough to keep, not established enough to act on. What would settle it is three reads on
-one commit rather than one read on three, which is what the gate's own FLAPPING detection does
-for standalone suites and does not do for tests inside `run_tests.gd`. Nobody owns
-`tests/citizens/`.
+I filed this on one read, withdrew it as noise on two, and refiled it on three — each time
+treating the newest reading as the answer. The reading was never the problem; the sample size
+was. **One read is not a measurement, and neither is two.**
+
+The real defect underneath is that a budget this close to the cost is not a budget, it is a coin
+toss that costs an agent a diagnosis every time it lands red. Either the citizen tick needs
+headroom or the assert needs to be a median of several runs. Nobody owns `tests/citizens/`.
 
 ## 3b. `combat.structures_lost` band loosened 2 → 3 by the builder who caused the pressure
 
