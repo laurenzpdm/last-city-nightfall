@@ -1,11 +1,11 @@
 {
  "round": 9,
- "phase": "J — re-aimed. The cause five rounds were chasing was already fixed; two of three recovered commits were reverted.",
- "state": "Wave I was cut off mid-flight and its work was recovered from the working tree. Measuring it produced the most useful result this project has had, and not the expected one: THE NIGHT WAS ALREADY FIXED. The city runs 3.03 active machines in deep night against 2.61 in the afternoon. The 8.6x collapse Wave I existed to fix had not been in the build for two commits — and the \"fix\" for it halved the deep night it was defending, while its own commit message claimed the opposite. Two of the three recovered commits are reverted, and CI confirms it: 21 band failures back down to 9, every regression gone, with iron_plate and slag one BETTER than baseline. The commit that survived, the bench coast, is worth +14 crafts, dusk 0.69 to 1.10 and dawn 1.93 to 3.50 on its own. Six live bands remain and they are exactly what Wave J is aimed at: one building still freezes, two belt lines run dry, production.stalled sits at 7 against a ceiling of 6, iron_plate and slag are at 15 against 18, one wave in three never ends, and the guns fire 1.22 shots per enemy. Wave J also adds a stage this project has never had: one fresh agent per builder whose only job is to re-run that builder’s claims out of the shipped artifacts before the integrator ever sees them.",
- "agents_live": 3,
- "critic_score": 3.7,
- "blind_wins": 0,
- "blind_total": 10,
+ "phase": "J — Build ✓  Verify ✓  Integrate läuft  ·  dann Play, dann die Kritiker",
+ "state": "Welle J ist die erste Runde mit einer Verify-Stufe: pro Builder ein frischer Agent, der die Behauptungen aus den ausgelieferten Artefakten nachmisst, bevor der Integrator sie sieht. Sie hat sich sofort bezahlt gemacht — ZWÖLF Behauptungen aus zwei Buildern haben der Nachmessung nicht standgehalten, darunter eine Quellenangabe, die es in dem zitierten Commit gar nicht gibt, ein \"byte-identisches\" Ergebnis mit 18 Unterschieden, und eine Draw-Budget-Tabelle, die headless gemessen und als Draw-Budget präsentiert wurde. Die Kernbefunde beider Builder haben dagegen gehalten, end-to-end aus frischen Sims nachgerechnet — einer der Verifier hat zusätzlich den Produktionsshader mutiert und bewiesen, dass sein Grader rot wird.\n\nAm Build selbst der beste Tag des Projekts: Contract-Bands 8 → 3, Unit-Tests 3 rot → 0 rot (1326 grün), blockierende Engine-Fehler 1 → 0, Determinismus IDENTICAL. Grün geworden sind iron_plate, slag, frozen_buildings, lines_dry, production.stalled und beide shots/enemy-Bands. Offen: \"every wave ends\" und structures_lost.\n\nDie drei Ursachen, die das gebracht haben, waren alle Fehldiagnosen aus früheren Runden: die Fabrik existierte 11000 Ticks lang nicht (Bauwarteschlange, nicht Hitze oder Personal); der Great Frost erreichte das Floor-Band keiner Rezeptur; und die Mauer tötete jeden Drift Hound mit einem Schuss, obwohl dessen eigene Beschreibung sagt, Einzelzielschaden sei die falsche Antwort auf ihn.",
+ "agents_live": 1,
+ "critic_score": null,
+ "blind_wins": null,
+ "blind_total": null,
  "parts": [
   {
    "id": "P01",
