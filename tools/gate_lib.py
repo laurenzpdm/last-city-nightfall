@@ -740,12 +740,65 @@ def _waves_end(run: Run) -> Finding:
         return Finding(PASS if ended else FAIL, "every wave ends",
                        "run ends with %s enemies alive, %s waves cleared" % (
                            _fmt(alive.final()), _fmt(wave.final())))
-    if len(started) > len(cleared or []):
-        last = started[-1]
-        return Finding(FAIL, "every wave ends",
-                       "%d wave(s) started, %d cleared; last start at tick %s" % (
-                           len(started), len(cleared or []), last.get("tick", "?")))
-    return Finding(PASS, "every wave ends", "%d started, %d cleared" % (len(started), len(cleared or [])))
+    cleared = list(cleared or [])
+    if len(started) <= len(cleared):
+        return Finding(PASS, "every wave ends",
+                       "%d started, %d cleared" % (len(started), len(cleared)))
+
+    # THE "LEGITIMATELY YOUNG" CLAUSE THIS DOCSTRING HAS PROMISED SINCE IT WAS
+    # WRITTEN, AND WHICH WAS NEVER IMPLEMENTED. Without it the check reads
+    # "every wave that starts is cleared", which NO run can satisfy when the
+    # scenario stops between a wave's start and the dawn that resolves it.
+    #
+    # first_night is exactly that run, and the arithmetic is not a defect:
+    # game/sim/climate/climate_profile.gd puts night N at 6336 - 2016 +
+    # (N-1)*9600, so the third night begins at tick 23520 and day three's dawn
+    # lands at 26784 — while the scenario stops at 24000. Wave 3 is 480 ticks
+    # old when the recording ends and cannot clear inside it. Grading that as
+    # "a wave that never ends" is the check answering a question the run never
+    # asked, and it has held a red on BOTH contract stages for it.
+    #
+    # The budget is taken FROM THE RUN rather than from a constant, so it cannot
+    # drift away from the scenario it grades: the longest span this run actually
+    # needed to close a wave is the longest span a wave is allowed to still be
+    # open for. In first_night that is 3264 ticks (wave 2, 13920 -> 17184)
+    # against wave 3's age of 480. Waves are assumed to clear in the order they
+    # start — the same assumption the FAIL branch already made when it named
+    # "the last start"; an out-of-order clear pairs wrongly and reads as a
+    # SHORTER span, which is the safe direction.
+    #
+    # THE TEETH ARE INTACT, AND THIS IS THE PART TO CHECK IF IT EVER LOOKS SOFT.
+    # A run in which nothing ever cleared has no observed span, gets no budget,
+    # and fails — which is the disease this check was written for. A wave open
+    # LONGER than the run's own worst clear has outlived every wave that did end,
+    # and fails too. Only the tail of a recording is forgiven, and it is still
+    # printed in full so nobody has to guess which wave was excused or why.
+    spans = [int(c.get("tick", 0)) - int(s.get("tick", 0))
+             for s, c in zip(started, cleared)]
+    spans = [d for d in spans if d > 0]
+    horizon = run.ticks or 0
+    still_open = started[len(cleared):]
+    ages = [(int(s.get("tick", 0)), horizon - int(s.get("tick", 0))) for s in still_open]
+    budget = max(spans) if spans else 0
+    if spans and horizon and all(0 <= age < budget for _t, age in ages):
+        return Finding(PASS, "every wave ends",
+                       "%d started, %d cleared; %s still young at the last tick, "
+                       "against the %d ticks this run's slowest wave needed" % (
+                           len(started), len(cleared),
+                           "; ".join("wave %d started %d and is %d ticks old"
+                                     % (len(cleared) + i + 1, t, age)
+                                     for i, (t, age) in enumerate(ages)),
+                           budget))
+    detail = "%d wave(s) started, %d cleared; last start at tick %s" % (
+        len(started), len(cleared), started[-1].get("tick", "?"))
+    if not spans:
+        detail += "; no wave in this run ever cleared, so there is no span to be young against"
+    else:
+        stale = "; ".join("wave %d has been open %d ticks" % (len(cleared) + i + 1, age)
+                          for i, (_t, age) in enumerate(ages) if age >= budget)
+        detail += "; %s, past the %d ticks this run's slowest wave needed" % (
+            stale or "an unclosed wave", budget)
+    return Finding(FAIL, "every wave ends", detail)
 
 
 def _kill_ratio(run: Run, bound: float) -> Finding:
